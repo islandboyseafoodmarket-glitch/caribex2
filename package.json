@@ -22,7 +22,7 @@
     "react-i18next": "^16.5.4"
   },
   "engines": {
-    "node": "20.x"
+    "node": "24.x"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
