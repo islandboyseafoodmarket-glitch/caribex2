@@ -17,10 +17,10 @@ export function InicioSection({
     <section className="inicio-section page-section">
       <div className="inicio-container">
         <header className="inicio-section-header">
-          <h1>{isEn ? "Our services" : "Nuestros servicios"}</h1>
+          <h1>{isEn ? "Our Services" : "Nuestros servicios"}</h1>
           <p>
             {isEn
-              ? "Comprehensive logistics solutions tailored to your needs"
+              ? "Comprehensive Logistics Solutions Tailored To Your Needs"
               : "Soluciones logísticas integrales adaptadas a sus necesidades"}
           </p>
         </header>
@@ -34,7 +34,7 @@ export function InicioSection({
               <>
                 <h3>Full Container Load (FCL)</h3>
                 <p>
-                  Rent a full container for your shipment. Ideal for large cargo volumes.
+                  Rent A Full Container For Your Shipment. Ideal For Large Cargo Volumes.
                 </p>
               </>
             ) : (
@@ -55,7 +55,7 @@ export function InicioSection({
               <>
                 <h3>Less than Container Load (LCL)</h3>
                 <p>
-                  Share container space with other shipments. Only pay for what you use.
+                  Share Container Space With Other Shipments. Only Pay For What You Use.
                 </p>
               </>
             ) : (
@@ -74,9 +74,9 @@ export function InicioSection({
             </div>
             {isEn ? (
               <>
-                <h3>Storage and warehousing</h3>
+                <h3>Storage And Warehousing</h3>
                 <p>
-                  Secure facilities in Honduran ports with professional inventory management.
+                  Secure Facilities In Honduran Ports With Professional Inventory Management.
                 </p>
               </>
             ) : (
@@ -95,9 +95,9 @@ export function InicioSection({
             </div>
             {isEn ? (
               <>
-                <h3>Freight transportation</h3>
+                <h3>Freight Transportation</h3>
                 <p>
-                  Complete documentation, customs procedures and home delivery.
+                  Complete Documentation, Customs Procedures And Home Delivery.
                 </p>
               </>
             ) : (
@@ -115,7 +115,7 @@ export function InicioSection({
           <h2>{isEn ? "How It Works" : "¿Cómo funciona?"}</h2>
           <p>
             {isEn
-              ? "Five simple steps to get your cargo to Honduras"
+              ? "Five Simple Steps To Get Your Cargo To Honduras"
               : "Cinco pasos sencillos para llevar su carga a Honduras"}
           </p>
         </header>
@@ -126,7 +126,7 @@ export function InicioSection({
             <h3>{isEn ? "Create Your Free Account" : "Cree su cuenta gratuita"}</h3>
             <p>
               {isEn
-                ? "Set up your shipping profile and gain access to your personalized portal."
+                ? "Set Up Your Shipping Profile And Gain Access To Your Personalized Portal."
                 : "Configure su perfil de envío y obtenga acceso a su portal personalizado."}
             </p>
             <Link
@@ -140,7 +140,7 @@ export function InicioSection({
 
           <div className="inicio-card">
             <div className="inicio-icon-box inicio-bg-blue">2</div>
-            <h3>{isEn ? "Ship to Our Florida Warehouse" : "Envíe a nuestro almacén en Florida"}</h3>
+            <h3>{isEn ? "Ship To Our Florida Warehouse" : "Envíe a nuestro almacén en Florida"}</h3>
             <p style={{ fontSize: "0.85rem", lineHeight: "1.4" }}>
               <strong>Your Name</strong>
               <br />
@@ -155,7 +155,7 @@ export function InicioSection({
             <h3>{isEn ? "Real-Time Arrival & Scanning" : "Recepción y escaneo en tiempo real"}</h3>
             <p>
               {isEn
-                ? "We scan your package into your portal so you can track it through all stages."
+                ? "We Scan Your Package Into Your Portal So You Can Track It Through All Stages."
                 : "Escaneamos su paquete en su portal para que pueda rastrearlo en todas las etapas."}
             </p>
           </div>
@@ -165,7 +165,7 @@ export function InicioSection({
             <h3>{isEn ? "Expert Customs Management" : "Gestión experta de aduanas"}</h3>
             <p>
               {isEn
-                ? "We handle all necessary documentation and port clearances for you."
+                ? "We Handle All Necessary Documentation And Port Clearances For You."
                 : "Nos encargamos de toda la documentación necesaria y los despachos portuarios por usted."}
             </p>
           </div>
@@ -175,7 +175,7 @@ export function InicioSection({
             <h3>{isEn ? "Final Notification & Collection" : "Notificación final y recolección"}</h3>
             <p>
               {isEn
-                ? "We notify you when your parcels are ready for pickup at your chosen port."
+                ? "We Notify You When Your Parcels Are Ready For Pickup At Your Chosen Port."
                 : "Le notificamos cuando sus paquetes estén listos para recoger en el puerto elegido."}
             </p>
           </div>
@@ -184,12 +184,12 @@ export function InicioSection({
         <header className="inicio-section-header">
           <h2>
             {isEn
-              ? "Our service locations"
+              ? "Our Service Locations"
               : "Nuestras ubicaciones de servicio"}
           </h2>
           <p>
             {isEn
-              ? "Strategic ports in Honduras for efficient ocean transport"
+              ? "Strategic Ports In Honduras For Efficient Ocean Transport"
               : "Puertos estratégicos en Honduras para un transporte marítimo eficiente"}
           </p>
         </header>
@@ -203,7 +203,7 @@ export function InicioSection({
               <h4>Roatán</h4>
               <p>
                 {isEn
-                  ? "Caribbean hub with modern facilities"
+                  ? "Caribbean Hub With Modern Facilities"
                   : "Centro caribeño con instalaciones modernas"}
               </p>
             </div>
@@ -217,7 +217,7 @@ export function InicioSection({
               <h4>La Ceiba</h4>
               <p>
                 {isEn
-                  ? "Key port on the north coast"
+                  ? "Key Port On The North Coast"
                   : "Puerto importante en la costa norte"}
               </p>
             </div>
@@ -231,7 +231,7 @@ export function InicioSection({
               <h4>Trujillo</h4>
               <p>
                 {isEn
-                  ? "Historic port with growing capacity"
+                  ? "Historic Port With Growing Capacity"
                   : "Puerto histórico con capacidad creciente"}
               </p>
             </div>
@@ -245,7 +245,7 @@ export function InicioSection({
               <h4>San Pedro Sula</h4>
               <p>
                 {isEn
-                  ? "The largest urban logistics center in the interior"
+                  ? "The Largest Urban Logistics Center In The Interior"
                   : "El mayor centro logístico urbano del interior"}
               </p>
             </div>
@@ -259,7 +259,7 @@ export function InicioSection({
               <h4>Tegucigalpa</h4>
               <p>
                 {isEn
-                  ? "Distribution center for the capital city"
+                  ? "Distribution Center For The Capital City"
                   : "Centro de distribución de la ciudad capital"}
               </p>
             </div>
@@ -273,7 +273,7 @@ export function InicioSection({
               <h4>Guanaja</h4>
               <p>
                 {isEn
-                  ? "Island port for Caribbean routes"
+                  ? "Island Port For Caribbean Routes"
                   : "Puerto insular para rutas del Caribe"}
               </p>
             </div>
@@ -287,7 +287,7 @@ export function InicioSection({
               <h4>Utila</h4>
               <p>
                 {isEn
-                  ? "Secondary gateway to the Caribbean"
+                  ? "Secondary Gateway To The Caribbean"
                   : "Puerta de entrada secundaria al Caribe"}
               </p>
             </div>
@@ -297,12 +297,12 @@ export function InicioSection({
         <header className="inicio-section-header">
           <h2>
             {isEn
-              ? "Why choose Caribex Logistics Group?"
+              ? "Why Choose Caribex Logistics Group?"
               : "¿Por qué elegir Caribex Logistics Group?"}
           </h2>
           <p>
             {isEn
-              ? "Excellence and commitment in every shipment"
+              ? "Excellence And Commitment In Every Shipment"
               : "Excelencia y compromiso en cada envío"}
           </p>
         </header>
@@ -313,10 +313,10 @@ export function InicioSection({
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
             </div>
             <div className="inicio-benefit-content">
-              <h4>{isEn ? "Competitive pricing" : "Precios competitivos"}</h4>
+              <h4>{isEn ? "Competitive Pricing" : "Precios competitivos"}</h4>
               <p>
                 {isEn
-                  ? "The best rates in the market with transparent pricing and no hidden fees."
+                  ? "The Best Rates In The Market With Transparent Pricing And No Hidden Fees."
                   : "Las mejores tarifas del mercado con una estructura de precios transparente y sin cargos ocultos."}
               </p>
             </div>
@@ -327,10 +327,10 @@ export function InicioSection({
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
             </div>
             <div className="inicio-benefit-content">
-              <h4>{isEn ? "Fast and reliable" : "Rápido y confiable"}</h4>
+              <h4>{isEn ? "Fast And Reliable" : "Rápido y confiable"}</h4>
               <p>
                 {isEn
-                  ? "Quick processing and reliable transit times for your peace of mind."
+                  ? "Quick Processing And Reliable Transit Times For Your Peace Of Mind."
                   : "Procesamiento rápido y tiempos de tránsito confiables para su tranquilidad."}
               </p>
             </div>
@@ -341,10 +341,10 @@ export function InicioSection({
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><path d="M8 12h8"/><path d="M8 16h5"/><path d="M8 8h6"/></svg>
             </div>
             <div className="inicio-benefit-content">
-              <h4>{isEn ? "Expert support" : "Soporte de expertos"}</h4>
+              <h4>{isEn ? "Expert Support" : "Soporte de expertos"}</h4>
               <p>
                 {isEn
-                  ? "Dedicated team available Monday to Friday to assist you with your shipments."
+                  ? "Dedicated Team Available Monday To Friday To Assist You With Your Shipments."
                   : "Equipo dedicado disponible de lunes a viernes para ayudarle con sus envíos."}
               </p>
             </div>
@@ -355,10 +355,10 @@ export function InicioSection({
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h18"/><path d="M5 7l7-4 7 4"/><path d="M5 17l7 4 7-4"/></svg>
             </div>
             <div className="inicio-benefit-content">
-              <h4>{isEn ? "Wide coverage" : "Amplia cobertura"}</h4>
+              <h4>{isEn ? "Wide Coverage" : "Amplia cobertura"}</h4>
               <p>
                 {isEn
-                  ? "7 strategic ports in Honduras for maximum flexibility."
+                  ? "7 Strategic Ports In Honduras For Maximum Flexibility."
                   : "7 puertos estratégicos en Honduras para máxima flexibilidad."}
               </p>
             </div>
@@ -369,10 +369,10 @@ export function InicioSection({
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
             </div>
             <div className="inicio-benefit-content">
-              <h4>{isEn ? "Safe handling" : "Manejo seguro"}</h4>
+              <h4>{isEn ? "Safe Handling" : "Manejo seguro"}</h4>
               <p>
                 {isEn
-                  ? "Professional cargo handling with optional insurance coverage available."
+                  ? "Professional Cargo Handling With Optional Insurance Coverage Available."
                   : "Manipulación profesional de carga con cobertura de seguro opcional disponible."}
               </p>
             </div>
@@ -383,187 +383,90 @@ export function InicioSection({
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73L13 3.18a2 2 0 0 0-2 0L4 6.27A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4.09a2 2 0 0 0 2 0l7-4.09A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/></svg>
             </div>
             <div className="inicio-benefit-content">
-              <h4>{isEn ? "Complete documentation" : "Documentación completa"}</h4>
+              <h4>{isEn ? "Complete Documentation" : "Documentación completa"}</h4>
               <p>
                 {isEn
-                  ? "Comprehensive customs clearance services and documentation included."
+                  ? "Comprehensive Customs Clearance Services And Documentation Included."
                   : "Servicios completos de despacho de aduanas y documentación incluidos."}
               </p>
             </div>
           </div>
         </div>
 
-        <section className="inicio-pricing-section" style={{ marginTop: "3rem" }}>
-          <header className="inicio-section-header" style={{ marginBottom: "1.5rem" }}>
-            <h2>
-              {isEn
-                ? "Special rates"
-                : "Tarifas especiales"}
-            </h2>
-            <p>
-              {isEn
-                ? "Flat rates for appliances, containers and electrical materials"
-                : "Precios planos para electrodomésticos, contenedores y materiales eléctricos"}
-            </p>
-          </header>
+        <header className="inicio-section-header">
+          <h2>
+            {isEn
+              ? "Special Programs For Businesses And Retailers"
+              : "Programas especiales para empresas y minoristas"}
+          </h2>
+          <p>
+            {isEn
+              ? "Professional Shipping Solutions And Added-Value Services Designed To Help Your Business Grow."
+              : "Soluciones profesionales de envío y servicios de valor agregado diseñados para ayudar a crecer su negocio."}
+          </p>
+        </header>
 
-          <div style={{ marginBottom: "2rem" }}>
-            <h3
-              style={{
-                fontSize: "1.1rem",
-                fontWeight: 600,
-                marginBottom: "0.75rem",
-              }}
-            >
-              {isEn
-                ? "Large Appliance Shipping"
-                : "Línea Blanca / Large Appliance Shipping"}
-            </h3>
-
-            <div
-              style={{
-                display: "flex",
-                flexWrap: "wrap",
-                gap: "0.75rem",
-              }}
-            >
-              <div className="inicio-price-pill">
-                <span>
-                  {isEn
-                    ? "Washer / Dryers / Stoves"
-                    : "Washer / Dryers / Stoves"}
-                </span>
-                <strong>$350.00</strong>
-              </div>
-              <div className="inicio-price-pill">
-                <span>
-                  {isEn
-                    ? "Standard refrigerators"
-                    : "Standard refrigerators"}
-                </span>
-                <strong>$425.00</strong>
-              </div>
-              <div className="inicio-price-pill">
-                <span>
-                  {isEn
-                    ? "Dishwashers"
-                    : "Dishwashers"}
-                </span>
-                <strong>$295.00</strong>
-              </div>
+        <div className="inicio-benefits-grid">
+          <div className="inicio-benefit-item">
+            <div className="inicio-benefit-icon inicio-bg-blue">
+              <i className="fas fa-store" />
+            </div>
+            <div className="inicio-benefit-content">
+              <h4>
+                {isEn
+                  ? "Business And Retailer Rates"
+                  : "Tarifas para empresas y minoristas"}
+              </h4>
+              <p>
+                {isEn
+                  ? "Ask About Special Rates For Recurring Shipments, Retail Orders, And Commercial Cargo."
+                  : "Consulte nuestras tarifas especiales para envíos recurrentes, pedidos minoristas y carga comercial."}
+              </p>
             </div>
           </div>
 
-          <div style={{ marginBottom: "2rem" }}>
-            <h3
-              style={{
-                fontSize: "1.1rem",
-                fontWeight: 600,
-                marginBottom: "0.75rem",
-              }}
-            >
-              {isEn
-                ? "Bin & Barrel Pricing"
-                : "Contenedores (Bins) / Bin & Barrel Pricing"}
-            </h3>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-                gap: "0.75rem",
-              }}
-            >
-              {[
-                ["16 gallon bin", "$40.00"],
-                ["17 gallon bin", "$45.00"],
-                ["18 gallon bin", "$47.50"],
-                ["19 gallon bin", "$50.00"],
-                ["20 gallon bin", "$55.00"],
-                ["27 gallon bin", "$90.00"],
-                ["30 gallon bin", "$95.00"],
-                ["38 gallon bin", "$120.00"],
-                ["40 gallon bin", "$128.00"],
-                ["45 gallon bin / barrel", "$132.00"],
-                ["50 gallon bin", "$140.00"],
-                ["55 gallon bin", "$150.00"],
-                ["60 gallon bin", "$160.00"],
-                ["65 gallon bin", "$165.00"],
-                ["70 gallon bin", "$170.00"],
-                ["77 gallon bin", "$180.00"],
-              ].map(([label, price]) => (
-
-                <div key={label} className="inicio-price-pill">
-                  <span>{label}</span>
-                  <strong>{price}</strong>
-                </div>
-              ))}
+          <div className="inicio-benefit-item">
+            <div className="inicio-benefit-icon inicio-bg-emerald">
+              <i className="fas fa-percent" />
+            </div>
+            <div className="inicio-benefit-content">
+              <h4>
+                {isEn ? "10% Off Your First Shipment" : "10% de descuento en su primer envío"}
+              </h4>
+              <p>
+                {isEn
+                  ? "Create Your Free Account And Receive 10% Off Your First Shipment With Caribex."
+                  : "Cree su cuenta gratuita y reciba un 10% de descuento en su primer envío con Caribex."}
+              </p>
             </div>
           </div>
 
-          <div>
-            <h3
-              style={{
-                fontSize: "1.1rem",
-                fontWeight: 600,
-                marginBottom: "0.75rem",
-              }}
-            >
-              {isEn
-                ? "Electrical Wire (250 ft spools)"
-                : "Cables y Materiales / Electrical Wire (250 ft spools)"}
-            </h3>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-                gap: "0.75rem",
-              }}
-            >
-              <div className="inicio-price-pill">
-                <span>
-                  {isEn
-                    ? "250 ft – 14/2 Wire"
-                    : "250 ft – 14/2 Wire"}
-                </span>
-                <strong>$30.00</strong>
-              </div>
-              <div className="inicio-price-pill">
-                <span>
-                  {isEn
-                    ? "250 ft – 12/2 Wire"
-                    : "250 ft – 12/2 Wire"}
-                </span>
-                <strong>$30.00</strong>
-              </div>
-              <div className="inicio-price-pill">
-                <span>
-                  {isEn
-                    ? "250 ft – 14/3 Wire"
-                    : "250 ft – 14/3 Wire"}
-                </span>
-                <strong>$30.00</strong>
-              </div>
-              <div className="inicio-price-pill">
-                <span>
-                  {isEn
-                    ? "250 ft – 10/2 Wire"
-                    : "250 ft – 10/2 Wire"}
-                </span>
-                <strong>$35.00</strong>
-              </div>
+          <div className="inicio-benefit-item">
+            <div className="inicio-benefit-icon inicio-bg-violet">
+              <i className="fas fa-shopping-cart" />
+            </div>
+            <div className="inicio-benefit-content">
+              <h4>
+                {isEn ? "Personal Shopper Service" : "Servicio de comprador personal"}
+              </h4>
+              <p>
+                {isEn
+                  ? "Need Help Purchasing? You Pay The Store Price Plus An Additional 25% Of The Combined Purchase And Shipping Total."
+                  : "¿Necesita ayuda con su compra? Paga el precio de la tienda más un 25% adicional del total combinado de la compra y el envío."}
+              </p>
             </div>
           </div>
-        </section>
+        </div>
 
         <section className="inicio-cta-banner">
           <h2>
             {isEn
-              ? "Ready to ship with us?"
+              ? "Ready To Ship With Us?"
               : "¿Listo para enviar con nosotros?"}
           </h2>
           <p>
             {isEn
-              ? "Start today with Caribex Logistics Group. We are here to help you with FCL, LCL and warehousing services."
+              ? "Start Today With Caribex Logistics Group. We Are Here To Help You With FCL, LCL And Warehousing Services."
               : "Empiece hoy mismo con Caribex Logistics Group. Estamos aquí para ayudarle con sus servicios de FCL, LCL y almacenamiento."}
           </p>
 
@@ -575,7 +478,7 @@ export function InicioSection({
                 if (onRequestLclQuote) onRequestLclQuote();
               }}
             >
-              {isEn ? "Request a quote" : "Solicitar una cotización"}
+              {isEn ? "Request A Quote" : "Solicitar una cotización"}
             </button>
           </div>
         </section>
