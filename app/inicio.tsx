@@ -1,4 +1,5 @@
 import React from "react";
+import Link from "next/link";
 import { useTranslation } from "react-i18next";
 
 /**
@@ -122,7 +123,9 @@ export function InicioSection({
         <div className="inicio-services-grid">
           <div className="inicio-card">
             <div className="inicio-icon-box inicio-bg-emerald">1</div>
-            <h3>{isEn ? "Create Your Free Account Now" : "Cree su cuenta gratuita ahora"}</h3>
+            <Link href="/registro-cliente" className="nav-btn">
+              {isEn ? "Create Your Free Account" : "Cree su cuenta gratuita"}
+            </Link>
             <p>
               {isEn
                 ? "Set up your shipping profile and gain access to your personalized portal."
