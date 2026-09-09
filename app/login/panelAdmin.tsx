@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "../../lib/supabaseClient";
 import { BrowserMultiFormatReader } from "@zxing/browser";
 import { Pencil, Trash2, Unlock, LogOut, Image as ImageIcon, Check, AlertCircle, Send, DollarSign } from "lucide-react";
+import FerryManifestAdmin from "./FerryManifestAdmin";
 
 /**
  * DASHBOARD OPERATIVO - VERSIÓN VISUAL PURA
@@ -24,7 +25,7 @@ const NUEVO_CLIENTE_INITIAL = {
 const App = () => {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<
-    'personal' | 'clientes' | 'pedidos' | 'incidencias' | 'facturas'
+    'personal' | 'clientes' | 'pedidos' | 'incidencias' | 'facturas' | 'ferry'
   >('personal');
 
   const [personal, setPersonal] = useState<{ id: string; nombre: string; rol: string }[]>([]);
@@ -1166,6 +1167,13 @@ const App = () => {
         >
           <IconBriefcase /> Facturas <span className="count-badge">{facturasCount}</span>
         </button>
+        <button
+          className={`tab-pill ${activeTab === 'ferry' ? 'active' : ''}`}
+          onClick={() => setActiveTab('ferry')}
+          style={{ minWidth: 170 }}
+        >
+          <IconBriefcase /> Ferry manifests
+        </button>
       </div>
 
       {/* Card de Visualización de Datos */}
@@ -1180,9 +1188,11 @@ const App = () => {
                   ? 'Listado de Clientes'
                   : activeTab === 'pedidos'
                     ? 'Listado de Pedidos'
-                    : activeTab === 'incidencias'
-                      ? 'Paquetes con problemas'
-                      : 'Panel de Facturas'}
+                  : activeTab === 'incidencias'
+                    ? 'Paquetes con problemas'
+                    : activeTab === 'facturas'
+                      ? 'Panel de Facturas'
+                      : 'Ferry manifests'}
             </h3>
             <span>
               {activeTab === 'personal'
@@ -1191,9 +1201,11 @@ const App = () => {
                   ? `${clientes.length} registro${clientes.length === 1 ? '' : 's'} en esta categoría`
                   : activeTab === 'pedidos'
                     ? `${pedidos.length} registro${pedidos.length === 1 ? '' : 's'} en esta categoría`
-                    : activeTab === 'incidencias'
-                      ? `${pedidosConIncidencia.length} registro${pedidosConIncidencia.length === 1 ? '' : 's'} en esta categoría`
-                      : `${facturasCount} registro${facturasCount === 1 ? '' : 's'} en esta categoría`}
+                  : activeTab === 'incidencias'
+                    ? `${pedidosConIncidencia.length} registro${pedidosConIncidencia.length === 1 ? '' : 's'} en esta categoría`
+                    : activeTab === 'facturas'
+                      ? `${facturasCount} registro${facturasCount === 1 ? '' : 's'} en esta categoría`
+                      : 'Create, share, and archive weekly ferry manifests'}
             </span>
           </div>
 
@@ -1241,6 +1253,8 @@ const App = () => {
         </div>
 
         <div className="divider"></div>
+
+        {activeTab === 'ferry' && <FerryManifestAdmin />}
 
         {activeTab === 'personal' && personal.length > 0 && (
           <div style={{ width: '100%', overflowX: 'auto' }}>
