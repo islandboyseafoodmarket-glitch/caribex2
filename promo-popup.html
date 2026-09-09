@@ -1,0 +1,76 @@
+<!-- Caribex promotional popup: place near the end of <body>. -->
+<div
+  class="caribex-popup"
+  id="caribex-promo-popup"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="caribex-popup-title-en"
+  aria-describedby="caribex-popup-description-en"
+>
+  <div class="caribex-popup__overlay" data-popup-close></div>
+
+  <section class="caribex-popup__card" aria-label="Caribex promotion">
+    <button
+      class="caribex-popup__close"
+      type="button"
+      aria-label="Close promotion"
+      data-popup-close
+    >
+      <span aria-hidden="true">&times;</span>
+    </button>
+
+    <!-- English content. Display this block when English is selected. -->
+    <div class="caribex-popup__content" data-popup-language="en">
+      <p class="caribex-popup__eyebrow">Caribex Logistics Group</p>
+      <h2 id="caribex-popup-title-en">Get 10% Off Your First Shipment!</h2>
+      <p id="caribex-popup-description-en">
+        Create your free Caribex account and enjoy reliable shipping solutions
+        for personal, business, and retail shipments.
+      </p>
+
+      <ul class="caribex-popup__benefits">
+        <li>Special rates for businesses and retailers</li>
+        <li>Real-time shipment tracking</li>
+        <li>Professional customs and documentation support</li>
+        <li>Pickup options through strategic ports in Honduras</li>
+        <li>Personal shopper service available</li>
+      </ul>
+
+      <p class="caribex-popup__note">
+        For personal shopper orders, you pay the store price plus an additional
+        <strong>25% of the combined purchase and shipping total</strong>.
+      </p>
+
+      <a class="caribex-popup__button" href="/registro-cliente">
+        Create Your Account
+      </a>
+    </div>
+
+    <!-- Spanish content. Display this block when Spanish is selected. -->
+    <div class="caribex-popup__content" data-popup-language="es" hidden>
+      <p class="caribex-popup__eyebrow">Grupo Logístico Caribex</p>
+      <h2 id="caribex-popup-title-es">¡Obtenga un 10% de Descuento en Su Primer Envío!</h2>
+      <p id="caribex-popup-description-es">
+        Cree su cuenta gratuita de Caribex y disfrute de soluciones confiables
+        para envíos personales, comerciales y minoristas.
+      </p>
+
+      <ul class="caribex-popup__benefits">
+        <li>Tarifas especiales para empresas y minoristas</li>
+        <li>Seguimiento de envíos en tiempo real</li>
+        <li>Apoyo profesional con aduanas y documentación</li>
+        <li>Opciones de recolección en puertos estratégicos de Honduras</li>
+        <li>Servicio de comprador personal disponible</li>
+      </ul>
+
+      <p class="caribex-popup__note">
+        Para las compras con servicio de comprador personal, paga el precio de
+        la tienda más un <strong>25% adicional del total combinado de la compra y el envío</strong>.
+      </p>
+
+      <a class="caribex-popup__button" href="/registro-cliente">
+        Cree Su Cuenta
+      </a>
+    </div>
+  </section>
+</div>

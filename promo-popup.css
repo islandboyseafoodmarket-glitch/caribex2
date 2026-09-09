@@ -1,0 +1,138 @@
+/* Caribex promotional popup styles. No global selectors are used. */
+.caribex-popup {
+  --popup-primary: var(--primary-blue, #00204a);
+  --popup-accent: var(--accent-green, #22c55e);
+  --popup-text: var(--text-dark, #1f2937);
+  --popup-white: var(--white, #ffffff);
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+}
+
+.caribex-popup[hidden] {
+  display: none;
+}
+
+.caribex-popup__overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 32, 74, 0.62);
+  cursor: pointer;
+}
+
+.caribex-popup__card {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 620px);
+  max-height: min(90vh, 760px);
+  overflow-y: auto;
+  padding: clamp(1.5rem, 4vw, 2.75rem);
+  border-radius: 1.5rem;
+  background: var(--popup-white);
+  color: var(--popup-text);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.28);
+}
+
+.caribex-popup__close {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  display: grid;
+  width: 2.25rem;
+  height: 2.25rem;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--popup-primary);
+  font-size: 1.75rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.caribex-popup__close:hover,
+.caribex-popup__close:focus-visible {
+  background: #f1f5f9;
+  outline: 2px solid var(--popup-accent);
+  outline-offset: 2px;
+}
+
+.caribex-popup__content {
+  padding-top: 0.25rem;
+}
+
+.caribex-popup__eyebrow {
+  margin: 0 2rem 0.5rem 0;
+  color: var(--popup-accent);
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.caribex-popup__content h2 {
+  margin: 0 2rem 0.85rem 0;
+  color: var(--popup-primary);
+  font-size: clamp(1.55rem, 4vw, 2.25rem);
+  line-height: 1.12;
+}
+
+.caribex-popup__content p {
+  line-height: 1.55;
+}
+
+.caribex-popup__benefits {
+  display: grid;
+  gap: 0.55rem;
+  margin: 1.15rem 0;
+  padding-left: 1.25rem;
+}
+
+.caribex-popup__benefits li::marker {
+  color: var(--popup-accent);
+}
+
+.caribex-popup__note {
+  margin: 1rem 0 1.5rem;
+  font-size: 0.92rem;
+  color: #475569;
+}
+
+.caribex-popup__button {
+  display: inline-block;
+  padding: 0.8rem 1.35rem;
+  border-radius: 999px;
+  background: var(--popup-accent);
+  color: var(--popup-white);
+  font-weight: 800;
+  text-align: center;
+  text-decoration: none;
+  transition: transform 0.2s ease, filter 0.2s ease;
+}
+
+.caribex-popup__button:hover,
+.caribex-popup__button:focus-visible {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+  outline: 2px solid var(--popup-primary);
+  outline-offset: 3px;
+}
+
+@media (max-width: 480px) {
+  .caribex-popup {
+    padding: 0.65rem;
+  }
+
+  .caribex-popup__card {
+    border-radius: 1.15rem;
+    padding: 1.35rem;
+  }
+
+  .caribex-popup__button {
+    display: block;
+    width: 100%;
+  }
+}
