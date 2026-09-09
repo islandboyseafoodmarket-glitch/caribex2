@@ -96,13 +96,13 @@ const resources = {
         en: "EN",
       },
       home: {
-        badge: "Your cargo, our commitment",
-        titleLine1: "Reliable cargo transport",
-        titleHighlight: "throughout Honduras",
+        badge: "Your Cargo, Our Commitment",
+        titleLine1: "Reliable Cargo Transport",
+        titleHighlight: "Throughout Honduras",
         subtitle:
-          "Connect your business with 7 strategic ports and professional logistics services.",
-        primaryCta: "Get a quote",
-        secondaryCta: "Track your shipment",
+          "Connect Your Business With 7 Strategic Ports And Professional Logistics Services.",
+        primaryCta: "Get A Quote",
+        secondaryCta: "Track Your Shipment",
       },
       calc: {
         title: "Volume Calculator",
