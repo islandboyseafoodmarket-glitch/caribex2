@@ -123,14 +123,19 @@ export function InicioSection({
         <div className="inicio-services-grid">
           <div className="inicio-card">
             <div className="inicio-icon-box inicio-bg-emerald">1</div>
-            <Link href="/registro-cliente" className="nav-btn">
-              {isEn ? "Create Your Free Account" : "Cree su cuenta gratuita"}
-            </Link>
+            <h3>{isEn ? "Create Your Free Account" : "Cree su cuenta gratuita"}</h3>
             <p>
               {isEn
                 ? "Set up your shipping profile and gain access to your personalized portal."
                 : "Configure su perfil de envío y obtenga acceso a su portal personalizado."}
             </p>
+            <Link
+              href="/registro-cliente"
+              className="nav-btn"
+              style={{ display: "inline-block", marginTop: "0.75rem" }}
+            >
+              {isEn ? "Create Your Account" : "Cree su cuenta"}
+            </Link>
           </div>
 
           <div className="inicio-card">
