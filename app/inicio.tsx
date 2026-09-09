@@ -33,17 +33,14 @@ export function InicioSection({
               <>
                 <h3>Full Container Load (FCL)</h3>
                 <p>
-                  Rent a full container for your shipment. Ideal for large cargo
-                  volumes with specific transit times.
+                  Rent a full container for your shipment. Ideal for large cargo volumes.
                 </p>
               </>
             ) : (
               <>
                 <h3>Carga de contenedor completo (FCL)</h3>
                 <p>
-                  Alquile un contenedor completo para su envío. Ideal para
-                  grandes volúmenes de carga con tiempos de tránsito
-                  específicos.
+                  Alquile un contenedor completo para su envío. Ideal para grandes volúmenes de carga.
                 </p>
               </>
             )}
@@ -57,16 +54,14 @@ export function InicioSection({
               <>
                 <h3>Less than Container Load (LCL)</h3>
                 <p>
-                  Share container space with other shipments. Ideal for smaller
-                  loads where you only pay for what you use.
+                  Share container space with other shipments. Only pay for what you use.
                 </p>
               </>
             ) : (
               <>
                 <h3>Carga menor a un contenedor (LCL)</h3>
                 <p>
-                  Comparte el espacio del contenedor con otros envíos. Ideal
-                  para envíos pequeños donde solo pagas por lo que utilizas.
+                  Comparte el espacio del contenedor con otros envíos. Solo pagas por lo que utilizas.
                 </p>
               </>
             )}
@@ -80,16 +75,14 @@ export function InicioSection({
               <>
                 <h3>Storage and warehousing</h3>
                 <p>
-                  Secure facilities in Honduran ports. Flexible conditions with
-                  professional handling and inventory management.
+                  Secure facilities in Honduran ports with professional inventory management.
                 </p>
               </>
             ) : (
               <>
                 <h3>Almacenamiento y depósito</h3>
                 <p>
-                  Instalaciones seguras en los puertos de Honduras. Condiciones
-                  flexibles con manejo profesional y gestión de inventario.
+                  Instalaciones seguras en los puertos de Honduras con gestión profesional de inventario.
                 </p>
               </>
             )}
@@ -104,18 +97,79 @@ export function InicioSection({
                 <h3>Freight transportation</h3>
                 <p>
                   Complete documentation, customs procedures and home delivery.
-                  We take care of all the necessary paperwork.
                 </p>
               </>
             ) : (
               <>
                 <h3>Transporte de mercancías</h3>
                 <p>
-                  Documentación completa, trámites aduaneros y entrega a
-                  domicilio. Nos encargamos de todo el papeleo necesario.
+                  Documentación completa, trámites aduaneros y entrega a domicilio.
                 </p>
               </>
             )}
+          </div>
+        </div>
+
+        <header className="inicio-section-header">
+          <h2>{isEn ? "How It Works" : "¿Cómo funciona?"}</h2>
+          <p>
+            {isEn
+              ? "Five simple steps to get your cargo to Honduras"
+              : "Cinco pasos sencillos para llevar su carga a Honduras"}
+          </p>
+        </header>
+
+        <div className="inicio-services-grid">
+          <div className="inicio-card">
+            <div className="inicio-icon-box inicio-bg-emerald">1</div>
+            <h3>{isEn ? "Create Your Free Account Now" : "Cree su cuenta gratuita ahora"}</h3>
+            <p>
+              {isEn
+                ? "Set up your shipping profile and gain access to your personalized portal."
+                : "Configure su perfil de envío y obtenga acceso a su portal personalizado."}
+            </p>
+          </div>
+
+          <div className="inicio-card">
+            <div className="inicio-icon-box inicio-bg-blue">2</div>
+            <h3>{isEn ? "Ship to Our Florida Warehouse" : "Envíe a nuestro almacén en Florida"}</h3>
+            <p style={{ fontSize: "0.85rem", lineHeight: "1.4" }}>
+              <strong>Your Name</strong>
+              <br />
+              1092 NE Industrial Blvd
+              <br />
+              Jensen Beach, Florida 34957
+            </p>
+          </div>
+
+          <div className="inicio-card">
+            <div className="inicio-icon-box inicio-bg-orange">3</div>
+            <h3>{isEn ? "Real-Time Arrival & Scanning" : "Recepción y escaneo en tiempo real"}</h3>
+            <p>
+              {isEn
+                ? "We scan your package into your portal so you can track it through all stages."
+                : "Escaneamos su paquete en su portal para que pueda rastrearlo en todas las etapas."}
+            </p>
+          </div>
+
+          <div className="inicio-card">
+            <div className="inicio-icon-box inicio-bg-violet">4</div>
+            <h3>{isEn ? "Expert Customs Management" : "Gestión experta de aduanas"}</h3>
+            <p>
+              {isEn
+                ? "We handle all necessary documentation and port clearances for you."
+                : "Nos encargamos de toda la documentación necesaria y los despachos portuarios por usted."}
+            </p>
+          </div>
+
+          <div className="inicio-card">
+            <div className="inicio-icon-box inicio-bg-emerald">5</div>
+            <h3>{isEn ? "Final Notification & Collection" : "Notificación final y recolección"}</h3>
+            <p>
+              {isEn
+                ? "We notify you when your parcels are ready for pickup at your chosen port."
+                : "Le notificamos cuando sus paquetes estén listos para recoger en el puerto elegido."}
+            </p>
           </div>
         </div>
 
