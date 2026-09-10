@@ -24,6 +24,7 @@ export default function HomePage() {
   const { t, i18n } = useTranslation();
   const [activePage, setActivePage] = useState<PageId>("inicio");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isPromoOpen, setIsPromoOpen] = useState(false);
 
   const [serviceRate, setServiceRate] = useState<number>(18.5);
   const [largo, setLargo] = useState<number | "">("");
@@ -39,6 +40,11 @@ export default function HomePage() {
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
   }, [activePage]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setIsPromoOpen(true), 900);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   const { ft3, costo } = useMemo(() => {
     const l = typeof largo === "number" ? largo : 0;
@@ -98,6 +104,37 @@ export default function HomePage() {
 
   return (
     <main>
+      {isPromoOpen && (
+        <div className="caribex-popup" role="dialog" aria-modal="true" aria-labelledby="caribex-promo-title">
+          <button type="button" className="caribex-popup__overlay" aria-label="Close promotion" onClick={() => setIsPromoOpen(false)} />
+          <section className="caribex-popup__card">
+            <button type="button" className="caribex-popup__close" aria-label="Close promotion" onClick={() => setIsPromoOpen(false)}>
+              <X size={22} />
+            </button>
+            <div className="caribex-popup__logo-wrap">
+              <Image src="/imagenes/logo.png" alt="Caribex Logistics Group" width={240} height={72} className="caribex-popup__logo" />
+            </div>
+            <p className="caribex-popup__eyebrow">Caribex Logistics Group</p>
+            <h2 id="caribex-promo-title">
+              {i18n.language.startsWith("en") ? "Get 10% Off Your First Shipment!" : "¡Obtenga un 10% de descuento en su primer envío!"}
+            </h2>
+            <p>
+              {i18n.language.startsWith("en")
+                ? "Create your free Caribex account and enjoy reliable shipping solutions for personal, business, and retail shipments."
+                : "Cree su cuenta gratuita de Caribex y disfrute de soluciones confiables para envíos personales, comerciales y minoristas."}
+            </p>
+            <ul className="caribex-popup__benefits">
+              {(i18n.language.startsWith("en")
+                ? ["Special rates for businesses and retailers", "Real-time shipment tracking", "Professional customs and documentation support", "Pickup options through strategic ports in Honduras"]
+                : ["Tarifas especiales para empresas y minoristas", "Seguimiento de envíos en tiempo real", "Apoyo profesional con aduanas y documentación", "Opciones de recolección en puertos estratégicos de Honduras"]
+              ).map((benefit) => <li key={benefit}>{benefit}</li>)}
+            </ul>
+            <Link href="/registro-cliente" className="caribex-popup__button" onClick={() => setIsPromoOpen(false)}>
+              {i18n.language.startsWith("en") ? "Create Your Account" : "Cree su cuenta"}
+            </Link>
+          </section>
+        </div>
+      )}
       <nav className="nav">
         <button
           type="button"

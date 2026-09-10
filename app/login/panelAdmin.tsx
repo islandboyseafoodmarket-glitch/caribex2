@@ -859,18 +859,49 @@ const App = () => {
         }
 
         .dashboard-root {
-          padding: 40px;
-          max-width: 1400px;
+          padding: 32px clamp(18px, 4vw, 56px) 56px;
+          max-width: 1480px;
           margin: 0 auto;
+        }
+
+        .admin-brand {
+          display: flex;
+          align-items: center;
+          gap: 14px;
+        }
+
+        .admin-brand-logo {
+          width: 58px;
+          height: 58px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 18px;
+          background: var(--white);
+          border: 1px solid var(--border);
+          box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+          overflow: hidden;
+          flex: 0 0 auto;
+        }
+
+        .admin-brand-logo img {
+          width: 48px;
+          height: 48px;
+          object-fit: contain;
         }
 
         /* Header Style */
         .page-header {
-          margin-bottom: 40px;
+          margin-bottom: 28px;
+          padding: 22px 24px;
+          background: rgba(255, 255, 255, 0.82);
+          border: 1px solid var(--border);
+          border-radius: 22px;
+          box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05);
         }
 
         .page-header h1 {
-          font-size: 2.25rem;
+          font-size: clamp(1.7rem, 3vw, 2.25rem);
           margin: 0;
           font-weight: 700;
           color: var(--text-dark);
@@ -1100,9 +1131,14 @@ const App = () => {
 
       {/* Cabecera del Almacén */}
       <header className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1.5rem' }}>
-        <div>
+        <div className="admin-brand">
+          <div className="admin-brand-logo">
+            <Image src="/imagenes/logo.png" alt="Caribex Logistics Group" width={58} height={58} />
+          </div>
+          <div>
           <h1>Warehouse management</h1>
           <p>Track and manage shipments across all stages</p>
+          </div>
         </div>
 
         <button

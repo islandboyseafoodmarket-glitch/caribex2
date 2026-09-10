@@ -2911,3 +2911,62 @@ main {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
+
+
+/* Caribex promotional popup */
+.caribex-popup {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+}
+.caribex-popup__overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  border: 0;
+  background: rgba(0, 32, 74, 0.62);
+  cursor: pointer;
+}
+.caribex-popup__card {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 620px);
+  max-height: min(90vh, 760px);
+  overflow-y: auto;
+  padding: clamp(1.5rem, 4vw, 2.75rem);
+  border-radius: 1.5rem;
+  background: #fff;
+  color: #1f2937;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.28);
+}
+.caribex-popup__close {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  display: grid;
+  width: 2.25rem;
+  height: 2.25rem;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #00204a;
+  cursor: pointer;
+}
+.caribex-popup__close:hover { background: #f1f5f9; }
+.caribex-popup__logo-wrap { display: flex; justify-content: center; margin: 0 auto 1rem; }
+.caribex-popup__logo { display: block; width: min(100%, 240px); height: auto; object-fit: contain; }
+.caribex-popup__eyebrow { margin: 0 2rem 0.5rem 0; color: #22c55e; font-size: 0.8rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
+.caribex-popup__card h2 { margin: 0 2rem 0.85rem 0; color: #00204a; font-size: clamp(1.55rem, 4vw, 2.25rem); line-height: 1.12; }
+.caribex-popup__card p { line-height: 1.55; }
+.caribex-popup__benefits { display: grid; gap: 0.55rem; margin: 1.15rem 0; padding-left: 1.25rem; }
+.caribex-popup__benefits li::marker { color: #22c55e; }
+.caribex-popup__button { display: inline-block; padding: 0.8rem 1.35rem; border-radius: 999px; background: #22c55e; color: #fff; font-weight: 800; text-align: center; text-decoration: none; }
+@media (max-width: 480px) {
+  .caribex-popup { padding: 0.65rem; }
+  .caribex-popup__card { border-radius: 1.15rem; padding: 1.35rem; }
+  .caribex-popup__button { display: block; width: auto; }
+}
