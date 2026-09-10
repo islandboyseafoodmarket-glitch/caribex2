@@ -451,8 +451,8 @@ export function InicioSection({
               </h4>
               <p>
                 {isEn
-                  ? "Need Help Purchasing? You Pay The Store Price Plus An Additional 25% Of The Combined Purchase And Shipping Total."
-                  : "¿Necesita ayuda con su compra? Paga el precio de la tienda más un 25% adicional del total combinado de la compra y el envío."}
+                  ? "Need Help Purchasing? You Pay The Store Price Plus A 25% Personal Shopper Service Fee. Shipping Is Charged Separately."
+                  : "¿Necesita ayuda con su compra? Paga el precio de la tienda más un 25% por el servicio de comprador personal. El costo de envío se cobra por separado."}
               </p>
             </div>
           </div>
