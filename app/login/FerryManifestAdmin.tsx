@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Archive, Clipboard, Copy, Plus, RefreshCw, Ship } from "lucide-react";
+import { Archive, Clipboard, Copy, ExternalLink, Plus, RefreshCw, Ship } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
 
 type Container = { id: string; codigo: string | null };
@@ -99,6 +99,10 @@ export default function FerryManifestAdmin() {
     setNotice("Manifest link copied to clipboard.");
   };
 
+  const openManifest = (token: string) => {
+    window.open(`/ferry-manifest/${token}`, "_blank", "noopener,noreferrer");
+  };
+
   return (
     <div style={{ width: "100%" }}>
       <div style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem", alignItems: "flex-end", marginBottom: "1.25rem" }}>
@@ -139,7 +143,8 @@ export default function FerryManifestAdmin() {
               <span style={{ display: "inline-flex", width: "fit-content", padding: "0.25rem 0.55rem", borderRadius: "999px", background: manifest.estado === "active" ? "#dcfce7" : "#f1f5f9", color: manifest.estado === "active" ? "#166534" : "#475569", fontSize: "0.75rem", fontWeight: 700 }}>{manifest.estado}</span>
               <span>{manifest.entry_count}</span>
               <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.4rem" }}>
-                <button type="button" className="pa-secondary-btn" onClick={() => void copyToken(manifest.token)} style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem" }}><Copy size={14} /> Link</button>
+                <button type="button" className="pa-secondary-btn" onClick={() => openManifest(manifest.token)} style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem" }}><ExternalLink size={14} /> Preview</button>
+                <button type="button" className="pa-secondary-btn" onClick={() => void copyToken(manifest.token)} style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem" }}><Copy size={14} /> Copy link</button>
                 {manifest.estado === "active" && <button type="button" onClick={() => void archiveManifest(manifest)} style={{ border: "1px solid #fed7aa", background: "#fff7ed", color: "#c2410c", borderRadius: "999px", padding: "0.45rem 0.75rem", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "0.3rem" }}><Archive size={14} /> Archive</button>}
               </div>
             </div>

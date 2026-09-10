@@ -2970,3 +2970,42 @@ main {
   .caribex-popup__card { border-radius: 1.15rem; padding: 1.35rem; }
   .caribex-popup__button { display: block; width: auto; }
 }
+
+
+/* Ferry-facing manifest */
+.ferry-page { min-height: 100vh; background: #f4f7fa; color: #0f172a; padding: 24px clamp(16px, 4vw, 56px) 48px; }
+.ferry-header, .ferry-hero, .ferry-meta, .ferry-section { width: min(100%, 1120px); margin-left: auto; margin-right: auto; }
+.ferry-header { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 10px 0 28px; }
+.ferry-brand { display: flex; align-items: center; gap: 14px; color: #64748b; font-size: .82rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.ferry-brand img { width: 150px; height: 45px; object-fit: contain; }
+.ferry-status { padding: .38rem .75rem; border-radius: 999px; background: #dcfce7; color: #166534; font-size: .78rem; font-weight: 800; }
+.ferry-hero { display: flex; align-items: center; gap: 18px; padding: clamp(22px, 4vw, 38px); border-radius: 22px; background: #fff; border: 1px solid #eef2f6; box-shadow: 0 16px 38px rgba(15,23,42,.07); }
+.ferry-icon { display: grid; place-items: center; width: 54px; height: 54px; flex: 0 0 auto; border-radius: 16px; background: #eff6ff; color: #2563eb; }
+.ferry-eyebrow { margin: 0 0 .35rem; color: #2563eb; font-size: .76rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+.ferry-hero h1 { margin: 0; font-size: clamp(1.45rem, 3vw, 2.25rem); letter-spacing: -.03em; }
+.ferry-hero p:last-child { margin: .55rem 0 0; color: #64748b; }
+.ferry-meta { display: flex; flex-wrap: wrap; gap: .75rem 1.25rem; padding: 18px 4px; color: #64748b; font-size: .86rem; }
+.ferry-meta span { display: inline-flex; align-items: center; gap: .4rem; }
+.ferry-section { margin-top: 18px; padding: clamp(16px, 3vw, 24px); border-radius: 18px; background: #fff; border: 1px solid #eef2f6; box-shadow: 0 8px 22px rgba(15,23,42,.04); }
+.ferry-section-heading { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding-bottom: 12px; border-bottom: 1px solid #e2e8f0; }
+.ferry-section-heading h2 { margin: 0; font-size: 1.05rem; }
+.ferry-section-heading span { color: #64748b; font-size: .8rem; }
+.ferry-entry { display: grid; grid-template-columns: minmax(180px, 1fr) minmax(0, 2.2fr); gap: 18px; padding: 18px 0; border-bottom: 1px solid #f1f5f9; }
+.ferry-entry:last-child { border-bottom: 0; padding-bottom: 0; }
+.ferry-entry-info { display: flex; flex-direction: column; gap: .35rem; justify-content: center; }
+.ferry-entry-info strong { font-size: .95rem; }
+.ferry-entry-info span, .ferry-muted { color: #64748b; font-size: .82rem; }
+.ferry-entry-form { display: grid; grid-template-columns: 1fr 1fr auto; gap: .65rem; align-items: end; }
+.ferry-entry-form label { color: #475569; font-size: .74rem; font-weight: 700; }
+.ferry-entry-form input { display: block; width: 100%; box-sizing: border-box; margin-top: .35rem; padding: .65rem .7rem; border: 1px solid #cbd5e1; border-radius: 9px; font: inherit; font-size: .86rem; color: #0f172a; background: #fff; }
+.ferry-entry-form input:focus { outline: 2px solid #bfdbfe; border-color: #2563eb; }
+.ferry-submit { display: inline-flex; align-items: center; justify-content: center; gap: .35rem; min-height: 38px; padding: .6rem .85rem; border: 0; border-radius: 9px; background: #22c55e; color: #fff; font-weight: 800; font-size: .8rem; cursor: pointer; white-space: nowrap; }
+.ferry-submit:disabled { opacity: .5; cursor: not-allowed; }
+.ferry-notice { display: flex; align-items: center; gap: .5rem; width: min(100%, 1120px); box-sizing: border-box; margin: 16px auto 0; padding: .8rem 1rem; border-radius: 10px; background: #ecfdf5; color: #166534; font-size: .86rem; }
+.ferry-footer { width: min(100%, 1120px); margin: 22px auto 0; color: #94a3b8; font-size: .78rem; text-align: center; }
+.ferry-centered { display: grid; place-items: center; align-content: center; gap: .4rem; text-align: center; }
+.ferry-centered h1 { margin: .5rem 0 0; }
+.ferry-centered p { margin: 0; color: #64748b; }
+.ferry-spin { animation: ferry-spin 1s linear infinite; }
+@keyframes ferry-spin { to { transform: rotate(360deg); } }
+@media (max-width: 720px) { .ferry-header { align-items: flex-start; flex-direction: column; } .ferry-brand { flex-direction: column; align-items: flex-start; gap: 8px; } .ferry-entry { grid-template-columns: 1fr; gap: 12px; } .ferry-entry-form { grid-template-columns: 1fr; } .ferry-submit { width: 100%; } }
