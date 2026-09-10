@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
-import { CheckCircle2, ClipboardList, Loader2, Send, Ship, XCircle } from "lucide-react";
+import { CheckCircle2, ClipboardList, Download, Loader2, Printer, Send, Ship, XCircle } from "lucide-react";
 
 type Entry = {
   id: string;
@@ -95,6 +95,21 @@ export default function FerryManifestPage({ params }: { params: { token: string 
     }
   };
 
+  const exportCsv = () => {
+    if (!data) return;
+    const rows = [["PORT", "NO.", "ACCOUNT", "CUSTOMER NAME", "QUANTITY", "BOOKING #", "RECEIVER NAME"], ...data.entries.map((entry, index) => [
+      entry.puerto === "la_ceiba" ? "La Ceiba" : "Utila", String(index + 1), entry.numero_cuenta, entry.nombre_cliente,
+      entry.etiqueta_cantidad, entry.numero_reserva || "", entry.nombre_receptor || "",
+    ])];
+    const csv = rows.map((row) => row.map((value) => `"${String(value).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `caribex-ferry-manifest-${data.manifest.container_codigo || "export"}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   if (loading) return <main className="ferry-page ferry-centered"><Loader2 className="ferry-spin" size={32} /><p>Loading ferry manifest…</p></main>;
   if (error && !data) return <main className="ferry-page ferry-centered"><XCircle size={40} color="#b91c1c" /><h1>Manifest unavailable</h1><p>{error}</p></main>;
   if (!data) return null;
@@ -123,7 +138,7 @@ export default function FerryManifestPage({ params }: { params: { token: string 
   return <main className="ferry-page">
     <header className="ferry-header"><div className="ferry-brand"><Image src="/imagenes/logo.png" alt="Caribex Logistics Group" width={150} height={45} /><span>Ferry manifest</span></div><div className={`ferry-status ${readOnly ? "ferry-status-locked" : ""}`}>{readOnly ? "Read-only" : `${submittedCount} of ${data.entries.length} submitted`}</div></header>
     <div className="ferry-hero"><div className="ferry-icon"><Ship size={25} /></div><div><p className="ferry-eyebrow">Ferry operations</p><h1>Weekly shipment manifest</h1><p>Enter the booking number for each customer who has shipped. Blank rows remain open for the next ferry.</p></div></div>
-    <div className="ferry-meta"><span><ClipboardList size={16} /> Week: {dateLabel(data.manifest.semana_inicio)} – {dateLabel(data.manifest.semana_fin)}</span><span>Container: <strong>{data.manifest.container_codigo || "—"}</strong></span></div>
+    <div className="ferry-meta"><span><ClipboardList size={16} /> Week: {dateLabel(data.manifest.semana_inicio)} – {dateLabel(data.manifest.semana_fin)}</span><span>Container: <strong>{data.manifest.container_codigo || "—"}</strong></span><div className="ferry-export-actions"><button type="button" onClick={exportCsv}><Download size={15} /> Export CSV</button><button type="button" onClick={() => window.print()}><Printer size={15} /> Print receiver sheet</button></div></div>
     {error && <div className="ferry-error"><XCircle size={18} />{error}</div>}
     {notice && <div className="ferry-notice"><CheckCircle2 size={18} />{notice}</div>}
     <form onSubmit={submitAll}>

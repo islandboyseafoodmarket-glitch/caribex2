@@ -3028,3 +3028,15 @@ main {
 .ferry-submit-all:disabled { opacity: .55; cursor: not-allowed; }
 .ferry-error { display: flex; align-items: center; gap: .5rem; width: min(100%, 1120px); box-sizing: border-box; margin: 16px auto 0; padding: .8rem 1rem; border-radius: 10px; background: #fef2f2; color: #b91c1c; font-size: .86rem; }
 @media (max-width: 720px) { .ferry-actions { align-items: stretch; flex-direction: column; } .ferry-submit-all { width: 100%; } }
+
+.ferry-export-actions { display: flex; flex-wrap: wrap; gap: .5rem; margin-left: auto; }
+.ferry-export-actions button { display: inline-flex; align-items: center; gap: .35rem; padding: .52rem .72rem; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; color: #475569; font: inherit; font-size: .78rem; font-weight: 700; cursor: pointer; }
+.ferry-export-actions button:hover { background: #f8fafc; border-color: #94a3b8; }
+@media (max-width: 720px) { .ferry-export-actions { width: 100%; margin-left: 0; } .ferry-export-actions button { flex: 1; justify-content: center; } }
+@media print {
+  .ferry-page { padding: 0; background: #fff; }
+  .ferry-header, .ferry-hero, .ferry-meta, .ferry-footer, .ferry-notice, .ferry-error, .ferry-actions { display: none !important; }
+  .ferry-section { width: 100%; margin: 0 0 18px; padding: 0; border: 0; box-shadow: none; }
+  .ferry-table { min-width: 0; font-size: 10pt; }
+  .ferry-table input { border: 0; padding: 0; }
+}
