@@ -3165,3 +3165,8 @@ main {
 .portal-centered { display: grid; place-items: center; align-content: center; text-align: center; }
 .portal-centered p { color: #64748b; }
 @media (max-width: 720px) { .portal-header, .portal-welcome { align-items: flex-start; flex-direction: column; } .portal-stats { grid-template-columns: repeat(2, 1fr); } .portal-grid { grid-template-columns: 1fr; } .portal-security { grid-column: auto; } .portal-password-row { flex-direction: column; } }
+
+.portal-first-login { width: min(100%, 620px); margin: 24px auto 0; border: 1px solid #bfdbfe; background: #eff6ff; }
+.portal-first-login h2 { color: #1e3a8a; }
+.portal-first-login p { color: #475569; line-height: 1.5; }
+.portal-error { display: block; margin-top: .6rem; color: #b91c1c; }

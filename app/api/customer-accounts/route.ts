@@ -16,7 +16,7 @@ export async function POST(request: Request) {
     const { data: maxRow } = await supabase.from("numero_cliente").select("numero_cliente").order("numero_cliente", { ascending: false }).limit(1).maybeSingle();
     const accountNumber = Math.max(Number(maxRow?.numero_cliente || 299) + 1, 300);
     const initialPassword = `Caribex${accountNumber}`;
-    const { data: authData, error: authError } = await supabase.auth.admin.createUser({ email, password: initialPassword, email_confirm: true });
+    const { data: authData, error: authError } = await supabase.auth.admin.createUser({ email, password: initialPassword, email_confirm: true, user_metadata: { customer_account_number: accountNumber, must_change_password: true } });
     if (authError || !authData.user) throw authError || new Error("Could not create customer login");
     const { error: insertError } = await supabase.from("numero_cliente").insert({ nombre: name, email, telefono: phone, puerto: port, tipo_cuenta: accountType, numero_cliente: accountNumber, auth_user_id: authData.user.id });
     if (insertError) { await supabase.auth.admin.deleteUser(authData.user.id); throw insertError; }

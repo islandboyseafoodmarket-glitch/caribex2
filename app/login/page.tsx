@@ -228,6 +228,12 @@ export default function LoginRoute() {
             </div>
           </div>
 
+          <p style={{ margin: "-0.5rem 0 1rem", color: "#64748b", fontSize: "0.78rem", lineHeight: 1.45 }}>
+            {isEn
+              ? "First-time customer sign-in: use your registered email and the password Caribex + your account number (for example, Caribex347). You will be asked to create a new password."
+              : "Primer inicio de sesión: usa tu correo registrado y la contraseña Caribex + tu número de cuenta (por ejemplo, Caribex347). Se te pedirá crear una nueva contraseña."}
+          </p>
+
           <button type="submit" className={styles.btnSignin} disabled={loading}>
             <span
               className="fas fa-sign-in-alt"
