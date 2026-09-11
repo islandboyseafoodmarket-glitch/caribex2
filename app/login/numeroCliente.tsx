@@ -362,7 +362,7 @@ Nos reservamos el derecho de terminar o suspender su cuenta y servicios en cualq
 Nos reservamos el derecho de modificar estos Términos en cualquier momento. Los cambios serán efectivos al publicarse en nuestro sitio web. El uso continuado de nuestros servicios después de las modificaciones constituye aceptación de los Términos actualizados.
 
 15. Información de Contacto
-Para preguntas sobre estos Términos de Servicio o para reportar violaciones, contáctenos en admin@caribexlogistics.com o llame al +504 2445-5000. Horario comercial: Lunes - Viernes, 8:00 AM - 6:00 PM (Hora de Honduras).` : `Terms of Service
+Para preguntas sobre estos Términos de Servicio o para reportar violaciones, contáctenos en admin@caribexlogistics.com o llame al +504 89467476. Horario comercial: Lunes - Viernes, 8:00 AM - 6:00 PM (Hora de Honduras).` : `Terms of Service
 
 Caribex Logistics Group
 Effective Date: February 21, 2026
@@ -412,7 +412,7 @@ We reserve the right to terminate or suspend your account and services at any ti
 We reserve the right to modify these Terms at any time. Changes will be effective upon posting to our website. Your continued use of our services after modifications constitutes acceptance of the updated Terms.
 
 15. Contact Information
-For questions about these Terms of Service or to report violations, please contact us at admin@caribexlogistics.com or call +504 2445-5000. Business hours are Monday - Friday, 8:00 AM - 6:00 PM (Honduras Time).`}
+For questions about these Terms of Service or to report violations, please contact us at admin@caribexlogistics.com or call +504 89467476. Business hours are Monday - Friday, 8:00 AM - 6:00 PM (Honduras Time).`}
               </div>
             </section>
             <footer

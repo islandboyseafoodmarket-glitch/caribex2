@@ -488,7 +488,7 @@ const FLC = () => {
                     type="text"
                     name="phone"
                     placeholder={
-                      isEn ? "+504 2445-5000" : "+504 2445-5000"
+                      isEn ? "+504 89467476" : "+504 89467476"
                     }
 
                     style={styles.input}

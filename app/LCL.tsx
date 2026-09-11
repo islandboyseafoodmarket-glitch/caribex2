@@ -682,7 +682,7 @@ ${formData.additionalInfo}
                   type="text"
                   name="phone"
                   required
-                  placeholder={isEn ? "+1 555-123-4567" : "+504 2445-5000"}
+                  placeholder={isEn ? "+504 89467476" : "+504 89467476"}
 
                   style={{ padding: '10px 12px', borderRadius: 8, border: '1px solid #e2e8f0' }}
                 />

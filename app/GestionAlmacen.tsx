@@ -300,11 +300,15 @@ export default function GestionAlmacen() {
   const [activeStage, setActiveStage] = useState<StageId>("RECIBIDO_FLORIDA");
   const [activeWarehouseTab, setActiveWarehouseTab] = useState<"stages" | "client360">("stages");
   const [client360Search, setClient360Search] = useState("");
+  const [client360StatusFilter, setClient360StatusFilter] = useState("ALL");
+  const [client360BalanceFilter, setClient360BalanceFilter] = useState("ALL");
+  const [client360DateFilter, setClient360DateFilter] = useState("ALL");
   const [selectedClient360Id, setSelectedClient360Id] = useState<string | null>(null);
 
   const [language, setLanguage] = useState<"es" | "en">("en");
   const isEs = language === "es";
   const [currentUserName, setCurrentUserName] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [isNextModalOpen, setIsNextModalOpen] = useState(false);
   const [isEditingCheckIn, setIsEditingCheckIn] = useState(false);
   const [selectedPackage, setSelectedPackage] = useState<Package | null>(null);
@@ -396,6 +400,8 @@ export default function GestionAlmacen() {
   const [invoicePackage, setInvoicePackage] = useState<Package | null>(null);
   const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
   const [invoiceExtraCharges, setInvoiceExtraCharges] = useState<string[]>([]);
+  const [invoiceCustomChargeLabel, setInvoiceCustomChargeLabel] = useState("");
+  const [invoiceCustomChargeAmount, setInvoiceCustomChargeAmount] = useState("");
   const [invoiceIsConsolidationBox, setInvoiceIsConsolidationBox] = useState(false);
   const [isSendingInvoiceEmail, setIsSendingInvoiceEmail] = useState(false);
   const [isConfirmSendInvoiceOpen, setIsConfirmSendInvoiceOpen] = useState(false);
@@ -474,6 +480,8 @@ export default function GestionAlmacen() {
 
   const handleOpenInvoiceModal = async (pkg: Package) => {
     setInvoicePackage(pkg);
+    setInvoiceCustomChargeLabel("");
+    setInvoiceCustomChargeAmount("");
     setIsInvoiceModalOpen(true);
 
     try {
@@ -532,9 +540,72 @@ export default function GestionAlmacen() {
   const handleCloseInvoiceModal = () => {
     setInvoicePackage(null);
     setInvoiceExtraCharges([]);
+    setInvoiceCustomChargeLabel("");
+    setInvoiceCustomChargeAmount("");
     setInvoiceIsConsolidationBox(false);
     setIsInvoiceModalOpen(false);
     setIsConfirmSendInvoiceOpen(false);
+  };
+
+  const handleSaveInvoiceAdjustment = async () => {
+    if (!invoicePackage || !isAdmin) return;
+    const amount = Number(invoiceCustomChargeAmount);
+    if (!invoiceCustomChargeLabel.trim() || !Number.isFinite(amount) || amount <= 0) {
+      setMessageModal({
+        title: isEs ? "Cargo inválido" : "Invalid charge",
+        message: isEs
+          ? "Ingrese una descripción y un monto mayor que cero."
+          : "Enter a description and an amount greater than zero.",
+      });
+      return;
+    }
+
+    const currentSubtotal = Number(invoicePackage.billing_subtotal ?? 0) || 0;
+    const subtotal = currentSubtotal + amount;
+    const tax = subtotal * 0.15;
+    const total = subtotal + tax;
+    const chargeLabel = `${invoiceCustomChargeLabel.trim()} ($${amount.toFixed(2)})`;
+
+    const { error } = await supabase
+      .from("paquetes_registro")
+      .update({ billing_subtotal: subtotal, billing_tax: tax, billing_total: total })
+      .eq("id", invoicePackage.id);
+
+    if (error) {
+      setMessageModal({ title: "Error", message: error.message });
+      return;
+    }
+
+    const { data: checkInRow } = await supabase
+      .from("paquetes_checkin")
+      .select("id, cargos_adicionales")
+      .eq("paquete_id", invoicePackage.id)
+      .order("creado_en", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (checkInRow?.id) {
+      const existing = (checkInRow as any).cargos_adicionales
+        ? String((checkInRow as any).cargos_adicionales).split(",").map((item) => item.trim()).filter(Boolean)
+        : [];
+      await supabase
+        .from("paquetes_checkin")
+        .update({ cargos_adicionales: [...existing, chargeLabel].join(", ") })
+        .eq("id", (checkInRow as any).id);
+    }
+
+    setInvoicePackage((prev) =>
+      prev && prev.id === invoicePackage.id
+        ? { ...prev, billing_subtotal: subtotal, billing_tax: tax, billing_total: total }
+        : prev,
+    );
+    setInvoiceExtraCharges((prev) => [...prev, chargeLabel]);
+    setInvoiceCustomChargeLabel("");
+    setInvoiceCustomChargeAmount("");
+    setMessageModal({
+      title: isEs ? "Factura actualizada" : "Invoice updated",
+      message: isEs ? "El cargo adicional fue guardado." : "The additional charge was saved.",
+    });
   };
 
   const handleSendInvoiceEmail = async () => {
@@ -1402,13 +1473,33 @@ export default function GestionAlmacen() {
 
   const filteredClient360Records = useMemo(() => {
     const query = client360Search.trim().toLowerCase();
-    if (!query) return client360Records;
-    return client360Records.filter((client) =>
-      [client.name, client.email, client.number?.toString(), client.id]
-        .filter(Boolean)
-        .some((value) => String(value).toLowerCase().includes(query)),
-    );
-  }, [client360Records, client360Search]);
+    const now = Date.now();
+    return client360Records.filter((client) => {
+      const matchesSearch = !query || [client.name, client.email, client.number?.toString(), client.id]
+        .filter(Boolean).some((value) => String(value).toLowerCase().includes(query));
+      const matchesStatus = client360StatusFilter === "ALL" || client.packages.some((pkg) => {
+        const status = (pkg.estado || "").toLowerCase();
+        if (client360StatusFilter === "ACTIVE") return !status.includes("entregado") && !status.includes("recogido");
+        if (client360StatusFilter === "RECEIVED") return status.includes("recibido");
+        if (client360StatusFilter === "TRANSIT") return status.includes("transito") || status.includes("tránsito");
+        if (client360StatusFilter === "UNLOADED") return status.includes("descargado");
+        if (client360StatusFilter === "PICKED_UP") return status.includes("entregado") || status.includes("recogido");
+        return true;
+      });
+      const total = client.packages.reduce((sum, pkg) => sum + Number(pkg.billing_total ?? 0), 0);
+      const paid = client.packages.reduce((sum, pkg) => sum + (pkg.invoice_status?.toLowerCase().includes("paid") ? Number(pkg.billing_total ?? 0) : 0), 0);
+      const balance = Math.max(0, total - paid);
+      const matchesBalance = client360BalanceFilter === "ALL" ||
+        (client360BalanceFilter === "OUTSTANDING" && balance > 0) ||
+        (client360BalanceFilter === "PAID" && balance === 0 && total > 0);
+      const dates = client.packages.map((pkg) => new Date(pkg.registro || pkg.horaFecha || 0).getTime()).filter(Boolean);
+      const latest = dates.length ? Math.max(...dates) : 0;
+      const matchesDate = client360DateFilter === "ALL" ||
+        (client360DateFilter === "30" && latest >= now - 30 * 86400000) ||
+        (client360DateFilter === "90" && latest >= now - 90 * 86400000);
+      return matchesSearch && matchesStatus && matchesBalance && matchesDate;
+    });
+  }, [client360BalanceFilter, client360DateFilter, client360Records, client360Search, client360StatusFilter]);
 
   const selectedClient360 = useMemo(
     () =>
@@ -1770,10 +1861,13 @@ export default function GestionAlmacen() {
       if (error || !data?.user) {
         // TEMPORAL: Permitir acceso sin autenticación
         setCurrentUserName("Desarrollador");
+        setIsAdmin(false);
         return;
       }
 
       const user = data.user;
+      const role = String(user.app_metadata?.role || user.user_metadata?.role || "").toLowerCase();
+      setIsAdmin(role === "admin" || role === "administrator");
 
       const { data: personalRow, error: personalError } = await supabase
         .from("personal")
@@ -3406,6 +3500,26 @@ const handlePackageCreated = (pkg: Package) => {
                 />
               </div>
             </div>
+            <div className="ga-client360-filters">
+              <select value={client360StatusFilter} onChange={(event) => setClient360StatusFilter(event.target.value)}>
+                <option value="ALL">{isEs ? "Todos los estados" : "All statuses"}</option>
+                <option value="ACTIVE">{isEs ? "Activos" : "Active shipments"}</option>
+                <option value="RECEIVED">{isEs ? "Recibidos" : "Received"}</option>
+                <option value="TRANSIT">{isEs ? "En tránsito" : "In transit"}</option>
+                <option value="UNLOADED">{isEs ? "Descargados" : "Unloaded"}</option>
+                <option value="PICKED_UP">{isEs ? "Entregados" : "Picked up"}</option>
+              </select>
+              <select value={client360BalanceFilter} onChange={(event) => setClient360BalanceFilter(event.target.value)}>
+                <option value="ALL">{isEs ? "Cualquier saldo" : "Any balance"}</option>
+                <option value="OUTSTANDING">{isEs ? "Con saldo pendiente" : "Outstanding balance"}</option>
+                <option value="PAID">{isEs ? "Pagados" : "Paid"}</option>
+              </select>
+              <select value={client360DateFilter} onChange={(event) => setClient360DateFilter(event.target.value)}>
+                <option value="ALL">{isEs ? "Cualquier actividad" : "Any activity"}</option>
+                <option value="30">{isEs ? "Actividad en 30 días" : "Activity in 30 days"}</option>
+                <option value="90">{isEs ? "Actividad en 90 días" : "Activity in 90 days"}</option>
+              </select>
+            </div>
 
             {selectedClient360 ? (
               <>
@@ -3566,7 +3680,7 @@ const handlePackageCreated = (pkg: Package) => {
               onBulkGenerate={handleBulkGenerateInvoices}
               onChangeApproval={handleChangeInvoiceApproval as any}
               onChangeInvoiceStatus={handleChangeInvoiceStatus as any}
-              onDeleteInvoice={handleDeleteInvoice as any}
+              onDeleteInvoice={isAdmin ? (handleDeleteInvoice as any) : undefined}
             />
           ) : null}
         </section>}
@@ -4072,6 +4186,34 @@ const handlePackageCreated = (pkg: Package) => {
             </div>
 
             <div className="ga-modal-body">
+              {isAdmin && (
+                <div className="ga-invoice-editor">
+                  <div>
+                    <h5>{isEs ? "Ajustar factura (solo administrador)" : "Adjust invoice (admin only)"}</h5>
+                    <p>{isEs ? "Agregue un cargo adicional y los totales se recalcularán con IVA del 15%." : "Add an additional charge and totals will recalculate with 15% tax."}</p>
+                  </div>
+                  <div className="ga-invoice-editor-grid">
+                    <input
+                      className="ga-input"
+                      value={invoiceCustomChargeLabel}
+                      onChange={(event) => setInvoiceCustomChargeLabel(event.target.value)}
+                      placeholder={isEs ? "Descripción del cargo" : "Charge description"}
+                    />
+                    <input
+                      className="ga-input"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={invoiceCustomChargeAmount}
+                      onChange={(event) => setInvoiceCustomChargeAmount(event.target.value)}
+                      placeholder={isEs ? "Monto" : "Amount"}
+                    />
+                    <button type="button" className="ga-primary-button" onClick={handleSaveInvoiceAdjustment}>
+                      {isEs ? "Guardar cargo" : "Save charge"}
+                    </button>
+                  </div>
+                </div>
+              )}
               <InvoicePreview
                 clientName={invoicePackage.clienteNombre}
                 clientNumber={invoicePackage.numeroCliente ?? undefined}
