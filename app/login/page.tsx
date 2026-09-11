@@ -14,6 +14,7 @@ export default function LoginRoute() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [resetMessage, setResetMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -27,6 +28,7 @@ export default function LoginRoute() {
     });
 
     if (error || !data.user) {
+      void fetch("/api/customer-login-events", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email }) });
       // Mostrar el mensaje real de Supabase para depurar, con un fallback amigable
       setError(
         error?.message ||
@@ -65,6 +67,16 @@ export default function LoginRoute() {
       return;
     }
 
+    const { data: customerRow } = await supabase
+      .from("numero_cliente")
+      .select("id")
+      .eq("auth_user_id", userId)
+      .maybeSingle();
+    if (customerRow) {
+      router.push("/portal");
+      return;
+    }
+
     // No tiene rol asignado
     setError(
       isEn
@@ -76,6 +88,14 @@ export default function LoginRoute() {
 
   const handleBack = () => {
     router.push("/");
+  };
+
+  const handleForgotPassword = async () => {
+    if (!email) { setError(isEn ? "Enter your email first." : "Primero ingresa tu correo."); return; }
+    setError(null);
+    const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: `${window.location.origin}/portal` });
+    await fetch("/api/customer-portal", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email }) });
+    setResetMessage(resetError ? (isEn ? "We could not send the reset link." : "No pudimos enviar el enlace de recuperación.") : (isEn ? "Check your email for a password-reset link." : "Revisa tu correo para el enlace de recuperación."));
   };
 
   return (
@@ -222,11 +242,16 @@ export default function LoginRoute() {
                 : "Iniciar Sesión"}
           </button>
 
+          <button type="button" onClick={() => void handleForgotPassword()} style={{ display: "block", margin: "0.75rem auto 0", border: 0, background: "transparent", color: "#2563eb", cursor: "pointer", fontSize: "0.82rem" }}>
+            {isEn ? "Forgot password?" : "¿Olvidaste tu contraseña?"}
+          </button>
+
           {error && (
             <p style={{ marginTop: "0.75rem", color: "#dc2626", fontSize: "0.85rem", textAlign: "center" }}>
               {error}
             </p>
           )}
+          {resetMessage && <p style={{ marginTop: "0.75rem", color: "#166534", fontSize: "0.85rem", textAlign: "center" }}>{resetMessage}</p>}
 
           <button type="button" className={styles.btnBack} onClick={handleBack}>
             <span className="fa-solid fa-arrow-left" aria-hidden="true" />

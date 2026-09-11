@@ -72,48 +72,17 @@ export default function App() {
       return;
     }
 
-    // 1) Obtener el último numero_cliente para continuar la secuencia
-
-    const { data: maxRow, error: maxError } = await supabase
-      .from("numero_cliente")
-      .select("numero_cliente")
-      .order("numero_cliente", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    let siguienteNumero = 300;
-    if (!maxError && maxRow?.numero_cliente != null) {
-      const ultimo = Number(maxRow.numero_cliente) || 0;
-      siguienteNumero = ultimo >= 300 ? ultimo + 1 : 300;
-    }
-
-    // 2) Prefijo con la primera letra del puerto seleccionado
-
-    const primeraLetraPuerto = (formData.puerto?.[0] || "").toUpperCase() || "X";
-
-    // 3) Insertar registro con numero_cliente explícito
-
-    const { error: insertError } = await supabase
-      .from("numero_cliente")
-      .insert({
-        nombre: formData.nombre,
-        email: formData.email,
-        telefono: formData.telefono,
-        puerto: formData.puerto,
-        tipo_cuenta: formData.tipoCuenta,
-        numero_cliente: siguienteNumero,
-      });
-
-    if (insertError) {
-      alert(
-        (isEn
-          ? "Error while registering client: "
-          : "Error al registrar cliente: ") + insertError.message
-      );
+    const accountResponse = await fetch("/api/customer-accounts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(formData),
+    });
+    const accountResult = await accountResponse.json();
+    if (!accountResponse.ok) {
+      alert((isEn ? "Error while registering client: " : "Error al registrar cliente: ") + (accountResult.error || "Unknown error"));
       return;
     }
-
-    const numeroDisplay = `${primeraLetraPuerto}-${siguienteNumero}`;
+    const numeroDisplay = `${(formData.puerto?.[0] || "X").toUpperCase()}-${accountResult.accountNumber}`;
 
     // Enviar correo al cliente con su n\u00famero de cliente
     try {
@@ -136,8 +105,8 @@ export default function App() {
 
     alert(
       isEn
-        ? "Your client number has been sent to your email."
-        : "Tu n\u00famero de cliente ha sido enviado a tu correo electr\u00f3nico.",
+        ? `Your client number has been sent to your email. Your initial password is Caribex${accountResult.accountNumber}. Change it after your first login.`
+        : `Tu número de cliente ha sido enviado a tu correo. Tu contraseña inicial es Caribex${accountResult.accountNumber}. Cámbiala después de iniciar sesión.`,
     );
 
     setFormData({
