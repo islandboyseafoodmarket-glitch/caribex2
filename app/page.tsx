@@ -42,9 +42,19 @@ export default function HomePage() {
   }, [activePage]);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => setIsPromoOpen(true), 900);
+    const popupSeenKey = "caribex-promo-seen-v1";
+    if (window.localStorage.getItem(popupSeenKey) === "true") return;
+    const timer = window.setTimeout(() => {
+      window.localStorage.setItem(popupSeenKey, "true");
+      setIsPromoOpen(true);
+    }, 900);
     return () => window.clearTimeout(timer);
   }, []);
+
+  const closePromotion = () => {
+    window.localStorage.setItem("caribex-promo-seen-v1", "true");
+    setIsPromoOpen(false);
+  };
 
   const { ft3, costo } = useMemo(() => {
     const l = typeof largo === "number" ? largo : 0;
@@ -106,13 +116,13 @@ export default function HomePage() {
     <main>
       {isPromoOpen && (
         <div className="caribex-popup" role="dialog" aria-modal="true" aria-labelledby="caribex-promo-title">
-          <button type="button" className="caribex-popup__overlay" aria-label="Close promotion" onClick={() => setIsPromoOpen(false)} />
+          <button type="button" className="caribex-popup__overlay" aria-label="Close promotion" onClick={closePromotion} />
           <section className="caribex-popup__card">
-            <button type="button" className="caribex-popup__close" aria-label="Close promotion" onClick={() => setIsPromoOpen(false)}>
+            <button type="button" className="caribex-popup__close" aria-label="Close promotion" onClick={closePromotion}>
               <X size={22} />
             </button>
             <div className="caribex-popup__logo-wrap">
-              <Image src="/imagenes/logo.png" alt="Caribex Logistics Group" width={240} height={72} className="caribex-popup__logo" />
+              <Image src="/imagenes/logo-trimmed.png" alt="Caribex Logistics Group" width={220} height={97} className="caribex-popup__logo" />
             </div>
             <p className="caribex-popup__eyebrow">Caribex Logistics Group</p>
             <h2 id="caribex-promo-title">
