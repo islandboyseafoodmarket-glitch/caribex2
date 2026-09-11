@@ -665,9 +665,18 @@ main {
 
 .logo-image {
   display: block;
-  height: 72px;
-  width: auto;
+  width: clamp(170px, 15vw, 220px);
+  height: auto;
+  max-height: 78px;
+  object-fit: contain;
   border-radius: 8px;
+}
+
+@media (max-width: 600px) {
+  .logo-image {
+    width: min(48vw, 190px);
+    max-height: 62px;
+  }
 }
 
 .logo-button-reset {

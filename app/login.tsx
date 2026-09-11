@@ -17,7 +17,7 @@ export default function LoginPage() {
         <div className="login-card">
           <div className="login-card-logo">
             <Image
-              src="/imagenes/logo.png"
+              src="/imagenes/logo-trimmed.png"
               alt="Caribex Logistics Group"
               width={220}
               height={80}

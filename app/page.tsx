@@ -146,10 +146,10 @@ export default function HomePage() {
         >
           <div className="logo-box">
             <Image
-              src="/imagenes/logo.png"
+              src="/imagenes/logo-trimmed.png"
               alt="Caribex Logistics Group"
-              width={160}
-              height={40}
+              width={220}
+              height={97}
               className="logo-image"
             />
           </div>
