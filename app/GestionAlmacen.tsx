@@ -25,6 +25,11 @@ import {
   Camera,
   Globe2,
   ArrowRight,
+  Users,
+  UserRound,
+  DollarSign,
+  MapPin,
+  CalendarDays,
 } from "lucide-react";
 
 import StageReceived from "./StageReceived";
@@ -293,8 +298,12 @@ export default function GestionAlmacen() {
   const [packages, setPackages] = useState<Package[]>([]);
 
   const [activeStage, setActiveStage] = useState<StageId>("RECIBIDO_FLORIDA");
+  const [activeWarehouseTab, setActiveWarehouseTab] = useState<"stages" | "client360">("stages");
+  const [client360Search, setClient360Search] = useState("");
+  const [selectedClient360Id, setSelectedClient360Id] = useState<string | null>(null);
 
   const [language, setLanguage] = useState<"es" | "en">("en");
+  const isEs = language === "es";
   const [currentUserName, setCurrentUserName] = useState<string | null>(null);
   const [isNextModalOpen, setIsNextModalOpen] = useState(false);
   const [isEditingCheckIn, setIsEditingCheckIn] = useState(false);
@@ -1350,6 +1359,82 @@ export default function GestionAlmacen() {
 
   const hasPackages = useMemo(() => visiblePackages.length > 0, [visiblePackages]);
 
+  const client360Records = useMemo(() => {
+    const grouped = new Map<string, {
+      id: string;
+      name: string;
+      number: number | null;
+      email: string;
+      packages: Package[];
+    }>();
+
+    packages.forEach((pkg) => {
+      const id = pkg.numeroClienteId || `name:${pkg.clienteNombre || "unknown"}`;
+      const existing = grouped.get(id);
+      if (existing) {
+        existing.packages.push(pkg);
+        return;
+      }
+      grouped.set(id, {
+        id,
+        name: pkg.clienteNombre?.trim() || (isEs ? "Cliente sin nombre" : "Unnamed client"),
+        number: pkg.numeroCliente ?? null,
+        email: pkg.clienteEmail || "-",
+        packages: [pkg],
+      });
+    });
+
+    clients.forEach((client) => {
+      const id = client.id || `number:${client.numero_cliente}`;
+      if (!grouped.has(id)) {
+        grouped.set(id, {
+          id,
+          name: client.nombre,
+          number: client.numero_cliente,
+          email: "-",
+          packages: [],
+        });
+      }
+    });
+
+    return Array.from(grouped.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [clients, isEs, packages]);
+
+  const filteredClient360Records = useMemo(() => {
+    const query = client360Search.trim().toLowerCase();
+    if (!query) return client360Records;
+    return client360Records.filter((client) =>
+      [client.name, client.email, client.number?.toString(), client.id]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(query)),
+    );
+  }, [client360Records, client360Search]);
+
+  const selectedClient360 = useMemo(
+    () =>
+      filteredClient360Records.find((client) => client.id === selectedClient360Id) ||
+      filteredClient360Records[0] ||
+      null,
+    [filteredClient360Records, selectedClient360Id],
+  );
+
+  const client360Summary = useMemo(() => {
+    const clientPackages = selectedClient360?.packages || [];
+    const outstanding = clientPackages.reduce((sum, pkg) => {
+      const total = Number(pkg.billing_total ?? 0);
+      const paid = pkg.invoice_status?.toLowerCase().includes("paid") ? total : 0;
+      return sum + Math.max(0, total - paid);
+    }, 0);
+    return {
+      packages: clientPackages.length,
+      active: clientPackages.filter((pkg) => !["entregado", "picked up", "recogido"].some((status) => (pkg.estado || "").toLowerCase().includes(status))).length,
+      invoices: clientPackages.filter((pkg) => pkg.billing_total != null).length,
+      invoiced: clientPackages.reduce((sum, pkg) => sum + Number(pkg.billing_total ?? 0), 0),
+      paid: clientPackages.reduce((sum, pkg) => sum + (pkg.invoice_status?.toLowerCase().includes("paid") ? Number(pkg.billing_total ?? 0) : 0), 0),
+      outstanding,
+    };
+  }, [selectedClient360]);
+
   const consolidatedPackages = useMemo(
     () => packages.filter((p) => consolidatedTrackings.includes(p.tracking)),
     [packages, consolidatedTrackings],
@@ -1371,8 +1456,6 @@ export default function GestionAlmacen() {
     () => STAGES.find((s) => s.id === activeStage) ?? STAGES[0],
     [activeStage],
   );
-
-  const isEs = language === "es";
 
   const renderCheckInModal = () => {
     if (!isNextModalOpen || !selectedPackage) return null;
@@ -3267,7 +3350,26 @@ const handlePackageCreated = (pkg: Package) => {
           </div>
         </div>
 
-        <div className="ga-stages-row">
+        <div className="ga-workspace-tabs">
+          <button
+            type="button"
+            className={"ga-workspace-tab" + (activeWarehouseTab === "stages" ? " ga-workspace-tab-active" : "")}
+            onClick={() => setActiveWarehouseTab("stages")}
+          >
+            <PackageOpen size={16} />
+            {isEs ? "Flujo de envíos" : "Shipment workflow"}
+          </button>
+          <button
+            type="button"
+            className={"ga-workspace-tab" + (activeWarehouseTab === "client360" ? " ga-workspace-tab-active" : "")}
+            onClick={() => setActiveWarehouseTab("client360")}
+          >
+            <Users size={16} />
+            Client 360
+          </button>
+        </div>
+
+        {activeWarehouseTab === "stages" && <div className="ga-stages-row">
           {STAGES.map((stage) => (
             <button
               key={stage.id}
@@ -3286,9 +3388,107 @@ const handlePackageCreated = (pkg: Package) => {
               )}
             </button>
           ))}
-        </div>
+        </div>}
 
-        <section className="ga-state-card">
+        {activeWarehouseTab === "client360" ? (
+          <section className="ga-client360">
+            <div className="ga-client360-toolbar">
+              <div>
+                <h2>{isEs ? "Client 360" : "Client 360"}</h2>
+                <p>{isEs ? "Vista completa del cliente, sus envíos y su actividad." : "A complete view of the client, shipments, and account activity."}</p>
+              </div>
+              <div className="ga-client360-search">
+                <Search size={17} />
+                <input
+                  value={client360Search}
+                  onChange={(event) => setClient360Search(event.target.value)}
+                  placeholder={isEs ? "Buscar cliente, correo o número..." : "Search client, email, or number..."}
+                />
+              </div>
+            </div>
+
+            {selectedClient360 ? (
+              <>
+                <div className="ga-client360-layout">
+                  <aside className="ga-client360-list">
+                    <div className="ga-client360-list-heading">
+                      <Users size={16} />
+                      {isEs ? "Clientes" : "Clients"} ({filteredClient360Records.length})
+                    </div>
+                    {filteredClient360Records.map((client) => (
+                      <button
+                        type="button"
+                        key={client.id}
+                        className={"ga-client360-list-item" + (selectedClient360.id === client.id ? " ga-client360-list-item-active" : "")}
+                        onClick={() => setSelectedClient360Id(client.id)}
+                      >
+                        <span className="ga-client360-avatar"><UserRound size={16} /></span>
+                        <span>
+                          <strong>{client.name}</strong>
+                          <small>#{client.number ?? "-"}</small>
+                        </span>
+                      </button>
+                    ))}
+                  </aside>
+
+                  <div className="ga-client360-main">
+                    <div className="ga-client360-profile">
+                      <div className="ga-client360-profile-icon"><UserRound size={28} /></div>
+                      <div>
+                        <h3>{selectedClient360.name} <span>#{selectedClient360.number ?? "-"}</span></h3>
+                        <p><MapPin size={14} /> {isEs ? "Cuenta Caribex" : "Caribex account"}</p>
+                        <p>{selectedClient360.email}</p>
+                      </div>
+                    </div>
+
+                    <div className="ga-client360-metrics">
+                      <div><small>{isEs ? "Paquetes totales" : "Packages ever"}</small><strong>{client360Summary.packages}</strong></div>
+                      <div><small>{isEs ? "Activos ahora" : "Active now"}</small><strong>{client360Summary.active}</strong></div>
+                      <div><small>{isEs ? "Facturas" : "Invoices"}</small><strong>{client360Summary.invoices}</strong></div>
+                      <div><small>{isEs ? "Total facturado" : "Invoiced"}</small><strong>${client360Summary.invoiced.toFixed(2)}</strong></div>
+                      <div><small>{isEs ? "Pagado" : "Paid"}</small><strong>${client360Summary.paid.toFixed(2)}</strong></div>
+                      <div className="ga-client360-metric-alert"><small>{isEs ? "Pendiente" : "Outstanding"}</small><strong>${client360Summary.outstanding.toFixed(2)}</strong></div>
+                    </div>
+
+                    <div className="ga-client360-card">
+                      <div className="ga-client360-card-header">
+                        <div><h3>{isEs ? "Dónde están sus paquetes" : "Where their packages are"}</h3><p>{isEs ? "Distribución actual por etapa." : "Current shipment distribution by stage."}</p></div>
+                        <CalendarDays size={18} />
+                      </div>
+                      <div className="ga-client360-statuses">
+                        {STAGES.filter((stage) => stage.id !== "FACTURAS").map((stage) => {
+                          const count = selectedClient360.packages.filter((pkg) => packagesByStage[stage.id].some((stagePkg) => stagePkg.id === pkg.id)).length;
+                          return <span key={stage.id}><strong>{count}</strong> {getStageLabel(stage.id, isEs)}</span>;
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="ga-client360-card">
+                      <div className="ga-client360-card-header"><div><h3>{isEs ? "Historial de paquetes" : "Package history"}</h3><p>{isEs ? "Más recientes primero." : "Most recent first."}</p></div><PackageOpen size={18} /></div>
+                      <div className="ga-client360-table-wrap">
+                        <table className="ga-client360-table">
+                          <thead><tr><th>{isEs ? "Recibido" : "Received"}</th><th>Tracking</th><th>{isEs ? "Estado" : "Status"}</th><th>{isEs ? "Factura" : "Invoice"}</th></tr></thead>
+                          <tbody>
+                            {selectedClient360.packages.slice(0, 30).map((pkg) => (
+                              <tr key={pkg.id}>
+                                <td>{pkg.registro ? new Date(pkg.registro).toLocaleDateString() : "-"}</td>
+                                <td><button type="button" className="ga-client360-tracking" onClick={() => handleViewPackage(pkg)}>{pkg.tracking}</button></td>
+                                <td><span className="ga-client360-status">{pkg.estado || "-"}</span></td>
+                                <td>{pkg.billing_total != null ? `$${Number(pkg.billing_total).toFixed(2)}` : "-"}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="ga-client360-empty"><Users size={28} /><p>{isEs ? "No se encontraron clientes." : "No clients found."}</p></div>
+            )}
+          </section>
+        ) : <section className="ga-state-card">
           {activeStage === "RECIBIDO_FLORIDA" ? (
             <StageReceived
               isEs={isEs}
@@ -3369,7 +3569,7 @@ const handlePackageCreated = (pkg: Package) => {
               onDeleteInvoice={handleDeleteInvoice as any}
             />
           ) : null}
-        </section>
+        </section>}
       </main>
 
       {renderCheckInModal()}
