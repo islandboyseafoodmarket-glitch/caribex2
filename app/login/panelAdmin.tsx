@@ -7,6 +7,7 @@ import { supabase } from "../../lib/supabaseClient";
 import { BrowserMultiFormatReader } from "@zxing/browser";
 import { Pencil, Trash2, Unlock, LogOut, Image as ImageIcon, Check, AlertCircle, Send, DollarSign } from "lucide-react";
 import FerryManifestAdmin from "./FerryManifestAdmin";
+import Client360Admin from "./Client360Admin";
 
 /**
  * DASHBOARD OPERATIVO - VERSIÓN VISUAL PURA
@@ -25,7 +26,7 @@ const NUEVO_CLIENTE_INITIAL = {
 const App = () => {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<
-    'personal' | 'clientes' | 'pedidos' | 'incidencias' | 'facturas' | 'ferry'
+    'personal' | 'clientes' | 'client360' | 'pedidos' | 'incidencias' | 'facturas' | 'ferry'
   >('personal');
 
   const [personal, setPersonal] = useState<{ id: string; nombre: string; rol: string }[]>([]);
@@ -1183,6 +1184,13 @@ const App = () => {
           <IconBriefcase /> Número de cliente <span className="count-badge">{clientes.length}</span>
         </button>
         <button
+          className={`tab-pill ${activeTab === 'client360' ? 'active' : ''}`}
+          onClick={() => setActiveTab('client360')}
+          style={{ minWidth: 130 }}
+        >
+          <IconUsers /> Client 360
+        </button>
+        <button
           className={`tab-pill ${activeTab === 'pedidos' ? 'active' : ''}`}
           onClick={() => setActiveTab('pedidos')}
           style={{ minWidth: 130 }}
@@ -1222,6 +1230,8 @@ const App = () => {
                 ? 'Listado de Personal'
                 : activeTab === 'clientes'
                   ? 'Listado de Clientes'
+                  : activeTab === 'client360'
+                    ? 'Client 360'
                   : activeTab === 'pedidos'
                     ? 'Listado de Pedidos'
                   : activeTab === 'incidencias'
@@ -1235,6 +1245,8 @@ const App = () => {
                 ? `${personal.length} registro${personal.length === 1 ? '' : 's'} en esta categoría`
                 : activeTab === 'clientes'
                   ? `${clientes.length} registro${clientes.length === 1 ? '' : 's'} en esta categoría`
+                  : activeTab === 'client360'
+                    ? 'Complete customer profile and operational history'
                   : activeTab === 'pedidos'
                     ? `${pedidos.length} registro${pedidos.length === 1 ? '' : 's'} en esta categoría`
                   : activeTab === 'incidencias'
@@ -1289,6 +1301,8 @@ const App = () => {
         </div>
 
         <div className="divider"></div>
+
+        {activeTab === 'client360' && <Client360Admin clientes={clientes} pedidos={pedidos} facturas={facturas} />}
 
         {activeTab === 'ferry' && <FerryManifestAdmin />}
 
