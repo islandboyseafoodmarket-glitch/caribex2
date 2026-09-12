@@ -26,7 +26,7 @@ const NUEVO_CLIENTE_INITIAL = {
 const App = () => {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<
-    'personal' | 'clientes' | 'client360' | 'pedidos' | 'incidencias' | 'facturas' | 'ferry'
+    'personal' | 'clientes' | 'client360' | 'pedidos' | 'incidencias' | 'facturas' | 'leads' | 'ferry'
   >('personal');
 
   const [personal, setPersonal] = useState<{ id: string; nombre: string; rol: string }[]>([]);
@@ -92,6 +92,13 @@ const App = () => {
 
   const [facturas, setFacturas] = useState<Factura[]>([]);
   const facturasCount = facturas.length;
+  type Lead = { id: string; nombre: string; email: string; telefono: string | null; mensaje: string; service_type: string | null; status: 'NEW' | 'CONTACTED' | 'CONVERTED' | 'CLOSED'; admin_notes: string | null; created_at: string };
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [adminNotice, setAdminNotice] = useState<string | null>(null);
+  const cargarLeads = useCallback(async () => {
+    const { data, error } = await supabase.from('contact_submissions').select('id, nombre, email, telefono, mensaje, service_type, status, admin_notes, created_at').order('created_at', { ascending: false });
+    if (!error && data) setLeads(data as Lead[]);
+  }, []);
 
   type InvoiceTab = 'sinAprobar' | 'aprobadas' | 'enviadas' | 'pagadas';
   const [activeInvoiceTab, setActiveInvoiceTab] = useState<InvoiceTab>('sinAprobar');
@@ -663,7 +670,8 @@ const App = () => {
     cargarPersonal();
     cargarClientes();
     cargarPedidos();
-     cargarFacturas();
+    cargarFacturas();
+    cargarLeads();
 
     const pedidoSubscription = supabase
       .channel("realtime-pedidos")
@@ -687,12 +695,21 @@ const App = () => {
         },
       )
       .subscribe();
+    const leadSubscription = supabase.channel('realtime-contact-leads').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'contact_submissions' }, (payload) => {
+      setLeads((prev) => [payload.new as Lead, ...prev]);
+      setAdminNotice(`New customer lead received from ${(payload.new as Lead).nombre}`);
+    }).subscribe();
+    const signupSubscription = supabase.channel('realtime-customer-signups').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'numero_cliente' }, (payload) => {
+      setAdminNotice(`New customer account created: ${(payload.new as any).nombre || 'customer'}`);
+    }).subscribe();
 
     return () => {
       supabase.removeChannel(pedidoSubscription);
       supabase.removeChannel(clienteSubscription);
+      supabase.removeChannel(leadSubscription);
+      supabase.removeChannel(signupSubscription);
     };
-  }, [cargarPersonal, cargarClientes, cargarPedidos, cargarFacturas]);
+  }, [cargarPersonal, cargarClientes, cargarPedidos, cargarFacturas, cargarLeads]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -700,11 +717,18 @@ const App = () => {
         cargarPedidos();
       } else if (activeTab === "facturas") {
         cargarFacturas();
+      } else if (activeTab === "leads") {
+        cargarLeads();
       }
     }, 10000);
 
     return () => clearInterval(interval);
-  }, [activeTab, cargarPedidos, cargarFacturas]);
+  }, [activeTab, cargarPedidos, cargarFacturas, cargarLeads]);
+
+  const actualizarLead = async (id: string, changes: Partial<Lead>) => {
+    const { error } = await supabase.from('contact_submissions').update(changes).eq('id', id);
+    if (!error) setLeads((prev) => prev.map((lead) => lead.id === id ? { ...lead, ...changes } : lead));
+  };
 
   const handleAdminChangeApproval = async (
     factura: Factura,
@@ -1211,6 +1235,9 @@ const App = () => {
         >
           <IconBriefcase /> Facturas <span className="count-badge">{facturasCount}</span>
         </button>
+        <button className={`tab-pill ${activeTab === 'leads' ? 'active' : ''}`} onClick={() => setActiveTab('leads')} style={{ minWidth: 120 }}>
+          <IconBriefcase /> Leads <span className="count-badge">{leads.filter((lead) => lead.status === 'NEW').length}</span>
+        </button>
         <button
           className={`tab-pill ${activeTab === 'ferry' ? 'active' : ''}`}
           onClick={() => setActiveTab('ferry')}
@@ -1238,6 +1265,8 @@ const App = () => {
                     ? 'Paquetes con problemas'
                     : activeTab === 'facturas'
                       ? 'Panel de Facturas'
+                      : activeTab === 'leads'
+                        ? 'Customer leads'
                       : 'Ferry manifests'}
             </h3>
             <span>
@@ -1253,6 +1282,8 @@ const App = () => {
                     ? `${pedidosConIncidencia.length} registro${pedidosConIncidencia.length === 1 ? '' : 's'} en esta categoría`
                     : activeTab === 'facturas'
                       ? `${facturasCount} registro${facturasCount === 1 ? '' : 's'} en esta categoría`
+                      : activeTab === 'leads'
+                        ? `${leads.length} leads received from the website`
                       : 'Create, share, and archive weekly ferry manifests'}
             </span>
           </div>
@@ -1302,7 +1333,13 @@ const App = () => {
 
         <div className="divider"></div>
 
+        {adminNotice && <div style={{ margin: '0.75rem 0', padding: '0.75rem 1rem', borderRadius: '0.75rem', background: '#dcfce7', border: '1px solid #86efac', color: '#166534', display: 'flex', justifyContent: 'space-between' }}><span>{adminNotice}</span><button type="button" onClick={() => setAdminNotice(null)} style={{ border: 0, background: 'transparent', color: 'inherit', cursor: 'pointer', fontWeight: 700 }}>Dismiss</button></div>}
+
         {activeTab === 'client360' && <Client360Admin clientes={clientes} pedidos={pedidos} facturas={facturas} />}
+
+        {activeTab === 'leads' && <div style={{ width: '100%', overflowX: 'auto' }}>
+          {leads.length === 0 ? <p style={{ padding: '1.5rem', color: '#64748b' }}>No customer leads have been received yet.</p> : <table className="admin-table" style={{ minWidth: 980, width: '100%' }}><thead><tr><th>Date</th><th>Customer</th><th>Contact</th><th>Message</th><th>Status</th><th>Admin notes</th></tr></thead><tbody>{leads.map((lead) => <tr key={lead.id}><td>{new Date(lead.created_at).toLocaleString()}</td><td><strong>{lead.nombre}</strong><br /><small>{lead.service_type || 'Website contact'}</small></td><td><a href={`mailto:${lead.email}`}>{lead.email}</a><br />{lead.telefono || '-'}</td><td style={{ maxWidth: 320, whiteSpace: 'pre-wrap' }}>{lead.mensaje}</td><td><select value={lead.status} onChange={(event) => actualizarLead(lead.id, { status: event.target.value as Lead['status'] })}><option value="NEW">New</option><option value="CONTACTED">Contacted</option><option value="CONVERTED">Converted</option><option value="CLOSED">Closed</option></select></td><td><textarea defaultValue={lead.admin_notes || ''} rows={2} placeholder="Add notes" onBlur={(event) => { const notes = event.target.value; if (notes !== (lead.admin_notes || '')) actualizarLead(lead.id, { admin_notes: notes }); }} /></td></tr>)}</tbody></table>}
+        </div>}
 
         {activeTab === 'ferry' && <FerryManifestAdmin />}
 
