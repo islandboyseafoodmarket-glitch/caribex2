@@ -10,10 +10,11 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
 
-    const { to, name, clientNumberDisplay } = body as {
+    const { to, name, clientNumberDisplay, initialPassword } = body as {
       to: string;
       name: string;
       clientNumberDisplay: string;
+      initialPassword?: string;
     };
 
     if (!to || !clientNumberDisplay) {
@@ -41,6 +42,10 @@ export async function POST(request: Request) {
     <p style="margin-bottom:12px;">Gracias por registrarte en <strong>Caribex Logistics Group</strong>.</p>
     <p style="margin-bottom:12px;">Tu <strong>n\u00famero de cliente</strong> es:</p>
     <p style="font-size:28px; font-weight:700; color:#2563eb; margin-bottom:16px;">${clientNumberDisplay}</p>
+    <p style="margin-bottom:12px;">You can sign in to the customer portal using your email address and this initial password:</p>
+    <p style="font-size:20px; font-weight:700; color:#111827; margin-bottom:16px;">${initialPassword || "Use the password shown after registration"}</p>
+    <p style="margin-bottom:12px;"><strong>For security, you must change this password after your first login.</strong></p>
+    <p style="margin-bottom:12px;">If you have trouble signing in, contact Caribex support at <strong>+504 89467476</strong>.</p>
     <p style="margin-bottom:12px;">Por favor, guarda este n\u00famero. Lo necesitar\u00e1s para gestionar tus env\u00edos y consultas.</p>
     <hr style="margin:16px 0; border:none; border-top:1px solid #e5e7eb;" />
     <p style="font-size:12px; color:#6b7280;">Este es un correo autom\u00e1tico, por favor no respondas a este mensaje.</p>

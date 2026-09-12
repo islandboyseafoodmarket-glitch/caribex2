@@ -93,6 +93,7 @@ export default function App() {
           to: formData.email,
           name: formData.nombre,
           clientNumberDisplay: numeroDisplay,
+          initialPassword: accountResult.initialPassword,
         }),
       });
 
