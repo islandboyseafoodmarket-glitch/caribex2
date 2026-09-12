@@ -3178,3 +3178,19 @@ main {
 .portal-first-login h2 { color: #1e3a8a; }
 .portal-first-login p { color: #475569; line-height: 1.5; }
 .portal-error { display: block; margin-top: .6rem; color: #b91c1c; }
+
+.customer-login-page { min-height: 100vh; display: grid; place-items: center; padding: 24px; background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 25%, #7f1d1d 75%, #dc2626 100%); }
+.customer-login-card { width: min(100%, 440px); padding: 32px; border-radius: 20px; background: #fff; box-shadow: 0 24px 60px rgba(15,23,42,.3); }
+.customer-login-card > img { display: block; width: 165px; height: 50px; margin: 0 auto 18px; object-fit: contain; }
+.customer-login-eyebrow { margin: 0; color: #2563eb; font-size: .75rem; font-weight: 800; letter-spacing: .12em; text-align: center; text-transform: uppercase; }
+.customer-login-card h1 { margin: .45rem 0 .5rem; color: #0f172a; font-size: 1.65rem; text-align: center; }
+.customer-login-intro { margin: 0 0 1.5rem; color: #64748b; font-size: .86rem; line-height: 1.5; text-align: center; }
+.customer-login-card form { display: flex; flex-direction: column; gap: 1rem; }
+.customer-login-card label { display: flex; flex-direction: column; gap: .4rem; color: #334155; font-size: .82rem; font-weight: 700; }
+.customer-login-card input { padding: .72rem .8rem; border: 1px solid #cbd5e1; border-radius: 9px; color: #0f172a; font: inherit; }
+.customer-login-card input:focus { outline: 2px solid #bfdbfe; border-color: #2563eb; }
+.customer-login-help { margin: -.25rem 0 0; color: #64748b; font-size: .77rem; line-height: 1.5; }
+.customer-login-link, .customer-login-back { display: block; margin: 1rem auto 0; border: 0; background: transparent; color: #2563eb; font-size: .82rem; text-align: center; text-decoration: none; cursor: pointer; }
+.customer-login-error, .customer-login-success { margin: .9rem 0 0; font-size: .82rem; text-align: center; }
+.customer-login-error { color: #b91c1c; }
+.customer-login-success { color: #166534; }

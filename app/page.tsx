@@ -311,7 +311,7 @@ export default function HomePage() {
             <Link href="/registro-cliente" className="nav-btn">
               {t("nav.registroClientes")}
             </Link>
-            <Link href="/portal" className="nav-btn">
+            <Link href="/portal/login" className="nav-btn">
               Customer portal
             </Link>
             <Link href="/login" className="nav-btn">

@@ -14,7 +14,6 @@ export default function LoginRoute() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [resetMessage, setResetMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -28,7 +27,6 @@ export default function LoginRoute() {
     });
 
     if (error || !data.user) {
-      void fetch("/api/customer-login-events", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email }) });
       // Mostrar el mensaje real de Supabase para depurar, con un fallback amigable
       setError(
         error?.message ||
@@ -67,21 +65,11 @@ export default function LoginRoute() {
       return;
     }
 
-    const { data: customerRow } = await supabase
-      .from("numero_cliente")
-      .select("id")
-      .eq("email", email.trim().toLowerCase())
-      .maybeSingle();
-    if (customerRow) {
-      router.push("/portal");
-      return;
-    }
-
     // No tiene rol asignado
     setError(
       isEn
-        ? "Your user does not have an assigned role (admin/staff)"
-        : "Tu usuario no tiene un rol asignado (admin/personal)"
+        ? "This is the admin/staff login. Customers should use the Customer Portal login."
+        : "Este acceso es para administradores y personal. Los clientes deben usar el acceso del Portal del Cliente."
     );
     await supabase.auth.signOut();
   };
@@ -90,13 +78,6 @@ export default function LoginRoute() {
     router.push("/");
   };
 
-  const handleForgotPassword = async () => {
-    if (!email) { setError(isEn ? "Enter your email first." : "Primero ingresa tu correo."); return; }
-    setError(null);
-    const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: `${window.location.origin}/portal` });
-    await fetch("/api/customer-portal", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email }) });
-    setResetMessage(resetError ? (isEn ? "We could not send the reset link." : "No pudimos enviar el enlace de recuperación.") : (isEn ? "Check your email for a password-reset link." : "Revisa tu correo para el enlace de recuperación."));
-  };
 
   return (
     <div
@@ -233,12 +214,6 @@ export default function LoginRoute() {
             </div>
           </div>
 
-          <p style={{ margin: "-0.5rem 0 1rem", color: "#64748b", fontSize: "0.78rem", lineHeight: 1.45 }}>
-            {isEn
-              ? "First-time customer sign-in: use your registered email and the password Caribex + your account number (for example, Caribex347). You will be asked to create a new password."
-              : "Primer inicio de sesión: usa tu correo registrado y la contraseña Caribex + tu número de cuenta (por ejemplo, Caribex347). Se te pedirá crear una nueva contraseña."}
-          </p>
-
           <button type="submit" className={styles.btnSignin} disabled={loading}>
             <span
               className="fas fa-sign-in-alt"
@@ -253,16 +228,11 @@ export default function LoginRoute() {
                 : "Iniciar Sesión"}
           </button>
 
-          <button type="button" onClick={() => void handleForgotPassword()} style={{ display: "block", margin: "0.75rem auto 0", border: 0, background: "transparent", color: "#2563eb", cursor: "pointer", fontSize: "0.82rem" }}>
-            {isEn ? "Forgot password?" : "¿Olvidaste tu contraseña?"}
-          </button>
-
           {error && (
             <p style={{ marginTop: "0.75rem", color: "#dc2626", fontSize: "0.85rem", textAlign: "center" }}>
               {error}
             </p>
           )}
-          {resetMessage && <p style={{ marginTop: "0.75rem", color: "#166534", fontSize: "0.85rem", textAlign: "center" }}>{resetMessage}</p>}
 
           <button type="button" className={styles.btnBack} onClick={handleBack}>
             <span className="fa-solid fa-arrow-left" aria-hidden="true" />

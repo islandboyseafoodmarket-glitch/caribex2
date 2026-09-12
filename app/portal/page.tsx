@@ -19,7 +19,7 @@ export default function CustomerPortalPage() {
   useEffect(() => { void load(); }, []);
   async function load() {
     const { data: session } = await supabase.auth.getSession();
-    if (!session.session) { window.location.href = "/login?next=/portal"; return; }
+    if (!session.session) { window.location.href = "/portal/login"; return; }
     setMustChangePassword(Boolean(session.session.user.user_metadata?.must_change_password));
     const response = await fetch("/api/customer-portal", { headers: { Authorization: `Bearer ${session.session.access_token}` }, cache: "no-store" });
     const body = await response.json();
