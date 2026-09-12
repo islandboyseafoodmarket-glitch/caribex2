@@ -10,6 +10,7 @@ import AcercaSection from "./acerca";
 import SeguimientoSection from "./seguimiento";
 import FCL from "./FCL";
 import LCL from "./LCL";
+import { supabase } from "../lib/supabaseClient";
 
 type PageId =
   | "inicio"
@@ -88,6 +89,15 @@ export default function HomePage() {
     body.append("message", data.get("mensaje") as string);
 
     try {
+      const { error: leadError } = await supabase.from("contact_submissions").insert({
+        nombre: String(data.get("nombre") || "").trim(),
+        email: String(data.get("email") || "").trim(),
+        telefono: String(data.get("telefono") || "").trim() || null,
+        mensaje: String(data.get("mensaje") || "").trim(),
+        service_type: "CONTACT",
+      });
+      if (leadError) console.warn("Lead could not be stored:", leadError.message);
+
       const res = await fetch("https://api.web3forms.com/submit", {
         method: "POST",
         body,
@@ -122,7 +132,7 @@ export default function HomePage() {
               <X size={22} />
             </button>
             <div className="caribex-popup__logo-wrap">
-              <Image src="/imagenes/logo-trimmed.png" alt="Caribex Logistics Group" width={220} height={97} className="caribex-popup__logo" />
+              <Image src="/imagenes/logo-clean.png" alt="Caribex Logistics Group" width={220} height={97} className="caribex-popup__logo" />
             </div>
             <p className="caribex-popup__eyebrow">Caribex Logistics Group</p>
             <h2 id="caribex-promo-title">
@@ -156,7 +166,7 @@ export default function HomePage() {
         >
           <div className="logo-box">
             <Image
-              src="/imagenes/logo-trimmed.png"
+              src="/imagenes/logo-clean.png"
               alt="Caribex Logistics Group"
               width={220}
               height={97}
@@ -642,6 +652,10 @@ export default function HomePage() {
                     required
                   />
                   <label>{t("contact.yourEmail")}</label>
+                </div>
+                <div className="input-wrapper">
+                  <input type="tel" name="telefono" placeholder=" " />
+                  <label>{i18n.language.startsWith("en") ? "Phone (optional)" : "Teléfono (opcional)"}</label>
                 </div>
                 <div className="input-wrapper">
                   <textarea

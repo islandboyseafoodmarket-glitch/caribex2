@@ -663,18 +663,26 @@ main {
 
 .logo-image {
   display: block;
-  width: clamp(135px, 12vw, 175px);
+  width: clamp(128px, 10vw, 158px);
   height: auto;
-  max-height: 66px;
+  max-height: 58px;
   object-fit: contain;
   border-radius: 8px;
 }
 
 @media (max-width: 600px) {
   .logo-image {
-    width: min(40vw, 150px);
-    max-height: 56px;
+    width: min(38vw, 138px);
+    max-height: 52px;
   }
+}
+
+@media (min-width: 601px) and (max-width: 1180px) {
+  .nav { padding-inline: 2.5%; }
+  .nav-desktop { gap: 12px; }
+  .nav-links { gap: 11px; }
+  .nav-link-button { font-size: 0.7rem; }
+  .nav-btn { padding-inline: 14px; font-size: 0.72rem; }
 }
 
 .logo-button-reset {

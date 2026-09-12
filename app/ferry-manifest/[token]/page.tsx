@@ -136,7 +136,7 @@ export default function FerryManifestPage({ params }: { params: { token: string 
   };
 
   return <main className="ferry-page">
-    <header className="ferry-header"><div className="ferry-brand"><Image src="/imagenes/logo.png" alt="Caribex Logistics Group" width={150} height={45} /><span>Ferry manifest</span></div><div className={`ferry-status ${readOnly ? "ferry-status-locked" : ""}`}>{readOnly ? "Read-only" : `${submittedCount} of ${data.entries.length} submitted`}</div></header>
+    <header className="ferry-header"><div className="ferry-brand"><Image src="/imagenes/logo-clean.png" alt="Caribex Logistics Group" width={150} height={45} /><span>Ferry manifest</span></div><div className={`ferry-status ${readOnly ? "ferry-status-locked" : ""}`}>{readOnly ? "Read-only" : `${submittedCount} of ${data.entries.length} submitted`}</div></header>
     <div className="ferry-hero"><div className="ferry-icon"><Ship size={25} /></div><div><p className="ferry-eyebrow">Ferry operations</p><h1>Weekly shipment manifest</h1><p>Enter the booking number for each customer who has shipped. Blank rows remain open for the next ferry.</p></div></div>
     <div className="ferry-meta"><span><ClipboardList size={16} /> Week: {dateLabel(data.manifest.semana_inicio)} – {dateLabel(data.manifest.semana_fin)}</span><span>Container: <strong>{data.manifest.container_codigo || "—"}</strong></span><div className="ferry-export-actions"><button type="button" onClick={exportCsv}><Download size={15} /> Export CSV</button><button type="button" onClick={() => window.print()}><Printer size={15} /> Print receiver sheet</button></div></div>
     {error && <div className="ferry-error"><XCircle size={18} />{error}</div>}

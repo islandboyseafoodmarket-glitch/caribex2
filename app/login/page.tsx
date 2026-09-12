@@ -127,6 +127,11 @@ export default function LoginRoute() {
               ? "Log in to manage your shipments"
               : "Inicia sesión para gestionar tus paquetes"}
           </p>
+          <p style={{ margin: "0.5rem 0 0", color: "#64748b", fontSize: "0.8rem", lineHeight: 1.45 }}>
+            {isEn
+              ? "Staff and admin sign-in only. Customer portal access uses a separate customer account."
+              : "Acceso solo para personal y administradores. El portal del cliente usa una cuenta separada."}
+          </p>
         </div>
 
         <form onSubmit={handleSubmit}>
