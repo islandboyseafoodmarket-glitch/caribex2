@@ -142,8 +142,9 @@ export function InicioSection({
             <div className="inicio-icon-box inicio-bg-blue">2</div>
             <h3>{isEn ? "Ship To Our Florida Warehouse" : "Envíe a nuestro almacén en Florida"}</h3>
             <p style={{ fontSize: "0.85rem", lineHeight: "1.4" }}>
-              <strong>Your Name</strong>
+              <strong>{isEn ? "Your Name" : "Tu Nombre"}</strong>
               <br />
+              {!isEn && <><span>Dirección de envío:</span><br /></>}
               1092 NE Industrial Blvd
               <br />
               Jensen Beach, Florida 34957
