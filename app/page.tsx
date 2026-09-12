@@ -97,6 +97,14 @@ export default function HomePage() {
         service_type: "CONTACT",
       });
       if (leadError) console.warn("Lead could not be stored:", leadError.message);
+      const { error: customerLeadError } = await supabase.from("customer_leads").insert({
+        nombre: String(data.get("nombre") || "").trim(),
+        email: String(data.get("email") || "").trim(),
+        mensaje: String(data.get("mensaje") || "").trim(),
+        asunto: t("contact.subject"),
+        fuente: "landing_page",
+      });
+      if (customerLeadError) console.warn("Customer lead could not be stored:", customerLeadError.message);
 
       const res = await fetch("https://api.web3forms.com/submit", {
         method: "POST",
