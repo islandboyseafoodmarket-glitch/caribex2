@@ -70,7 +70,7 @@ export default function LoginRoute() {
     const { data: customerRow } = await supabase
       .from("numero_cliente")
       .select("id")
-      .eq("auth_user_id", userId)
+      .eq("email", email.trim().toLowerCase())
       .maybeSingle();
     if (customerRow) {
       router.push("/portal");
