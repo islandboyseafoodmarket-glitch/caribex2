@@ -21,7 +21,7 @@ export async function GET(request: Request) {
     if (clientError) throw clientError;
     if (!client) return NextResponse.json({ error: "Customer profile not found" }, { status: 404 });
     const [{ data: packages, error: packageError }, { data: invoices, error: invoiceError }, { data: ferry, error: ferryError }] = await Promise.all([
-      supabase.from("paquetes_registro").select("id, tracking, nombre_paqueteria, tipo_paquete, contenido, estado, registro, fecha_entregado, problema, problema_notas").eq("numero_cliente_id", client.id).order("registro", { ascending: false }),
+      supabase.from("paquetes_registro").select("id, tracking, nombre_paqueteria, tipo_paquete, contenido, estado, registro, fecha_entregado, notas").eq("numero_cliente_id", client.id).order("registro", { ascending: false }),
       supabase.from("paquetes_registro").select("id, tracking, billing_subtotal, billing_tax, billing_total, approval_status, invoice_status").eq("numero_cliente_id", client.id).not("billing_total", "is", null).order("registro", { ascending: false }),
       supabase.from("ferry_manifest_entries").select("id, puerto, numero_reserva, nombre_receptor, enviado_en, manifiesto_id").eq("numero_cliente_id", client.id).order("enviado_en", { ascending: false }),
     ]);
