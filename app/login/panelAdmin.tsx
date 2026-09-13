@@ -779,8 +779,10 @@ const App = () => {
   const handleAdminSendInvoice = async (factura: Factura) => {
     if (!factura.clienteEmail) { alert("This customer does not have an email address."); return; }
     if ((factura.approval_status || "PENDING").toUpperCase() !== "APPROVED") { alert("Approve the invoice before sending it."); return; }
+    const { data: checkin } = await supabase.from("paquetes_checkin").select("cargos_adicionales, consolidacion").eq("paquete_id", factura.id).order("creado_en", { ascending: false }).limit(1).maybeSingle();
+    const extraCharges = String(checkin?.cargos_adicionales || "").split(",").map((item) => item.trim()).filter(Boolean);
     const { data: sessionData } = await supabase.auth.getSession();
-    const response = await fetch("/api/send-invoice", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${sessionData.session?.access_token || ""}` }, body: JSON.stringify({ to: factura.clienteEmail, subject: `Invoice for ${factura.clienteNombre || factura.tracking}`, clientName: factura.clienteNombre, clientNumber: factura.clienteNumero, tracking: factura.tracking, typeLabel: factura.tipo_paquete || "Shipment", contents: factura.notas, subtotal: factura.subtotal || 0, tax: factura.tax || 0, total: factura.total || 0, extraCharges: [] }) });
+    const response = await fetch("/api/send-invoice", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${sessionData.session?.access_token || ""}` }, body: JSON.stringify({ to: factura.clienteEmail, subject: `Invoice for ${factura.clienteNombre || factura.tracking}`, clientName: factura.clienteNombre, clientNumber: factura.clienteNumero, tracking: factura.tracking, typeLabel: factura.tipo_paquete || "Shipment", contents: factura.notas, subtotal: factura.subtotal || 0, tax: factura.tax || 0, total: factura.total || 0, extraCharges, isConsolidationBox: Boolean(checkin?.consolidacion) }) });
     const body = await response.json().catch(() => ({}));
     if (!response.ok) { alert(body.error || "Could not send invoice"); return; }
     await handleAdminChangeInvoiceStatus(factura, "SENT");
