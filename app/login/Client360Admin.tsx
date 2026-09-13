@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { AlertCircle, ArrowLeft, Box, CheckCircle2, FileText, Mail, MapPin, Phone, Search, Ship, UserRound } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
 
-type Cliente = { id: string; nombre: string; numero_cliente: number; email: string | null; telefono: string | null; puerto: string | null; tipo_cuenta: string | null; creado_en: string | null };
+type Cliente = { id: string; nombre: string; numero_cliente: number; email: string | null; telefono: string | null; puerto: string | null; tipo_cuenta: string | null; creado_en: string | null; auth_user_id?: string | null };
 type Pedido = { id: string; tracking: string; clienteNumero: number | null; clienteNombre: string | null; estado: string | null; carrier?: string | null; tipo_paquete?: string | null; contenido?: string | null; notas?: string | null; numero_cliente_id?: string | null; registro?: string | null; hora_fecha?: string | null; fecha_entregado?: string | null; problema?: boolean | null; problema_notas?: string | null };
 type Factura = { id: string; tracking: string; clienteNumero: number | null; clienteNombre: string | null; carrier: string | null; tipo_paquete: string | null; subtotal: number | null; tax: number | null; total: number | null; approval_status: string | null; invoice_status: string | null; notas: string | null };
 type FerryEntry = { id: string; manifiesto_id: string; puerto: string; numero_reserva: string | null; nombre_receptor: string | null; enviado_en: string | null };
@@ -23,6 +23,7 @@ export default function Client360Admin({ clientes, pedidos, facturas }: { client
   const [search, setSearch] = useState("");
   const [pendingLoginHelp, setPendingLoginHelp] = useState(0);
   const [resetMessage, setResetMessage] = useState<string | null>(null);
+  const [provisionMessage, setProvisionMessage] = useState<string | null>(null);
   const selected = clientes.find((client) => client.id === selectedId) || null;
   const filteredClients = clientes.filter((client) => {
     const term = search.trim().toLowerCase();
@@ -38,6 +39,14 @@ export default function Client360Admin({ clientes, pedidos, facturas }: { client
     const response = await fetch("/api/admin/customer-reset", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${sessionData.session?.access_token || ""}` }, body: JSON.stringify({ customer_id: selected?.id }) });
     const body = await response.json();
     setResetMessage(response.ok ? "Password-reset link emailed to the customer." : (body.error || "Could not send reset link."));
+  };
+
+  const provisionPortal = async () => {
+    if (!selected) return;
+    const { data: sessionData } = await supabase.auth.getSession();
+    const response = await fetch("/api/admin/customer-provision", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${sessionData.session?.access_token || ""}` }, body: JSON.stringify({ customer_id: selected.id }) });
+    const body = await response.json();
+    setProvisionMessage(response.ok ? `Portal access created. Initial password: ${body.initial_password}` : (body.error || "Could not provision portal access."));
   };
 
   useEffect(() => {
@@ -66,8 +75,9 @@ export default function Client360Admin({ clientes, pedidos, facturas }: { client
   const money = (value: number | null) => value == null ? "—" : `$${Number(value).toFixed(2)}`;
   return <div>
     <button type="button" className="pa-secondary-btn" onClick={() => setSelectedId("")} style={{ display: "inline-flex", alignItems: "center", gap: ".35rem", marginBottom: "1rem" }}><ArrowLeft size={15} /> All clients</button>
-    <section className="c360-profile"><div className="c360-avatar"><UserRound size={25} /></div><div style={{ flex: 1 }}><p className="c360-eyebrow">Client 360 profile</p><h2>{selected.nombre}</h2><span>Client #{selected.numero_cliente} · {selected.tipo_cuenta || "Personal"}</span></div><div className="c360-contact"><span><Mail size={15} /> {selected.email || "No email"}</span><span><Phone size={15} /> {selected.telefono || "No phone"}</span><span><MapPin size={15} /> {selected.puerto || "No port"}</span><button type="button" className="pa-secondary-btn" onClick={() => void sendResetLink()}>Email password-reset link</button></div></section>
+    <section className="c360-profile"><div className="c360-avatar"><UserRound size={25} /></div><div style={{ flex: 1 }}><p className="c360-eyebrow">Client 360 profile</p><h2>{selected.nombre}</h2><span>Client #{selected.numero_cliente} · {selected.tipo_cuenta || "Personal"}</span></div><div className="c360-contact"><span><Mail size={15} /> {selected.email || "No email"}</span><span><Phone size={15} /> {selected.telefono || "No phone"}</span><span><MapPin size={15} /> {selected.puerto || "No port"}</span>{selected.auth_user_id ? <button type="button" className="pa-secondary-btn" onClick={() => void sendResetLink()}>Email password-reset link</button> : <button type="button" className="pa-secondary-btn" onClick={() => void provisionPortal()}>Create customer portal access</button>}</div></section>
     {resetMessage && <div className="c360-alert">{resetMessage}</div>}
+    {provisionMessage && <div className="c360-alert">{provisionMessage}</div>}
     <div className="c360-metrics"><div><Box size={18} /><strong>{clientPackages.length}</strong><span>Packages</span></div><div><FileText size={18} /><strong>{clientInvoices.length}</strong><span>Invoices</span></div><div><AlertCircle size={18} /><strong>{incidents.length}</strong><span>Incidents</span></div><div><Ship size={18} /><strong>{ferryEntries.length}</strong><span>Ferry bookings</span></div></div>
     <div className="c360-grid">
       <section className="c360-card"><h3><Box size={18} /> Shipment history</h3>{clientPackages.length ? <div className="c360-list">{clientPackages.map((item) => <div className="c360-row" key={item.id}><div><strong>{item.tracking}</strong><span>{item.carrier || "Carrier not recorded"} · {item.tipo_paquete || "Package"}</span><small>{formatTimestamp(item.registro || item.hora_fecha)}</small></div><div className="c360-row-right"><span className="c360-status">{item.estado || "Unknown"}</span>{item.problema && <AlertCircle size={16} color="#b91c1c" />}</div></div>)}</div> : <p className="c360-muted">No packages recorded.</p>}</section>

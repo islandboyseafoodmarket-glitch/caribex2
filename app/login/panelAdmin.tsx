@@ -39,6 +39,7 @@ const App = () => {
     puerto: string | null;
     tipo_cuenta: string | null;
     creado_en: string | null;
+    auth_user_id?: string | null;
   };
   const [clientes, setClientes] = useState<Cliente[]>([]);
   type Pedido = {
@@ -80,6 +81,7 @@ const App = () => {
     tracking: string;
     clienteNumero: number | null;
     clienteNombre: string | null;
+    clienteEmail: string | null;
     carrier: string | null;
     tipo_paquete: string | null;
     subtotal: number | null;
@@ -545,7 +547,7 @@ const App = () => {
   const cargarClientes = useCallback(async () => {
     const { data, error } = await supabase
       .from("numero_cliente")
-      .select("id, nombre, numero_cliente, email, telefono, puerto, tipo_cuenta, creado_en")
+      .select("id, nombre, numero_cliente, email, telefono, puerto, tipo_cuenta, creado_en, auth_user_id")
       .order("creado_en", { ascending: false });
 
     if (!error && data) {
@@ -628,7 +630,7 @@ const App = () => {
     const { data, error } = await supabase
       .from("paquetes_registro")
       .select(
-        "id, tracking, nombre_paqueteria, tipo_paquete, notas, notas_imagenes, billing_subtotal, billing_tax, billing_total, approval_status, invoice_status, numero_cliente:numero_cliente_id (id, numero_cliente, nombre)",
+        "id, tracking, nombre_paqueteria, tipo_paquete, notas, notas_imagenes, billing_subtotal, billing_tax, billing_total, approval_status, invoice_status, numero_cliente:numero_cliente_id (id, numero_cliente, nombre, email)",
       )
       .or("estado.ilike.%descargado%,estado.ilike.%entregado%")
       .order("creado_en", { ascending: false });
@@ -644,6 +646,7 @@ const App = () => {
         tracking: (row.tracking as string) || "-",
         clienteNumero: row.numero_cliente?.numero_cliente ?? null,
         clienteNombre: row.numero_cliente?.nombre ?? null,
+        clienteEmail: row.numero_cliente?.email ?? null,
         carrier: (row.nombre_paqueteria as string) || null,
         tipo_paquete: (row.tipo_paquete as string) || null,
         subtotal: (row.billing_subtotal as number | null) ?? null,
@@ -762,6 +765,26 @@ const App = () => {
     }
 
     updateFacturaEnEstado(factura.id, { invoice_status: status });
+  };
+
+  const handleAdminEditInvoiceAddOns = async (factura: Factura) => {
+    const { data: checkin } = await supabase.from("paquetes_checkin").select("id, cargos_adicionales").eq("paquete_id", factura.id).order("creado_en", { ascending: false }).limit(1).maybeSingle();
+    if (!checkin) { alert("No check-in record exists for this invoice yet."); return; }
+    const value = window.prompt("Add-on items (comma-separated):", checkin.cargos_adicionales || "");
+    if (value === null) return;
+    const { error } = await supabase.from("paquetes_checkin").update({ cargos_adicionales: value.trim() || null }).eq("id", checkin.id);
+    if (error) alert(error.message || "Could not update invoice add-ons");
+  };
+
+  const handleAdminSendInvoice = async (factura: Factura) => {
+    if (!factura.clienteEmail) { alert("This customer does not have an email address."); return; }
+    if ((factura.approval_status || "PENDING").toUpperCase() !== "APPROVED") { alert("Approve the invoice before sending it."); return; }
+    const { data: sessionData } = await supabase.auth.getSession();
+    const response = await fetch("/api/send-invoice", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${sessionData.session?.access_token || ""}` }, body: JSON.stringify({ to: factura.clienteEmail, subject: `Invoice for ${factura.clienteNombre || factura.tracking}`, clientName: factura.clienteNombre, clientNumber: factura.clienteNumero, tracking: factura.tracking, typeLabel: factura.tipo_paquete || "Shipment", contents: factura.notas, subtotal: factura.subtotal || 0, tax: factura.tax || 0, total: factura.total || 0, extraCharges: [] }) });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) { alert(body.error || "Could not send invoice"); return; }
+    await handleAdminChangeInvoiceStatus(factura, "SENT");
+    alert("Invoice emailed successfully.");
   };
 
   const openConfirmPayInvoice = (factura: Factura) => {
@@ -1621,6 +1644,14 @@ const App = () => {
                     >
                       <button
                         type="button"
+                        title="Edit invoice add-ons"
+                        style={{ width: 28, height: 28, borderRadius: '999px', border: '1px solid #cbd5e1', backgroundColor: '#f8fafc', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                        onClick={() => void handleAdminEditInvoiceAddOns(f)}
+                      >
+                        <Pencil size={14} />
+                      </button>
+                      <button
+                        type="button"
                         title="Aprobar factura"
                         style={{
                           width: 28,
@@ -1678,7 +1709,7 @@ const App = () => {
                           justifyContent: 'center',
                         }}
                         disabled={isSent || isPaid}
-                        onClick={() => !(isSent || isPaid) && handleAdminChangeInvoiceStatus(f, 'SENT')}
+                        onClick={() => !(isSent || isPaid) && void handleAdminSendInvoice(f)}
                       >
                         <Send size={14} />
                       </button>

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 
@@ -8,6 +9,20 @@ if (!RESEND_API_KEY) {
 
 export async function POST(request: Request) {
   try {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const bearer = request.headers.get("authorization") || "";
+    if (!url || !serviceKey || !bearer.startsWith("Bearer ")) {
+      return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+    }
+    const authClient = createClient(url, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
+    const { data: authData } = await authClient.auth.getUser(bearer.slice(7));
+    if (!authData.user) return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+    const [{ data: admin }, { data: staff }] = await Promise.all([
+      authClient.from("administradores").select("id").eq("id", authData.user.id).maybeSingle(),
+      authClient.from("personal").select("id").eq("id", authData.user.id).maybeSingle(),
+    ]);
+    if (!admin && !staff) return NextResponse.json({ error: "Admin or staff access required" }, { status: 403 });
     const body = await request.json();
 
     const {

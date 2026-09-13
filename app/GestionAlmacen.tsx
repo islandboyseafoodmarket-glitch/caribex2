@@ -659,9 +659,10 @@ export default function GestionAlmacen() {
 
     try {
       setIsSendingInvoiceEmail(true);
+      const { data: sessionData } = await supabase.auth.getSession();
       const res = await fetch("/api/send-invoice", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${sessionData.session?.access_token || ""}` },
         body: JSON.stringify({
           to: clientEmail,
           subject,
@@ -3415,6 +3416,14 @@ const handlePackageCreated = (pkg: Package) => {
             >
               <Globe2 size={16} />
               <span>{language.toUpperCase()}</span>
+            </button>
+            <button
+              type="button"
+              className="ga-lang-button"
+              onClick={() => router.push("/client360")}
+            >
+              <Users size={16} />
+              <span>Client 360</span>
             </button>
             <button
               type="button"
