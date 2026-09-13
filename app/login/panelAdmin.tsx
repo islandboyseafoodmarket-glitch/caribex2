@@ -98,8 +98,24 @@ const App = () => {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [adminNotice, setAdminNotice] = useState<string | null>(null);
   const cargarLeads = useCallback(async () => {
-    const { data, error } = await supabase.from('contact_submissions').select('id, nombre, email, telefono, mensaje, service_type, status, admin_notes, created_at').order('created_at', { ascending: false });
-    if (!error && data) setLeads(data as Lead[]);
+    const [{ data: contactData }, { data: customerData }] = await Promise.all([
+      supabase.from('contact_submissions').select('id, nombre, email, telefono, mensaje, service_type, status, admin_notes, created_at').order('created_at', { ascending: false }),
+      supabase.from('customer_leads').select('id, nombre, email, mensaje, asunto, estado, creado_en').order('creado_en', { ascending: false }),
+    ]);
+    const legacy = (contactData || []) as Lead[];
+    const newer = (customerData || []).map((lead: any): Lead => ({
+      id: lead.id,
+      nombre: lead.nombre,
+      email: lead.email,
+      telefono: null,
+      mensaje: lead.mensaje,
+      service_type: lead.asunto || 'Landing page lead',
+      status: lead.estado === 'contactado' ? 'CONTACTED' : lead.estado === 'cerrado' ? 'CLOSED' : lead.estado === 'spam' ? 'CLOSED' : 'NEW',
+      admin_notes: null,
+      created_at: lead.creado_en,
+    }));
+    const seen = new Set<string>();
+    setLeads([...newer, ...legacy].filter((lead) => { const key = `${lead.email}|${lead.mensaje}`; if (seen.has(key)) return false; seen.add(key); return true; }));
   }, []);
 
   type InvoiceTab = 'sinAprobar' | 'aprobadas' | 'enviadas' | 'pagadas';
@@ -729,8 +745,12 @@ const App = () => {
   }, [activeTab, cargarPedidos, cargarFacturas, cargarLeads]);
 
   const actualizarLead = async (id: string, changes: Partial<Lead>) => {
-    const { error } = await supabase.from('contact_submissions').update(changes).eq('id', id);
-    if (!error) setLeads((prev) => prev.map((lead) => lead.id === id ? { ...lead, ...changes } : lead));
+    const { data: legacyRows } = await supabase.from('contact_submissions').update(changes).eq('id', id).select('id');
+    if (!legacyRows?.length) {
+      const estado = changes.status === 'CONTACTED' ? 'contactado' : changes.status === 'CLOSED' ? 'cerrado' : changes.status === 'CONVERTED' ? 'contactado' : 'nuevo';
+      await supabase.from('customer_leads').update({ estado }).eq('id', id);
+    }
+    setLeads((prev) => prev.map((lead) => lead.id === id ? { ...lead, ...changes } : lead));
   };
 
   const handleAdminChangeApproval = async (

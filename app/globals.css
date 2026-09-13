@@ -3194,3 +3194,22 @@ main {
 .customer-login-error, .customer-login-success { margin: .9rem 0 0; font-size: .82rem; text-align: center; }
 .customer-login-error { color: #b91c1c; }
 .customer-login-success { color: #166534; }
+
+/* Admin interaction polish: preserves the existing palette, icons, and layout. */
+.dashboard-root .tab-pill,
+.dashboard-root .pa-primary-btn,
+.dashboard-root .pa-secondary-btn,
+.dashboard-root button { transition: transform .16s ease, box-shadow .16s ease, background-color .16s ease, border-color .16s ease; }
+.dashboard-root .tab-pill:hover,
+.dashboard-root .pa-primary-btn:hover,
+.dashboard-root .pa-secondary-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(15, 23, 42, .10); }
+.dashboard-root .tab-pill:focus-visible,
+.dashboard-root .pa-primary-btn:focus-visible,
+.dashboard-root .pa-secondary-btn:focus-visible,
+.dashboard-root button:focus-visible,
+.dashboard-root input:focus-visible,
+.dashboard-root select:focus-visible,
+.dashboard-root textarea:focus-visible { outline: 3px solid rgba(37, 99, 235, .28); outline-offset: 2px; }
+.dashboard-root .admin-table tbody tr { transition: background-color .16s ease, box-shadow .16s ease; }
+.dashboard-root .admin-table tbody tr:hover { background: rgba(239, 246, 255, .72); box-shadow: inset 3px 0 0 #2563eb; }
+.dashboard-root .count-badge { min-width: 1.45rem; text-align: center; }
