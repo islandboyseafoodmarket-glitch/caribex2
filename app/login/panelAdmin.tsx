@@ -133,6 +133,8 @@ const App = () => {
     approval_status: string | null;
     invoice_status: string | null;
     notas: string | null;
+    payment_method: string | null;
+    payment_notes: string | null;
   };
 
   const [facturas, setFacturas] = useState<Factura[]>([]);
@@ -172,6 +174,8 @@ const App = () => {
 
   // Modal de confirmación para marcar factura como pagada
   const [pendingPayInvoice, setPendingPayInvoice] = useState<Factura | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState("");
+  const [paymentNotes, setPaymentNotes] = useState("");
   const [editingInvoiceAddOns, setEditingInvoiceAddOns] = useState<Factura | null>(null);
   const [invoiceAddOnType, setInvoiceAddOnType] = useState("");
   const [invoiceAddOnAmount, setInvoiceAddOnAmount] = useState("");
@@ -226,6 +230,7 @@ const App = () => {
   const [pedidoDetalleLoading, setPedidoDetalleLoading] = useState(false);
   const [pedidoDetalleError, setPedidoDetalleError] = useState<string | null>(null);
   const [adminLabelPackage, setAdminLabelPackage] = useState<any | null>(null);
+  const [adminLabelMode, setAdminLabelMode] = useState<"qr-reprint" | "box">("box");
   const [isPedidoEditOpen, setIsPedidoEditOpen] = useState(false);
   const [pedidoEditId, setPedidoEditId] = useState<string | null>(null);
   const [pedidoClienteLabel, setPedidoClienteLabel] = useState<string>("");
@@ -724,7 +729,7 @@ const App = () => {
     const { data, error } = await supabase
       .from("paquetes_registro")
       .select(
-        "id, tracking, nombre_paqueteria, tipo_paquete, notas, notas_imagenes, billing_subtotal, billing_tax, billing_total, approval_status, invoice_status, numero_cliente:numero_cliente_id (id, numero_cliente, nombre, email)",
+        "id, tracking, nombre_paqueteria, tipo_paquete, notas, notas_imagenes, billing_subtotal, billing_tax, billing_total, approval_status, invoice_status, payment_method, payment_notes, numero_cliente:numero_cliente_id (id, numero_cliente, nombre, email)",
       )
       .or("estado.ilike.%descargado%,estado.ilike.%entregado%")
       .order("creado_en", { ascending: false });
@@ -749,6 +754,8 @@ const App = () => {
         approval_status: (row.approval_status as string | null) ?? null,
         invoice_status: (row.invoice_status as string | null) ?? null,
         notas: (row.notas as string | null) ?? null,
+        payment_method: (row.payment_method as string | null) ?? null,
+        payment_notes: (row.payment_notes as string | null) ?? null,
       }));
 
       // En el panel admin mostramos todas las facturas posibles para paquetes descargados/entregados,
@@ -913,14 +920,38 @@ const App = () => {
   };
 
   const openConfirmPayInvoice = (factura: Factura) => {
+    setPaymentMethod(factura.payment_method || "");
+    setPaymentNotes(factura.payment_notes || "");
     setPendingPayInvoice(factura);
   };
 
   const handleConfirmPayInvoice = async () => {
     if (!pendingPayInvoice) return;
+    if (!paymentMethod) {
+      alert("Select a payment method.");
+      return;
+    }
     const target = pendingPayInvoice;
-    await handleAdminChangeInvoiceStatus(target, 'PAID');
+    const { error } = await supabase
+      .from("paquetes_registro")
+      .update({
+        invoice_status: "PAID",
+        payment_method: paymentMethod,
+        payment_notes: paymentNotes.trim() || null,
+      })
+      .eq("id", target.id);
+    if (error) {
+      alert(error.message || "Could not record payment details.");
+      return;
+    }
+    updateFacturaEnEstado(target.id, {
+      invoice_status: "PAID",
+      payment_method: paymentMethod,
+      payment_notes: paymentNotes.trim() || null,
+    });
     setPendingPayInvoice(null);
+    setPaymentMethod("");
+    setPaymentNotes("");
   };
 
   const handleRemoveAccess = async (id: string) => {
@@ -2491,6 +2522,32 @@ const App = () => {
                   Cliente: #{pendingPayInvoice.clienteNumero ?? '-'} - {pendingPayInvoice.clienteNombre}
                 </p>
               )}
+              <div className="pa-field" style={{ marginTop: '1rem' }}>
+                <label htmlFor="admin-payment-method">Payment method</label>
+                <select
+                  id="admin-payment-method"
+                  className="pa-input"
+                  value={paymentMethod}
+                  onChange={(event) => setPaymentMethod(event.target.value)}
+                >
+                  <option value="">Select a payment method</option>
+                  <option value="Zelle">Zelle</option>
+                  <option value="PayPal">PayPal</option>
+                  <option value="Cash">Cash</option>
+                  <option value="Credit granted">Credit granted</option>
+                </select>
+              </div>
+              <div className="pa-field">
+                <label htmlFor="admin-payment-notes">Payment details / notes</label>
+                <textarea
+                  id="admin-payment-notes"
+                  className="pa-input"
+                  rows={3}
+                  value={paymentNotes}
+                  onChange={(event) => setPaymentNotes(event.target.value)}
+                  placeholder="Reference number, payer, or other payment details"
+                />
+              </div>
             </div>
             <div className="ga-modal-actions" style={{ justifyContent: 'flex-end', gap: '0.5rem' }}>
               <button
@@ -2666,8 +2723,9 @@ const App = () => {
               <div className="pa-modal-actions" style={{ justifyContent: "flex-end", gap: "0.5rem" }}>
                 <button
                   type="button"
-                  className="pa-primary-btn"
+                  className="pa-secondary-btn"
                   onClick={() => {
+                    setAdminLabelMode("qr-reprint");
                     const check = Array.isArray(pedidoDetalle.paquetes_checkin) ? pedidoDetalle.paquetes_checkin[0] : null;
                     const length = Number(check?.largo);
                     const width = Number(check?.ancho);
@@ -2685,7 +2743,31 @@ const App = () => {
                     });
                   }}
                 >
-                  Generate shipping label
+                  Reprint QR label
+                </button>
+                <button
+                  type="button"
+                  className="pa-primary-btn"
+                  onClick={() => {
+                    setAdminLabelMode("box");
+                    const check = Array.isArray(pedidoDetalle.paquetes_checkin) ? pedidoDetalle.paquetes_checkin[0] : null;
+                    const length = Number(check?.largo);
+                    const width = Number(check?.ancho);
+                    const height = Number(check?.alto);
+                    const boxSize = [length, width, height].every((value) => Number.isFinite(value) && value > 0)
+                      ? `${length} x ${width} x ${height} in`
+                      : null;
+                    setAdminLabelPackage({
+                      tracking: String(pedidoDetalle.tracking || ""),
+                      customerName: pedidoDetalle.numero_cliente?.nombre || pedidoDetalle.cliente_nombre || null,
+                      accountNumber: pedidoDetalle.numero_cliente?.numero_cliente || pedidoDetalle.numero_cliente_numero || null,
+                      carrier: pedidoDetalle.nombre_paqueteria || pedidoDetalle.carrier || null,
+                      packageType: pedidoDetalle.tipo_paquete || "Package",
+                      details: boxSize || pedidoDetalle.contenido || null,
+                    });
+                  }}
+                >
+                  Generate box label
                 </button>
                 <button type="button" className="pa-secondary-btn" onClick={() => setIsPedidoDetalleOpen(false)}>Close</button>
               </div>
@@ -2697,6 +2779,7 @@ const App = () => {
       {adminLabelPackage && (
         <CaribexLabelPrint
           label={adminLabelPackage}
+          mode={adminLabelMode}
           onClose={() => setAdminLabelPackage(null)}
         />
       )}

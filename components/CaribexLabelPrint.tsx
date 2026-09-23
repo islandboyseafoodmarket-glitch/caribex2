@@ -10,6 +10,7 @@ export type CaribexLabelData = {
   carrier?: string | null;
   packageType?: string | null;
   details?: string | null;
+  boxCode?: string | null;
 };
 
 function createCaribexLabelCode() {
@@ -25,15 +26,21 @@ type Props = {
   label: CaribexLabelData;
   onClose: () => void;
   isEs?: boolean;
+  mode?: "qr-reprint" | "box";
 };
 
-export default function CaribexLabelPrint({ label, onClose, isEs = false }: Props) {
+export default function CaribexLabelPrint({ label, onClose, isEs = false, mode = "box" }: Props) {
   const [qrCode, setQrCode] = useState("");
   const [labelCode] = useState(createCaribexLabelCode);
+  const isQrReprint = mode === "qr-reprint";
 
   useEffect(() => {
     let mounted = true;
-    const qrPayload = JSON.stringify({ tracking: label.tracking.trim(), labelCode: `${labelCode}-2026-Caribex` });
+    const qrPayload = JSON.stringify(
+      isQrReprint
+        ? { tracking: label.tracking.trim() }
+        : { tracking: label.tracking.trim(), boxCode: label.boxCode || `${labelCode}-2026-Caribex` },
+    );
     QRCode.toDataURL(qrPayload, {
       errorCorrectionLevel: "M",
       margin: 2,
@@ -43,7 +50,7 @@ export default function CaribexLabelPrint({ label, onClose, isEs = false }: Prop
       if (mounted) setQrCode(url);
     }).catch(() => setQrCode(""));
     return () => { mounted = false; };
-  }, [label.tracking, labelCode]);
+  }, [isQrReprint, label.boxCode, label.tracking, labelCode]);
 
   return (
     <div className="caribex-label-overlay" role="dialog" aria-modal="true">
@@ -73,16 +80,15 @@ export default function CaribexLabelPrint({ label, onClose, isEs = false }: Prop
       <div className="caribex-label-sheet">
         <div className="caribex-label-card">
           <div className="caribex-label-brand">Caribex</div>
-          <div className="caribex-label-subtitle">{isEs ? "Etiqueta de envío" : "Shipping label"}</div>
-          {qrCode ? <img className="caribex-label-qr" src={qrCode} alt={`QR code for ${label.tracking}`} /> : <div style={{ height: 210, display: "grid", placeItems: "center", color: "#64748b" }}>Generating QR…</div>}
-          <div className="caribex-label-tracking">{labelCode}-2026-Caribex</div>
-          <div className="caribex-label-meta">
-            <div><strong>{isEs ? "Cliente" : "Customer"}</strong>{label.customerName || "-"}</div>
-            <div><strong>{isEs ? "Cuenta" : "Account"}</strong>{label.accountNumber ?? "-"}</div>
-            <div><strong>{isEs ? "Transportista" : "Carrier"}</strong>{label.carrier || "-"}</div>
-            <div><strong>{isEs ? "Paquete" : "Package"}</strong>{label.packageType || "-"}</div>
+          <div className="caribex-label-subtitle">
+            {isQrReprint
+              ? (isEs ? "Reimpresión QR" : "QR reprint")
+              : (isEs ? "Etiqueta de caja" : "Box label")}
           </div>
-          {label.details && <div style={{ marginTop: 9, fontSize: 12, color: "#475569" }}>{label.details}</div>}
+          {qrCode ? <img className="caribex-label-qr" src={qrCode} alt={`QR code for ${label.tracking}`} /> : <div style={{ height: 210, display: "grid", placeItems: "center", color: "#64748b" }}>Generating QR…</div>}
+          <div className="caribex-label-tracking">
+            {isQrReprint ? label.tracking : (label.boxCode || `${labelCode}-2026-Caribex`)}
+          </div>
         </div>
         <div className="caribex-label-actions">
           <button type="button" onClick={onClose}>{isEs ? "Cerrar" : "Close"}</button>

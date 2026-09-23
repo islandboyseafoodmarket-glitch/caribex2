@@ -347,6 +347,7 @@ export default function GestionAlmacen() {
   const [viewPackage, setViewPackage] = useState<any | null>(null);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [labelPackage, setLabelPackage] = useState<Package | null>(null);
+  const [labelMode, setLabelMode] = useState<"qr-reprint" | "box">("box");
   const [viewCheckInDetails, setViewCheckInDetails] = useState<
     | {
         height: number | null;
@@ -4140,10 +4141,17 @@ const handlePackageCreated = (pkg: Package) => {
             <div className="ga-modal-footer">
               <button
                 type="button"
-                className="ga-primary-button"
-                onClick={() => setLabelPackage(viewPackage as Package)}
+                className="ga-secondary-button"
+                onClick={() => { setLabelMode("qr-reprint"); setLabelPackage(viewPackage as Package); }}
               >
-                {isEs ? "Generar etiqueta de envío" : "Generate shipping label"}
+                {isEs ? "Reimprimir QR" : "Reprint QR label"}
+              </button>
+              <button
+                type="button"
+                className="ga-primary-button"
+                onClick={() => { setLabelMode("box"); setLabelPackage(viewPackage as Package); }}
+              >
+                {isEs ? "Etiqueta de caja" : "Generate box label"}
               </button>
               <button
                 type="button"
@@ -4692,6 +4700,7 @@ const handlePackageCreated = (pkg: Package) => {
       {labelPackage && (
         <CaribexLabelPrint
           isEs={isEs}
+          mode={labelMode}
           onClose={() => setLabelPackage(null)}
           label={{
             tracking: labelPackage.tracking,
