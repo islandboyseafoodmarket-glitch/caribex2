@@ -1108,19 +1108,23 @@ const App = () => {
 
         .admin-nav-buttons {
           display: flex;
-          flex-wrap: wrap;
+          flex-wrap: nowrap;
           gap: 7px;
+          overflow-x: auto;
+          padding: 2px 1px 5px;
+          scrollbar-width: thin;
         }
 
         .tab-pill {
-          flex: 1 1 auto;
+          flex: 1 1 0;
+          min-width: max-content;
           justify-content: center;
-          min-height: 42px;
-          padding: 9px 12px;
+          min-height: 40px;
+          padding: 8px 9px;
           border-radius: 50px;
           background: var(--white);
           border: 1px solid transparent;
-          font-size: 0.78rem;
+          font-size: 0.72rem;
           font-weight: 500;
           color: var(--text-muted);
           cursor: pointer;
@@ -1172,7 +1176,7 @@ const App = () => {
 
         @media (max-width: 640px) {
           .tabs-container { grid-template-columns: 1fr; }
-          .admin-nav-buttons { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+          .admin-nav-buttons { overflow-x: auto; }
         }
 
         /* Contenedor Principal de Información */
