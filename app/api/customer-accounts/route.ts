@@ -30,6 +30,8 @@ export async function POST(request: Request) {
     if (insertError) { await supabase.auth.admin.deleteUser(authData.user.id); throw insertError; }
     await supabase.from("customer_portal_login_events").insert({
       email,
+      customer_name: name,
+      account_number: accountNumber,
       event_type: "account_created",
       success: true,
       reason: `Customer account #${accountNumber} created with portal access`,

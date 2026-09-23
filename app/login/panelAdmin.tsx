@@ -131,10 +131,10 @@ const App = () => {
   const facturasCount = facturas.length;
   type Lead = { id: string; nombre: string; email: string; telefono: string | null; mensaje: string; service_type: string | null; status: 'NEW' | 'CONTACTED' | 'CONVERTED' | 'CLOSED'; admin_notes: string | null; created_at: string };
   const [leads, setLeads] = useState<Lead[]>([]);
-  type PortalEvent = { id: string; email: string; event_type: string; success: boolean; reason: string | null; created_at: string };
+  type PortalEvent = { id: string; customer_name: string | null; account_number: number | null; email: string; event_type: string; success: boolean; reason: string | null; created_at: string };
   const [portalEvents, setPortalEvents] = useState<PortalEvent[]>([]);
   const cargarPortalEvents = useCallback(async () => {
-    const { data } = await supabase.from("customer_portal_login_events").select("id, email, event_type, success, reason, created_at").order("created_at", { ascending: false }).limit(100);
+    const { data } = await supabase.from("customer_portal_login_events").select("id, customer_name, account_number, email, event_type, success, reason, created_at").order("created_at", { ascending: false }).limit(100);
     if (data) setPortalEvents(data as PortalEvent[]);
   }, []);
   const [adminNotice, setAdminNotice] = useState<string | null>(null);
@@ -1078,21 +1078,49 @@ const App = () => {
           font-size: 1rem;
         }
 
-        /* Pills de Filtrado / Tabs */
+        /* Grouped navigation tabs */
         .tabs-container {
-          display: flex;
-          gap: 16px;
+          display: grid;
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+          gap: 12px;
           margin-bottom: 32px;
-          overflow-x: auto;
           padding: 4px;
         }
 
+        .admin-nav-group {
+          min-width: 0;
+          padding: 12px;
+          border: 1px solid #e2e8f0;
+          border-radius: 16px;
+          background: linear-gradient(145deg, #ffffff, #f8fafc);
+          box-shadow: 0 6px 18px rgba(15, 23, 42, 0.05);
+        }
+
+        .admin-nav-label {
+          display: block;
+          margin: 0 0 8px 4px;
+          color: #64748b;
+          font-size: 0.68rem;
+          font-weight: 800;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+        }
+
+        .admin-nav-buttons {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 7px;
+        }
+
         .tab-pill {
-          padding: 12px 24px;
+          flex: 1 1 auto;
+          justify-content: center;
+          min-height: 42px;
+          padding: 9px 12px;
           border-radius: 50px;
           background: var(--white);
           border: 1px solid transparent;
-          font-size: 0.95rem;
+          font-size: 0.78rem;
           font-weight: 500;
           color: var(--text-muted);
           cursor: pointer;
@@ -1127,6 +1155,24 @@ const App = () => {
         .tab-pill.active .count-badge {
           background: var(--success-bg);
           color: var(--success-green);
+        }
+
+        .tab-pill--operations.active { color: #2563eb; border-color: #bfdbfe; background: #eff6ff; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.14); }
+        .tab-pill--customers.active { color: #7c3aed; border-color: #ddd6fe; background: #f5f3ff; box-shadow: 0 4px 12px rgba(124, 58, 237, 0.14); }
+        .tab-pill--billing.active { color: #b45309; border-color: #fde68a; background: #fffbeb; box-shadow: 0 4px 12px rgba(180, 83, 9, 0.14); }
+        .tab-pill--admin.active { color: #be185d; border-color: #fbcfe8; background: #fdf2f8; box-shadow: 0 4px 12px rgba(190, 24, 93, 0.14); }
+        .tab-pill--operations.active .count-badge { background: #dbeafe; color: #1d4ed8; }
+        .tab-pill--customers.active .count-badge { background: #ede9fe; color: #6d28d9; }
+        .tab-pill--billing.active .count-badge { background: #fef3c7; color: #92400e; }
+        .tab-pill--admin.active .count-badge { background: #fce7f3; color: #9d174d; }
+
+        @media (max-width: 1100px) {
+          .tabs-container { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        }
+
+        @media (max-width: 640px) {
+          .tabs-container { grid-template-columns: 1fr; }
+          .admin-nav-buttons { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
         }
 
         /* Contenedor Principal de Información */
@@ -1330,63 +1376,37 @@ const App = () => {
         </button>
       </header>
 
-      {/* Filtros de Categoría (Pills) */}
+      {/* Grouped admin navigation */}
       <div className="tabs-container">
-        <button 
-          className={`tab-pill ${activeTab === 'personal' ? 'active' : ''}`}
-          onClick={() => setActiveTab('personal')}
-          style={{ minWidth: 130 }}
-        >
-          <IconUsers /> Personal <span className="count-badge">{personal.length}</span>
-        </button>
-        <button 
-          className={`tab-pill ${activeTab === 'clientes' ? 'active' : ''}`}
-          onClick={() => setActiveTab('clientes')}
-          style={{ minWidth: 150 }}
-        >
-          <IconBriefcase /> Número de cliente <span className="count-badge">{clientes.length}</span>
-        </button>
-        <button
-          className={`tab-pill ${activeTab === 'client360' ? 'active' : ''}`}
-          onClick={() => setActiveTab('client360')}
-          style={{ minWidth: 130 }}
-        >
-          <IconUsers /> Client 360
-        </button>
-        <button
-          className={`tab-pill ${activeTab === 'pedidos' ? 'active' : ''}`}
-          onClick={() => setActiveTab('pedidos')}
-          style={{ minWidth: 130 }}
-        >
-          <IconBriefcase /> Pedidos <span className="count-badge">{pedidos.length}</span>
-        </button>
-        <button
-          className={`tab-pill ${activeTab === 'incidencias' ? 'active' : ''}`}
-          onClick={() => setActiveTab('incidencias')}
-          style={{ minWidth: 140 }}
-        >
-          <IconBriefcase /> Incidencias <span className="count-badge">{pedidosConIncidencia.length}</span>
-        </button>
-        <button
-          className={`tab-pill ${activeTab === 'facturas' ? 'active' : ''}`}
-          onClick={() => setActiveTab('facturas')}
-          style={{ minWidth: 130 }}
-        >
-          <IconBriefcase /> Facturas <span className="count-badge">{facturasCount}</span>
-        </button>
-        <button className={`tab-pill ${activeTab === 'leads' ? 'active' : ''}`} onClick={() => setActiveTab('leads')} style={{ minWidth: 120 }}>
-          <IconBriefcase /> Leads <span className="count-badge">{leads.filter((lead) => lead.status === 'NEW').length}</span>
-        </button>
-        <button className={`tab-pill ${activeTab === 'portal' ? 'active' : ''}`} onClick={() => setActiveTab('portal')} style={{ minWidth: 170 }}>
-          <IconBriefcase /> Portal alerts <span className="count-badge">{portalEvents.filter((event) => !event.success).length}</span>
-        </button>
-        <button
-          className={`tab-pill ${activeTab === 'ferry' ? 'active' : ''}`}
-          onClick={() => setActiveTab('ferry')}
-          style={{ minWidth: 170 }}
-        >
-          <IconBriefcase /> Ferry manifests
-        </button>
+        <div className="admin-nav-group">
+          <span className="admin-nav-label">Operations</span>
+          <div className="admin-nav-buttons">
+            <button className={`tab-pill tab-pill--operations ${activeTab === 'pedidos' ? 'active' : ''}`} onClick={() => setActiveTab('pedidos')}><IconBriefcase /> Shipments <span className="count-badge">{pedidos.length}</span></button>
+            <button className={`tab-pill tab-pill--operations ${activeTab === 'client360' ? 'active' : ''}`} onClick={() => setActiveTab('client360')}><IconUsers /> Client 360</button>
+            <button className={`tab-pill tab-pill--operations ${activeTab === 'incidencias' ? 'active' : ''}`} onClick={() => setActiveTab('incidencias')}><IconBriefcase /> Issues <span className="count-badge">{pedidosConIncidencia.length}</span></button>
+          </div>
+        </div>
+        <div className="admin-nav-group">
+          <span className="admin-nav-label">Customers</span>
+          <div className="admin-nav-buttons">
+            <button className={`tab-pill tab-pill--customers ${activeTab === 'clientes' ? 'active' : ''}`} onClick={() => setActiveTab('clientes')}><IconBriefcase /> Customer # <span className="count-badge">{clientes.length}</span></button>
+            <button className={`tab-pill tab-pill--customers ${activeTab === 'leads' ? 'active' : ''}`} onClick={() => setActiveTab('leads')}><IconBriefcase /> Leads <span className="count-badge">{leads.filter((lead) => lead.status === 'NEW').length}</span></button>
+            <button className={`tab-pill tab-pill--customers ${activeTab === 'portal' ? 'active' : ''}`} onClick={() => setActiveTab('portal')}><IconBriefcase /> Portal alerts <span className="count-badge">{portalEvents.filter((event) => !event.success).length}</span></button>
+          </div>
+        </div>
+        <div className="admin-nav-group">
+          <span className="admin-nav-label">Billing & logistics</span>
+          <div className="admin-nav-buttons">
+            <button className={`tab-pill tab-pill--billing ${activeTab === 'facturas' ? 'active' : ''}`} onClick={() => setActiveTab('facturas')}><IconBriefcase /> Invoices <span className="count-badge">{facturasCount}</span></button>
+            <button className={`tab-pill tab-pill--billing ${activeTab === 'ferry' ? 'active' : ''}`} onClick={() => setActiveTab('ferry')}><IconBriefcase /> Ferry manifests</button>
+          </div>
+        </div>
+        <div className="admin-nav-group">
+          <span className="admin-nav-label">Administration</span>
+          <div className="admin-nav-buttons">
+            <button className={`tab-pill tab-pill--admin ${activeTab === 'personal' ? 'active' : ''}`} onClick={() => setActiveTab('personal')}><IconUsers /> Staff <span className="count-badge">{personal.length}</span></button>
+          </div>
+        </div>
       </div>
 
       {/* Card de Visualización de Datos */}
@@ -1488,7 +1508,7 @@ const App = () => {
         </div>}
 
         {activeTab === 'portal' && <div style={{ width: '100%', overflowX: 'auto' }}>
-          {portalEvents.length === 0 ? <p style={{ padding: '1.5rem', color: '#64748b' }}>No customer portal or account events have been recorded yet.</p> : <table className="admin-table" style={{ minWidth: 820, width: '100%' }}><thead><tr><th>Date</th><th>Email</th><th>Result</th><th>Reason</th><th>Event</th></tr></thead><tbody>{portalEvents.map((event) => <tr key={event.id}><td>{new Date(event.created_at).toLocaleString()}</td><td>{event.email}</td><td><span style={{ color: event.success ? '#166534' : '#b91c1c', fontWeight: 700 }}>{event.success ? (event.event_type === 'login_attempt' ? 'Successful' : 'Completed') : 'Problem'}</span></td><td>{event.reason || '-'}</td><td>{portalEventLabel(event.event_type)}</td></tr>)}</tbody></table>}
+          {portalEvents.length === 0 ? <p style={{ padding: '1.5rem', color: '#64748b' }}>No customer portal or account events have been recorded yet.</p> : <table className="admin-table" style={{ minWidth: 980, width: '100%' }}><thead><tr><th>Date</th><th>Customer</th><th>Email</th><th>Result</th><th>Reason</th><th>Event</th></tr></thead><tbody>{portalEvents.map((event) => <tr key={event.id}><td>{new Date(event.created_at).toLocaleString()}</td><td>{event.customer_name || '-'}{event.account_number != null && <><br /><small>Account #{event.account_number}</small></>}</td><td>{event.email}</td><td><span style={{ color: event.success ? '#166534' : '#b91c1c', fontWeight: 700 }}>{event.success ? (event.event_type === 'login_attempt' ? 'Successful' : 'Completed') : 'Problem'}</span></td><td>{event.reason || '-'}</td><td>{portalEventLabel(event.event_type)}</td></tr>)}</tbody></table>}
         </div>}
 
         {activeTab === 'ferry' && <FerryManifestAdmin />}

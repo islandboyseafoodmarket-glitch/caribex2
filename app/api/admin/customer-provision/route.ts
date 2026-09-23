@@ -18,7 +18,7 @@ export async function POST(request: Request) {
     if (!admin) return NextResponse.json({ error: "Administrator access required" }, { status: 403 });
 
     const { customer_id } = await request.json();
-    const { data: customer } = await supabase.from("numero_cliente").select("id, email, numero_cliente, auth_user_id").eq("id", customer_id).maybeSingle();
+    const { data: customer } = await supabase.from("numero_cliente").select("id, nombre, email, numero_cliente, auth_user_id").eq("id", customer_id).maybeSingle();
     if (!customer?.email || !customer.numero_cliente) return NextResponse.json({ error: "Customer email and account number are required" }, { status: 400 });
     if (customer.auth_user_id) return NextResponse.json({ error: "This customer already has portal access" }, { status: 409 });
 
@@ -34,6 +34,8 @@ export async function POST(request: Request) {
     if (linkError) return NextResponse.json({ error: linkError.message }, { status: 400 });
     await supabase.from("customer_portal_login_events").insert({
       email: customer.email,
+      customer_name: customer.nombre,
+      account_number: customer.numero_cliente,
       event_type: "portal_access_provisioned",
       success: true,
       reason: `Portal access provisioned for customer account #${customer.numero_cliente}`,

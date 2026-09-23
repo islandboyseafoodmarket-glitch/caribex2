@@ -16,8 +16,15 @@ export async function POST(request: Request) {
 
     const supabase = adminClient();
     const forwardedFor = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || null;
+    const { data: customer } = await supabase
+      .from("numero_cliente")
+      .select("nombre, numero_cliente")
+      .eq("email", email)
+      .maybeSingle();
     await supabase.from("customer_portal_login_events").insert({
       email,
+      customer_name: customer?.nombre || null,
+      account_number: customer?.numero_cliente || null,
       event_type: String(body?.eventType || "login_attempt"),
       success: body?.success === true,
       reason: body?.reason ? String(body.reason).slice(0, 240) : null,
