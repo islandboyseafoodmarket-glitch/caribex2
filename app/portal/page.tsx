@@ -54,7 +54,7 @@ export default function CustomerPortalPage() {
   };
   const signOut = async () => { await supabase.auth.signOut(); window.location.href = "/"; };
   const counts = useMemo(() => {
-    const completedStatuses = ["entregado", "delivered", "descargado", "recogido", "picked up"];
+    const completedStatuses = ["entregado", "delivered", "recogido", "picked up"];
     const isCompleted = (item: any) => completedStatuses.some((status) => String(item.estado || "").toLowerCase().includes(status));
     return {
       active: data?.packages.filter((item) => !isCompleted(item)).length || 0,
