@@ -5,7 +5,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { supabase } from "../../lib/supabaseClient";
 import { BrowserMultiFormatReader } from "@zxing/browser";
-import { Pencil, Trash2, Unlock, LogOut, Image as ImageIcon, Check, AlertCircle, Send, DollarSign } from "lucide-react";
+import { Pencil, Trash2, Unlock, LogOut, Image as ImageIcon, Check, AlertCircle, Send, DollarSign, ChevronDown } from "lucide-react";
 import FerryManifestAdmin from "./FerryManifestAdmin";
 import Client360Admin from "./Client360Admin";
 
@@ -63,6 +63,13 @@ const App = () => {
   const [activeTab, setActiveTab] = useState<
     'personal' | 'clientes' | 'client360' | 'pedidos' | 'incidencias' | 'facturas' | 'leads' | 'portal' | 'ferry'
   >('personal');
+  const [expandedNavGroups, setExpandedNavGroups] = useState<Record<string, boolean>>({
+    operations: true,
+    customers: true,
+    billing: true,
+    administration: true,
+  });
+  const toggleNavGroup = (group: string) => setExpandedNavGroups((current) => ({ ...current, [group]: !current[group] }));
 
   const [personal, setPersonal] = useState<{ id: string; nombre: string; rol: string; permissions?: Partial<StaffPermissions> | null }[]>([]);
   type Cliente = {
@@ -1128,6 +1135,31 @@ const App = () => {
           text-transform: uppercase;
         }
 
+        .admin-nav-section-toggle {
+          width: 100%;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 0;
+          border: 0;
+          background: transparent;
+          cursor: pointer;
+          text-align: left;
+        }
+
+        .admin-nav-section-toggle .admin-nav-label {
+          margin-bottom: 0;
+        }
+
+        .nav-chevron {
+          color: #94a3b8;
+          transition: transform 0.2s ease;
+        }
+
+        .nav-chevron.is-open {
+          transform: rotate(180deg);
+        }
+
         .admin-nav-buttons {
           display: flex;
           flex-direction: column;
@@ -1408,33 +1440,33 @@ const App = () => {
       {/* Grouped admin navigation */}
       <div className="tabs-container">
         <div className="admin-nav-group">
-          <span className="admin-nav-label">Operations</span>
-          <div className="admin-nav-buttons">
+          <button type="button" className="admin-nav-section-toggle" onClick={() => toggleNavGroup('operations')}><span className="admin-nav-label">Operations</span><ChevronDown size={15} className={expandedNavGroups.operations ? 'nav-chevron is-open' : 'nav-chevron'} /></button>
+          {expandedNavGroups.operations && <div className="admin-nav-buttons">
             <button className={`tab-pill tab-pill--operations ${activeTab === 'pedidos' ? 'active' : ''}`} onClick={() => setActiveTab('pedidos')}><IconBriefcase /> Shipments <span className="count-badge">{pedidos.length}</span></button>
             <button className={`tab-pill tab-pill--operations ${activeTab === 'client360' ? 'active' : ''}`} onClick={() => setActiveTab('client360')}><IconUsers /> Client 360</button>
             <button className={`tab-pill tab-pill--operations ${activeTab === 'incidencias' ? 'active' : ''}`} onClick={() => setActiveTab('incidencias')}><IconBriefcase /> Issues <span className="count-badge">{pedidosConIncidencia.length}</span></button>
-          </div>
+          </div>}
         </div>
         <div className="admin-nav-group">
-          <span className="admin-nav-label">Customers</span>
-          <div className="admin-nav-buttons">
+          <button type="button" className="admin-nav-section-toggle" onClick={() => toggleNavGroup('customers')}><span className="admin-nav-label">Customers</span><ChevronDown size={15} className={expandedNavGroups.customers ? 'nav-chevron is-open' : 'nav-chevron'} /></button>
+          {expandedNavGroups.customers && <div className="admin-nav-buttons">
             <button className={`tab-pill tab-pill--customers ${activeTab === 'clientes' ? 'active' : ''}`} onClick={() => setActiveTab('clientes')}><IconBriefcase /> Customer # <span className="count-badge">{clientes.length}</span></button>
             <button className={`tab-pill tab-pill--customers ${activeTab === 'leads' ? 'active' : ''}`} onClick={() => setActiveTab('leads')}><IconBriefcase /> Leads <span className="count-badge">{leads.filter((lead) => lead.status === 'NEW').length}</span></button>
             <button className={`tab-pill tab-pill--customers ${activeTab === 'portal' ? 'active' : ''}`} onClick={() => setActiveTab('portal')}><IconBriefcase /> Portal alerts <span className="count-badge">{portalEvents.filter((event) => !event.success).length}</span></button>
-          </div>
+          </div>}
         </div>
         <div className="admin-nav-group">
-          <span className="admin-nav-label">Billing & logistics</span>
-          <div className="admin-nav-buttons">
+          <button type="button" className="admin-nav-section-toggle" onClick={() => toggleNavGroup('billing')}><span className="admin-nav-label">Billing & logistics</span><ChevronDown size={15} className={expandedNavGroups.billing ? 'nav-chevron is-open' : 'nav-chevron'} /></button>
+          {expandedNavGroups.billing && <div className="admin-nav-buttons">
             <button className={`tab-pill tab-pill--billing ${activeTab === 'facturas' ? 'active' : ''}`} onClick={() => setActiveTab('facturas')}><IconBriefcase /> Invoices <span className="count-badge">{facturasCount}</span></button>
             <button className={`tab-pill tab-pill--billing ${activeTab === 'ferry' ? 'active' : ''}`} onClick={() => setActiveTab('ferry')}><IconBriefcase /> Ferry manifests</button>
-          </div>
+          </div>}
         </div>
         <div className="admin-nav-group">
-          <span className="admin-nav-label">Administration</span>
-          <div className="admin-nav-buttons">
+          <button type="button" className="admin-nav-section-toggle" onClick={() => toggleNavGroup('administration')}><span className="admin-nav-label">Administration</span><ChevronDown size={15} className={expandedNavGroups.administration ? 'nav-chevron is-open' : 'nav-chevron'} /></button>
+          {expandedNavGroups.administration && <div className="admin-nav-buttons">
             <button className={`tab-pill tab-pill--admin ${activeTab === 'personal' ? 'active' : ''}`} onClick={() => setActiveTab('personal')}><IconUsers /> Staff <span className="count-badge">{personal.length}</span></button>
-          </div>
+          </div>}
         </div>
       </div>
 
