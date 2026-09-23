@@ -195,6 +195,15 @@ const StageReceived: React.FC<StageReceivedProps> = ({
           setBarcode(info.trackingNumber);
           setTracking(info.trackingNumber);
 
+          if (info.carrier === "unknown" && !info.trackingNumber) {
+            setCarrier("");
+            alert(
+              isEs
+                ? "Este código USPS no es el número de tracking válido. Escanee el código de barras principal que contiene el número USPS de 20–22 dígitos."
+                : "This USPS barcode is not the valid tracking number. Scan the main barcode containing the 20–22 digit USPS tracking number.",
+            );
+          }
+
           const carrierMap: Record<string, string> = {
             ups: "UPS",
             fedex: "FedEx",

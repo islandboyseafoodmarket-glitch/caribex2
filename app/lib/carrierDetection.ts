@@ -22,6 +22,17 @@ function isValidUpsCheckDigit(value: string): boolean {
   return (10 - (sum % 10)) % 10 === checkDigit;
 }
 
+function isValidUspsCheckDigit(value: string): boolean {
+  if (!/^\d{20}$|^\d{22}$/.test(value)) return false;
+  const body = value.slice(0, -1);
+  const checkDigit = Number(value[value.length - 1]);
+  const weights = [3, 7, 1];
+  const sum = body.split("").reduce((total, digit, index) => {
+    return total + Number(digit) * weights[index % weights.length];
+  }, 0);
+  return (10 - (sum % 10)) % 10 === checkDigit;
+}
+
 /** Detect a carrier from the contents returned by a barcode scanner. */
 export function detectCarrier(barcode: string): CarrierInfo {
   // Scanners may return the whole label text, including spaces, hyphens,
@@ -44,7 +55,11 @@ export function detectCarrier(barcode: string): CarrierInfo {
   // payloads contain extra label text, so extract the full USPS sequence.
   const uspsMatch = cleanBarcode.match(/(?:92|93|94|95)\d{18,20}/);
   if (uspsMatch) {
-    return { carrier: "usps", trackingNumber: uspsMatch[0], confidence: 96 };
+    const trackingNumber = uspsMatch[0];
+    if (!isValidUspsCheckDigit(trackingNumber)) {
+      return { carrier: "unknown", trackingNumber: "", confidence: 0 };
+    }
+    return { carrier: "usps", trackingNumber, confidence: 99 };
   }
   if (/^[A-Z]{2}\d{9}US$/.test(cleanBarcode)) {
     return { carrier: "usps", trackingNumber: cleanBarcode, confidence: 92 };
