@@ -18,8 +18,10 @@ export async function POST(request: Request) {
     if (!customer?.email || !customer.auth_user_id) return NextResponse.json({ error: "Customer does not have a portal account" }, { status: 400 });
     const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({ type: "recovery", email: customer.email, options: { redirectTo: `${publicOrigin(request)}/portal` } });
     if (linkError || !linkData.properties?.action_link) throw linkError || new Error("Could not generate reset link");
+    const recoveryLink = new URL(linkData.properties.action_link);
+    recoveryLink.searchParams.set("redirect_to", `${publicOrigin(request)}/portal`);
     if (!RESEND_API_KEY) return NextResponse.json({ error: "Email service is not configured" }, { status: 503 });
-    const html = `<p>Hello ${customer.nombre || "Customer"},</p><p>An administrator requested a password reset for your Caribex account #${customer.numero_cliente}.</p><p><a href="${linkData.properties.action_link}">Change your password</a></p><p>This link expires according to your Supabase Auth settings.</p>`;
+    const html = `<p>Hello ${customer.nombre || "Customer"},</p><p>An administrator requested a password reset for your Caribex account #${customer.numero_cliente}.</p><p><a href="${recoveryLink.toString()}">Change your password</a></p><p>This link expires according to your Supabase Auth settings.</p>`;
     const sent = await fetch("https://api.resend.com/emails", { method: "POST", headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" }, body: JSON.stringify({ from: "billing@caribexlogisticsgroup.com", to: customer.email, subject: "Caribex password reset", html }) });
     if (!sent.ok) throw new Error("Failed to send reset email");
     await supabase.from("customer_password_reset_requests").update({ status: "completed", handled_at: new Date().toISOString(), handled_by: authData.user.id }).eq("email", customer.email).eq("status", "requested");
