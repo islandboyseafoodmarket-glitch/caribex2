@@ -142,8 +142,10 @@ function parseClient360Date(value: string | null | undefined) {
 }
 
 function client360DateLabel(value: string | null | undefined, locale: string) {
+  const raw = String(value || "").trim();
   const parsed = parseClient360Date(value);
-  return parsed ? parsed.toLocaleDateString(locale) : "-";
+  if (!parsed) return "-";
+  return /(?:T|\s)\d{1,2}:\d{2}/.test(raw) ? parsed.toLocaleString(locale) : parsed.toLocaleDateString(locale);
 }
 
 type StageId =
@@ -1528,7 +1530,7 @@ export default function GestionAlmacen() {
       const matchesBalance = client360BalanceFilter === "ALL" ||
         (client360BalanceFilter === "OUTSTANDING" && balance > 0) ||
         (client360BalanceFilter === "PAID" && balance === 0 && total > 0);
-      const dates = client.packages.map((pkg) => parseClient360Date(pkg.registro || pkg.horaFecha)?.getTime()).filter((value): value is number => Number.isFinite(value));
+      const dates = client.packages.map((pkg) => parseClient360Date(pkg.horaFecha || pkg.registro)?.getTime()).filter((value): value is number => Number.isFinite(value));
       const latest = dates.length ? Math.max(...dates) : 0;
       const matchesDate = client360DateFilter === "ALL" ||
         (client360DateFilter === "30" && latest >= now - 30 * 86400000) ||
@@ -3623,11 +3625,11 @@ const handlePackageCreated = (pkg: Package) => {
                       <div className="ga-client360-card-header"><div><h3>{isEs ? "Historial de paquetes" : "Package history"}</h3><p>{isEs ? "Más recientes primero." : "Most recent first."}</p></div><PackageOpen size={18} /></div>
                       <div className="ga-client360-table-wrap">
                         <table className="ga-client360-table">
-                          <thead><tr><th>{isEs ? "Recibido" : "Received"}</th><th>Tracking</th><th>{isEs ? "Estado" : "Status"}</th><th>{isEs ? "Factura" : "Invoice"}</th></tr></thead>
+                          <thead><tr><th>{isEs ? "Registrado" : "Recorded"}</th><th>Tracking</th><th>{isEs ? "Estado" : "Status"}</th><th>{isEs ? "Factura" : "Invoice"}</th></tr></thead>
                           <tbody>
                             {selectedClient360.packages.slice(0, 30).map((pkg) => (
                               <tr key={pkg.id}>
-                                <td>{client360DateLabel(pkg.registro || pkg.horaFecha, isEs ? "es-ES" : "en-US")}</td>
+                                <td>{client360DateLabel(pkg.horaFecha || pkg.registro, isEs ? "es-ES" : "en-US")}</td>
                                 <td><button type="button" className="ga-client360-tracking" onClick={() => handleViewPackage(pkg)}>{pkg.tracking}</button></td>
                                 <td><span className="ga-client360-status">{pkg.estado || "-"}</span></td>
                                 <td>{pkg.billing_total != null ? `$${Number(pkg.billing_total).toFixed(2)}` : "-"}</td>

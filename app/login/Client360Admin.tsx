@@ -18,7 +18,8 @@ function safeDate(value: string | null | undefined) {
     ? `${dayFirst[3]}-${dayFirst[2].padStart(2, "0")}-${dayFirst[1].padStart(2, "0")}${dayFirst[4] ? `T${dayFirst[4]}` : "T00:00:00"}`
     : raw;
   const date = new Date(normalized);
-  return Number.isNaN(date.getTime()) ? "-" : date.toLocaleDateString();
+  if (Number.isNaN(date.getTime())) return "-";
+  return /(?:T|\s)\d{1,2}:\d{2}/.test(raw) ? date.toLocaleString() : date.toLocaleDateString();
 }
 
 function stageFor(status: string | null) {
@@ -53,7 +54,7 @@ export default function Client360Admin({ clientes, pedidos, facturas }: { client
     const paid = packages.reduce((sum, pkg) => sum + ((facturas.find((invoice) => invoice.id === pkg.id)?.invoice_status || "").toLowerCase() === "paid" ? Number(facturas.find((invoice) => invoice.id === pkg.id)?.total || 0) : 0), 0);
     const balance = Math.max(0, total - paid);
     const matchesBalance = balanceFilter === "ALL" || (balanceFilter === "OUTSTANDING" && balance > 0) || (balanceFilter === "PAID" && balance === 0 && total > 0);
-    const latest = Math.max(...packages.map((pkg) => new Date(pkg.registro || pkg.hora_fecha || 0).getTime()).filter((value) => Number.isFinite(value)), 0);
+    const latest = Math.max(...packages.map((pkg) => new Date(pkg.hora_fecha || pkg.registro || 0).getTime()).filter((value) => Number.isFinite(value)), 0);
     const matchesDate = dateFilter === "ALL" || (dateFilter === "30" && latest >= now - 30 * 86400000) || (dateFilter === "90" && latest >= now - 90 * 86400000);
     return matchesSearch && matchesStatus && matchesBalance && matchesDate;
   });
@@ -98,6 +99,6 @@ export default function Client360Admin({ clientes, pedidos, facturas }: { client
     {message && <div className="c360-alert">{message}</div>}
     <div className="ga-client360-metrics"><div><small>Packages ever</small><strong>{summary.packages}</strong></div><div><small>Active now</small><strong>{summary.active}</strong></div><div><small>Invoices</small><strong>{summary.invoices}</strong></div><div><small>Invoiced</small><strong>${summary.invoiced.toFixed(2)}</strong></div><div><small>Paid</small><strong>${summary.paid.toFixed(2)}</strong></div><div className="ga-client360-metric-alert"><small>Outstanding</small><strong>${outstanding.toFixed(2)}</strong></div></div>
     <div className="ga-client360-card"><div className="ga-client360-card-header"><div><h3>Where their packages are</h3><p>Current shipment distribution by stage.</p></div><CalendarDays size={18} /></div><div className="ga-client360-statuses">{STAGE_LABELS.map((stage) => <span key={stage}><strong>{clientPackages.filter((pkg) => stageFor(pkg.estado) === stage).length}</strong> {stage}</span>)}</div></div>
-    <div className="ga-client360-card"><div className="ga-client360-card-header"><div><h3>Package history</h3><p>Most recent first.</p></div><PackageOpen size={18} /></div><div className="ga-client360-table-wrap"><table className="ga-client360-table"><thead><tr><th>Received</th><th>Tracking</th><th>Status</th><th>Invoice</th></tr></thead><tbody>{clientPackages.slice(0, 30).map((pkg) => <tr key={pkg.id}><td>{safeDate(pkg.registro || pkg.hora_fecha)}</td><td>{pkg.tracking}</td><td><span className="ga-client360-status">{pkg.estado || "-"}</span>{pkg.problema && <AlertCircle size={14} color="#b91c1c" />}</td><td>{facturas.find((invoice) => invoice.id === pkg.id)?.total != null ? `$${Number(facturas.find((invoice) => invoice.id === pkg.id)?.total).toFixed(2)}` : "-"}</td></tr>)}</tbody></table></div></div>
+    <div className="ga-client360-card"><div className="ga-client360-card-header"><div><h3>Package history</h3><p>Most recent first.</p></div><PackageOpen size={18} /></div><div className="ga-client360-table-wrap"><table className="ga-client360-table"><thead><tr><th>Recorded</th><th>Tracking</th><th>Status</th><th>Invoice</th></tr></thead><tbody>{clientPackages.slice(0, 30).map((pkg) => <tr key={pkg.id}><td>{safeDate(pkg.hora_fecha || pkg.registro)}</td><td>{pkg.tracking}</td><td><span className="ga-client360-status">{pkg.estado || "-"}</span>{pkg.problema && <AlertCircle size={14} color="#b91c1c" />}</td><td>{facturas.find((invoice) => invoice.id === pkg.id)?.total != null ? `$${Number(facturas.find((invoice) => invoice.id === pkg.id)?.total).toFixed(2)}` : "-"}</td></tr>)}</tbody></table></div></div>
   </section>;
 }
