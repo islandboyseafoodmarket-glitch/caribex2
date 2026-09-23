@@ -55,10 +55,11 @@ export async function POST(request: Request) {
     const accountDescriptionEs = isBusinessAccount ? "cuenta comercial de envíos" : "cuenta personal de envíos";
     const safeAccount = escapeHtml(clientNumberDisplay);
     const safePassword = escapeHtml(initialPassword || "Use the password shown after registration");
-    let portalLoginUrl = `${new URL(request.url).origin}/portal/login`;
+    let portalLoginUrl = `${process.env.NEXT_PUBLIC_SITE_URL || "https://www.caribexlogisticsgroup.com"}/portal/login`;
     try {
       const candidate = new URL(portalUrl || portalLoginUrl);
-      if (candidate.protocol === "http:" || candidate.protocol === "https:") {
+      const isLocalhost = candidate.hostname === "localhost" || candidate.hostname === "127.0.0.1" || candidate.hostname === "0.0.0.0";
+      if ((candidate.protocol === "http:" || candidate.protocol === "https:") && !isLocalhost) {
         portalLoginUrl = `${candidate.origin}/portal/login`;
       }
     } catch {
