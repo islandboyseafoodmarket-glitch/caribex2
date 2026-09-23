@@ -1,4 +1,4 @@
-export type CarrierType = "fedex" | "ups" | "dhl" | "usps" | "amazon" | "shein" | "unknown";
+export type CarrierType = "fedex" | "ups" | "dhl" | "usps" | "amazon" | "shein" | "speedx" | "yanwen" | "unknown";
 
 export interface CarrierInfo {
   carrier: CarrierType;
@@ -96,6 +96,18 @@ export function detectCarrier(barcode: string): CarrierInfo {
     return { carrier: "shein", trackingNumber: cleanBarcode, confidence: 90 };
   }
 
+  // SpeedX labels use an SPX-prefixed alphanumeric tracking number.
+  const speedxMatch = cleanBarcode.match(/SPX[A-Z0-9]{10,}/);
+  if (speedxMatch) {
+    return { carrier: "speedx", trackingNumber: speedxMatch[0], confidence: 96 };
+  }
+
+  // Yanwen Express labels commonly use a YW-prefixed alphanumeric number.
+  const yanwenMatch = cleanBarcode.match(/YW[A-Z0-9]{10,}/);
+  if (yanwenMatch) {
+    return { carrier: "yanwen", trackingNumber: yanwenMatch[0], confidence: 96 };
+  }
+
   return { carrier: "unknown", trackingNumber: cleanBarcode, confidence: 0 };
 }
 
@@ -111,6 +123,8 @@ export function validateTrackingNumber(carrier: CarrierType, trackingNumber: str
     usps: /^(?:(?:92|93|94|95)\d{18,20}|[A-Z]{2}\d{9}US)$/,
     amazon: /^(?:TBA\d{10,12}|[A-Z0-9]*AMAZON[A-Z0-9]*)$/,
     shein: /^(?:SHEIN|SHIN)[A-Z0-9]{6,}$/,
+    speedx: /^SPX[A-Z0-9]{10,}$/,
+    yanwen: /^YW[A-Z0-9]{10,}$/,
     unknown: /^.+$/,
   };
 
@@ -119,6 +133,8 @@ export function validateTrackingNumber(carrier: CarrierType, trackingNumber: str
 
 export const CARRIER_LABELS: Record<Exclude<CarrierType, "unknown">, string> = {
   amazon: "Amazon logistics",
+  speedx: "SpeedX",
+  yanwen: "Yanwen Express",
   ups: "UPS",
   shein: "SheIn",
   fedex: "FedEx",
