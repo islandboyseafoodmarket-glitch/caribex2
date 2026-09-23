@@ -2061,9 +2061,9 @@ main {
 }
 
 .ga-nav-logo {
-  width: 40px;
-  height: 40px;
-  border-radius: 0.9rem;
+  width: 148px;
+  height: 52px;
+  border-radius: 0.65rem;
   overflow: hidden;
   background: #ffffff;
   display: flex;
@@ -2074,7 +2074,8 @@ main {
 .ga-nav-logo img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
+  padding: 0.25rem 0.45rem;
 }
 
 .ga-nav-text {
@@ -3213,3 +3214,16 @@ main {
 .dashboard-root .admin-table tbody tr { transition: background-color .16s ease, box-shadow .16s ease; }
 .dashboard-root .admin-table tbody tr:hover { background: rgba(239, 246, 255, .72); box-shadow: inset 3px 0 0 #2563eb; }
 .dashboard-root .count-badge { min-width: 1.45rem; text-align: center; }
+
+/* Shared admin controls and staff task-access editor. */
+.pa-permission-grid { display: grid; gap: .55rem; border: 1px solid #e2e8f0; border-radius: 12px; padding: .85rem; margin: .8rem 0; }
+.pa-permission-grid legend { padding: 0 .35rem; color: #475569; font-size: .78rem; font-weight: 700; }
+.pa-permission-option { display: flex; align-items: center; gap: .55rem; color: #334155; font-size: .84rem; cursor: pointer; }
+.pa-permission-option input { accent-color: #2563eb; width: 16px; height: 16px; }
+.ga-client360-shared { background: transparent; }
+.ga-client360-shared .c360-profile,
+.ga-client360-shared .c360-card,
+.ga-client360-shared .c360-metrics > div { box-shadow: 0 8px 22px rgba(15, 23, 42, .07); }
+.admin-table thead th { position: sticky; top: 0; z-index: 1; background: #f8fafc; }
+.admin-table tbody tr:nth-child(even) { background: #fbfdff; }
+.admin-table tbody tr:hover { background: #eff6ff; }

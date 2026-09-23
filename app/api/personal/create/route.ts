@@ -17,7 +17,7 @@ const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
 
 export async function POST(request: Request) {
   try {
-    const { email, nombre, password } = await request.json();
+    const { email, nombre, password, permissions } = await request.json();
 
     if (!email || !nombre || !password) {
       return NextResponse.json(
@@ -47,7 +47,18 @@ export async function POST(request: Request) {
     // 2. Insertar en tabla personal (vínculo con rol y nombre)
     const { error: insertError } = await supabaseAdmin
       .from("personal")
-      .insert({ id: userId, nombre, rol: "personal" });
+      .insert({
+        id: userId,
+        nombre,
+        rol: "personal",
+        permissions: permissions && typeof permissions === "object" ? permissions : {
+          shipment_workflow: true,
+          client360: true,
+          invoices: true,
+          invoice_edit: false,
+          ferry_manifests: false,
+        },
+      });
 
     if (insertError) {
       return NextResponse.json(

@@ -39,6 +39,7 @@ import UnloadedStage from "./Unloaded";
 import PickupStage from "./Pickup";
 import InvoicesStage from "./InvoicesStage";
 import InvoicePreview from "../components/InvoicePreview";
+import Client360Admin from "./login/Client360Admin";
 
 import {
   Html5Qrcode,
@@ -135,6 +136,14 @@ type StageId =
   | "DESCARGADO_ROATAN"
   | "PASTILLA"
   | "FACTURAS";
+
+type StaffPermissions = {
+  shipment_workflow?: boolean;
+  client360?: boolean;
+  invoices?: boolean;
+  invoice_edit?: boolean;
+  ferry_manifests?: boolean;
+};
 
 type Stage = {
   id: StageId;
@@ -309,6 +318,8 @@ export default function GestionAlmacen() {
   const isEs = language === "es";
   const [currentUserName, setCurrentUserName] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [staffPermissions, setStaffPermissions] = useState<StaffPermissions>({ shipment_workflow: true, client360: true, invoices: true, invoice_edit: false, ferry_manifests: false });
+  const canEditInvoiceAddOns = isAdmin || staffPermissions.invoice_edit === true;
   const [isNextModalOpen, setIsNextModalOpen] = useState(false);
   const [isEditingCheckIn, setIsEditingCheckIn] = useState(false);
   const [selectedPackage, setSelectedPackage] = useState<Package | null>(null);
@@ -424,7 +435,7 @@ export default function GestionAlmacen() {
   }, [checkInConsolidation]);
 
   const [clients, setClients] = useState<
-    { id: string; nombre: string; numero_cliente: number }[]
+    { id: string; nombre: string; numero_cliente: number; email: string | null; telefono: string | null; puerto: string | null; tipo_cuenta: string | null; creado_en: string | null; auth_user_id?: string | null }[]
   >([]);
 
   const [isQrModalOpen, setIsQrModalOpen] = useState(false);
@@ -548,7 +559,7 @@ export default function GestionAlmacen() {
   };
 
   const handleSaveInvoiceAdjustment = async () => {
-    if (!invoicePackage || !isAdmin) return;
+    if (!invoicePackage || !canEditInvoiceAddOns) return;
     const amount = Number(invoiceCustomChargeAmount);
     if (!invoiceCustomChargeLabel.trim() || !Number.isFinite(amount) || amount <= 0) {
       setMessageModal({
@@ -1431,6 +1442,39 @@ export default function GestionAlmacen() {
 
   const hasPackages = useMemo(() => visiblePackages.length > 0, [visiblePackages]);
 
+  const sharedClient360Pedidos = useMemo(() => packages.map((pkg) => ({
+    id: pkg.id,
+    tracking: pkg.tracking,
+    clienteNumero: pkg.numeroCliente ?? null,
+    clienteNombre: pkg.clienteNombre ?? null,
+    estado: pkg.estado ?? null,
+    carrier: pkg.carrier ?? null,
+    tipo_paquete: pkg.type ?? null,
+    contenido: pkg.obs ?? null,
+    notas: pkg.obs ?? null,
+    numero_cliente_id: pkg.numeroClienteId ?? null,
+    registro: pkg.registro ?? null,
+    hora_fecha: pkg.horaFecha ?? null,
+    fecha_entregado: pkg.fechaEntregado ?? null,
+  })), [packages]);
+
+  const sharedClient360Facturas = useMemo(() => packages
+    .filter((pkg) => pkg.billing_total != null)
+    .map((pkg) => ({
+      id: pkg.id,
+      tracking: pkg.tracking,
+      clienteNumero: pkg.numeroCliente ?? null,
+      clienteNombre: pkg.clienteNombre ?? null,
+      carrier: pkg.carrier ?? null,
+      tipo_paquete: pkg.type ?? null,
+      subtotal: pkg.billing_subtotal ?? null,
+      tax: pkg.billing_tax ?? null,
+      total: pkg.billing_total ?? null,
+      approval_status: pkg.approval_status ?? null,
+      invoice_status: pkg.invoice_status ?? null,
+      notas: pkg.obs ?? null,
+    })), [packages]);
+
   const client360Records = useMemo(() => {
     const grouped = new Map<string, {
       id: string;
@@ -1843,7 +1887,7 @@ export default function GestionAlmacen() {
     const cargarClientes = async () => {
       const { data, error } = await supabase
         .from("numero_cliente")
-        .select("id, nombre, numero_cliente")
+        .select("id, nombre, numero_cliente, email, telefono, puerto, tipo_cuenta, creado_en, auth_user_id")
         .order("numero_cliente", { ascending: false });
 
       if (!error && data) {
@@ -1872,7 +1916,7 @@ export default function GestionAlmacen() {
 
       const { data: personalRow, error: personalError } = await supabase
         .from("personal")
-        .select("nombre")
+        .select("nombre, permissions")
         .eq("id", user.id)
         .single();
 
@@ -1882,6 +1926,7 @@ export default function GestionAlmacen() {
       }
 
       setCurrentUserName(personalRow.nombre ?? null);
+      setStaffPermissions((personalRow.permissions as StaffPermissions) || {});
     };
 
     cargarUsuario();
@@ -3316,8 +3361,7 @@ const handlePackageCreated = (pkg: Package) => {
     // 1) Crear un contenedor nuevo con un código autogenerado
     const now = new Date();
     const datePart = now.toISOString().slice(0, 10); // YYYY-MM-DD
-    const randomPart = Math.random().toString(36).slice(2, 8).toUpperCase();
-    const codigoContenedor = `CONT-${datePart}-${randomPart}`;
+    const codigoContenedor = datePart;
 
     const { data: contData, error: contError } = await supabase
       .from("contenedores")
@@ -3426,14 +3470,6 @@ const handlePackageCreated = (pkg: Package) => {
             <button
               type="button"
               className="ga-lang-button"
-              onClick={() => router.push("/client360")}
-            >
-              <Users size={16} />
-              <span>Client 360</span>
-            </button>
-            <button
-              type="button"
-              className="ga-lang-button"
               onClick={async () => {
                 await supabase.auth.signOut();
                 router.push("/login");
@@ -3468,18 +3504,18 @@ const handlePackageCreated = (pkg: Package) => {
             <PackageOpen size={16} />
             {isEs ? "Flujo de envíos" : "Shipment workflow"}
           </button>
-          <button
+          {(isAdmin || staffPermissions.client360 !== false) && <button
             type="button"
             className={"ga-workspace-tab" + (activeWarehouseTab === "client360" ? " ga-workspace-tab-active" : "")}
             onClick={() => setActiveWarehouseTab("client360")}
           >
             <Users size={16} />
             Client 360
-          </button>
+          </button>}
         </div>
 
         {activeWarehouseTab === "stages" && <div className="ga-stages-row">
-          {STAGES.map((stage) => (
+          {STAGES.filter((stage) => stage.id !== "FACTURAS" || isAdmin || staffPermissions.invoices !== false).map((stage) => (
             <button
               key={stage.id}
               type="button"
@@ -3500,122 +3536,19 @@ const handlePackageCreated = (pkg: Package) => {
         </div>}
 
         {activeWarehouseTab === "client360" ? (
-          <section className="ga-client360">
-            <div className="ga-client360-toolbar">
-              <div>
-                <h2>{isEs ? "Client 360" : "Client 360"}</h2>
-                <p>{isEs ? "Vista completa del cliente, sus envíos y su actividad." : "A complete view of the client, shipments, and account activity."}</p>
-              </div>
-              <div className="ga-client360-search">
-                <Search size={17} />
-                <input
-                  value={client360Search}
-                  onChange={(event) => setClient360Search(event.target.value)}
-                  placeholder={isEs ? "Buscar cliente, correo o número..." : "Search client, email, or number..."}
-                />
-              </div>
-            </div>
-            <div className="ga-client360-filters">
-              <select value={client360StatusFilter} onChange={(event) => setClient360StatusFilter(event.target.value)}>
-                <option value="ALL">{isEs ? "Todos los estados" : "All statuses"}</option>
-                <option value="ACTIVE">{isEs ? "Activos" : "Active shipments"}</option>
-                <option value="RECEIVED">{isEs ? "Recibidos" : "Received"}</option>
-                <option value="TRANSIT">{isEs ? "En tránsito" : "In transit"}</option>
-                <option value="UNLOADED">{isEs ? "Descargados" : "Unloaded"}</option>
-                <option value="PICKED_UP">{isEs ? "Entregados" : "Picked up"}</option>
-              </select>
-              <select value={client360BalanceFilter} onChange={(event) => setClient360BalanceFilter(event.target.value)}>
-                <option value="ALL">{isEs ? "Cualquier saldo" : "Any balance"}</option>
-                <option value="OUTSTANDING">{isEs ? "Con saldo pendiente" : "Outstanding balance"}</option>
-                <option value="PAID">{isEs ? "Pagados" : "Paid"}</option>
-              </select>
-              <select value={client360DateFilter} onChange={(event) => setClient360DateFilter(event.target.value)}>
-                <option value="ALL">{isEs ? "Cualquier actividad" : "Any activity"}</option>
-                <option value="30">{isEs ? "Actividad en 30 días" : "Activity in 30 days"}</option>
-                <option value="90">{isEs ? "Actividad en 90 días" : "Activity in 90 days"}</option>
-              </select>
-            </div>
-
-            {selectedClient360 ? (
-              <>
-                <div className="ga-client360-layout">
-                  <aside className="ga-client360-list">
-                    <div className="ga-client360-list-heading">
-                      <Users size={16} />
-                      {isEs ? "Clientes" : "Clients"} ({filteredClient360Records.length})
-                    </div>
-                    {filteredClient360Records.map((client) => (
-                      <button
-                        type="button"
-                        key={client.id}
-                        className={"ga-client360-list-item" + (selectedClient360.id === client.id ? " ga-client360-list-item-active" : "")}
-                        onClick={() => setSelectedClient360Id(client.id)}
-                      >
-                        <span className="ga-client360-avatar"><UserRound size={16} /></span>
-                        <span>
-                          <strong>{client.name}</strong>
-                          <small>#{client.number ?? "-"}</small>
-                        </span>
-                      </button>
-                    ))}
-                  </aside>
-
-                  <div className="ga-client360-main">
-                    <div className="ga-client360-profile">
-                      <div className="ga-client360-profile-icon"><UserRound size={28} /></div>
-                      <div>
-                        <h3>{selectedClient360.name} <span>#{selectedClient360.number ?? "-"}</span></h3>
-                        <p><MapPin size={14} /> {isEs ? "Cuenta Caribex" : "Caribex account"}</p>
-                        <p>{selectedClient360.email}</p>
-                      </div>
-                    </div>
-
-                    <div className="ga-client360-metrics">
-                      <div><small>{isEs ? "Paquetes totales" : "Packages ever"}</small><strong>{client360Summary.packages}</strong></div>
-                      <div><small>{isEs ? "Activos ahora" : "Active now"}</small><strong>{client360Summary.active}</strong></div>
-                      <div><small>{isEs ? "Facturas" : "Invoices"}</small><strong>{client360Summary.invoices}</strong></div>
-                      <div><small>{isEs ? "Total facturado" : "Invoiced"}</small><strong>${client360Summary.invoiced.toFixed(2)}</strong></div>
-                      <div><small>{isEs ? "Pagado" : "Paid"}</small><strong>${client360Summary.paid.toFixed(2)}</strong></div>
-                      <div className="ga-client360-metric-alert"><small>{isEs ? "Pendiente" : "Outstanding"}</small><strong>${client360Summary.outstanding.toFixed(2)}</strong></div>
-                    </div>
-
-                    <div className="ga-client360-card">
-                      <div className="ga-client360-card-header">
-                        <div><h3>{isEs ? "Dónde están sus paquetes" : "Where their packages are"}</h3><p>{isEs ? "Distribución actual por etapa." : "Current shipment distribution by stage."}</p></div>
-                        <CalendarDays size={18} />
-                      </div>
-                      <div className="ga-client360-statuses">
-                        {STAGES.filter((stage) => stage.id !== "FACTURAS").map((stage) => {
-                          const count = selectedClient360.packages.filter((pkg) => packagesByStage[stage.id].some((stagePkg) => stagePkg.id === pkg.id)).length;
-                          return <span key={stage.id}><strong>{count}</strong> {getStageLabel(stage.id, isEs)}</span>;
-                        })}
-                      </div>
-                    </div>
-
-                    <div className="ga-client360-card">
-                      <div className="ga-client360-card-header"><div><h3>{isEs ? "Historial de paquetes" : "Package history"}</h3><p>{isEs ? "Más recientes primero." : "Most recent first."}</p></div><PackageOpen size={18} /></div>
-                      <div className="ga-client360-table-wrap">
-                        <table className="ga-client360-table">
-                          <thead><tr><th>{isEs ? "Recibido" : "Received"}</th><th>Tracking</th><th>{isEs ? "Estado" : "Status"}</th><th>{isEs ? "Factura" : "Invoice"}</th></tr></thead>
-                          <tbody>
-                            {selectedClient360.packages.slice(0, 30).map((pkg) => (
-                              <tr key={pkg.id}>
-                                <td>{pkg.registro ? new Date(pkg.registro).toLocaleDateString() : "-"}</td>
-                                <td><button type="button" className="ga-client360-tracking" onClick={() => handleViewPackage(pkg)}>{pkg.tracking}</button></td>
-                                <td><span className="ga-client360-status">{pkg.estado || "-"}</span></td>
-                                <td>{pkg.billing_total != null ? `$${Number(pkg.billing_total).toFixed(2)}` : "-"}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </>
-            ) : (
-              <div className="ga-client360-empty"><Users size={28} /><p>{isEs ? "No se encontraron clientes." : "No clients found."}</p></div>
-            )}
+          <section className="ga-client360 ga-client360-shared">
+            <Client360Admin
+              clientes={clients.map((client) => ({
+                ...client,
+                email: client.email ?? null,
+                telefono: client.telefono ?? null,
+                puerto: client.puerto ?? null,
+                tipo_cuenta: client.tipo_cuenta ?? null,
+                creado_en: client.creado_en ?? null,
+              }))}
+              pedidos={sharedClient360Pedidos}
+              facturas={sharedClient360Facturas}
+            />
           </section>
         ) : <section className="ga-state-card">
           {activeStage === "RECIBIDO_FLORIDA" ? (
@@ -4201,13 +4134,21 @@ const handlePackageCreated = (pkg: Package) => {
             </div>
 
             <div className="ga-modal-body">
-              {isAdmin && (
+              {canEditInvoiceAddOns && (
                 <div className="ga-invoice-editor">
                   <div>
                     <h5>{isEs ? "Ajustar factura (solo administrador)" : "Adjust invoice (admin only)"}</h5>
                     <p>{isEs ? "Agregue un cargo adicional y los totales se recalcularán con IVA del 15%." : "Add an additional charge and totals will recalculate with 15% tax."}</p>
                   </div>
                   <div className="ga-invoice-editor-grid">
+                    <select
+                      className="ga-input"
+                      value={EXTRA_CHARGE_OPTIONS.includes(invoiceCustomChargeLabel) ? invoiceCustomChargeLabel : ""}
+                      onChange={(event) => setInvoiceCustomChargeLabel(event.target.value)}
+                    >
+                      <option value="">{isEs ? "Seleccione un tipo de cargo" : "Select charge type"}</option>
+                      {EXTRA_CHARGE_OPTIONS.map((option) => <option key={option} value={option}>{getExtraChargeLabel(option, isEs)}</option>)}
+                    </select>
                     <input
                       className="ga-input"
                       value={invoiceCustomChargeLabel}

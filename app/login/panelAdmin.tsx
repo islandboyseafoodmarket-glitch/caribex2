@@ -23,13 +23,41 @@ const NUEVO_CLIENTE_INITIAL = {
   tipoCuenta: "Personal",
 };
 
+const STAFF_PERMISSION_OPTIONS = [
+  { key: "shipment_workflow", label: "Shipment workflow" },
+  { key: "client360", label: "Client 360" },
+  { key: "invoices", label: "View and send invoices" },
+  { key: "invoice_edit", label: "Edit invoice add-ons" },
+  { key: "ferry_manifests", label: "Ferry manifests" },
+] as const;
+
+type StaffPermissions = Record<(typeof STAFF_PERMISSION_OPTIONS)[number]["key"], boolean>;
+const DEFAULT_STAFF_PERMISSIONS: StaffPermissions = {
+  shipment_workflow: true,
+  client360: true,
+  invoices: true,
+  invoice_edit: false,
+  ferry_manifests: false,
+};
+
+const ADMIN_EXTRA_CHARGE_OPTIONS = [
+  "Storage fees (daily)",
+  "Handling fees",
+  "Documentation fees",
+  "Insurance premium (2% of insurable value)",
+  "Forklift charge ($100)",
+  "Miscellaneous fee ($10)",
+  "Consolidation fee ($2.5)",
+  "Honduran imposed duty",
+];
+
 const App = () => {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<
     'personal' | 'clientes' | 'client360' | 'pedidos' | 'incidencias' | 'facturas' | 'leads' | 'ferry'
   >('personal');
 
-  const [personal, setPersonal] = useState<{ id: string; nombre: string; rol: string }[]>([]);
+  const [personal, setPersonal] = useState<{ id: string; nombre: string; rol: string; permissions?: Partial<StaffPermissions> | null }[]>([]);
   type Cliente = {
     id: string;
     nombre: string;
@@ -123,6 +151,9 @@ const App = () => {
 
   // Modal de confirmación para marcar factura como pagada
   const [pendingPayInvoice, setPendingPayInvoice] = useState<Factura | null>(null);
+  const [editingInvoiceAddOns, setEditingInvoiceAddOns] = useState<Factura | null>(null);
+  const [invoiceAddOnType, setInvoiceAddOnType] = useState("");
+  const [invoiceAddOnAmount, setInvoiceAddOnAmount] = useState("");
 
   const facturasFiltradas = useMemo(() => {
     return facturas.filter((f) => {
@@ -154,7 +185,11 @@ const App = () => {
     email: "",
     nombre: "",
     password: "",
+    permissions: { ...DEFAULT_STAFF_PERMISSIONS },
   });
+  const [editingStaff, setEditingStaff] = useState<{ id: string; nombre: string; permissions?: Partial<StaffPermissions> | null } | null>(null);
+  const [editingStaffPermissions, setEditingStaffPermissions] = useState<StaffPermissions>({ ...DEFAULT_STAFF_PERMISSIONS });
+  const [staffPermissionSaving, setStaffPermissionSaving] = useState(false);
 
   const [nuevoCliente, setNuevoCliente] = useState({ ...NUEVO_CLIENTE_INITIAL });
   const [clienteEditandoId, setClienteEditandoId] = useState<string | null>(null);
@@ -224,13 +259,31 @@ const App = () => {
   const cargarPersonal = useCallback(async () => {
     const { data, error } = await supabase
       .from("personal")
-      .select("id, nombre, rol")
+      .select("id, nombre, rol, permissions")
       .order("creado_en", { ascending: false });
 
     if (!error && data) {
       setPersonal(data as any);
     }
   }, []);
+
+  const openStaffPermissions = (staff: { id: string; nombre: string; permissions?: Partial<StaffPermissions> | null }) => {
+    setEditingStaff(staff);
+    setEditingStaffPermissions({ ...DEFAULT_STAFF_PERMISSIONS, ...(staff.permissions || {}) });
+  };
+
+  const saveStaffPermissions = async () => {
+    if (!editingStaff) return;
+    setStaffPermissionSaving(true);
+    const { error } = await supabase.from("personal").update({ permissions: editingStaffPermissions }).eq("id", editingStaff.id);
+    setStaffPermissionSaving(false);
+    if (error) {
+      setModalError(error.message || "Could not update staff permissions.");
+      return;
+    }
+    await cargarPersonal();
+    setEditingStaff(null);
+  };
 
   const pedidosConIncidencia = useMemo(
     () =>
@@ -790,10 +843,29 @@ const App = () => {
   const handleAdminEditInvoiceAddOns = async (factura: Factura) => {
     const { data: checkin } = await supabase.from("paquetes_checkin").select("id, cargos_adicionales").eq("paquete_id", factura.id).order("creado_en", { ascending: false }).limit(1).maybeSingle();
     if (!checkin) { alert("No check-in record exists for this invoice yet."); return; }
-    const value = window.prompt("Add-on items (comma-separated):", checkin.cargos_adicionales || "");
-    if (value === null) return;
-    const { error } = await supabase.from("paquetes_checkin").update({ cargos_adicionales: value.trim() || null }).eq("id", checkin.id);
-    if (error) alert(error.message || "Could not update invoice add-ons");
+    setInvoiceAddOnType("");
+    setInvoiceAddOnAmount("");
+    setEditingInvoiceAddOns(factura);
+  };
+
+  const saveAdminInvoiceAddOn = async () => {
+    if (!editingInvoiceAddOns || !invoiceAddOnType) return;
+    const amount = Number(invoiceAddOnAmount);
+    if (!Number.isFinite(amount) || amount <= 0) { alert("Enter an amount greater than zero."); return; }
+    const { data: checkin } = await supabase.from("paquetes_checkin").select("id, cargos_adicionales").eq("paquete_id", editingInvoiceAddOns.id).order("creado_en", { ascending: false }).limit(1).maybeSingle();
+    if (!checkin) { alert("No check-in record exists for this invoice yet."); return; }
+    const subtotal = Number(editingInvoiceAddOns.subtotal || 0) + amount;
+    const tax = subtotal * 0.15;
+    const total = subtotal + tax;
+    const prior = String(checkin.cargos_adicionales || "").split(",").map((item) => item.trim()).filter(Boolean);
+    const charge = `${invoiceAddOnType} ($${amount.toFixed(2)})`;
+    const [invoiceUpdate, checkinUpdate] = await Promise.all([
+      supabase.from("paquetes_registro").update({ billing_subtotal: subtotal, billing_tax: tax, billing_total: total }).eq("id", editingInvoiceAddOns.id),
+      supabase.from("paquetes_checkin").update({ cargos_adicionales: [...prior, charge].join(", ") }).eq("id", checkin.id),
+    ]);
+    if (invoiceUpdate.error || checkinUpdate.error) { alert(invoiceUpdate.error?.message || checkinUpdate.error?.message || "Could not update invoice add-on"); return; }
+    updateFacturaEnEstado(editingInvoiceAddOns.id, { subtotal, tax, total });
+    setEditingInvoiceAddOns(null);
   };
 
   const handleAdminSendInvoice = async (factura: Factura) => {
@@ -1445,6 +1517,15 @@ const App = () => {
                   </div>
                   <span style={{ color: '#64748b', fontSize: '0.85rem' }}>{p.rol}</span>
                   <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.35rem' }}>
+                    <button
+                      type="button"
+                      className="pa-secondary-btn"
+                      title="Edit staff task access"
+                      onClick={() => openStaffPermissions(p)}
+                      style={{ padding: '0.35rem 0.65rem', fontSize: '0.75rem' }}
+                    >
+                      Access
+                    </button>
                     <button
                       type="button"
                       title="Eliminar personal"
@@ -2235,6 +2316,32 @@ const App = () => {
         </div>
       )}
 
+      {editingInvoiceAddOns && (
+        <div className="pa-modal-overlay">
+          <div className="pa-modal">
+            <div className="pa-modal-header">
+              <h4 className="pa-modal-title">Edit invoice add-on</h4>
+              <button type="button" className="pa-close-btn" onClick={() => setEditingInvoiceAddOns(null)}>×</button>
+            </div>
+            <div className="pa-field">
+              <label htmlFor="admin-invoice-charge-type">Charge type</label>
+              <select id="admin-invoice-charge-type" className="pa-input" value={invoiceAddOnType} onChange={(event) => setInvoiceAddOnType(event.target.value)}>
+                <option value="">Select a charge type</option>
+                {ADMIN_EXTRA_CHARGE_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
+              </select>
+            </div>
+            <div className="pa-field">
+              <label htmlFor="admin-invoice-charge-amount">Amount</label>
+              <input id="admin-invoice-charge-amount" className="pa-input" type="number" min="0.01" step="0.01" value={invoiceAddOnAmount} onChange={(event) => setInvoiceAddOnAmount(event.target.value)} placeholder="0.00" />
+            </div>
+            <div className="pa-modal-actions">
+              <button type="button" className="pa-secondary-btn" onClick={() => setEditingInvoiceAddOns(null)}>Cancel</button>
+              <button type="button" className="pa-primary-btn" disabled={!invoiceAddOnType || !invoiceAddOnAmount} onClick={() => void saveAdminInvoiceAddOn()}>Save charge</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {pendingPayInvoice && (
         <div className="ga-modal-backdrop" role="dialog" aria-modal="true">
           <div className="ga-modal" style={{ maxWidth: 420 }}>
@@ -2863,7 +2970,7 @@ const App = () => {
 
                   // éxito: recargar lista, limpiar y cerrar
                   await cargarPersonal();
-                  setNuevoPersonal({ email: "", nombre: "", password: "" });
+                  setNuevoPersonal({ email: "", nombre: "", password: "", permissions: { ...DEFAULT_STAFF_PERMISSIONS } });
                   setSaving(false);
                   setIsModalOpen(false);
                 } catch (err: any) {
@@ -2914,6 +3021,20 @@ const App = () => {
                 />
               </div>
 
+              <fieldset className="pa-permission-grid">
+                <legend>Task access</legend>
+                {STAFF_PERMISSION_OPTIONS.map((permission) => (
+                  <label key={permission.key} className="pa-permission-option">
+                    <input
+                      type="checkbox"
+                      checked={nuevoPersonal.permissions[permission.key]}
+                      onChange={(event) => setNuevoPersonal((prev) => ({ ...prev, permissions: { ...prev.permissions, [permission.key]: event.target.checked } }))}
+                    />
+                    <span>{permission.label}</span>
+                  </label>
+                ))}
+              </fieldset>
+
               <div className="pa-modal-actions">
                 <button
                   type="button"
@@ -2933,6 +3054,34 @@ const App = () => {
                 </p>
               )}
             </form>
+          </div>
+        </div>
+      )}
+
+      {editingStaff && (
+        <div className="pa-modal-overlay">
+          <div className="pa-modal">
+            <div className="pa-modal-header">
+              <h4 className="pa-modal-title">Task access: {editingStaff.nombre}</h4>
+              <button type="button" className="pa-close-btn" onClick={() => setEditingStaff(null)}>×</button>
+            </div>
+            <fieldset className="pa-permission-grid">
+              <legend>Select the tasks this staff member may access</legend>
+              {STAFF_PERMISSION_OPTIONS.map((permission) => (
+                <label key={permission.key} className="pa-permission-option">
+                  <input
+                    type="checkbox"
+                    checked={editingStaffPermissions[permission.key]}
+                    onChange={(event) => setEditingStaffPermissions((prev) => ({ ...prev, [permission.key]: event.target.checked }))}
+                  />
+                  <span>{permission.label}</span>
+                </label>
+              ))}
+            </fieldset>
+            <div className="pa-modal-actions">
+              <button type="button" className="pa-secondary-btn" onClick={() => setEditingStaff(null)}>Cancel</button>
+              <button type="button" className="pa-primary-btn" disabled={staffPermissionSaving} onClick={() => void saveStaffPermissions()}>{staffPermissionSaving ? "Saving…" : "Save access"}</button>
+            </div>
           </div>
         </div>
       )}

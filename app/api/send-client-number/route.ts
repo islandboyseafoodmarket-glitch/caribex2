@@ -2,6 +2,16 @@ import { NextResponse } from "next/server";
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 
+function escapeHtml(value: string) {
+  return value.replace(/[&<>'"]/g, (character) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    "'": "&#39;",
+    '"': "&quot;",
+  })[character] || character);
+}
+
 if (!RESEND_API_KEY) {
   console.warn("RESEND_API_KEY is not set. Email sending will fail.");
 }
@@ -31,26 +41,27 @@ export async function POST(request: Request) {
       );
     }
 
-    const safeName = name && name.trim().length > 0 ? name.trim() : "Cliente";
+    const safeName = escapeHtml(name && name.trim().length > 0 ? name.trim() : "Customer");
+    const safeAccount = escapeHtml(clientNumberDisplay);
+    const safePassword = escapeHtml(initialPassword || "Use the password shown after registration");
 
-    const subject = `Tu n\u00famero de cliente Caribex: ${clientNumberDisplay}`;
+    const subject = `Caribex Logistics — Your customer account ${clientNumberDisplay}`;
 
     const html = `<!DOCTYPE html>
-<html>
-  <body style="font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #111827;">
-    <h1 style="font-size:20px; font-weight:700; margin-bottom:16px;">Hola ${safeName},</h1>
-    <p style="margin-bottom:12px;">Gracias por registrarte en <strong>Caribex Logistics Group</strong>.</p>
-    <p style="margin-bottom:12px;">Tu <strong>n\u00famero de cliente</strong> es:</p>
-    <p style="font-size:28px; font-weight:700; color:#2563eb; margin-bottom:16px;">${clientNumberDisplay}</p>
-    <p style="margin-bottom:12px;">You can sign in to the customer portal using your email address and this initial password:</p>
-    <p style="font-size:20px; font-weight:700; color:#111827; margin-bottom:16px;">${initialPassword || "Use the password shown after registration"}</p>
-    <p style="margin-bottom:12px;"><strong>For security, you must change this password after your first login.</strong></p>
-    <p style="margin-bottom:12px;">If you have trouble signing in, contact Caribex support at <strong>+504 89467476</strong>.</p>
-    <p style="margin-bottom:12px;">Por favor, guarda este n\u00famero. Lo necesitar\u00e1s para gestionar tus env\u00edos y consultas.</p>
-    <hr style="margin:16px 0; border:none; border-top:1px solid #e5e7eb;" />
-    <p style="font-size:12px; color:#6b7280;">Este es un correo autom\u00e1tico, por favor no respondas a este mensaje.</p>
-  </body>
-</html>`;
+<html><body style="margin:0;background:#f1f5f9;font-family:Arial,Helvetica,sans-serif;color:#0f172a;">
+  <div style="max-width:620px;margin:0 auto;padding:28px 16px;"><div style="background:#fff;border-radius:16px;padding:32px;box-shadow:0 8px 24px rgba(15,23,42,.08);">
+    <div style="text-align:center;margin-bottom:24px;"><div style="font-size:24px;font-weight:800;color:#0f4c81;">Caribex Logistics Group</div><div style="font-size:12px;color:#64748b;margin-top:4px;">Reliable shipping from the United States to Honduras</div></div>
+    <h1 style="font-size:22px;margin:0 0 16px;">Welcome, ${safeName}</h1>
+    <p style="line-height:1.6;margin:0 0 14px;">Thank you for creating your Caribex customer account. Your account is ready.</p>
+    <p style="line-height:1.6;margin:0 0 14px;">Gracias por crear tu cuenta de cliente Caribex. Tu cuenta ya está lista.</p>
+    <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:12px;padding:18px;margin:22px 0;"><p style="margin:0 0 8px;font-size:13px;color:#475569;">Customer number / Número de cliente</p><p style="font-size:26px;font-weight:800;color:#1d4ed8;margin:0;">${safeAccount}</p></div>
+    <p style="line-height:1.6;margin:0 0 8px;">Use your email address and this temporary password to sign in to the Customer Portal:</p>
+    <p style="line-height:1.6;margin:0 0 8px;">Usa tu correo electrónico y esta contraseña temporal para entrar al Portal del Cliente:</p>
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14px;margin:14px 0 20px;"><p style="margin:0;font-size:12px;color:#64748b;">Temporary password / Contraseña temporal</p><p style="font-size:20px;font-weight:800;margin:6px 0 0;color:#111827;">${safePassword}</p></div>
+    <p style="line-height:1.6;margin:0 0 14px;"><strong>For your security, you must create a new password after your first sign-in.</strong><br /><strong>Por tu seguridad, debes crear una nueva contraseña después de tu primer ingreso.</strong></p>
+    <p style="line-height:1.6;margin:0;">Need help? Contact Caribex at <strong>+50489467476</strong>.<br />¿Necesitas ayuda? Comunícate con Caribex al <strong>+50489467476</strong>.</p>
+  </div><p style="font-size:12px;color:#64748b;text-align:center;margin:16px 0 0;">This is an automatic message. Please do not reply to this email.</p></div>
+</body></html>`;
 
     const resendResponse = await fetch("https://api.resend.com/emails", {
       method: "POST",
