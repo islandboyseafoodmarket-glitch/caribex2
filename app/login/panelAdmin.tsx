@@ -8,6 +8,7 @@ import { BrowserMultiFormatReader } from "@zxing/browser";
 import { Pencil, Trash2, Unlock, LogOut, Image as ImageIcon, Check, AlertCircle, Send, DollarSign, ChevronDown } from "lucide-react";
 import FerryManifestAdmin from "./FerryManifestAdmin";
 import Client360Admin from "./Client360Admin";
+import CaribexLabelPrint from "../../components/CaribexLabelPrint";
 
 /**
  * DASHBOARD OPERATIVO - VERSIÓN VISUAL PURA
@@ -224,6 +225,7 @@ const App = () => {
   const [pedidoDetalle, setPedidoDetalle] = useState<any | null>(null);
   const [pedidoDetalleLoading, setPedidoDetalleLoading] = useState(false);
   const [pedidoDetalleError, setPedidoDetalleError] = useState<string | null>(null);
+  const [adminLabelPackage, setAdminLabelPackage] = useState<any | null>(null);
   const [isPedidoEditOpen, setIsPedidoEditOpen] = useState(false);
   const [pedidoEditId, setPedidoEditId] = useState<string | null>(null);
   const [pedidoClienteLabel, setPedidoClienteLabel] = useState<string>("");
@@ -2660,8 +2662,43 @@ const App = () => {
                 </section>
               </div>
             )}
+            {!pedidoDetalleLoading && pedidoDetalle && (
+              <div className="pa-modal-actions" style={{ justifyContent: "flex-end", gap: "0.5rem" }}>
+                <button
+                  type="button"
+                  className="pa-primary-btn"
+                  onClick={() => {
+                    const check = Array.isArray(pedidoDetalle.paquetes_checkin) ? pedidoDetalle.paquetes_checkin[0] : null;
+                    const length = Number(check?.largo);
+                    const width = Number(check?.ancho);
+                    const height = Number(check?.alto);
+                    const boxSize = [length, width, height].every((value) => Number.isFinite(value) && value > 0)
+                      ? `${length} x ${width} x ${height} in`
+                      : null;
+                    setAdminLabelPackage({
+                      tracking: String(pedidoDetalle.tracking || ""),
+                      customerName: pedidoDetalle.numero_cliente?.nombre || pedidoDetalle.cliente_nombre || null,
+                      accountNumber: pedidoDetalle.numero_cliente?.numero_cliente || pedidoDetalle.numero_cliente_numero || null,
+                      carrier: pedidoDetalle.nombre_paqueteria || pedidoDetalle.carrier || null,
+                      packageType: pedidoDetalle.tipo_paquete || "Package",
+                      details: boxSize || pedidoDetalle.contenido || null,
+                    });
+                  }}
+                >
+                  Generate shipping label
+                </button>
+                <button type="button" className="pa-secondary-btn" onClick={() => setIsPedidoDetalleOpen(false)}>Close</button>
+              </div>
+            )}
           </div>
         </div>
+      )}
+
+      {adminLabelPackage && (
+        <CaribexLabelPrint
+          label={adminLabelPackage}
+          onClose={() => setAdminLabelPackage(null)}
+        />
       )}
 
       {isPedidoEditOpen && (
