@@ -46,14 +46,18 @@ export function detectCarrier(barcode: string): CarrierInfo {
     return { carrier: "usps", trackingNumber: cleanBarcode, confidence: 92 };
   }
 
-  // FedEx: common barcode lengths are 12, 15, 20, and 22 digits. Twelve
-  // digits are only classified with known FedEx prefixes to avoid confusing
-  // arbitrary numeric references with FedEx tracking numbers.
+  // FedEx: the shipping label can encode a longer carrier barcode, while the
+  // customer-facing tracking number is the final 12 digits (for example,
+  // 8767 4172 2731 -> 876741722731).
   if (/^(?:749[0-9]|96[0-9]{2})\d{8}$/.test(cleanBarcode)) {
-    return { carrier: "fedex", trackingNumber: cleanBarcode.slice(-9), confidence: 88 };
+    return { carrier: "fedex", trackingNumber: cleanBarcode.slice(-12), confidence: 88 };
   }
   if (/^\d{15}$|^\d{20}$|^\d{22}$/.test(cleanBarcode)) {
-    return { carrier: "fedex", trackingNumber: cleanBarcode.slice(-9), confidence: 70 };
+    return { carrier: "fedex", trackingNumber: cleanBarcode.slice(-12), confidence: 70 };
+  }
+  const trailingFedexDigits = cleanBarcode.match(/(\d{12})$/)?.[1];
+  if (trailingFedexDigits && (/^96/.test(cleanBarcode) || barcode.toUpperCase().includes("FEDEX"))) {
+    return { carrier: "fedex", trackingNumber: trailingFedexDigits, confidence: 82 };
   }
 
   // DHL Express: commonly ten numeric digits. This is intentionally below
