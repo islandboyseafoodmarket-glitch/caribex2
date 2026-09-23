@@ -3179,6 +3179,8 @@ main {
 .portal-first-login h2 { color: #1e3a8a; }
 .portal-first-login p { color: #475569; line-height: 1.5; }
 .portal-error { display: block; margin-top: .6rem; color: #b91c1c; }
+.reset-page-logo { display: block; width: min(320px, 82vw); height: auto; margin: 0 auto 18px; object-fit: contain; }
+@media (max-width: 520px) { .reset-page-logo { width: min(270px, 78vw); margin-bottom: 14px; } }
 
 .customer-login-page { min-height: 100vh; display: grid; place-items: center; padding: 24px; background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 25%, #7f1d1d 75%, #dc2626 100%); }
 .customer-login-card { width: min(100%, 440px); padding: 32px; border-radius: 20px; background: #fff; box-shadow: 0 24px 60px rgba(15,23,42,.3); }
