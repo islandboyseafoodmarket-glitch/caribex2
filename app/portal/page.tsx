@@ -20,11 +20,20 @@ export default function CustomerPortalPage() {
   useEffect(() => {
     let mounted = true;
     const hash = typeof window !== "undefined" ? window.location.hash : "";
-    if (hash.includes("type=recovery") || hash.includes("access_token=")) setRecoveryMode(true);
+    const recoveryLink = hash.includes("type=recovery") || hash.includes("access_token=");
+    if (recoveryLink) {
+      setRecoveryMode(true);
+      void supabase.auth.getSession().then(({ data: sessionData }) => {
+        if (mounted && sessionData.session) setLoading(false);
+      });
+    }
     const { data: listener } = supabase.auth.onAuthStateChange((event) => {
-      if (mounted && event === "PASSWORD_RECOVERY") setRecoveryMode(true);
+      if (mounted && event === "PASSWORD_RECOVERY") {
+        setRecoveryMode(true);
+        setLoading(false);
+      }
     });
-    void load();
+    if (!recoveryLink) void load();
     return () => { mounted = false; listener.subscription.unsubscribe(); };
   }, []);
   async function load() {
