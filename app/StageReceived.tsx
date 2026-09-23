@@ -189,7 +189,10 @@ const StageReceived: React.FC<StageReceivedProps> = ({
 
           const info = detectCarrier(text);
 
-          setBarcode(text);
+          // Keep the normalized carrier tracking value in the form. FedEx
+          // labels often encode an additional 12-digit carrier payload before
+          // the customer-facing tracking number.
+          setBarcode(info.trackingNumber);
           setTracking(info.trackingNumber);
 
           const carrierMap: Record<string, string> = {

@@ -40,9 +40,13 @@ export function detectCarrier(barcode: string): CarrierInfo {
     };
   }
 
-  // USPS: numeric formats commonly begin with 92, 93, 94, or 95, or use
-  // the international two-letter + nine-digit + US format.
-  if (/^(?:92|93|94|95)\d{18,20}$/.test(cleanBarcode) || /^[A-Z]{2}\d{9}US$/.test(cleanBarcode)) {
+  // USPS: preserve the complete 20–22 digit tracking number. Some scanner
+  // payloads contain extra label text, so extract the full USPS sequence.
+  const uspsMatch = cleanBarcode.match(/(?:92|93|94|95)\d{18,20}/);
+  if (uspsMatch) {
+    return { carrier: "usps", trackingNumber: uspsMatch[0], confidence: 96 };
+  }
+  if (/^[A-Z]{2}\d{9}US$/.test(cleanBarcode)) {
     return { carrier: "usps", trackingNumber: cleanBarcode, confidence: 92 };
   }
 
