@@ -55,7 +55,7 @@ export async function POST(request: Request) {
     const accountDescriptionEs = isBusinessAccount ? "cuenta comercial de envíos" : "cuenta personal de envíos";
     const safeAccount = escapeHtml(clientNumberDisplay);
     const safePassword = escapeHtml(initialPassword || "Use the password shown after registration");
-    let portalLoginUrl = "https://caribex2-git-main-islandboyseafoodmarket-glitchs-projects.vercel.app/portal/login";
+    let portalLoginUrl = "https://www.caribexlogisticsgroup.com/portal/login";
     // The server-controlled production URL is authoritative; never trust a browser-supplied origin here.
     const safePortalUrl = escapeHtml(portalLoginUrl);
 

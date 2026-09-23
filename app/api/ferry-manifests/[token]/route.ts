@@ -10,7 +10,7 @@ function escapeHtml(value: string) {
 function publicOrigin(request: Request) {
   const configured = process.env.NEXT_PUBLIC_SITE_URL || process.env.SITE_URL || process.env.VERCEL_PROJECT_PRODUCTION_URL || process.env.VERCEL_URL;
   if (configured) return configured.startsWith("http") ? configured.replace(/\/$/, "") : `https://${configured}`;
-  return "https://caribex2-git-main-islandboyseafoodmarket-glitchs-projects.vercel.app";
+  return "https://www.caribexlogisticsgroup.com";
 }
 
 function getAdminClient() {

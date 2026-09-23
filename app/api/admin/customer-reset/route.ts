@@ -5,7 +5,7 @@ function adminClient() { const url = process.env.NEXT_PUBLIC_SUPABASE_URL; const
 function publicOrigin(request: Request) {
   const configured = process.env.NEXT_PUBLIC_SITE_URL || process.env.SITE_URL || process.env.VERCEL_PROJECT_PRODUCTION_URL || process.env.VERCEL_URL;
   if (configured) return configured.startsWith("http") ? configured.replace(/\/$/, "") : `https://${configured}`;
-  return "https://caribex2-git-main-islandboyseafoodmarket-glitchs-projects.vercel.app";
+  return "https://www.caribexlogisticsgroup.com";
 }
 export async function POST(request: Request) {
   try {
