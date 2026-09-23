@@ -1026,6 +1026,10 @@ const App = () => {
           padding: 32px clamp(18px, 4vw, 56px) 56px;
           max-width: 1480px;
           margin: 0 auto;
+          display: grid;
+          grid-template-columns: 250px minmax(0, 1fr);
+          gap: 24px;
+          align-items: start;
         }
 
         .admin-brand {
@@ -1078,23 +1082,33 @@ const App = () => {
           font-size: 1rem;
         }
 
-        /* Grouped navigation tabs */
+        .page-header,
+        .data-card {
+          grid-column: 2;
+          min-width: 0;
+        }
+
+        /* Sidebar navigation */
         .tabs-container {
+          grid-column: 1;
+          grid-row: 1 / span 2;
+          position: sticky;
+          top: 24px;
           display: flex;
+          flex-direction: column;
           align-items: stretch;
           gap: 12px;
-          margin-bottom: 32px;
+          margin-bottom: 0;
           padding: 8px;
-          overflow-x: auto;
+          overflow: visible;
           border: 1px solid #e2e8f0;
           border-radius: 20px;
           background: #f8fafc;
-          scrollbar-width: thin;
+          box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
         }
 
         .admin-nav-group {
-          flex: 1 0 auto;
-          min-width: max-content;
+          min-width: 0;
           padding: 10px;
           border: 1px solid #e2e8f0;
           border-radius: 14px;
@@ -1103,10 +1117,10 @@ const App = () => {
         }
 
         .admin-nav-label {
-          display: inline-flex;
+          display: flex;
           align-items: center;
           min-height: 28px;
-          margin: 0 10px 0 2px;
+          margin: 0 2px 8px;
           color: #64748b;
           font-size: 0.68rem;
           font-weight: 800;
@@ -1116,17 +1130,16 @@ const App = () => {
 
         .admin-nav-buttons {
           display: flex;
+          flex-direction: column;
           flex-wrap: nowrap;
-          vertical-align: middle;
-          display: inline-flex;
           gap: 7px;
           overflow: visible;
           padding: 0;
         }
 
         .tab-pill {
-          flex: 1 1 0;
-          min-width: max-content;
+          width: 100%;
+          min-width: 0;
           justify-content: center;
           min-height: 40px;
           padding: 8px 9px;
@@ -1180,13 +1193,15 @@ const App = () => {
         .tab-pill--admin.active .count-badge { background: #fce7f3; color: #9d174d; }
 
         @media (max-width: 1100px) {
-          .admin-nav-group { flex-basis: auto; }
+          .dashboard-root { grid-template-columns: 215px minmax(0, 1fr); }
         }
 
         @media (max-width: 640px) {
-          .tabs-container { align-items: stretch; }
-          .admin-nav-group { flex-basis: max-content; }
-          .admin-nav-buttons { overflow: visible; }
+          .dashboard-root { display: block; }
+          .tabs-container { position: static; margin-bottom: 20px; }
+          .admin-nav-buttons { flex-direction: row; flex-wrap: wrap; }
+          .tab-pill { width: auto; flex: 1 1 auto; }
+          .page-header, .data-card { margin-bottom: 20px; }
         }
 
         /* Contenedor Principal de Información */
