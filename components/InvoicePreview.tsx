@@ -8,6 +8,7 @@ export type InvoicePreviewProps = {
   tracking: string;
   carrier?: string | null;
   typeLabel: string;
+  boxSize?: string | null;
   contents?: string | null;
   extraCharges?: string[];
   isConsolidationBox?: boolean;
@@ -23,6 +24,7 @@ const InvoicePreview: React.FC<InvoicePreviewProps> = ({
   tracking,
   carrier,
   typeLabel,
+  boxSize,
   contents,
   extraCharges,
   isConsolidationBox,
@@ -50,6 +52,9 @@ const InvoicePreview: React.FC<InvoicePreviewProps> = ({
   // de extraCharges. Esto es solo para mostrar la factura; no modifica los
   // montos ya guardados en la BD.
   const extrasList = extraCharges || [];
+  const isBoxItem = typeLabel.trim().toLowerCase() === "box";
+  const itemLabel = isBoxItem ? `Box${boxSize ? ` - ${boxSize}` : ""}` : typeLabel;
+  const itemDetail = contents && contents.trim().length > 0 && contents.trim() !== tracking.trim() ? contents : null;
 
   // Montos fijos conocidos por etiqueta
   const FIXED_EXTRA_AMOUNTS: Record<string, number> = {
@@ -204,7 +209,7 @@ const InvoicePreview: React.FC<InvoicePreviewProps> = ({
           <tbody>
             <tr style={{ borderBottom: "1px solid #e5e7eb" }}>
               <td style={{ padding: "8px 0" }}>
-                <div>{typeLabel}</div>
+                <div>{itemLabel}</div>
                 <div
                   style={{
                     fontSize: 12,
@@ -212,7 +217,7 @@ const InvoicePreview: React.FC<InvoicePreviewProps> = ({
                     fontStyle: "italic",
                   }}
                 >
-                  {contents && contents.trim().length > 0 ? contents : tracking}
+                  {itemDetail || ""}
                 </div>
               </td>
               <td style={{ textAlign: "right" }}>${baseAmount.toFixed(2)}</td>

@@ -430,6 +430,7 @@ export default function GestionAlmacen() {
   const [invoicePackage, setInvoicePackage] = useState<Package | null>(null);
   const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
   const [invoiceExtraCharges, setInvoiceExtraCharges] = useState<string[]>([]);
+  const [invoiceBoxSize, setInvoiceBoxSize] = useState<string | null>(null);
   const [invoiceCustomChargeLabel, setInvoiceCustomChargeLabel] = useState("");
   const [invoiceCustomChargeAmount, setInvoiceCustomChargeAmount] = useState("");
   const [invoiceIsConsolidationBox, setInvoiceIsConsolidationBox] = useState(false);
@@ -517,7 +518,7 @@ export default function GestionAlmacen() {
     try {
       const { data, error } = await supabase
         .from("paquetes_checkin")
-        .select("cargos_adicionales, consolidacion")
+        .select("alto, ancho, largo, cargos_adicionales, consolidacion")
         .eq("paquete_id", pkg.id)
         .order("creado_en", { ascending: false })
         .limit(1)
@@ -525,10 +526,18 @@ export default function GestionAlmacen() {
 
       if (error || !data) {
         setInvoiceExtraCharges([]);
+        setInvoiceBoxSize(null);
         setInvoiceIsConsolidationBox(false);
         return;
       }
 
+      const height = Number((data as any).alto);
+      const width = Number((data as any).ancho);
+      const length = Number((data as any).largo);
+      const dimensions = [length, width, height].every((value) => Number.isFinite(value) && value > 0)
+        ? `${length} x ${width} x ${height} in`
+        : null;
+      setInvoiceBoxSize(dimensions);
       const extrasRaw = (data as any).cargos_adicionales as string | null;
       const extras = extrasRaw
         ? extrasRaw
@@ -540,6 +549,7 @@ export default function GestionAlmacen() {
       setInvoiceIsConsolidationBox(Boolean((data as any).consolidacion));
     } catch {
       setInvoiceExtraCharges([]);
+      setInvoiceBoxSize(null);
       setInvoiceIsConsolidationBox(false);
     }
 
@@ -570,6 +580,7 @@ export default function GestionAlmacen() {
   const handleCloseInvoiceModal = () => {
     setInvoicePackage(null);
     setInvoiceExtraCharges([]);
+    setInvoiceBoxSize(null);
     setInvoiceCustomChargeLabel("");
     setInvoiceCustomChargeAmount("");
     setInvoiceIsConsolidationBox(false);
@@ -4272,6 +4283,7 @@ const handlePackageCreated = (pkg: Package) => {
                 tracking={invoicePackage.tracking}
                 carrier={invoicePackage.carrier}
                 typeLabel={getCategoryLabel(invoicePackage.type, false)}
+                boxSize={invoiceBoxSize}
                 contents={invoicePackage.dims}
                 extraCharges={invoiceExtraCharges}
                 isConsolidationBox={invoiceIsConsolidationBox}
