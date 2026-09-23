@@ -217,7 +217,8 @@ const StageReceived: React.FC<StageReceivedProps> = ({
           };
 
           if (info.carrier !== "unknown") {
-            setCarrier(info.serviceLevel || carrierMap[info.carrier] || "");
+            // UPS Ground is a UPS service level, not a separate carrier.
+            setCarrier(carrierMap[info.carrier] || "");
           }
 
           console.log(
@@ -708,7 +709,6 @@ const StageReceived: React.FC<StageReceivedProps> = ({
                     </option>
                     <option value="Amazon logistics">Amazon logistics</option>
                     <option value="UPS">UPS</option>
-                    <option value="UPS Ground">UPS Ground</option>
                     <option value="SpeedX">SpeedX</option>
                     <option value="Yanwen Express">Yanwen Express</option>
                     <option value="GOFO Express">GOFO Express</option>
