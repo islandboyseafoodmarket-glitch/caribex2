@@ -213,6 +213,7 @@ const StageReceived: React.FC<StageReceivedProps> = ({
             shein: "SheIn",
             speedx: "SpeedX",
             yanwen: "Yanwen Express",
+            gfs: "GFS Express (ECFO)",
           };
 
           if (info.carrier !== "unknown") {
@@ -710,6 +711,7 @@ const StageReceived: React.FC<StageReceivedProps> = ({
                     <option value="UPS Ground">UPS Ground</option>
                     <option value="SpeedX">SpeedX</option>
                     <option value="Yanwen Express">Yanwen Express</option>
+                    <option value="GFS Express (ECFO)">GFS Express (ECFO)</option>
                     <option value="SheIn">SheIn</option>
                     <option value="FedEx">FedEx</option>
                     <option value="DHL">DHL</option>
