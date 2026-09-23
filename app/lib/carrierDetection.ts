@@ -4,6 +4,7 @@ export interface CarrierInfo {
   carrier: CarrierType;
   trackingNumber: string;
   confidence: number;
+  serviceLevel?: string;
 }
 
 function isValidUpsCheckDigit(value: string): boolean {
@@ -13,7 +14,9 @@ function isValidUpsCheckDigit(value: string): boolean {
   let sum = 0;
   for (let index = body.length - 1, weight = 2; index >= 0; index--, weight = weight === 2 ? 1 : 2) {
     const code = body.charCodeAt(index);
-    const numericValue = code >= 48 && code <= 57 ? code - 48 : code - 55;
+    const numericValue = code >= 48 && code <= 57
+      ? code - 48
+      : ((code - 65 + 2) % 10);
     sum += numericValue * weight;
   }
   return (10 - (sum % 10)) % 10 === checkDigit;
@@ -21,12 +24,20 @@ function isValidUpsCheckDigit(value: string): boolean {
 
 /** Detect a carrier from the contents returned by a barcode scanner. */
 export function detectCarrier(barcode: string): CarrierInfo {
-  // Scanners may include spaces or hyphens between barcode groups.
-  const cleanBarcode = barcode.trim().toUpperCase().replace(/[\s-]/g, "");
+  // Scanners may return the whole label text, including spaces, hyphens,
+  // or text such as "UPS GROUND TRACKING #:" around the actual number.
+  const cleanBarcode = barcode.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
 
-  // UPS: standard 1Z format, including its check digit.
-  if (isValidUpsCheckDigit(cleanBarcode)) {
-    return { carrier: "ups", trackingNumber: cleanBarcode, confidence: 98 };
+  // UPS: extract the standard 1Z format even when it is embedded in label text.
+  const upsMatch = cleanBarcode.match(/1Z[A-Z0-9]{16}/);
+  if (upsMatch) {
+    const trackingNumber = upsMatch[0];
+    return {
+      carrier: "ups",
+      trackingNumber,
+      confidence: isValidUpsCheckDigit(trackingNumber) ? 99 : 90,
+      serviceLevel: cleanBarcode.includes("UPSGROUND") ? "UPS Ground" : undefined,
+    };
   }
 
   // USPS: numeric formats commonly begin with 92, 93, 94, or 95, or use
