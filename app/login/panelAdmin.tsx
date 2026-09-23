@@ -333,22 +333,25 @@ const App = () => {
     setPedidoDetalleLoading(true);
 
     try {
-      const { data, error } = await supabase
-        .from("paquetes_registro")
-        .select(
-          "*, numero_cliente:numero_cliente_id (*), paquetes_checkin:paquetes_checkin (*)"
-        )
-        .eq("id", id)
-        .maybeSingle();
+      const [{ data, error }, { data: checkins, error: checkinError }] = await Promise.all([
+        supabase
+          .from("paquetes_registro")
+          .select("*, numero_cliente:numero_cliente_id (*)")
+          .eq("id", id)
+          .maybeSingle(),
+        supabase
+          .from("paquetes_checkin")
+          .select("*")
+          .eq("paquete_id", id),
+      ]);
 
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
+      if (checkinError) throw checkinError;
 
       if (!data) {
         setPedidoDetalleError("No se encontró información detallada para este pedido.");
       } else {
-        setPedidoDetalle(data);
+        setPedidoDetalle({ ...data, paquetes_checkin: checkins || [] });
       }
     } catch (err: any) {
       console.error("Error cargando detalle de pedido", err);
