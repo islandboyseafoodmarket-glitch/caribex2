@@ -11,8 +11,13 @@ type Factura = { id: string; tracking: string; clienteNumero: number | null; cli
 const STAGE_LABELS = ["Received", "Registered", "In transit", "Unloaded", "Picked up"];
 
 function safeDate(value: string | null | undefined) {
-  if (!value) return "-";
-  const date = new Date(value);
+  const raw = String(value || "").trim();
+  if (!raw) return "-";
+  const dayFirst = raw.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})(?:\s+(.*))?$/);
+  const normalized = dayFirst
+    ? `${dayFirst[3]}-${dayFirst[2].padStart(2, "0")}-${dayFirst[1].padStart(2, "0")}${dayFirst[4] ? `T${dayFirst[4]}` : "T00:00:00"}`
+    : raw;
+  const date = new Date(normalized);
   return Number.isNaN(date.getTime()) ? "-" : date.toLocaleDateString();
 }
 

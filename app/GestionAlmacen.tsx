@@ -128,6 +128,24 @@ type Package = {
   invoice_status?: string | null;
 };
 
+function parseClient360Date(value: string | null | undefined) {
+  const raw = String(value || "").trim();
+  if (!raw) return null;
+  const dayFirst = raw.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})(?:\s+(.*))?$/);
+  if (dayFirst) {
+    const [, day, month, year, time] = dayFirst;
+    const parsed = new Date(`${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}${time ? `T${time}` : "T00:00:00"}`);
+    if (Number.isFinite(parsed.getTime())) return parsed;
+  }
+  const parsed = new Date(raw);
+  return Number.isFinite(parsed.getTime()) ? parsed : null;
+}
+
+function client360DateLabel(value: string | null | undefined, locale: string) {
+  const parsed = parseClient360Date(value);
+  return parsed ? parsed.toLocaleDateString(locale) : "-";
+}
+
 type StageId =
   | "RECIBIDO_FLORIDA"
   | "REGISTRO"
@@ -1510,7 +1528,7 @@ export default function GestionAlmacen() {
       const matchesBalance = client360BalanceFilter === "ALL" ||
         (client360BalanceFilter === "OUTSTANDING" && balance > 0) ||
         (client360BalanceFilter === "PAID" && balance === 0 && total > 0);
-      const dates = client.packages.map((pkg) => new Date(pkg.registro || pkg.horaFecha || 0).getTime()).filter(Boolean);
+      const dates = client.packages.map((pkg) => parseClient360Date(pkg.registro || pkg.horaFecha)?.getTime()).filter((value): value is number => Number.isFinite(value));
       const latest = dates.length ? Math.max(...dates) : 0;
       const matchesDate = client360DateFilter === "ALL" ||
         (client360DateFilter === "30" && latest >= now - 30 * 86400000) ||
@@ -3609,7 +3627,7 @@ const handlePackageCreated = (pkg: Package) => {
                           <tbody>
                             {selectedClient360.packages.slice(0, 30).map((pkg) => (
                               <tr key={pkg.id}>
-                                <td>{pkg.registro ? new Date(pkg.registro).toLocaleDateString() : "-"}</td>
+                                <td>{client360DateLabel(pkg.registro || pkg.horaFecha, isEs ? "es-ES" : "en-US")}</td>
                                 <td><button type="button" className="ga-client360-tracking" onClick={() => handleViewPackage(pkg)}>{pkg.tracking}</button></td>
                                 <td><span className="ga-client360-status">{pkg.estado || "-"}</span></td>
                                 <td>{pkg.billing_total != null ? `$${Number(pkg.billing_total).toFixed(2)}` : "-"}</td>
