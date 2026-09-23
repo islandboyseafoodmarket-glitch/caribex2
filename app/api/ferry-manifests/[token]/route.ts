@@ -7,9 +7,7 @@ const RESEND_API_KEY = process.env.RESEND_API_KEY;
 function escapeHtml(value: string) {
   return value.replace(/[&<>'"]/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[character] || character);
 }
-function publicOrigin(request: Request) {
-  const configured = process.env.NEXT_PUBLIC_SITE_URL || process.env.SITE_URL || process.env.VERCEL_PROJECT_PRODUCTION_URL || process.env.VERCEL_URL;
-  if (configured) return configured.startsWith("http") ? configured.replace(/\/$/, "") : `https://${configured}`;
+function publicOrigin(_request: Request) {
   return "https://www.caribexlogisticsgroup.com";
 }
 

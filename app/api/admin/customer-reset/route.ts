@@ -2,9 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 function adminClient() { const url = process.env.NEXT_PUBLIC_SUPABASE_URL; const key = process.env.SUPABASE_SERVICE_ROLE_KEY; if (!url || !key) throw new Error("Supabase server environment variables are missing"); return createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } }); }
-function publicOrigin(request: Request) {
-  const configured = process.env.NEXT_PUBLIC_SITE_URL || process.env.SITE_URL || process.env.VERCEL_PROJECT_PRODUCTION_URL || process.env.VERCEL_URL;
-  if (configured) return configured.startsWith("http") ? configured.replace(/\/$/, "") : `https://${configured}`;
+function publicOrigin(_request: Request) {
   return "https://www.caribexlogisticsgroup.com";
 }
 export async function POST(request: Request) {
