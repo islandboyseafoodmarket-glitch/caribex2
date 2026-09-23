@@ -43,7 +43,7 @@ export async function POST(request: Request) {
     const { data: client } = await supabase.from("numero_cliente").select("id, nombre, email, auth_user_id, numero_cliente").eq("email", email).maybeSingle();
     await supabase.from("customer_password_reset_requests").insert({ numero_cliente_id: client?.id || null, email });
     if (client?.auth_user_id && client.email && RESEND_API_KEY) {
-      const resetUrl = "https://www.caribexlogisticsgroup.com/portal/reset-password";
+      const resetUrl = "https://www.caribexlogisticsgroup.com/?recovery=1";
       const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({ type: "recovery", email: client.email, options: { redirectTo: resetUrl } });
       if (!linkError && linkData.properties?.action_link) {
         const recoveryLink = new URL(linkData.properties.action_link);

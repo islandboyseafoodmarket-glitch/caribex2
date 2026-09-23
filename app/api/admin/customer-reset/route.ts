@@ -16,7 +16,7 @@ export async function POST(request: Request) {
     const { customer_id } = await request.json();
     const { data: customer } = await supabase.from("numero_cliente").select("nombre, email, auth_user_id, numero_cliente").eq("id", customer_id).maybeSingle();
     if (!customer?.email || !customer.auth_user_id) return NextResponse.json({ error: "Customer does not have a portal account" }, { status: 400 });
-    const resetUrl = `${publicOrigin(request)}/portal/reset-password`;
+    const resetUrl = `${publicOrigin(request)}/?recovery=1`;
     const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({ type: "recovery", email: customer.email, options: { redirectTo: resetUrl } });
     if (linkError || !linkData.properties?.action_link) throw linkError || new Error("Could not generate reset link");
     const recoveryLink = new URL(linkData.properties.action_link);

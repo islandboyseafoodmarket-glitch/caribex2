@@ -43,6 +43,20 @@ export default function HomePage() {
   }, [activePage]);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    const recoveryHash = window.location.hash;
+    const isRecoveryReturn =
+      url.searchParams.get("recovery") === "1" ||
+      recoveryHash.includes("type=recovery") ||
+      recoveryHash.includes("access_token=") ||
+      recoveryHash.includes("error_code=otp_expired");
+    if (isRecoveryReturn) {
+      window.location.replace(`/portal/reset-password${recoveryHash}`);
+    }
+  }, []);
+
+  useEffect(() => {
     const popupSeenKey = "caribex-promo-seen-v1";
     if (window.localStorage.getItem(popupSeenKey) === "true") return;
     const timer = window.setTimeout(() => {
