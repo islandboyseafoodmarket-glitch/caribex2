@@ -30,7 +30,7 @@ export default function CustomerPortalLoginPage() {
 
   async function forgotPassword() {
     if (!email) { setError("Enter your registered email first."); return; }
-    const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), { redirectTo: "https://www.caribexlogisticsgroup.com/portal" });
+    const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), { redirectTo: "https://caribex2-git-main-islandboyseafoodmarket-glitchs-projects.vercel.app/portal" });
     await fetch("/api/customer-portal", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email }) });
     setMessage(resetError ? "We could not send the reset link." : "Check your email for a password-reset link.");
   }

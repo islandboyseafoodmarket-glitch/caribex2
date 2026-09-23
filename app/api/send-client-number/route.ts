@@ -20,7 +20,7 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
 
-    const { to, name, phone, port, accountType, clientNumberDisplay, initialPassword, portalUrl } = body as {
+    const { to, name, phone, port, accountType, clientNumberDisplay, initialPassword } = body as {
       to: string;
       name: string;
       phone?: string;
@@ -55,16 +55,8 @@ export async function POST(request: Request) {
     const accountDescriptionEs = isBusinessAccount ? "cuenta comercial de envíos" : "cuenta personal de envíos";
     const safeAccount = escapeHtml(clientNumberDisplay);
     const safePassword = escapeHtml(initialPassword || "Use the password shown after registration");
-    let portalLoginUrl = `${process.env.NEXT_PUBLIC_SITE_URL || "https://www.caribexlogisticsgroup.com"}/portal/login`;
-    try {
-      const candidate = new URL(portalUrl || portalLoginUrl);
-      const isLocalhost = candidate.hostname === "localhost" || candidate.hostname === "127.0.0.1" || candidate.hostname === "0.0.0.0";
-      if ((candidate.protocol === "http:" || candidate.protocol === "https:") && !isLocalhost) {
-        portalLoginUrl = `${candidate.origin}/portal/login`;
-      }
-    } catch {
-      // Keep the server-derived portal URL when the client value is invalid.
-    }
+    let portalLoginUrl = "https://caribex2-git-main-islandboyseafoodmarket-glitchs-projects.vercel.app/portal/login";
+    // The server-controlled production URL is authoritative; never trust a browser-supplied origin here.
     const safePortalUrl = escapeHtml(portalLoginUrl);
 
     const subject = `Caribex Logistics — Your ${isBusinessAccount ? "business" : "personal"} account ${clientNumberDisplay}`;
