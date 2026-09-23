@@ -50,6 +50,13 @@ const ADMIN_EXTRA_CHARGE_OPTIONS = [
   "Consolidation fee ($2.5)",
   "Honduran imposed duty",
 ];
+const PORTAL_EVENT_LABELS: Record<string, string> = {
+  account_created: "Customer account created",
+  portal_access_provisioned: "Portal access provisioned",
+  login_attempt: "Portal login attempt",
+  password_reset_requested: "Password reset requested",
+};
+const portalEventLabel = (eventType: string) => PORTAL_EVENT_LABELS[eventType] || eventType.replaceAll("_", " ");
 
 const App = () => {
   const router = useRouter();
@@ -1422,7 +1429,7 @@ const App = () => {
                       : activeTab === 'leads'
                         ? `${leads.length} leads received from the website`
                       : activeTab === 'portal'
-                        ? `${portalEvents.length} recent customer portal access events`
+                        ? `${portalEvents.length} recent portal and account events`
                       : 'Create, share, and archive weekly ferry manifests'}
             </span>
           </div>
@@ -1481,7 +1488,7 @@ const App = () => {
         </div>}
 
         {activeTab === 'portal' && <div style={{ width: '100%', overflowX: 'auto' }}>
-          {portalEvents.length === 0 ? <p style={{ padding: '1.5rem', color: '#64748b' }}>No customer portal access events have been recorded yet.</p> : <table className="admin-table" style={{ minWidth: 820, width: '100%' }}><thead><tr><th>Date</th><th>Email</th><th>Result</th><th>Reason</th><th>Event</th></tr></thead><tbody>{portalEvents.map((event) => <tr key={event.id}><td>{new Date(event.created_at).toLocaleString()}</td><td>{event.email}</td><td><span style={{ color: event.success ? '#166534' : '#b91c1c', fontWeight: 700 }}>{event.success ? 'Successful' : 'Problem'}</span></td><td>{event.reason || '-'}</td><td>{event.event_type}</td></tr>)}</tbody></table>}
+          {portalEvents.length === 0 ? <p style={{ padding: '1.5rem', color: '#64748b' }}>No customer portal or account events have been recorded yet.</p> : <table className="admin-table" style={{ minWidth: 820, width: '100%' }}><thead><tr><th>Date</th><th>Email</th><th>Result</th><th>Reason</th><th>Event</th></tr></thead><tbody>{portalEvents.map((event) => <tr key={event.id}><td>{new Date(event.created_at).toLocaleString()}</td><td>{event.email}</td><td><span style={{ color: event.success ? '#166534' : '#b91c1c', fontWeight: 700 }}>{event.success ? (event.event_type === 'login_attempt' ? 'Successful' : 'Completed') : 'Problem'}</span></td><td>{event.reason || '-'}</td><td>{portalEventLabel(event.event_type)}</td></tr>)}</tbody></table>}
         </div>}
 
         {activeTab === 'ferry' && <FerryManifestAdmin />}

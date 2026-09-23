@@ -28,6 +28,12 @@ export async function POST(request: Request) {
     if (authError || !authData.user) throw authError || new Error("Could not create customer login");
     const { error: insertError } = await supabase.from("numero_cliente").insert({ nombre: name, email, telefono: phone, puerto: port, tipo_cuenta: accountType, numero_cliente: accountNumber, auth_user_id: authData.user.id });
     if (insertError) { await supabase.auth.admin.deleteUser(authData.user.id); throw insertError; }
+    await supabase.from("customer_portal_login_events").insert({
+      email,
+      event_type: "account_created",
+      success: true,
+      reason: `Customer account #${accountNumber} created with portal access`,
+    });
     return NextResponse.json({ accountNumber, initialPassword });
   } catch (error: any) { return NextResponse.json({ error: error?.message || "Could not create customer account" }, { status: 500 }); }
 }

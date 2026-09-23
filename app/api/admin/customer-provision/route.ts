@@ -32,6 +32,12 @@ export async function POST(request: Request) {
     }
     const { error: linkError } = await supabase.from("numero_cliente").update({ auth_user_id: userId }).eq("id", customer.id);
     if (linkError) return NextResponse.json({ error: linkError.message }, { status: 400 });
+    await supabase.from("customer_portal_login_events").insert({
+      email: customer.email,
+      event_type: "portal_access_provisioned",
+      success: true,
+      reason: `Portal access provisioned for customer account #${customer.numero_cliente}`,
+    });
     return NextResponse.json({ ok: true, initial_password: `Caribex${customer.numero_cliente}` });
   } catch (error: any) {
     return NextResponse.json({ error: error?.message || "Could not provision customer portal access" }, { status: 500 });
