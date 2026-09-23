@@ -1033,10 +1033,6 @@ const App = () => {
           padding: 32px clamp(18px, 4vw, 56px) 56px;
           max-width: 1480px;
           margin: 0 auto;
-          display: grid;
-          grid-template-columns: 250px minmax(0, 1fr);
-          gap: 24px;
-          align-items: start;
         }
 
         .admin-brand {
@@ -1091,31 +1087,28 @@ const App = () => {
 
         .page-header,
         .data-card {
-          grid-column: 2;
           min-width: 0;
         }
 
-        /* Sidebar navigation */
+        /* Floating top mega-menu navigation */
         .tabs-container {
-          grid-column: 1;
-          grid-row: 1 / span 2;
-          position: sticky;
-          top: 24px;
+          position: relative;
           display: flex;
-          flex-direction: column;
+          flex-wrap: wrap;
           align-items: stretch;
           gap: 12px;
-          margin-bottom: 0;
-          padding: 8px;
+          margin: 0 0 28px;
+          padding: 10px;
           overflow: visible;
           border: 1px solid #e2e8f0;
-          border-radius: 20px;
-          background: #f8fafc;
-          box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+          border-radius: 24px;
+          background: rgba(248, 250, 252, 0.94);
+          box-shadow: 0 14px 30px rgba(15, 23, 42, 0.08);
         }
 
         .admin-nav-group {
-          min-width: 0;
+          flex: 1 1 210px;
+          min-width: 190px;
           padding: 10px;
           border: 1px solid #e2e8f0;
           border-radius: 14px;
@@ -1162,16 +1155,16 @@ const App = () => {
 
         .admin-nav-buttons {
           display: flex;
-          flex-direction: column;
-          flex-wrap: nowrap;
+          flex-direction: row;
+          flex-wrap: wrap;
           gap: 7px;
           overflow: visible;
           padding: 0;
         }
 
         .tab-pill {
-          width: 100%;
-          min-width: 0;
+          width: auto;
+          min-width: max-content;
           justify-content: center;
           min-height: 40px;
           padding: 8px 9px;
@@ -1225,14 +1218,13 @@ const App = () => {
         .tab-pill--admin.active .count-badge { background: #fce7f3; color: #9d174d; }
 
         @media (max-width: 1100px) {
-          .dashboard-root { grid-template-columns: 215px minmax(0, 1fr); }
+          .admin-nav-group { flex-basis: 240px; }
         }
 
         @media (max-width: 640px) {
-          .dashboard-root { display: block; }
-          .tabs-container { position: static; margin-bottom: 20px; }
-          .admin-nav-buttons { flex-direction: row; flex-wrap: wrap; }
-          .tab-pill { width: auto; flex: 1 1 auto; }
+          .tabs-container { margin-bottom: 20px; }
+          .admin-nav-group { min-width: 100%; }
+          .tab-pill { flex: 1 1 auto; }
           .page-header, .data-card { margin-bottom: 20px; }
         }
 
