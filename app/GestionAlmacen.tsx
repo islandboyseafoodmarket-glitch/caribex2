@@ -39,6 +39,7 @@ import UnloadedStage from "./Unloaded";
 import PickupStage from "./Pickup";
 import InvoicesStage from "./InvoicesStage";
 import InvoicePreview from "../components/InvoicePreview";
+import CaribexLabelPrint from "../components/CaribexLabelPrint";
 
 import {
   Html5Qrcode,
@@ -345,6 +346,7 @@ export default function GestionAlmacen() {
   const [isTransitModalOpen, setIsTransitModalOpen] = useState(false);
   const [viewPackage, setViewPackage] = useState<any | null>(null);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  const [labelPackage, setLabelPackage] = useState<Package | null>(null);
   const [viewCheckInDetails, setViewCheckInDetails] = useState<
     | {
         height: number | null;
@@ -4138,6 +4140,13 @@ const handlePackageCreated = (pkg: Package) => {
             <div className="ga-modal-footer">
               <button
                 type="button"
+                className="ga-primary-button"
+                onClick={() => setLabelPackage(viewPackage as Package)}
+              >
+                {isEs ? "Imprimir etiqueta Caribex" : "Print Caribex label"}
+              </button>
+              <button
+                type="button"
                 className="ga-secondary-button"
                 onClick={handleCloseViewModal}
               >
@@ -4679,6 +4688,20 @@ const handlePackageCreated = (pkg: Package) => {
             </div>
           </div>
         </div>
+      )}
+      {labelPackage && (
+        <CaribexLabelPrint
+          isEs={isEs}
+          onClose={() => setLabelPackage(null)}
+          label={{
+            tracking: labelPackage.tracking,
+            customerName: labelPackage.clienteNombre,
+            accountNumber: labelPackage.numeroCliente,
+            carrier: labelPackage.carrier,
+            packageType: getCategoryLabel(labelPackage.type, isEs),
+            details: labelPackage.dims,
+          }}
+        />
       )}
     </div>
   );

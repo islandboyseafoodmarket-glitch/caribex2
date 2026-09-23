@@ -1090,39 +1090,39 @@ const App = () => {
           min-width: 0;
         }
 
-        /* Floating top mega-menu navigation */
+        /* Compact icon-toolbar navigation inspired by the reference layout */
         .tabs-container {
           position: relative;
-          display: flex;
-          flex-wrap: wrap;
+          display: grid;
+          grid-template-columns: repeat(4, minmax(0, 1fr));
           align-items: stretch;
-          gap: 12px;
+          gap: 6px;
           margin: 0 0 28px;
-          padding: 10px;
+          padding: 12px 10px;
           overflow: visible;
           border: 1px solid #e2e8f0;
-          border-radius: 24px;
-          background: rgba(248, 250, 252, 0.94);
-          box-shadow: 0 14px 30px rgba(15, 23, 42, 0.08);
+          border-radius: 16px;
+          background: #ffffff;
+          box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
         }
 
         .admin-nav-group {
-          flex: 1 1 210px;
-          min-width: 190px;
-          padding: 10px;
-          border: 1px solid #e2e8f0;
-          border-radius: 14px;
-          background: #ffffff;
-          box-shadow: 0 6px 18px rgba(15, 23, 42, 0.05);
+          min-width: 0;
+          padding: 4px;
+          border-right: 1px solid #eef2f6;
+        }
+
+        .admin-nav-group:last-child {
+          border-right: 0;
         }
 
         .admin-nav-label {
           display: flex;
           align-items: center;
-          min-height: 28px;
-          margin: 0 2px 8px;
+          min-height: 24px;
+          margin: 0 2px 6px;
           color: #64748b;
-          font-size: 0.68rem;
+          font-size: 0.62rem;
           font-weight: 800;
           letter-spacing: 0.1em;
           text-transform: uppercase;
@@ -1142,6 +1142,8 @@ const App = () => {
 
         .admin-nav-section-toggle .admin-nav-label {
           margin-bottom: 0;
+          justify-content: center;
+          width: 100%;
         }
 
         .nav-chevron {
@@ -1155,29 +1157,31 @@ const App = () => {
 
         .admin-nav-buttons {
           display: flex;
-          flex-direction: row;
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(78px, 1fr));
           flex-wrap: wrap;
-          gap: 7px;
+          gap: 5px;
           overflow: visible;
           padding: 0;
         }
 
         .tab-pill {
-          width: auto;
-          min-width: max-content;
+          width: 100%;
+          min-width: 0;
           justify-content: center;
-          min-height: 40px;
-          padding: 8px 9px;
-          border-radius: 50px;
+          min-height: 70px;
+          padding: 8px 5px;
+          border-radius: 12px;
           background: var(--white);
           border: 1px solid transparent;
-          font-size: 0.72rem;
+          font-size: 0.66rem;
           font-weight: 500;
           color: var(--text-muted);
           cursor: pointer;
           display: flex;
           align-items: center;
-          gap: 10px;
+          flex-direction: column;
+          gap: 5px;
           transition: all 0.2s ease;
           box-shadow: 0 2px 4px rgba(0,0,0,0.02);
         }
@@ -1218,13 +1222,16 @@ const App = () => {
         .tab-pill--admin.active .count-badge { background: #fce7f3; color: #9d174d; }
 
         @media (max-width: 1100px) {
-          .admin-nav-group { flex-basis: 240px; }
+          .tabs-container { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+          .admin-nav-group:nth-child(2) { border-right: 0; }
         }
 
         @media (max-width: 640px) {
           .tabs-container { margin-bottom: 20px; }
-          .admin-nav-group { min-width: 100%; }
-          .tab-pill { flex: 1 1 auto; }
+          .tabs-container { grid-template-columns: 1fr; }
+          .admin-nav-group { border-right: 0; border-bottom: 1px solid #eef2f6; }
+          .admin-nav-group:last-child { border-bottom: 0; }
+          .tab-pill { min-height: 62px; }
           .page-header, .data-card { margin-bottom: 20px; }
         }
 
