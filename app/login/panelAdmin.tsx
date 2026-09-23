@@ -54,7 +54,7 @@ const ADMIN_EXTRA_CHARGE_OPTIONS = [
 const App = () => {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<
-    'personal' | 'clientes' | 'client360' | 'pedidos' | 'incidencias' | 'facturas' | 'leads' | 'ferry'
+    'personal' | 'clientes' | 'client360' | 'pedidos' | 'incidencias' | 'facturas' | 'leads' | 'portal' | 'ferry'
   >('personal');
 
   const [personal, setPersonal] = useState<{ id: string; nombre: string; rol: string; permissions?: Partial<StaffPermissions> | null }[]>([]);
@@ -124,6 +124,12 @@ const App = () => {
   const facturasCount = facturas.length;
   type Lead = { id: string; nombre: string; email: string; telefono: string | null; mensaje: string; service_type: string | null; status: 'NEW' | 'CONTACTED' | 'CONVERTED' | 'CLOSED'; admin_notes: string | null; created_at: string };
   const [leads, setLeads] = useState<Lead[]>([]);
+  type PortalEvent = { id: string; email: string; event_type: string; success: boolean; reason: string | null; created_at: string };
+  const [portalEvents, setPortalEvents] = useState<PortalEvent[]>([]);
+  const cargarPortalEvents = useCallback(async () => {
+    const { data } = await supabase.from("customer_portal_login_events").select("id, email, event_type, success, reason, created_at").order("created_at", { ascending: false }).limit(100);
+    if (data) setPortalEvents(data as PortalEvent[]);
+  }, []);
   const [adminNotice, setAdminNotice] = useState<string | null>(null);
   const cargarLeads = useCallback(async () => {
     const [{ data: contactData }, { data: customerData }] = await Promise.all([
@@ -784,6 +790,10 @@ const App = () => {
   }, [cargarPersonal, cargarClientes, cargarPedidos, cargarFacturas, cargarLeads]);
 
   useEffect(() => {
+    if (activeTab === "portal") void cargarPortalEvents();
+  }, [activeTab, cargarPortalEvents]);
+
+  useEffect(() => {
     const interval = setInterval(() => {
       if (activeTab === "pedidos") {
         cargarPedidos();
@@ -791,11 +801,13 @@ const App = () => {
         cargarFacturas();
       } else if (activeTab === "leads") {
         cargarLeads();
+      } else if (activeTab === "portal") {
+        cargarPortalEvents();
       }
     }, 10000);
 
     return () => clearInterval(interval);
-  }, [activeTab, cargarPedidos, cargarFacturas, cargarLeads]);
+  }, [activeTab, cargarPedidos, cargarFacturas, cargarLeads, cargarPortalEvents]);
 
   const actualizarLead = async (id: string, changes: Partial<Lead>) => {
     const { data: legacyRows } = await supabase.from('contact_submissions').update(changes).eq('id', id).select('id');
@@ -1355,6 +1367,9 @@ const App = () => {
         <button className={`tab-pill ${activeTab === 'leads' ? 'active' : ''}`} onClick={() => setActiveTab('leads')} style={{ minWidth: 120 }}>
           <IconBriefcase /> Leads <span className="count-badge">{leads.filter((lead) => lead.status === 'NEW').length}</span>
         </button>
+        <button className={`tab-pill ${activeTab === 'portal' ? 'active' : ''}`} onClick={() => setActiveTab('portal')} style={{ minWidth: 170 }}>
+          <IconBriefcase /> Portal alerts <span className="count-badge">{portalEvents.filter((event) => !event.success).length}</span>
+        </button>
         <button
           className={`tab-pill ${activeTab === 'ferry' ? 'active' : ''}`}
           onClick={() => setActiveTab('ferry')}
@@ -1384,6 +1399,8 @@ const App = () => {
                       ? 'Panel de Facturas'
                       : activeTab === 'leads'
                         ? 'Customer leads'
+                      : activeTab === 'portal'
+                        ? 'Customer Portal alerts'
                       : 'Ferry manifests'}
             </h3>
             <span>
@@ -1401,6 +1418,8 @@ const App = () => {
                       ? `${facturasCount} registro${facturasCount === 1 ? '' : 's'} en esta categoría`
                       : activeTab === 'leads'
                         ? `${leads.length} leads received from the website`
+                      : activeTab === 'portal'
+                        ? `${portalEvents.length} recent customer portal access events`
                       : 'Create, share, and archive weekly ferry manifests'}
             </span>
           </div>
@@ -1458,6 +1477,10 @@ const App = () => {
           {leads.length === 0 ? <p style={{ padding: '1.5rem', color: '#64748b' }}>No customer leads have been received yet.</p> : <table className="admin-table" style={{ minWidth: 980, width: '100%' }}><thead><tr><th>Date</th><th>Customer</th><th>Contact</th><th>Message</th><th>Status</th><th>Admin notes</th></tr></thead><tbody>{leads.map((lead) => <tr key={lead.id}><td>{new Date(lead.created_at).toLocaleString()}</td><td><strong>{lead.nombre}</strong><br /><small>{lead.service_type || 'Website contact'}</small></td><td><a href={`mailto:${lead.email}`}>{lead.email}</a><br />{lead.telefono || '-'}</td><td style={{ maxWidth: 320, whiteSpace: 'pre-wrap' }}>{lead.mensaje}</td><td><select value={lead.status} onChange={(event) => actualizarLead(lead.id, { status: event.target.value as Lead['status'] })}><option value="NEW">New</option><option value="CONTACTED">Contacted</option><option value="CONVERTED">Converted</option><option value="CLOSED">Closed</option></select></td><td><textarea defaultValue={lead.admin_notes || ''} rows={2} placeholder="Add notes" onBlur={(event) => { const notes = event.target.value; if (notes !== (lead.admin_notes || '')) actualizarLead(lead.id, { admin_notes: notes }); }} /></td></tr>)}</tbody></table>}
         </div>}
 
+        {activeTab === 'portal' && <div style={{ width: '100%', overflowX: 'auto' }}>
+          {portalEvents.length === 0 ? <p style={{ padding: '1.5rem', color: '#64748b' }}>No customer portal access events have been recorded yet.</p> : <table className="admin-table" style={{ minWidth: 820, width: '100%' }}><thead><tr><th>Date</th><th>Email</th><th>Result</th><th>Reason</th><th>Event</th></tr></thead><tbody>{portalEvents.map((event) => <tr key={event.id}><td>{new Date(event.created_at).toLocaleString()}</td><td>{event.email}</td><td><span style={{ color: event.success ? '#166534' : '#b91c1c', fontWeight: 700 }}>{event.success ? 'Successful' : 'Problem'}</span></td><td>{event.reason || '-'}</td><td>{event.event_type}</td></tr>)}</tbody></table>}
+        </div>}
+
         {activeTab === 'ferry' && <FerryManifestAdmin />}
 
         {activeTab === 'personal' && personal.length > 0 && (
@@ -1477,7 +1500,7 @@ const App = () => {
             >
               <span style={{ minWidth: 130 }}>Nombre</span>
               <span style={{ minWidth: 130 }}>Rol</span>
-              <span style={{ textAlign: 'right', minWidth: 130 }}>Acciones</span>
+              <span style={{ textAlign: 'right', minWidth: 180 }}>Staff task access</span>
             </div>
 
             <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
@@ -1522,9 +1545,9 @@ const App = () => {
                       className="pa-secondary-btn"
                       title="Edit staff task access"
                       onClick={() => openStaffPermissions(p)}
-                      style={{ padding: '0.35rem 0.65rem', fontSize: '0.75rem' }}
+                      style={{ padding: '0.4rem 0.75rem', fontSize: '0.75rem', borderColor: '#2563eb', color: '#1d4ed8', fontWeight: 700, whiteSpace: 'nowrap' }}
                     >
-                      Access
+                      Edit permissions
                     </button>
                     <button
                       type="button"
@@ -1682,7 +1705,9 @@ const App = () => {
                         whiteSpace: 'nowrap',
                       }}
                     >
-                      #{f.tracking}
+                      <button type="button" className="ga-client360-tracking" onClick={() => void abrirDetallePedido(f.id)} title="Open invoice details">
+                        #{f.tracking}
+                      </button>
                     </span>
                     <span
                       style={{
@@ -1747,6 +1772,15 @@ const App = () => {
                     >
                       <button
                         type="button"
+                        title="Open invoice details"
+                        className="pa-secondary-btn"
+                        style={{ padding: '0.3rem 0.55rem', fontSize: '0.72rem', whiteSpace: 'nowrap' }}
+                        onClick={() => void abrirDetallePedido(f.id)}
+                      >
+                        View
+                      </button>
+                      <button
+                        type="button"
                         title="Edit invoice add-ons"
                         style={{ width: 28, height: 28, borderRadius: '999px', border: '1px solid #cbd5e1', backgroundColor: '#f8fafc', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                         onClick={() => void handleAdminEditInvoiceAddOns(f)}
@@ -1799,7 +1833,7 @@ const App = () => {
                         type="button"
                         title="Marcar como enviada"
                         style={{
-                          width: 28,
+                          minWidth: 28,
                           height: 28,
                           borderRadius: '999px',
                           border: '1px solid #bfdbfe',
@@ -1814,7 +1848,7 @@ const App = () => {
                         disabled={isSent || isPaid}
                         onClick={() => !(isSent || isPaid) && void handleAdminSendInvoice(f)}
                       >
-                        <Send size={14} />
+                        <Send size={14} /> <span style={{ fontSize: '0.72rem' }}>Send</span>
                       </button>
                       <button
                         type="button"

@@ -92,8 +92,12 @@ export default function App() {
         body: JSON.stringify({
           to: formData.email,
           name: formData.nombre,
+          phone: formData.telefono,
+          port: formData.puerto,
+          accountType: formData.tipoCuenta,
           clientNumberDisplay: numeroDisplay,
           initialPassword: accountResult.initialPassword,
+          portalUrl: `${window.location.origin}/portal/login`,
         }),
       });
 

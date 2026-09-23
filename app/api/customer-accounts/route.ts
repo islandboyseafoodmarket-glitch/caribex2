@@ -11,8 +11,16 @@ export async function POST(request: Request) {
     const port = String(body?.puerto || "").trim();
     const accountType = String(body?.tipoCuenta || "Personal");
     if (!name || !email || !phone || !port) return NextResponse.json({ error: "All required customer fields must be completed" }, { status: 400 });
-    const { data: existing } = await supabase.from("numero_cliente").select("id").eq("email", email).maybeSingle();
-    if (existing) return NextResponse.json({ error: "A customer with this email already exists" }, { status: 409 });
+    const normalizedPhone = phone.replace(/\D/g, "");
+    const [{ data: emailMatch }, { data: nameMatch }, { data: phoneRows }] = await Promise.all([
+      supabase.from("numero_cliente").select("id").eq("email", email).maybeSingle(),
+      supabase.from("numero_cliente").select("id").ilike("nombre", name).maybeSingle(),
+      supabase.from("numero_cliente").select("id, telefono").limit(5000),
+    ]);
+    const phoneMatch = (phoneRows || []).find((row: any) => String(row.telefono || "").replace(/\D/g, "") === normalizedPhone);
+    if (emailMatch) return NextResponse.json({ error: "A customer with this email already exists" }, { status: 409 });
+    if (nameMatch) return NextResponse.json({ error: "A customer with this name already exists" }, { status: 409 });
+    if (phoneMatch) return NextResponse.json({ error: "A customer with this phone number already exists" }, { status: 409 });
     const { data: maxRow } = await supabase.from("numero_cliente").select("numero_cliente").order("numero_cliente", { ascending: false }).limit(1).maybeSingle();
     const accountNumber = Math.max(Number(maxRow?.numero_cliente || 299) + 1, 300);
     const initialPassword = `Caribex${accountNumber}`;

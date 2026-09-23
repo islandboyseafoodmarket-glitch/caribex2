@@ -19,11 +19,12 @@ export default function CustomerPortalLoginPage() {
     setLoading(true); setError(null); setMessage(null);
     const { data, error: signInError } = await supabase.auth.signInWithPassword({ email: email.trim().toLowerCase(), password });
     if (signInError || !data.user) {
-      await fetch("/api/customer-login-events", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email }) });
+      await fetch("/api/customer-login-events", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, success: false, reason: signInError?.message || "No authenticated user" }) });
       setError("Your customer portal account may not be provisioned yet. Once Caribex creates it, use your registered email and the temporary password Caribex plus your account number."); setLoading(false); return;
     }
     const { data: customer, error: customerError } = await supabase.from("numero_cliente").select("id").eq("email", email.trim().toLowerCase()).maybeSingle();
-    if (customerError || !customer) { await supabase.auth.signOut(); setError("This login is not connected to a customer portal account."); setLoading(false); return; }
+    if (customerError || !customer) { await supabase.auth.signOut(); await fetch("/api/customer-login-events", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, success: false, reason: "Authenticated user is not linked to a customer account" }) }); setError("This login is not connected to a customer portal account."); setLoading(false); return; }
+    await fetch("/api/customer-login-events", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, success: true, reason: "Portal login successful" }) });
     router.push("/portal");
   }
 

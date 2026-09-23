@@ -1,89 +1,98 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { AlertCircle, ArrowLeft, Box, CheckCircle2, FileText, Mail, MapPin, Phone, Search, Ship, UserRound } from "lucide-react";
+import { useMemo, useState } from "react";
+import { AlertCircle, ArrowLeft, CalendarDays, Mail, MapPin, Phone, PackageOpen, Search, UserRound, Users } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
 
 type Cliente = { id: string; nombre: string; numero_cliente: number; email: string | null; telefono: string | null; puerto: string | null; tipo_cuenta: string | null; creado_en: string | null; auth_user_id?: string | null };
 type Pedido = { id: string; tracking: string; clienteNumero: number | null; clienteNombre: string | null; estado: string | null; carrier?: string | null; tipo_paquete?: string | null; contenido?: string | null; notas?: string | null; numero_cliente_id?: string | null; registro?: string | null; hora_fecha?: string | null; fecha_entregado?: string | null; problema?: boolean | null; problema_notas?: string | null };
 type Factura = { id: string; tracking: string; clienteNumero: number | null; clienteNombre: string | null; carrier: string | null; tipo_paquete: string | null; subtotal: number | null; tax: number | null; total: number | null; approval_status: string | null; invoice_status: string | null; notas: string | null };
-type FerryEntry = { id: string; manifiesto_id: string; puerto: string; numero_reserva: string | null; nombre_receptor: string | null; enviado_en: string | null };
 
-function formatTimestamp(value: string | null | undefined) {
-  if (!value) return "Time not recorded";
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return "Time not recorded";
-  return parsed.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+const STAGE_LABELS = ["Received", "Registered", "In transit", "Unloaded", "Picked up"];
+
+function safeDate(value: string | null | undefined) {
+  if (!value) return "-";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "-" : date.toLocaleDateString();
+}
+
+function stageFor(status: string | null) {
+  const normalized = (status || "").toLowerCase();
+  if (normalized.includes("entregado") || normalized.includes("recogido") || normalized.includes("picked")) return "Picked up";
+  if (normalized.includes("descargado") || normalized.includes("unloaded")) return "Unloaded";
+  if (normalized.includes("transito") || normalized.includes("tránsito") || normalized.includes("transit")) return "In transit";
+  if (normalized.includes("registro") || normalized.includes("registered")) return "Registered";
+  return "Received";
 }
 
 export default function Client360Admin({ clientes, pedidos, facturas }: { clientes: Cliente[]; pedidos: Pedido[]; facturas: Factura[] }) {
   const [selectedId, setSelectedId] = useState("");
-  const [ferryEntries, setFerryEntries] = useState<FerryEntry[]>([]);
-  const [ferryLoading, setFerryLoading] = useState(false);
   const [search, setSearch] = useState("");
-  const [pendingLoginHelp, setPendingLoginHelp] = useState(0);
-  const [resetMessage, setResetMessage] = useState<string | null>(null);
-  const [provisionMessage, setProvisionMessage] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [balanceFilter, setBalanceFilter] = useState("ALL");
+  const [dateFilter, setDateFilter] = useState("ALL");
+  const [message, setMessage] = useState<string | null>(null);
   const selected = clientes.find((client) => client.id === selectedId) || null;
-  const filteredClients = clientes.filter((client) => {
+  const now = Date.now();
+
+  const records = useMemo(() => clientes.map((client) => {
+    const packages = pedidos.filter((item) => item.numero_cliente_id === client.id || item.clienteNumero === client.numero_cliente);
+    return { client, packages };
+  }), [clientes, pedidos]);
+
+  const filteredRecords = records.filter(({ client, packages }) => {
     const term = search.trim().toLowerCase();
-    if (!term) return true;
-    return String(client.numero_cliente).includes(term) || client.email?.toLowerCase().includes(term) || client.nombre.toLowerCase().includes(term);
+    const matchesSearch = !term || [client.nombre, client.email, client.puerto, String(client.numero_cliente)].filter(Boolean).some((value) => String(value).toLowerCase().includes(term));
+    const matchesStatus = statusFilter === "ALL" || packages.some((pkg) => stageFor(pkg.estado) === statusFilter);
+    const total = packages.reduce((sum, pkg) => sum + Number((facturas.find((invoice) => invoice.id === pkg.id)?.total) || 0), 0);
+    const paid = packages.reduce((sum, pkg) => sum + ((facturas.find((invoice) => invoice.id === pkg.id)?.invoice_status || "").toLowerCase() === "paid" ? Number(facturas.find((invoice) => invoice.id === pkg.id)?.total || 0) : 0), 0);
+    const balance = Math.max(0, total - paid);
+    const matchesBalance = balanceFilter === "ALL" || (balanceFilter === "OUTSTANDING" && balance > 0) || (balanceFilter === "PAID" && balance === 0 && total > 0);
+    const latest = Math.max(...packages.map((pkg) => new Date(pkg.registro || pkg.hora_fecha || 0).getTime()).filter((value) => Number.isFinite(value)), 0);
+    const matchesDate = dateFilter === "ALL" || (dateFilter === "30" && latest >= now - 30 * 86400000) || (dateFilter === "90" && latest >= now - 90 * 86400000);
+    return matchesSearch && matchesStatus && matchesBalance && matchesDate;
   });
-  const clientPackages = useMemo(() => selected ? pedidos.filter((item) => item.numero_cliente_id === selected.id || item.clienteNumero === selected.numero_cliente) : [], [pedidos, selected]);
-  const clientInvoices = useMemo(() => selected ? facturas.filter((item) => item.clienteNumero === selected.numero_cliente) : [], [facturas, selected]);
-  const incidents = clientPackages.filter((item) => item.problema || item.estado?.toLowerCase().includes("problema") || item.problema_notas);
+
+  const selectedRecord = records.find((record) => record.client.id === selectedId) || null;
+  const clientPackages = selectedRecord?.packages || [];
+  const clientInvoices = selected ? facturas.filter((invoice) => invoice.clienteNumero === selected.numero_cliente || invoice.clienteNombre === selected.nombre) : [];
+  const summary = {
+    packages: clientPackages.length,
+    active: clientPackages.filter((pkg) => !["Picked up", "Unloaded"].includes(stageFor(pkg.estado))).length,
+    invoices: clientInvoices.length,
+    invoiced: clientInvoices.reduce((sum, invoice) => sum + Number(invoice.total || 0), 0),
+    paid: clientInvoices.filter((invoice) => (invoice.invoice_status || "").toLowerCase() === "paid").reduce((sum, invoice) => sum + Number(invoice.total || 0), 0),
+  };
+  const outstanding = Math.max(0, summary.invoiced - summary.paid);
 
   const sendResetLink = async () => {
-    const { data: sessionData } = await supabase.auth.getSession();
-    const response = await fetch("/api/admin/customer-reset", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${sessionData.session?.access_token || ""}` }, body: JSON.stringify({ customer_id: selected?.id }) });
+    if (!selected) return;
+    const { data } = await supabase.auth.getSession();
+    const response = await fetch("/api/admin/customer-reset", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${data.session?.access_token || ""}` }, body: JSON.stringify({ customer_id: selected.id }) });
     const body = await response.json();
-    setResetMessage(response.ok ? "Password-reset link emailed to the customer." : (body.error || "Could not send reset link."));
+    setMessage(response.ok ? "Password-reset link emailed to the customer." : (body.error || "Could not send reset link."));
   };
 
   const provisionPortal = async () => {
     if (!selected) return;
-    const { data: sessionData } = await supabase.auth.getSession();
-    const response = await fetch("/api/admin/customer-provision", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${sessionData.session?.access_token || ""}` }, body: JSON.stringify({ customer_id: selected.id }) });
+    const { data } = await supabase.auth.getSession();
+    const response = await fetch("/api/admin/customer-provision", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${data.session?.access_token || ""}` }, body: JSON.stringify({ customer_id: selected.id }) });
     const body = await response.json();
-    setProvisionMessage(response.ok ? `Portal access created. Initial password: ${body.initial_password}` : (body.error || "Could not provision portal access."));
+    setMessage(response.ok ? `Portal access created. Initial password: ${body.initial_password}` : (body.error || "Could not provision portal access."));
   };
 
-  useEffect(() => {
-    let cancelled = false;
-    async function loadFerry() {
-      if (!selected) { setFerryEntries([]); return; }
-      setFerryLoading(true);
-      const { data } = await supabase.from("ferry_manifest_entries").select("id, manifiesto_id, puerto, numero_reserva, nombre_receptor, enviado_en").eq("numero_cliente_id", selected.id).order("enviado_en", { ascending: false });
-      if (!cancelled) { setFerryEntries((data as FerryEntry[]) || []); setFerryLoading(false); }
-    }
-    void loadFerry();
-    return () => { cancelled = true; };
-  }, [selected]);
+  if (!selected) return <section className="ga-client360">
+    <div className="ga-client360-heading"><div><h2><Users size={22} /> Client 360</h2><p>Search by account number, email, customer name, or location.</p></div></div>
+    <div className="ga-client360-toolbar"><label className="ga-client360-search"><Search size={17} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search client, email, location, or number..." /></label><div className="ga-client360-filters"><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option value="ALL">All statuses</option>{STAGE_LABELS.map((stage) => <option key={stage} value={stage}>{stage}</option>)}</select><select value={balanceFilter} onChange={(event) => setBalanceFilter(event.target.value)}><option value="ALL">Any balance</option><option value="OUTSTANDING">Outstanding balance</option><option value="PAID">Paid</option></select><select value={dateFilter} onChange={(event) => setDateFilter(event.target.value)}><option value="ALL">Any activity</option><option value="30">Activity in 30 days</option><option value="90">Activity in 90 days</option></select></div></div>
+    {filteredRecords.length ? <div className="ga-client360-layout"><aside className="ga-client360-list"><div className="ga-client360-list-heading"><Users size={16} /> Clients ({filteredRecords.length})</div>{filteredRecords.map(({ client }) => <button type="button" key={client.id} className="ga-client360-list-item" onClick={() => setSelectedId(client.id)}><span className="ga-client360-avatar"><UserRound size={16} /></span><span><strong>{client.nombre}</strong><small>#{client.numero_cliente} · {client.puerto || "Location not recorded"}</small></span></button>)}</aside><div className="ga-client360-empty"><Users size={28} /><p>Select a customer to view the complete profile.</p></div></div> : <div className="ga-client360-empty"><Users size={28} /><p>No clients found.</p></div>}
+  </section>;
 
-  useEffect(() => {
-    void supabase.from("customer_password_reset_requests").select("id", { count: "exact", head: true }).eq("status", "requested").then(({ count }) => setPendingLoginHelp(count || 0));
-  }, []);
-
-  if (!selected) return <div>
-    <div style={{ maxWidth: 700, margin: "0 auto 1.5rem", textAlign: "center" }}><UserRound size={34} color="#2563eb" /><h2 style={{ margin: ".5rem 0 .3rem" }}>Client 360</h2><p style={{ margin: 0, color: "#64748b" }}>Search by account number, email, or customer name to open the complete operational history.</p></div>
-    {pendingLoginHelp > 0 && <div className="c360-alert"><AlertCircle size={17} /> {pendingLoginHelp} customer login request{pendingLoginHelp === 1 ? "" : "s"} need admin follow-up.</div>}
-    <label className="c360-search"><Search size={17} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search account number, email, or customer name" /></label>
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(230px, 1fr))", gap: ".75rem" }}>{filteredClients.map((client) => <button key={client.id} type="button" onClick={() => setSelectedId(client.id)} style={{ textAlign: "left", padding: "1rem", border: "1px solid #e2e8f0", borderRadius: "14px", background: "#fff", cursor: "pointer", boxShadow: "0 3px 10px rgba(15,23,42,.04)" }}><strong style={{ display: "block", color: "#0f172a" }}>{client.nombre}</strong><span style={{ display: "block", marginTop: ".3rem", color: "#2563eb", fontSize: ".8rem" }}>#{client.numero_cliente}</span><span style={{ display: "block", marginTop: ".35rem", color: "#475569", fontSize: ".8rem" }}>Location: {client.puerto || "Not recorded"}</span><span style={{ display: "block", marginTop: ".35rem", color: "#64748b", fontSize: ".8rem" }}>{client.email || "No email recorded"}</span></button>)}</div>
-  </div>;
-
-  const money = (value: number | null) => value == null ? "—" : `$${Number(value).toFixed(2)}`;
-  return <div>
+  return <section className="ga-client360">
     <button type="button" className="pa-secondary-btn" onClick={() => setSelectedId("")} style={{ display: "inline-flex", alignItems: "center", gap: ".35rem", marginBottom: "1rem" }}><ArrowLeft size={15} /> All clients</button>
-    <section className="c360-profile"><div className="c360-avatar"><UserRound size={25} /></div><div style={{ flex: 1 }}><p className="c360-eyebrow">Client 360 profile</p><h2>{selected.nombre}</h2><span>Client #{selected.numero_cliente} · {selected.tipo_cuenta || "Personal"}</span></div><div className="c360-contact"><span><Mail size={15} /> {selected.email || "No email"}</span><span><Phone size={15} /> {selected.telefono || "No phone"}</span><span><MapPin size={15} /> {selected.puerto || "No port"}</span>{selected.auth_user_id ? <button type="button" className="pa-secondary-btn" onClick={() => void sendResetLink()}>Email password-reset link</button> : <button type="button" className="pa-secondary-btn" onClick={() => void provisionPortal()}>Create customer portal access</button>}</div></section>
-    {resetMessage && <div className="c360-alert">{resetMessage}</div>}
-    {provisionMessage && <div className="c360-alert">{provisionMessage}</div>}
-    <div className="c360-metrics"><div><Box size={18} /><strong>{clientPackages.length}</strong><span>Packages</span></div><div><FileText size={18} /><strong>{clientInvoices.length}</strong><span>Invoices</span></div><div><AlertCircle size={18} /><strong>{incidents.length}</strong><span>Incidents</span></div><div><Ship size={18} /><strong>{ferryEntries.length}</strong><span>Ferry bookings</span></div></div>
-    <div className="c360-grid">
-      <section className="c360-card"><h3><Box size={18} /> Shipment history</h3>{clientPackages.length ? <div className="c360-list">{clientPackages.map((item) => <div className="c360-row" key={item.id}><div><strong>{item.tracking}</strong><span>{item.carrier || "Carrier not recorded"} · {item.tipo_paquete || "Package"}</span><small>{formatTimestamp(item.registro || item.hora_fecha)}</small></div><div className="c360-row-right"><span className="c360-status">{item.estado || "Unknown"}</span>{item.problema && <AlertCircle size={16} color="#b91c1c" />}</div></div>)}</div> : <p className="c360-muted">No packages recorded.</p>}</section>
-      <section className="c360-card"><h3><Ship size={18} /> Ferry bookings</h3>{ferryLoading ? <p className="c360-muted">Loading ferry bookings…</p> : ferryEntries.length ? <div className="c360-list">{ferryEntries.map((item) => <div className="c360-row" key={item.id}><div><strong>{item.numero_reserva || "Pending"}</strong><span>{item.puerto === "la_ceiba" ? "La Ceiba" : "Utila"} · Receiver: {item.nombre_receptor || "Not entered"}</span><small>{formatTimestamp(item.enviado_en)}</small></div>{item.enviado_en && <CheckCircle2 size={17} color="#166534" />}</div>)}</div> : <p className="c360-muted">No ferry booking recorded.</p>}</section>
-      <section className="c360-card"><h3><FileText size={18} /> Billing and invoices</h3>{clientInvoices.length ? <div className="c360-list">{clientInvoices.map((item) => <div className="c360-row" key={item.id}><div><strong>{item.tracking}</strong><span>{item.invoice_status || "Pending"} · {item.approval_status || "Pending approval"}</span></div><strong>{money(item.total)}</strong></div>)}</div> : <p className="c360-muted">No invoices recorded.</p>}</section>
-      <section className="c360-card"><h3><AlertCircle size={18} /> Incidents and notes</h3>{incidents.length ? <div className="c360-list">{incidents.map((item) => <div className="c360-row" key={item.id}><div><strong>{item.tracking}</strong><span>{item.problema_notas || item.notas || item.estado || "Incident reported"}</span></div></div>)}</div> : <p className="c360-muted">No incidents reported.</p>}</section>
-    </div>
-  </div>;
+    <div className="ga-client360-profile"><div className="ga-client360-profile-icon"><UserRound size={28} /></div><div><h3>{selected.nombre} <span>#{selected.numero_cliente}</span></h3><p><MapPin size={14} /> {selected.puerto || "Location not recorded"}</p><p><Mail size={14} /> {selected.email || "No email"} · <Phone size={14} /> {selected.telefono || "No phone"}</p></div><div style={{ marginLeft: "auto", display: "flex", gap: ".45rem", flexWrap: "wrap" }}>{selected.auth_user_id ? <button type="button" className="pa-secondary-btn" onClick={() => void sendResetLink()}>Email password-reset link</button> : <button type="button" className="pa-secondary-btn" onClick={() => void provisionPortal()}>Create customer portal access</button>}</div></div>
+    {message && <div className="c360-alert">{message}</div>}
+    <div className="ga-client360-metrics"><div><small>Packages ever</small><strong>{summary.packages}</strong></div><div><small>Active now</small><strong>{summary.active}</strong></div><div><small>Invoices</small><strong>{summary.invoices}</strong></div><div><small>Invoiced</small><strong>${summary.invoiced.toFixed(2)}</strong></div><div><small>Paid</small><strong>${summary.paid.toFixed(2)}</strong></div><div className="ga-client360-metric-alert"><small>Outstanding</small><strong>${outstanding.toFixed(2)}</strong></div></div>
+    <div className="ga-client360-card"><div className="ga-client360-card-header"><div><h3>Where their packages are</h3><p>Current shipment distribution by stage.</p></div><CalendarDays size={18} /></div><div className="ga-client360-statuses">{STAGE_LABELS.map((stage) => <span key={stage}><strong>{clientPackages.filter((pkg) => stageFor(pkg.estado) === stage).length}</strong> {stage}</span>)}</div></div>
+    <div className="ga-client360-card"><div className="ga-client360-card-header"><div><h3>Package history</h3><p>Most recent first.</p></div><PackageOpen size={18} /></div><div className="ga-client360-table-wrap"><table className="ga-client360-table"><thead><tr><th>Received</th><th>Tracking</th><th>Status</th><th>Invoice</th></tr></thead><tbody>{clientPackages.slice(0, 30).map((pkg) => <tr key={pkg.id}><td>{safeDate(pkg.registro || pkg.hora_fecha)}</td><td>{pkg.tracking}</td><td><span className="ga-client360-status">{pkg.estado || "-"}</span>{pkg.problema && <AlertCircle size={14} color="#b91c1c" />}</td><td>{facturas.find((invoice) => invoice.id === pkg.id)?.total != null ? `$${Number(facturas.find((invoice) => invoice.id === pkg.id)?.total).toFixed(2)}` : "-"}</td></tr>)}</tbody></table></div></div>
+  </section>;
 }
