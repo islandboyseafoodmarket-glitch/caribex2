@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
 export const dynamic = "force-dynamic";
+const RESEND_API_KEY = process.env.RESEND_API_KEY;
+function escapeHtml(value: string) { return value.replace(/[&<>'"]/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[character] || character); }
 function adminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -38,8 +40,16 @@ export async function POST(request: Request) {
     const email = String(body?.email || "").trim().toLowerCase();
     const supabase = adminClient();
     if (!email || !email.includes("@")) return NextResponse.json({ error: "A valid email is required" }, { status: 400 });
-    const { data: client } = await supabase.from("numero_cliente").select("id").eq("email", email).maybeSingle();
+    const { data: client } = await supabase.from("numero_cliente").select("id, nombre, email, auth_user_id, numero_cliente").eq("email", email).maybeSingle();
     await supabase.from("customer_password_reset_requests").insert({ numero_cliente_id: client?.id || null, email });
+    if (client?.auth_user_id && client.email && RESEND_API_KEY) {
+      const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({ type: "recovery", email: client.email, options: { redirectTo: "https://www.caribexlogisticsgroup.com/portal" } });
+      if (!linkError && linkData.properties?.action_link) {
+        const safeName = escapeHtml(client.nombre || "Customer");
+        const safeLink = escapeHtml(linkData.properties.action_link);
+        await fetch("https://api.resend.com/emails", { method: "POST", headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" }, body: JSON.stringify({ from: "billing@caribexlogisticsgroup.com", to: client.email, subject: "Caribex password reset", html: `<p>Hello ${safeName},</p><p>Use the button below to change your Caribex portal password.</p><p><a href="${safeLink}" style="display:inline-block;background:#0f4c81;color:#fff;padding:12px 18px;border-radius:8px;text-decoration:none;font-weight:700">Change your password</a></p><p>This link expires according to your Supabase Auth settings.</p>` }) });
+      }
+    }
     return NextResponse.json({ ok: true });
   } catch (error: any) {
     return NextResponse.json({ error: error?.message || "Could not record reset request" }, { status: 500 });
