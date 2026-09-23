@@ -1080,25 +1080,33 @@ const App = () => {
 
         /* Grouped navigation tabs */
         .tabs-container {
-          display: grid;
-          grid-template-columns: repeat(4, minmax(0, 1fr));
+          display: flex;
+          align-items: stretch;
           gap: 12px;
           margin-bottom: 32px;
-          padding: 4px;
+          padding: 8px;
+          overflow-x: auto;
+          border: 1px solid #e2e8f0;
+          border-radius: 20px;
+          background: #f8fafc;
+          scrollbar-width: thin;
         }
 
         .admin-nav-group {
-          min-width: 0;
-          padding: 12px;
+          flex: 1 0 auto;
+          min-width: max-content;
+          padding: 10px;
           border: 1px solid #e2e8f0;
-          border-radius: 16px;
-          background: linear-gradient(145deg, #ffffff, #f8fafc);
+          border-radius: 14px;
+          background: #ffffff;
           box-shadow: 0 6px 18px rgba(15, 23, 42, 0.05);
         }
 
         .admin-nav-label {
-          display: block;
-          margin: 0 0 8px 4px;
+          display: inline-flex;
+          align-items: center;
+          min-height: 28px;
+          margin: 0 10px 0 2px;
           color: #64748b;
           font-size: 0.68rem;
           font-weight: 800;
@@ -1109,10 +1117,11 @@ const App = () => {
         .admin-nav-buttons {
           display: flex;
           flex-wrap: nowrap;
+          vertical-align: middle;
+          display: inline-flex;
           gap: 7px;
-          overflow-x: auto;
-          padding: 2px 1px 5px;
-          scrollbar-width: thin;
+          overflow: visible;
+          padding: 0;
         }
 
         .tab-pill {
@@ -1171,12 +1180,13 @@ const App = () => {
         .tab-pill--admin.active .count-badge { background: #fce7f3; color: #9d174d; }
 
         @media (max-width: 1100px) {
-          .tabs-container { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+          .admin-nav-group { flex-basis: auto; }
         }
 
         @media (max-width: 640px) {
-          .tabs-container { grid-template-columns: 1fr; }
-          .admin-nav-buttons { overflow-x: auto; }
+          .tabs-container { align-items: stretch; }
+          .admin-nav-group { flex-basis: max-content; }
+          .admin-nav-buttons { overflow: visible; }
         }
 
         /* Contenedor Principal de Información */

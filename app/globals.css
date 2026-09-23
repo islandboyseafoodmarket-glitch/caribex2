@@ -3162,6 +3162,10 @@ main {
 .portal-list { display: flex; flex-direction: column; }
 .portal-row { display: flex; justify-content: space-between; gap: 1rem; padding: .75rem 0; border-top: 1px solid #f1f5f9; font-size: .82rem; }
 .portal-row div { display: flex; flex-direction: column; gap: .25rem; }
+.portal-invoice-row { align-items: center; }
+.portal-invoice-total { min-width: 92px; align-items: flex-end; text-align: right; }
+.portal-invoice-total strong { color: #0f172a; font-size: .95rem; }
+.portal-invoice-total span { color: #64748b; font-size: .72rem; text-transform: capitalize; }
 .portal-row span { color: #64748b; }
 .portal-status { align-self: center; padding: .25rem .5rem; border-radius: 999px; background: #f1f5f9; color: #475569 !important; white-space: nowrap; }
 .portal-muted { color: #94a3b8; font-size: .82rem; }
