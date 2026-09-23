@@ -2,6 +2,11 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 function adminClient() { const url = process.env.NEXT_PUBLIC_SUPABASE_URL; const key = process.env.SUPABASE_SERVICE_ROLE_KEY; if (!url || !key) throw new Error("Supabase server environment variables are missing"); return createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } }); }
+function publicOrigin(request: Request) {
+  const configured = process.env.NEXT_PUBLIC_SITE_URL || process.env.SITE_URL || process.env.VERCEL_PROJECT_PRODUCTION_URL || process.env.VERCEL_URL;
+  if (configured) return configured.startsWith("http") ? configured.replace(/\/$/, "") : `https://${configured}`;
+  return new URL(request.url).origin;
+}
 export async function POST(request: Request) {
   try {
     const bearer = request.headers.get("authorization") || "";
@@ -13,7 +18,7 @@ export async function POST(request: Request) {
     const { customer_id } = await request.json();
     const { data: customer } = await supabase.from("numero_cliente").select("nombre, email, auth_user_id, numero_cliente").eq("id", customer_id).maybeSingle();
     if (!customer?.email || !customer.auth_user_id) return NextResponse.json({ error: "Customer does not have a portal account" }, { status: 400 });
-    const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({ type: "recovery", email: customer.email, options: { redirectTo: `${new URL(request.url).origin}/portal` } });
+    const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({ type: "recovery", email: customer.email, options: { redirectTo: `${publicOrigin(request)}/portal` } });
     if (linkError || !linkData.properties?.action_link) throw linkError || new Error("Could not generate reset link");
     if (!RESEND_API_KEY) return NextResponse.json({ error: "Email service is not configured" }, { status: 503 });
     const html = `<p>Hello ${customer.nombre || "Customer"},</p><p>An administrator requested a password reset for your Caribex account #${customer.numero_cliente}.</p><p><a href="${linkData.properties.action_link}">Change your password</a></p><p>This link expires according to your Supabase Auth settings.</p>`;
