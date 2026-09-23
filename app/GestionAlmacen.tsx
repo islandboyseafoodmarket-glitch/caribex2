@@ -4143,7 +4143,7 @@ const handlePackageCreated = (pkg: Package) => {
                 className="ga-primary-button"
                 onClick={() => setLabelPackage(viewPackage as Package)}
               >
-                {isEs ? "Imprimir etiqueta Caribex" : "Print Caribex label"}
+                {isEs ? "Generar etiqueta de envío" : "Generate shipping label"}
               </button>
               <button
                 type="button"
