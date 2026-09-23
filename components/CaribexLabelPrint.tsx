@@ -12,6 +12,15 @@ export type CaribexLabelData = {
   details?: string | null;
 };
 
+function createCaribexLabelCode() {
+  if (typeof window !== "undefined" && window.crypto?.getRandomValues) {
+    const values = new Uint32Array(1);
+    window.crypto.getRandomValues(values);
+    return String(values[0] % 100000).padStart(5, "0");
+  }
+  return String(Math.floor(Math.random() * 100000)).padStart(5, "0");
+}
+
 type Props = {
   label: CaribexLabelData;
   onClose: () => void;
@@ -20,10 +29,12 @@ type Props = {
 
 export default function CaribexLabelPrint({ label, onClose, isEs = false }: Props) {
   const [qrCode, setQrCode] = useState("");
+  const [labelCode] = useState(createCaribexLabelCode);
 
   useEffect(() => {
     let mounted = true;
-    QRCode.toDataURL(label.tracking.trim(), {
+    const qrPayload = JSON.stringify({ tracking: label.tracking.trim(), labelCode: `${labelCode}-2026-Caribex` });
+    QRCode.toDataURL(qrPayload, {
       errorCorrectionLevel: "M",
       margin: 2,
       width: 300,
@@ -32,7 +43,7 @@ export default function CaribexLabelPrint({ label, onClose, isEs = false }: Prop
       if (mounted) setQrCode(url);
     }).catch(() => setQrCode(""));
     return () => { mounted = false; };
-  }, [label.tracking]);
+  }, [label.tracking, labelCode]);
 
   return (
     <div className="caribex-label-overlay" role="dialog" aria-modal="true">
@@ -61,10 +72,10 @@ export default function CaribexLabelPrint({ label, onClose, isEs = false }: Prop
       `}</style>
       <div className="caribex-label-sheet">
         <div className="caribex-label-card">
-          <div className="caribex-label-brand">CARIBEX LOGISTICS</div>
+          <div className="caribex-label-brand">Caribex</div>
           <div className="caribex-label-subtitle">{isEs ? "Etiqueta de envío" : "Shipping label"}</div>
           {qrCode ? <img className="caribex-label-qr" src={qrCode} alt={`QR code for ${label.tracking}`} /> : <div style={{ height: 210, display: "grid", placeItems: "center", color: "#64748b" }}>Generating QR…</div>}
-          <div className="caribex-label-tracking">{label.tracking}</div>
+          <div className="caribex-label-tracking">{labelCode}-2026-Caribex</div>
           <div className="caribex-label-meta">
             <div><strong>{isEs ? "Cliente" : "Customer"}</strong>{label.customerName || "-"}</div>
             <div><strong>{isEs ? "Cuenta" : "Account"}</strong>{label.accountNumber ?? "-"}</div>
