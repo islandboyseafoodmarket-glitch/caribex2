@@ -53,7 +53,14 @@ export default function CustomerPortalPage() {
     if (changeError) setError(changeError.message); else { await supabase.auth.updateUser({ data: { must_change_password: false } }); setMustChangePassword(false); setNewPassword(""); setMessage("Your password was updated successfully."); if (recoveryMode) { setRecoveryMode(false); await load(); } }
   };
   const signOut = async () => { await supabase.auth.signOut(); window.location.href = "/"; };
-  const counts = useMemo(() => ({ active: data?.packages.filter((item) => !["entregado", "delivered"].includes(String(item.estado || "").toLowerCase())).length || 0, delivered: data?.packages.filter((item) => ["entregado", "delivered"].includes(String(item.estado || "").toLowerCase())).length || 0 }), [data]);
+  const counts = useMemo(() => {
+    const completedStatuses = ["entregado", "delivered", "descargado", "recogido", "picked up"];
+    const isCompleted = (item: any) => completedStatuses.some((status) => String(item.estado || "").toLowerCase().includes(status));
+    return {
+      active: data?.packages.filter((item) => !isCompleted(item)).length || 0,
+      delivered: data?.packages.filter(isCompleted).length || 0,
+    };
+  }, [data]);
   if (loading) return <main className="portal-page portal-centered">Loading your customer portal…</main>;
   if (recoveryMode) return <main className="portal-page portal-centered"><section className="portal-card portal-first-login"><Image src="/imagenes/logo.png" alt="Caribex Logistics Group" width={165} height={50} /><h1>Change your password</h1><p>Choose a new password for your Caribex customer portal.</p><div className="portal-password-row"><input type="password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} placeholder="New password" autoComplete="new-password" /><button type="button" className="portal-button" disabled={changing} onClick={() => void changePassword()}>{changing ? "Saving…" : "Save new password"}</button></div>{error && <small className="portal-error">{error}</small>}{message && <small className="portal-success">{message}</small>}</section></main>;
   if (error || !data) return <main className="portal-page portal-centered"><h1>Portal unavailable</h1><p>{error || "Please sign in again."}</p><Link href="/login" className="portal-button">Go to login</Link></main>;
