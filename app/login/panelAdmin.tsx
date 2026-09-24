@@ -156,6 +156,8 @@ const App = () => {
     notas: string | null;
     payment_method: string | null;
     payment_notes: string | null;
+    containerIds: string[];
+    containerLabels: string[];
   };
 
   const [facturas, setFacturas] = useState<Factura[]>([]);
@@ -200,27 +202,37 @@ const App = () => {
   const [editingInvoiceAddOns, setEditingInvoiceAddOns] = useState<Factura | null>(null);
   const [invoiceAddOnType, setInvoiceAddOnType] = useState("");
   const [invoiceAddOnAmount, setInvoiceAddOnAmount] = useState("");
+  const [invoiceSearch, setInvoiceSearch] = useState("");
+  const [invoiceContainerFilter, setInvoiceContainerFilter] = useState("ALL");
 
   const facturasFiltradas = useMemo(() => {
     return facturas.filter((f) => {
       const approval = (f.approval_status || '').toUpperCase();
       const invoice = (f.invoice_status || '').toUpperCase();
+      const searchTerm = invoiceSearch.trim().toLowerCase();
+      const matchesSearch = !searchTerm || [f.clienteNombre, f.clienteNumero, f.clienteEmail, f.tracking].some((value) => String(value ?? "").toLowerCase().includes(searchTerm));
+      const matchesContainer = invoiceContainerFilter === "ALL" || f.containerIds.includes(invoiceContainerFilter);
 
       if (activeInvoiceTab === 'sinAprobar') {
-        return !approval || approval === 'PENDING';
+        return (!approval || approval === 'PENDING') && matchesSearch && matchesContainer;
       }
       if (activeInvoiceTab === 'aprobadas') {
-        return approval === 'APPROVED';
+        return approval === 'APPROVED' && matchesSearch && matchesContainer;
       }
       if (activeInvoiceTab === 'enviadas') {
-        return invoice === 'SENT';
+        return invoice === 'SENT' && matchesSearch && matchesContainer;
       }
       if (activeInvoiceTab === 'pagadas') {
-        return invoice === 'PAID';
+        return invoice === 'PAID' && matchesSearch && matchesContainer;
       }
-      return true;
+      return matchesSearch && matchesContainer;
     });
-  }, [facturas, activeInvoiceTab]);
+  }, [facturas, activeInvoiceTab, invoiceSearch, invoiceContainerFilter]);
+  const invoiceContainerOptions = useMemo(() => {
+    const options = new Map<string, string>();
+    facturas.forEach((factura) => factura.containerIds.forEach((id, index) => options.set(id, factura.containerLabels[index] || id)));
+    return Array.from(options.entries()).sort((a, b) => a[1].localeCompare(b[1]));
+  }, [facturas]);
 
   const [pedidoFiltro, setPedidoFiltro] = useState("");
   const [pedidoEtapa, setPedidoEtapa] = useState("ALL");
@@ -817,6 +829,21 @@ const App = () => {
     }
 
     if (data) {
+      const packageIds = (data as any[]).map((row) => row.id).filter(Boolean);
+      const [{ data: links }, { data: containers }] = packageIds.length
+        ? await Promise.all([
+            supabase.from("contenedor_paquetes").select("paquete_id, contenedor_id").in("paquete_id", packageIds),
+            supabase.from("contenedores").select("id, codigo"),
+          ])
+        : [{ data: [] }, { data: [] }];
+      const containerById = new Map((containers || []).map((container: any) => [container.id, container.codigo]));
+      const containersByPackage = new Map<string, { ids: string[]; labels: string[] }>();
+      (links || []).forEach((link: any) => {
+        const current = containersByPackage.get(link.paquete_id) || { ids: [], labels: [] };
+        current.ids.push(link.contenedor_id);
+        current.labels.push(containerById.get(link.contenedor_id) || link.contenedor_id);
+        containersByPackage.set(link.paquete_id, current);
+      });
       const mapped = (data as any[]).map((row) => ({
         id: row.id as string,
         tracking: (row.tracking as string) || "-",
@@ -833,6 +860,8 @@ const App = () => {
         notas: (row.notas as string | null) ?? null,
         payment_method: (row.payment_method as string | null) ?? null,
         payment_notes: (row.payment_notes as string | null) ?? null,
+        containerIds: containersByPackage.get(row.id)?.ids || [],
+        containerLabels: containersByPackage.get(row.id)?.labels || [],
       }));
 
       // En el panel admin mostramos todas las facturas posibles para paquetes descargados/entregados,
@@ -1808,6 +1837,26 @@ const App = () => {
 
         {activeTab === 'facturas' && facturas.length > 0 && (
           <div style={{ width: '100%', overflowX: 'hidden' }}>
+            <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center', marginBottom: '0.85rem' }}>
+              <input
+                type="search"
+                value={invoiceSearch}
+                onChange={(event) => setInvoiceSearch(event.target.value)}
+                placeholder="Search customer name, account, email, or tracking..."
+                aria-label="Search invoices by customer or account"
+                style={{ flex: '1 1 300px', minHeight: 40, padding: '0.6rem 0.75rem', border: '1px solid #cbd5e1', borderRadius: '0.65rem' }}
+              />
+              <select
+                value={invoiceContainerFilter}
+                onChange={(event) => setInvoiceContainerFilter(event.target.value)}
+                aria-label="Filter invoices by container"
+                style={{ minHeight: 40, minWidth: 240, padding: '0.6rem 0.75rem', border: '1px solid #cbd5e1', borderRadius: '0.65rem', background: '#fff' }}
+              >
+                <option value="ALL">All containers</option>
+                {invoiceContainerOptions.map(([id, label]) => <option key={id} value={id}>Container: {label}</option>)}
+              </select>
+              {(invoiceSearch || invoiceContainerFilter !== 'ALL') && <button type="button" className="pa-secondary-btn" onClick={() => { setInvoiceSearch(''); setInvoiceContainerFilter('ALL'); }}>Clear filters</button>}
+            </div>
             {/* Sub-pestañas internas para facturas (carrusel horizontal) */}
             <div
               style={{
