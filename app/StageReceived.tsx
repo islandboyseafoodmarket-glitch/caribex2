@@ -107,6 +107,10 @@ const StageReceived: React.FC<StageReceivedProps> = ({
   const [sender, setSender] = useState("");
   const [recipient, setRecipient] = useState("");
   const [contents, setContents] = useState("");
+  const [ownerUnknown, setOwnerUnknown] = useState(false);
+  const [unknownNote, setUnknownNote] = useState("");
+  const [unknownPhotoUrls, setUnknownPhotoUrls] = useState<string[]>([]);
+  const [unknownPhotoUploading, setUnknownPhotoUploading] = useState(false);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const [viewPackage, setViewPackage] = useState<StageReceivedPackage | null>(null);
@@ -126,6 +130,10 @@ const StageReceived: React.FC<StageReceivedProps> = ({
     setSender("");
     setRecipient("");
     setContents("");
+    setOwnerUnknown(false);
+    setUnknownNote("");
+    setUnknownPhotoUrls([]);
+    setUnknownPhotoUploading(false);
     setIsScannerOpen(false);
     setEditingPackage(null);
   };
@@ -258,6 +266,27 @@ const StageReceived: React.FC<StageReceivedProps> = ({
     };
   }, [isScannerOpen, isEs]);
 
+  const handleUnknownPhotoChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files ?? []);
+    if (!files.length) return;
+    setUnknownPhotoUploading(true);
+    const uploaded: string[] = [];
+    for (const file of files) {
+      const extension = file.name.split(".").pop()?.toLowerCase() || file.type.split("/").pop() || "jpg";
+      const filePath = `notas-imagenes/unknown/${Date.now()}-${Math.random().toString(36).slice(2)}.${extension}`;
+      const { error } = await supabase.storage.from("notas-imagenes").upload(filePath, file, { upsert: true });
+      if (error) {
+        alert(error.message || (isEs ? "No se pudo subir la foto." : "Could not upload the photo."));
+        break;
+      }
+      const { data } = supabase.storage.from("notas-imagenes").getPublicUrl(filePath);
+      if (data?.publicUrl) uploaded.push(data.publicUrl);
+    }
+    setUnknownPhotoUrls((current) => [...current, ...uploaded]);
+    setUnknownPhotoUploading(false);
+    event.target.value = "";
+  };
+
   const handleSubmit: React.FormEventHandler<HTMLFormElement> = (e) => {
     e.preventDefault();
     if (!selectedType) {
@@ -280,6 +309,11 @@ const StageReceived: React.FC<StageReceivedProps> = ({
     }
 
     const guardar = async () => {
+      if (unknownPhotoUploading) {
+        alert(isEs ? "Espere a que termine de subir la foto." : "Please wait for the photo upload to finish.");
+        return;
+      }
+      const noteText = [ownerUnknown ? "UNKNOWN OWNER - pending customer identification" : "", unknownNote.trim()].filter(Boolean).join("\n");
       // Modo edición: actualizar registro existente
       if (editingPackage) {
         const { error } = await supabase
@@ -289,6 +323,8 @@ const StageReceived: React.FC<StageReceivedProps> = ({
             nombre_paqueteria: carrier || "",
             tipo_paquete: selectedType,
             contenido: contents || null,
+            notas: noteText || null,
+            notas_imagenes: unknownPhotoUrls.length ? unknownPhotoUrls : null,
           })
           .eq("id", editingPackage.id);
 
@@ -328,7 +364,8 @@ const StageReceived: React.FC<StageReceivedProps> = ({
           nombre_paqueteria: carrier || "",
           tipo_paquete: selectedType,
           contenido: contents || null,
-          notas: null,
+          notas: noteText || null,
+          notas_imagenes: unknownPhotoUrls.length ? unknownPhotoUrls : null,
           registro: currentUserName,
           descargado: null,
           estado: "Recibido",
@@ -782,6 +819,22 @@ const StageReceived: React.FC<StageReceivedProps> = ({
                   </select>
                 </div>
               </div>
+
+              <label style={{ display: "flex", alignItems: "center", gap: ".55rem", marginTop: ".75rem", color: "#334155", fontWeight: 600 }}>
+                <input type="checkbox" checked={ownerUnknown} onChange={(event) => setOwnerUnknown(event.target.checked)} />
+                {isEs ? "Propietario desconocido / pendiente de identificar" : "Owner unknown / pending identification"}
+              </label>
+              {ownerUnknown && <p style={{ margin: ".35rem 0 0", color: "#b45309", fontSize: ".82rem" }}>
+                {isEs ? "Este envío aparecerá en Issues hasta que se asigne a un cliente." : "This shipment will appear in Issues until it is assigned to a customer."}
+              </p>}
+              {ownerUnknown && <div style={{ display: "grid", gap: ".55rem", marginTop: ".65rem" }}>
+                <textarea className="ga-input" rows={3} value={unknownNote} onChange={(event) => setUnknownNote(event.target.value)} placeholder={isEs ? "Nota sobre el paquete desconocido..." : "Note about the unknown shipment..."} />
+                <label className="ga-secondary-button" style={{ display: "inline-flex", width: "fit-content", alignItems: "center", gap: ".4rem", cursor: "pointer" }}>
+                  <Camera size={15} /> {unknownPhotoUploading ? (isEs ? "Subiendo foto..." : "Uploading photo...") : (isEs ? "Tomar / agregar foto" : "Take / add photo")}
+                  <input type="file" accept="image/*" capture="environment" multiple hidden onChange={handleUnknownPhotoChange} disabled={unknownPhotoUploading} />
+                </label>
+                {unknownPhotoUrls.length > 0 && <small style={{ color: "#166534" }}>{unknownPhotoUrls.length} {isEs ? "foto(s) agregada(s)" : "photo(s) added"}</small>}
+              </div>}
 
               <div className="ga-modal-footer">
                 <button

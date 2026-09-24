@@ -339,6 +339,7 @@ const App = () => {
     () =>
       pedidos.filter(
         (p) =>
+          !p.numero_cliente_id ||
           (p.notas && p.notas.trim() !== "") ||
           (Array.isArray(p.notas_imagenes)
             ? p.notas_imagenes.length > 0
@@ -2058,8 +2059,8 @@ const App = () => {
                 const clienteLabel =
                   p.clienteNumero != null && p.clienteNombre
                     ? `#${p.clienteNumero} - ${p.clienteNombre}`
-                    : "";
-                const descripcion = p.notas?.trim() || "Sin descripción";
+                    : "Unknown owner / pending identification";
+                const descripcion = p.notas?.trim() || (!p.numero_cliente_id ? "Shipment has no assigned customer." : "Sin descripción");
                 const urls = obtenerUrlsIncidencia(p);
 
                 return (
