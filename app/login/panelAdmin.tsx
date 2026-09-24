@@ -3048,22 +3048,6 @@ const App = () => {
                   </select>
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
-                  <label>Remitente</label>
-                  <input
-                    className="pa-input"
-                    value={pedidoForm.remitente}
-                    onChange={(e) => handlePedidoFormChange("remitente", e.target.value)}
-                  />
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
-                  <label>Destinatario</label>
-                  <input
-                    className="pa-input"
-                    value={pedidoForm.destinatario}
-                    onChange={(e) => handlePedidoFormChange("destinatario", e.target.value)}
-                  />
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
                   <label>Contenido</label>
                   <input
                     className="pa-input"
