@@ -17,6 +17,7 @@ import {
 } from "html5-qrcode";
 import { supabase } from "../lib/supabaseClient";
 import { detectCarrier } from "./lib/carrierDetection";
+import EscanerQRCaribex from "./escanerQR";
 
 type PackageCategoryId = "BOX" | "PACKAGE";
 
@@ -112,6 +113,7 @@ const StageReceived: React.FC<StageReceivedProps> = ({
   const [unknownPhotoUrls, setUnknownPhotoUrls] = useState<string[]>([]);
   const [unknownPhotoUploading, setUnknownPhotoUploading] = useState(false);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const [isCaribexScannerOpen, setIsCaribexScannerOpen] = useState(false);
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const [viewPackage, setViewPackage] = useState<StageReceivedPackage | null>(null);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
@@ -135,6 +137,7 @@ const StageReceived: React.FC<StageReceivedProps> = ({
     setUnknownPhotoUrls([]);
     setUnknownPhotoUploading(false);
     setIsScannerOpen(false);
+    setIsCaribexScannerOpen(false);
     setEditingPackage(null);
   };
 
@@ -718,14 +721,40 @@ const StageReceived: React.FC<StageReceivedProps> = ({
                   >
                     <Camera size={16} style={{ marginRight: 8 }} />
                     {isEs
-                      ? "Escanear código de barras"
-                      : "Scan barcode"}
+                      ? "Escanear código de barras o QR"
+                      : "Scan carrier barcode or QR"}
+                  </button>
+                  <button
+                    type="button"
+                    className="ga-secondary-button"
+                    style={{ marginTop: "0.5rem", width: "100%" }}
+                    onClick={() => {
+                      setIsScannerOpen(false);
+                      setIsCaribexScannerOpen((open) => !open);
+                    }}
+                  >
+                    <Barcode size={16} style={{ marginRight: 8 }} />
+                    {isEs ? "Escanear QR de Caribex" : "Scan Caribex QR"}
                   </button>
                   {isScannerOpen && (
                     <div className="ga-barcode-scanner">
                       <div
                         id="ga-barcode-scanner-container"
                         className="ga-barcode-video"
+                      />
+                    </div>
+                  )}
+                  {isCaribexScannerOpen && (
+                    <div style={{ marginTop: "0.75rem" }}>
+                      <EscanerQRCaribex
+                        onCaribexScan={(payload) => {
+                          const value = payload.tracking || payload.id || "";
+                          if (value) {
+                            setTracking(value);
+                            setBarcode(value);
+                          }
+                          setIsCaribexScannerOpen(false);
+                        }}
                       />
                     </div>
                   )}
