@@ -35,9 +35,21 @@ function isValidUspsCheckDigit(value: string): boolean {
 
 /** Detect a carrier from the contents returned by a barcode scanner. */
 export function detectCarrier(barcode: string): CarrierInfo {
+  const rawBarcode = barcode.trim();
+  if (rawBarcode.startsWith("{") && rawBarcode.endsWith("}")) {
+    try {
+      const parsed = JSON.parse(rawBarcode) as { tracking?: unknown };
+      if (typeof parsed.tracking === "string" && parsed.tracking.trim()) {
+        return detectCarrier(parsed.tracking);
+      }
+    } catch {
+      // Continue with normal barcode extraction for non-JSON scanner output.
+    }
+  }
+
   // Scanners may return the whole label text, including spaces, hyphens,
   // or text such as "UPS GROUND TRACKING #:" around the actual number.
-  const cleanBarcode = barcode.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const cleanBarcode = rawBarcode.toUpperCase().replace(/[^A-Z0-9]/g, "");
 
   // UPS: extract the standard 1Z format even when it is embedded in label text.
   const upsMatch = cleanBarcode.match(/1Z[A-Z0-9]{16}/);

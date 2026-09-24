@@ -36,11 +36,10 @@ export default function CaribexLabelPrint({ label, onClose, isEs = false, mode =
 
   useEffect(() => {
     let mounted = true;
-    const qrPayload = JSON.stringify(
-      isQrReprint
-        ? { tracking: label.tracking.trim() }
-        : { tracking: label.tracking.trim(), boxCode: label.boxCode || `${labelCode}-2026-Caribex` },
-    );
+    // Both label modes must scan back to the real shipment tracking number.
+    // The internal box code is intentionally printed/displayed separately and
+    // must never replace the tracking value in Package Registration.
+    const qrPayload = JSON.stringify({ tracking: label.tracking.trim() });
     QRCode.toDataURL(qrPayload, {
       errorCorrectionLevel: "M",
       margin: 2,
@@ -83,7 +82,7 @@ export default function CaribexLabelPrint({ label, onClose, isEs = false, mode =
           <div className="caribex-label-subtitle">
             {isQrReprint
               ? (isEs ? "Reimpresión QR" : "QR reprint")
-              : (isEs ? "Etiqueta de caja" : "Box label")}
+              : (isEs ? "Solo para caja nueva" : "For new boxes only")}
           </div>
           {qrCode ? <img className="caribex-label-qr" src={qrCode} alt={`QR code for ${label.tracking}`} /> : <div style={{ height: 210, display: "grid", placeItems: "center", color: "#64748b" }}>Generating QR…</div>}
           <div className="caribex-label-tracking">

@@ -9,6 +9,8 @@ import { Pencil, Trash2, Unlock, LogOut, Image as ImageIcon, Check, AlertCircle,
 import FerryManifestAdmin from "./FerryManifestAdmin";
 import Client360Admin from "./Client360Admin";
 import CaribexLabelPrint from "../../components/CaribexLabelPrint";
+import CaribexBatchLabelPrint, { BatchBoxLabel } from "../../components/CaribexBatchLabelPrint";
+import ContainersAdmin from "./ContainersAdmin";
 
 /**
  * DASHBOARD OPERATIVO - VERSIÓN VISUAL PURA
@@ -62,7 +64,7 @@ const portalEventLabel = (eventType: string) => PORTAL_EVENT_LABELS[eventType] |
 const App = () => {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<
-    'personal' | 'clientes' | 'client360' | 'pedidos' | 'incidencias' | 'facturas' | 'leads' | 'portal' | 'ferry'
+    'personal' | 'clientes' | 'client360' | 'pedidos' | 'incidencias' | 'facturas' | 'leads' | 'portal' | 'ferry' | 'containers'
   >('personal');
   const [expandedNavGroups, setExpandedNavGroups] = useState<Record<string, boolean>>({
     operations: true,
@@ -231,6 +233,27 @@ const App = () => {
   const [pedidoDetalleError, setPedidoDetalleError] = useState<string | null>(null);
   const [adminLabelPackage, setAdminLabelPackage] = useState<any | null>(null);
   const [adminLabelMode, setAdminLabelMode] = useState<"qr-reprint" | "box">("box");
+  const [selectedNewBoxIds, setSelectedNewBoxIds] = useState<string[]>([]);
+  const [batchNewBoxLabels, setBatchNewBoxLabels] = useState<BatchBoxLabel[] | null>(null);
+
+  const toggleNewBoxSelection = (id: string) => {
+    setSelectedNewBoxIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
+  };
+
+  const generateBatchNewBoxLabels = () => {
+    const selected = pedidos.filter((pedido) => selectedNewBoxIds.includes(pedido.id));
+    if (!selected.length) {
+      alert("Select at least one shipment for a new-box label.");
+      return;
+    }
+    const labels = selected.map((pedido) => {
+      const values = new Uint32Array(1);
+      if (typeof window !== "undefined" && window.crypto?.getRandomValues) window.crypto.getRandomValues(values);
+      const code = String(values[0] % 100000).padStart(5, "0");
+      return { tracking: pedido.tracking, boxCode: `${code}-2026-Caribex` };
+    });
+    setBatchNewBoxLabels(labels);
+  };
   const [isPedidoEditOpen, setIsPedidoEditOpen] = useState(false);
   const [pedidoEditId, setPedidoEditId] = useState<string | null>(null);
   const [pedidoClienteLabel, setPedidoClienteLabel] = useState<string>("");
@@ -1492,6 +1515,7 @@ const App = () => {
           {expandedNavGroups.billing && <div className="admin-nav-buttons">
             <button className={`tab-pill tab-pill--billing ${activeTab === 'facturas' ? 'active' : ''}`} onClick={() => setActiveTab('facturas')}><IconBriefcase /> Invoices <span className="count-badge">{facturasCount}</span></button>
             <button className={`tab-pill tab-pill--billing ${activeTab === 'ferry' ? 'active' : ''}`} onClick={() => setActiveTab('ferry')}><IconBriefcase /> Ferry manifests</button>
+            <button className={`tab-pill tab-pill--billing ${activeTab === 'containers' ? 'active' : ''}`} onClick={() => setActiveTab('containers')}><IconBriefcase /> Containers</button>
           </div>}
         </div>
         <div className="admin-nav-group">
@@ -1524,6 +1548,8 @@ const App = () => {
                         ? 'Customer leads'
                       : activeTab === 'portal'
                         ? 'Customer Portal alerts'
+                      : activeTab === 'containers'
+                        ? 'Container dashboard'
                       : 'Ferry manifests'}
             </h3>
             <span>
@@ -1543,6 +1569,8 @@ const App = () => {
                         ? `${leads.length} leads received from the website`
                       : activeTab === 'portal'
                         ? `${portalEvents.length} recent portal and account events`
+                      : activeTab === 'containers'
+                        ? 'Container totals, locations, shipment details, and PDF manifest export'
                       : 'Create, share, and archive weekly ferry manifests'}
             </span>
           </div>
@@ -1605,6 +1633,8 @@ const App = () => {
         </div>}
 
         {activeTab === 'ferry' && <FerryManifestAdmin />}
+
+        {activeTab === 'containers' && <ContainersAdmin />}
 
         {activeTab === 'personal' && personal.length > 0 && (
           <div style={{ width: '100%', overflowX: 'auto' }}>
@@ -2238,7 +2268,7 @@ const App = () => {
         {activeTab === 'pedidos' && pedidos.length > 0 && (
           <div style={{ width: '100%', overflowX: 'auto' }}>
             {/* Filtro por número o nombre de cliente */}
-            <div style={{ marginBottom: '0.75rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
               <input
                 type="text"
                 placeholder="Filtrar por # de cliente o nombre..."
@@ -2254,22 +2284,32 @@ const App = () => {
                   outline: 'none',
                 }}
               />
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                <span style={{ color: '#64748b', fontSize: '0.8rem' }}>{selectedNewBoxIds.length} selected for new boxes</span>
+                <button type="button" className="pa-primary-btn" disabled={!selectedNewBoxIds.length} onClick={generateBatchNewBoxLabels}>
+                  Generate selected new-box labels
+                </button>
+                <button type="button" className="pa-secondary-btn" disabled={!selectedNewBoxIds.length} onClick={() => setSelectedNewBoxIds([])}>
+                  Clear
+                </button>
+              </div>
             </div>
 
             {/* Encabezados de la tabla de pedidos */}
             <div
               style={{
                 display: 'grid',
-                gridTemplateColumns: '1.5fr 2fr 1fr 1.2fr',
+                gridTemplateColumns: '34px 1.5fr 2fr 1fr 1.2fr',
                 columnGap: '0.75rem',
                 padding: '0.4rem 0',
                 fontSize: '0.8rem',
                 color: '#64748b',
                 borderBottom: '1px solid #e2e8f0',
                 fontWeight: 600,
-                minWidth: 520,
+                minWidth: 560,
               }}
             >
+              <span />
               <span style={{ minWidth: 100 }}>Tracking</span>
               <span style={{ minWidth: 140 }}>Cliente</span>
               <span style={{ minWidth: 120 }}>Estado</span>
@@ -2304,12 +2344,19 @@ const App = () => {
                       borderBottom: '1px solid #e2e8f0',
                       fontSize: '0.9rem',
                       display: 'grid',
-                      gridTemplateColumns: '1.5fr 2fr 1fr 1.2fr',
+                      gridTemplateColumns: '34px 1.5fr 2fr 1fr 1.2fr',
                       columnGap: '0.75rem',
                       alignItems: 'center',
-                      minWidth: 520,
+                      minWidth: 560,
                     }}
                   >
+                    <input
+                      type="checkbox"
+                      checked={selectedNewBoxIds.includes(p.id)}
+                      onChange={() => toggleNewBoxSelection(p.id)}
+                      aria-label={`Select ${p.tracking} for a new-box label`}
+                      title="Select for new-box label batch"
+                    />
                     <span
                       style={{
                         fontWeight: 600,
@@ -2743,7 +2790,7 @@ const App = () => {
                     });
                   }}
                 >
-                  Reprint QR label
+                  Reprint QR (damaged label)
                 </button>
                 <button
                   type="button"
@@ -2767,7 +2814,7 @@ const App = () => {
                     });
                   }}
                 >
-                  Generate box label
+                  New box: generate label
                 </button>
                 <button type="button" className="pa-secondary-btn" onClick={() => setIsPedidoDetalleOpen(false)}>Close</button>
               </div>
@@ -2781,6 +2828,16 @@ const App = () => {
           label={adminLabelPackage}
           mode={adminLabelMode}
           onClose={() => setAdminLabelPackage(null)}
+        />
+      )}
+
+      {batchNewBoxLabels && (
+        <CaribexBatchLabelPrint
+          labels={batchNewBoxLabels}
+          onClose={() => {
+            setBatchNewBoxLabels(null);
+            setSelectedNewBoxIds([]);
+          }}
         />
       )}
 

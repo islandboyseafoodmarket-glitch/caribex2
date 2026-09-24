@@ -4144,14 +4144,14 @@ const handlePackageCreated = (pkg: Package) => {
                 className="ga-secondary-button"
                 onClick={() => { setLabelMode("qr-reprint"); setLabelPackage(viewPackage as Package); }}
               >
-                {isEs ? "Reimprimir QR" : "Reprint QR label"}
+                {isEs ? "Reimprimir QR (etiqueta dañada)" : "Reprint QR (damaged label)"}
               </button>
               <button
                 type="button"
                 className="ga-primary-button"
                 onClick={() => { setLabelMode("box"); setLabelPackage(viewPackage as Package); }}
               >
-                {isEs ? "Etiqueta de caja" : "Generate box label"}
+                {isEs ? "Nueva caja: generar etiqueta" : "New box: generate label"}
               </button>
               <button
                 type="button"
