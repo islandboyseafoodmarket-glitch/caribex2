@@ -37,7 +37,7 @@ export async function GET(request: Request) {
 
     const packageIds = Array.from(new Set((links || []).map((link) => link.paquete_id).filter(Boolean)));
     const { data: shipments, error: shipmentError } = packageIds.length
-      ? await supabase.from("paquetes_registro").select("id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, creado_en, registro, estado, hora_fecha, descargado, fecha_descargado, hora_descargado, fecha_entregado, hora_entregado, numero_cliente_id").in("id", packageIds)
+      ? await supabase.from("paquetes_registro").select("id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, creado_en, registro, estado, hora_fecha, descargado, fecha_descargado, hora_descargado, fecha_entregado, hora_entregado, numero_cliente_id, billing_subtotal, billing_tax, billing_total").in("id", packageIds)
       : { data: [], error: null };
     if (shipmentError) throw shipmentError;
 
@@ -49,7 +49,7 @@ export async function GET(request: Request) {
 
     const checkinIds = packageIds;
     const { data: checkins, error: checkinError } = checkinIds.length
-      ? await supabase.from("paquetes_checkin").select("paquete_id, alto, ancho, largo, peso, problema, problema_notas, consolidacion, parent_box_id, creado_en").in("paquete_id", checkinIds)
+      ? await supabase.from("paquetes_checkin").select("paquete_id, alto, ancho, largo, peso, problema, problema_notas, cargos_adicionales, consolidacion, parent_box_id, creado_en").in("paquete_id", checkinIds)
       : { data: [], error: null };
     if (checkinError) throw checkinError;
 

@@ -11,6 +11,7 @@ import Client360Admin from "./Client360Admin";
 import CaribexLabelPrint from "../../components/CaribexLabelPrint";
 import CaribexBatchLabelPrint, { BatchBoxLabel } from "../../components/CaribexBatchLabelPrint";
 import ContainersAdmin from "./ContainersAdmin";
+import ReportsAdmin from "./ReportsAdmin";
 
 /**
  * DASHBOARD OPERATIVO - VERSIÓN VISUAL PURA
@@ -61,10 +62,28 @@ const PORTAL_EVENT_LABELS: Record<string, string> = {
 };
 const portalEventLabel = (eventType: string) => PORTAL_EVENT_LABELS[eventType] || eventType.replaceAll("_", " ");
 
+const shipmentStage = (status: string | null | undefined) => {
+  const value = (status || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  if (value.includes("entregado") || value.includes("recogido") || value.includes("picked")) return "PICKED_UP";
+  if (value.includes("descargado") || value.includes("unloaded")) return "UNLOADED";
+  if (value.includes("transito") || value.includes("transit")) return "IN_TRANSIT";
+  if (value.includes("check in") || value.includes("checkin") || value.includes("registro") || value.includes("registered")) return "REGISTERED";
+  return "RECEIVED";
+};
+
+const SHIPMENT_STAGE_OPTIONS = [
+  ["ALL", "All stages"],
+  ["RECEIVED", "Received"],
+  ["REGISTERED", "Registered / Check In"],
+  ["IN_TRANSIT", "In transit"],
+  ["UNLOADED", "Unloaded / Ready for pickup"],
+  ["PICKED_UP", "Picked up"],
+] as const;
+
 const App = () => {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<
-    'personal' | 'clientes' | 'client360' | 'pedidos' | 'incidencias' | 'facturas' | 'leads' | 'portal' | 'ferry' | 'containers'
+    'personal' | 'clientes' | 'client360' | 'pedidos' | 'incidencias' | 'facturas' | 'leads' | 'portal' | 'ferry' | 'containers' | 'labels' | 'reports'
   >('personal');
   const [expandedNavGroups, setExpandedNavGroups] = useState<Record<string, boolean>>({
     operations: true,
@@ -204,6 +223,7 @@ const App = () => {
   }, [facturas, activeInvoiceTab]);
 
   const [pedidoFiltro, setPedidoFiltro] = useState("");
+  const [pedidoEtapa, setPedidoEtapa] = useState("ALL");
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isClienteModalOpen, setIsClienteModalOpen] = useState(false);
@@ -233,24 +253,17 @@ const App = () => {
   const [pedidoDetalleError, setPedidoDetalleError] = useState<string | null>(null);
   const [adminLabelPackage, setAdminLabelPackage] = useState<any | null>(null);
   const [adminLabelMode, setAdminLabelMode] = useState<"qr-reprint" | "box">("box");
-  const [selectedNewBoxIds, setSelectedNewBoxIds] = useState<string[]>([]);
   const [batchNewBoxLabels, setBatchNewBoxLabels] = useState<BatchBoxLabel[] | null>(null);
+  const [newBoxLabelCount, setNewBoxLabelCount] = useState(1);
 
-  const toggleNewBoxSelection = (id: string) => {
-    setSelectedNewBoxIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
-  };
-
-  const generateBatchNewBoxLabels = () => {
-    const selected = pedidos.filter((pedido) => selectedNewBoxIds.includes(pedido.id));
-    if (!selected.length) {
-      alert("Select at least one shipment for a new-box label.");
-      return;
-    }
-    const labels = selected.map((pedido) => {
+  const generateNewBoxLabels = (requestedCount = newBoxLabelCount) => {
+    const count = Math.min(100, Math.max(1, Math.floor(Number(requestedCount) || 1)));
+    const labels = Array.from({ length: count }, () => {
       const values = new Uint32Array(1);
       if (typeof window !== "undefined" && window.crypto?.getRandomValues) window.crypto.getRandomValues(values);
       const code = String(values[0] % 100000).padStart(5, "0");
-      return { tracking: pedido.tracking, boxCode: `${code}-2026-Caribex` };
+      const boxCode = `${code}-2026-Caribex`;
+      return { tracking: boxCode, boxCode };
     });
     setBatchNewBoxLabels(labels);
   };
@@ -375,6 +388,7 @@ const App = () => {
     setIsPedidoDetalleOpen(true);
     setPedidoDetalle(null);
     setPedidoDetalleError(null);
+    setPedidoQrUrl(null);
     setPedidoDetalleLoading(true);
 
     try {
@@ -422,6 +436,17 @@ const App = () => {
     setPedidoQrUrl(
       `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encoded}`,
     );
+  };
+
+  const imprimirQrPreview = () => {
+    if (!pedidoQrUrl) return;
+    const printWindow = window.open("", "_blank", "width=520,height=620");
+    if (!printWindow) {
+      alert("Allow pop-ups to print the QR code.");
+      return;
+    }
+    printWindow.document.write(`<!doctype html><html><head><title>Caribex QR</title><style>body{font-family:Arial,sans-serif;text-align:center;padding:24px}img{width:300px;height:300px;image-rendering:pixelated}h2{margin-bottom:18px}</style></head><body><h2>Caribex Shipment QR</h2><img src="${pedidoQrUrl}" alt="Shipment QR" /><script>window.onload=function(){window.print();}</script></body></html>`);
+    printWindow.document.close();
   };
 
   const abrirEditarPedido = (pedido: Pedido) => {
@@ -535,6 +560,17 @@ const App = () => {
       if (!confirmado) {
         return;
       }
+    }
+
+    if (pedidoOriginal && (pedidoOriginal.numero_cliente_id || "") !== (pedidoForm.numero_cliente_id || "")) {
+      const nuevoCliente = clientes.find((cliente) => cliente.id === pedidoForm.numero_cliente_id);
+      const nuevoNombre = nuevoCliente
+        ? `#${nuevoCliente.numero_cliente} - ${nuevoCliente.nombre}`
+        : "sin cliente asignado";
+      const confirmado = window.confirm(
+        `Este cambio reasignará el shipment a ${nuevoNombre}. ¿Deseas continuar?`,
+      );
+      if (!confirmado) return;
     }
 
     const { error } = await supabase
@@ -658,6 +694,23 @@ const App = () => {
   const generarQrDesdeFormulario = () => {
     const pedido = buildPedidoFromForm();
     generarQrPedido(pedido);
+  };
+
+  const reimprimirEtiquetaDesdeFormulario = () => {
+    if (!pedidoForm.tracking.trim()) {
+      alert("This shipment needs a tracking number before printing a label.");
+      return;
+    }
+    const cliente = clientes.find((item) => item.id === pedidoForm.numero_cliente_id);
+    setAdminLabelMode("qr-reprint");
+    setAdminLabelPackage({
+      tracking: pedidoForm.tracking.trim(),
+      customerName: cliente?.nombre || null,
+      accountNumber: cliente?.numero_cliente || null,
+      carrier: pedidoForm.carrier || null,
+      packageType: pedidoForm.tipo_paquete || "Package",
+      details: pedidoForm.contenido || null,
+    });
   };
 
   const handleCheckinFormChange = (
@@ -1501,6 +1554,8 @@ const App = () => {
             <button className={`tab-pill tab-pill--operations ${activeTab === 'pedidos' ? 'active' : ''}`} onClick={() => setActiveTab('pedidos')}><IconBriefcase /> Shipments <span className="count-badge">{pedidos.length}</span></button>
             <button className={`tab-pill tab-pill--operations ${activeTab === 'client360' ? 'active' : ''}`} onClick={() => setActiveTab('client360')}><IconUsers /> Client 360</button>
             <button className={`tab-pill tab-pill--operations ${activeTab === 'incidencias' ? 'active' : ''}`} onClick={() => setActiveTab('incidencias')}><IconBriefcase /> Issues <span className="count-badge">{pedidosConIncidencia.length}</span></button>
+            <button className={`tab-pill tab-pill--operations ${activeTab === 'labels' ? 'active' : ''}`} onClick={() => setActiveTab('labels')}><IconBriefcase /> Caribex labels</button>
+            <button className={`tab-pill tab-pill--operations ${activeTab === 'reports' ? 'active' : ''}`} onClick={() => setActiveTab('reports')}><IconBriefcase /> Reports</button>
           </div>}
         </div>
         <div className="admin-nav-group">
@@ -1551,6 +1606,10 @@ const App = () => {
                         ? 'Customer Portal alerts'
                       : activeTab === 'containers'
                         ? 'Container dashboard'
+                      : activeTab === 'labels'
+                        ? 'Caribex label generator'
+                      : activeTab === 'reports'
+                        ? 'Reports'
                       : 'Ferry manifests'}
             </h3>
             <span>
@@ -1572,9 +1631,27 @@ const App = () => {
                         ? `${portalEvents.length} recent portal and account events`
                       : activeTab === 'containers'
                         ? 'Container totals, locations, shipment details, and PDF manifest export'
+                      : activeTab === 'labels'
+                        ? 'Generate independent labels for new Caribex boxes'
+                      : activeTab === 'reports'
+                        ? 'Shipment exception reports by date range'
                       : 'Create, share, and archive weekly ferry manifests'}
             </span>
           </div>
+
+          {activeTab === 'labels' && (
+            <div style={{ width: '100%', maxWidth: 760, margin: '0 auto', padding: '1.5rem', border: '1px solid #e2e8f0', borderRadius: '1rem', background: '#f8fafc' }}>
+              <h4 style={{ margin: 0, color: '#0f172a' }}>Generate labels for new boxes</h4>
+              <p style={{ color: '#64748b', margin: '0.5rem 0 1.25rem' }}>These labels are independent of shipments already in the database. Each QR is compatible with the existing Caribex QR scanner.</p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                <label htmlFor="standalone-new-box-label-count" style={{ fontWeight: 600, color: '#475569' }}>Quantity</label>
+                <input id="standalone-new-box-label-count" type="number" min={1} max={100} value={newBoxLabelCount} onChange={(e) => setNewBoxLabelCount(Math.min(100, Math.max(1, Number(e.target.value) || 1)))} style={{ width: 80, padding: '0.55rem 0.65rem', border: '1px solid #cbd5e1', borderRadius: '0.6rem' }} />
+                <button type="button" className="pa-primary-btn" onClick={() => generateNewBoxLabels()}>Generate Caribex labels</button>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'reports' && <ReportsAdmin />}
 
           {activeTab === 'personal' && (
             <button
@@ -2123,6 +2200,14 @@ const App = () => {
                     >
                       <button
                         type="button"
+                        title="Edit shipment and owner"
+                        onClick={() => abrirEditarPedido(p)}
+                        style={{ borderRadius: "999px", border: "1px solid #cbd5f5", backgroundColor: "#eff6ff", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "0.3rem", color: "#1d4ed8", padding: "0.35rem 0.65rem", fontSize: "0.75rem", fontWeight: 700, whiteSpace: "nowrap" }}
+                      >
+                        <Pencil size={14} /> Edit / assign owner
+                      </button>
+                      <button
+                        type="button"
                         title="Ver imágenes"
                         style={{
                           width: 28,
@@ -2270,29 +2355,28 @@ const App = () => {
           <div style={{ width: '100%', overflowX: 'auto' }}>
             {/* Filtro por número o nombre de cliente */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
-              <input
-                type="text"
-                placeholder="Filtrar por # de cliente o nombre..."
-                value={pedidoFiltro}
-                onChange={(e) => setPedidoFiltro(e.target.value)}
-                style={{
-                  width: '100%',
-                  maxWidth: '320px',
-                  padding: '0.45rem 0.75rem',
-                  borderRadius: '999px',
-                  border: '1px solid #e2e8f0',
-                  fontSize: '0.85rem',
-                  outline: 'none',
-                }}
-              />
-              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                <span style={{ color: '#64748b', fontSize: '0.8rem' }}>{selectedNewBoxIds.length} selected for new boxes</span>
-                <button type="button" className="pa-primary-btn" disabled={!selectedNewBoxIds.length} onClick={generateBatchNewBoxLabels}>
-                  Generate selected new-box labels
-                </button>
-                <button type="button" className="pa-secondary-btn" disabled={!selectedNewBoxIds.length} onClick={() => setSelectedNewBoxIds([])}>
-                  Clear
-                </button>
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                <input
+                  type="text"
+                  placeholder="Search customer account or name..."
+                  value={pedidoFiltro}
+                  onChange={(e) => setPedidoFiltro(e.target.value)}
+                  style={{
+                    width: '100%',
+                    maxWidth: '320px',
+                    padding: '0.45rem 0.75rem',
+                    borderRadius: '999px',
+                    border: '1px solid #e2e8f0',
+                    fontSize: '0.85rem',
+                    outline: 'none',
+                  }}
+                />
+                <select value={pedidoEtapa} onChange={(e) => setPedidoEtapa(e.target.value)} style={{ padding: '0.45rem 0.7rem', borderRadius: '999px', border: '1px solid #e2e8f0', background: '#fff', fontSize: '0.85rem' }} aria-label="Filter shipments by stage">
+                  {SHIPMENT_STAGE_OPTIONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                </select>
+              </div>
+              <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', width: '100%' }}>
+                {SHIPMENT_STAGE_OPTIONS.map(([value, label]) => <button key={value} type="button" onClick={() => setPedidoEtapa(value)} style={{ border: pedidoEtapa === value ? '1px solid #2563eb' : '1px solid #e2e8f0', background: pedidoEtapa === value ? '#eff6ff' : '#fff', color: pedidoEtapa === value ? '#1d4ed8' : '#475569', borderRadius: '999px', padding: '0.25rem 0.55rem', fontSize: '0.74rem', cursor: 'pointer' }}>{label}{value !== 'ALL' ? ` (${pedidos.filter((p) => shipmentStage(p.estado) === value).length})` : ` (${pedidos.length})`}</button>)}
               </div>
             </div>
 
@@ -2300,7 +2384,7 @@ const App = () => {
             <div
               style={{
                 display: 'grid',
-                gridTemplateColumns: '34px 1.5fr 2fr 1fr 1.2fr',
+                gridTemplateColumns: '1.5fr 2fr 1fr 1.2fr',
                 columnGap: '0.75rem',
                 padding: '0.4rem 0',
                 fontSize: '0.8rem',
@@ -2310,7 +2394,6 @@ const App = () => {
                 minWidth: 560,
               }}
             >
-              <span />
               <span style={{ minWidth: 100 }}>Tracking</span>
               <span style={{ minWidth: 140 }}>Cliente</span>
               <span style={{ minWidth: 120 }}>Estado</span>
@@ -2321,15 +2404,11 @@ const App = () => {
               {pedidos
                 .filter((p) => {
                   const term = pedidoFiltro.trim().toLowerCase();
-                  if (!term) return true;
-
                   const num = p.clienteNumero != null ? String(p.clienteNumero) : "";
                   const name = p.clienteNombre ? p.clienteNombre.toLowerCase() : "";
-
-                  return (
-                    num.startsWith(term) ||
-                    name.includes(term)
-                  );
+                  const matchesCustomer = !term || num.includes(term) || name.includes(term);
+                  const matchesStage = pedidoEtapa === "ALL" || shipmentStage(p.estado) === pedidoEtapa;
+                  return matchesCustomer && matchesStage;
                 })
                 .map((p) => {
                 const clienteLabel =
@@ -2345,19 +2424,12 @@ const App = () => {
                       borderBottom: '1px solid #e2e8f0',
                       fontSize: '0.9rem',
                       display: 'grid',
-                      gridTemplateColumns: '34px 1.5fr 2fr 1fr 1.2fr',
+                      gridTemplateColumns: '1.5fr 2fr 1fr 1.2fr',
                       columnGap: '0.75rem',
                       alignItems: 'center',
                       minWidth: 560,
                     }}
                   >
-                    <input
-                      type="checkbox"
-                      checked={selectedNewBoxIds.includes(p.id)}
-                      onChange={() => toggleNewBoxSelection(p.id)}
-                      aria-label={`Select ${p.tracking} for a new-box label`}
-                      title="Select for new-box label batch"
-                    />
                     <span
                       style={{
                         fontWeight: 600,
@@ -2773,6 +2845,30 @@ const App = () => {
                   type="button"
                   className="pa-secondary-btn"
                   onClick={() => {
+                    generarQrPedido({
+                      id: String(pedidoDetalle.id),
+                      tracking: String(pedidoDetalle.tracking || ""),
+                      carrier: pedidoDetalle.nombre_paqueteria || null,
+                      tipo_paquete: pedidoDetalle.tipo_paquete || null,
+                      remitente: pedidoDetalle.remitente || null,
+                      destinatario: pedidoDetalle.destinatario || null,
+                      estado: pedidoDetalle.estado || null,
+                      clienteNumero: pedidoDetalle.numero_cliente?.numero_cliente ?? null,
+                      clienteNombre: pedidoDetalle.numero_cliente?.nombre ?? null,
+                    });
+                  }}
+                >
+                  Generate QR preview
+                </button>
+                {pedidoQrUrl && (
+                  <button type="button" className="pa-primary-btn" onClick={imprimirQrPreview}>
+                    Print QR
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="pa-secondary-btn"
+                  onClick={() => {
                     setAdminLabelMode("qr-reprint");
                     const check = Array.isArray(pedidoDetalle.paquetes_checkin) ? pedidoDetalle.paquetes_checkin[0] : null;
                     const length = Number(check?.largo);
@@ -2793,31 +2889,13 @@ const App = () => {
                 >
                   Reprint QR (damaged label)
                 </button>
-                <button
-                  type="button"
-                  className="pa-primary-btn"
-                  onClick={() => {
-                    setAdminLabelMode("box");
-                    const check = Array.isArray(pedidoDetalle.paquetes_checkin) ? pedidoDetalle.paquetes_checkin[0] : null;
-                    const length = Number(check?.largo);
-                    const width = Number(check?.ancho);
-                    const height = Number(check?.alto);
-                    const boxSize = [length, width, height].every((value) => Number.isFinite(value) && value > 0)
-                      ? `${length} x ${width} x ${height} in`
-                      : null;
-                    setAdminLabelPackage({
-                      tracking: String(pedidoDetalle.tracking || ""),
-                      customerName: pedidoDetalle.numero_cliente?.nombre || pedidoDetalle.cliente_nombre || null,
-                      accountNumber: pedidoDetalle.numero_cliente?.numero_cliente || pedidoDetalle.numero_cliente_numero || null,
-                      carrier: pedidoDetalle.nombre_paqueteria || pedidoDetalle.carrier || null,
-                      packageType: pedidoDetalle.tipo_paquete || "Package",
-                      details: boxSize || pedidoDetalle.contenido || null,
-                    });
-                  }}
-                >
-                  New box: generate label
-                </button>
                 <button type="button" className="pa-secondary-btn" onClick={() => setIsPedidoDetalleOpen(false)}>Close</button>
+              </div>
+            )}
+            {!pedidoDetalleLoading && pedidoDetalle && pedidoQrUrl && (
+              <div style={{ textAlign: "center", marginTop: "1rem", paddingTop: "1rem", borderTop: "1px solid #e5e7eb" }}>
+                <div style={{ fontWeight: 700, color: "#374151", marginBottom: "0.5rem" }}>Shipment QR preview</div>
+                <Image src={pedidoQrUrl} alt="Shipment QR preview" width={220} height={220} unoptimized />
               </div>
             )}
           </div>
@@ -2837,7 +2915,6 @@ const App = () => {
           labels={batchNewBoxLabels}
           onClose={() => {
             setBatchNewBoxLabels(null);
-            setSelectedNewBoxIds([]);
           }}
         />
       )}
@@ -2954,12 +3031,27 @@ const App = () => {
                   />
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
-                  <label>Cliente</label>
-                  <input
+                  <label>Shipment owner</label>
+                  <select
                     className="pa-input"
-                    value={pedidoClienteLabel || "Sin cliente asignado"}
-                    readOnly
-                  />
+                    value={pedidoForm.numero_cliente_id || ""}
+                    onChange={(e) => {
+                      handlePedidoFormChange("numero_cliente_id", e.target.value);
+                      const selected = clientes.find((cliente) => cliente.id === e.target.value);
+                      setPedidoClienteLabel(selected ? `#${selected.numero_cliente} - ${selected.nombre}` : "Sin cliente asignado");
+                    }}
+                  >
+                    <option value="">Unassigned / owner unknown</option>
+                    {clientes
+                      .slice()
+                      .sort((a, b) => String(a.nombre || "").localeCompare(String(b.nombre || "")))
+                      .map((cliente) => (
+                        <option key={cliente.id} value={cliente.id}>
+                          #{cliente.numero_cliente} - {cliente.nombre}{cliente.email ? ` (${cliente.email})` : ""}
+                        </option>
+                      ))}
+                  </select>
+                  <small style={{ color: "#64748b" }}>Changing this owner updates where the shipment appears in Client 360 and the customer portal.</small>
                 </div>
               </div>
 
@@ -3197,13 +3289,22 @@ const App = () => {
               </div>
 
               <div style={{ display: "flex", flexDirection: "column", gap: "1rem", marginBottom: "1rem" }}>
-                <button
-                  type="button"
-                  className="pa-secondary-btn"
-                  onClick={generarQrDesdeFormulario}
-                >
-                  Generar QR
-                </button>
+                <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
+                  <button
+                    type="button"
+                    className="pa-secondary-btn"
+                    onClick={generarQrDesdeFormulario}
+                  >
+                    Generar QR
+                  </button>
+                  <button
+                    type="button"
+                    className="pa-primary-btn"
+                    onClick={reimprimirEtiquetaDesdeFormulario}
+                  >
+                    Reprint shipment label
+                  </button>
+                </div>
                 {pedidoQrUrl && (
                   <div style={{ textAlign: "center" }}>
                     <Image

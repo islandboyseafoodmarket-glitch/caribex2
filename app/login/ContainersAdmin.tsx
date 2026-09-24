@@ -19,8 +19,11 @@ type Shipment = {
   hora_descargado: string | null;
   fecha_entregado: string | null;
   hora_entregado: string | null;
+  billing_subtotal: number | null;
+  billing_tax: number | null;
+  billing_total: number | null;
   customer: { numero_cliente: number; nombre: string; email: string | null; telefono: string | null; puerto: string | null; tipo_cuenta: string | null } | null;
-  checkin: { alto: number | null; ancho: number | null; largo: number | null; peso: number | null; problema: boolean | null; problema_notas: string | null; consolidacion: boolean | null; parent_box_id: string | null } | null;
+  checkin: { alto: number | null; ancho: number | null; largo: number | null; peso: number | null; problema: boolean | null; problema_notas: string | null; cargos_adicionales: string | null; consolidacion: boolean | null; parent_box_id: string | null } | null;
 };
 
 type Container = { id: string; codigo: string; descripcion: string | null; creado_en: string | null; shipments: Shipment[] };
@@ -29,6 +32,15 @@ function dateLabel(value: string | null) {
   if (!value) return "—";
   const parsed = new Date(value);
   return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString();
+}
+
+function money(value: number | null | undefined) {
+  return value == null || Number.isNaN(Number(value)) ? "—" : `$${Number(value).toFixed(2)}`;
+}
+
+function additionalChargeTotal(value: string | null | undefined) {
+  if (!value) return 0;
+  return (value.match(/\$?\d+(?:\.\d{1,2})?/g) || []).reduce((sum, item) => sum + Number(item.replace("$", "")), 0);
 }
 
 export default function ContainersAdmin() {
@@ -71,6 +83,14 @@ export default function ContainersAdmin() {
     return Array.from(counts.entries()).sort((a, b) => b[1] - a[1]);
   }, [selected]);
   const totalShipments = containers.reduce((sum, container) => sum + container.shipments.length, 0);
+  const groupedShipments = useMemo(() => {
+    const groups = new Map<string, Shipment[]>();
+    for (const shipment of visibleShipments) {
+      const key = `${shipment.customer?.numero_cliente || "unknown"}|${shipment.customer?.puerto || "Unassigned"}`;
+      groups.set(key, [...(groups.get(key) || []), shipment]);
+    }
+    return Array.from(groups.values());
+  }, [visibleShipments]);
 
   if (loading) return <div className="container-dashboard-state">Loading container dashboard…</div>;
   if (error) return <div className="container-dashboard-state container-dashboard-error">{error}</div>;
@@ -92,7 +112,7 @@ export default function ContainersAdmin() {
         .container-dashboard-locations { display: flex; flex-wrap: wrap; gap: 8px; }
         .container-location-chip { padding: 7px 10px; border-radius: 999px; background: #dbeafe; color: #1e3a8a; font-size: .8rem; font-weight: 700; }
         .container-dashboard-table { overflow-x: auto; border: 1px solid #e2e8f0; border-radius: 12px; }
-        .container-dashboard-table table { width: 100%; min-width: 980px; border-collapse: collapse; font-size: .82rem; }
+        .container-dashboard-table table { width: 100%; min-width: 1320px; border-collapse: collapse; font-size: .82rem; }
         .container-dashboard-table th, .container-dashboard-table td { padding: 10px; border-bottom: 1px solid #e2e8f0; text-align: left; vertical-align: top; }
         .container-dashboard-table th { background: #f8fafc; color: #475569; font-size: .74rem; text-transform: uppercase; letter-spacing: .04em; }
         .container-dashboard-table tr:last-child td { border-bottom: 0; }
@@ -120,17 +140,26 @@ export default function ContainersAdmin() {
         <div className="container-dashboard-locations">{locationSummary.map(([location, count]) => <span className="container-location-chip" key={location}>{location}: {count}</span>)}</div>
         <div className="container-dashboard-table">
           <table>
-            <thead><tr><th>Tracking</th><th>Customer</th><th>Location</th><th>Carrier / type</th><th>Status</th><th>Recorded</th><th>Check-in / dimensions</th><th>Notes</th></tr></thead>
-            <tbody>{visibleShipments.map((shipment) => <tr key={shipment.id}>
-              <td><strong>{shipment.tracking || "—"}</strong></td>
-              <td>{shipment.customer?.nombre || "—"}<br /><small>#{shipment.customer?.numero_cliente || "—"} · {shipment.customer?.email || "—"}</small></td>
-              <td>{shipment.customer?.puerto || "Unassigned"}</td>
-              <td>{shipment.nombre_paqueteria || "—"}<br /><small>{shipment.tipo_paquete || "—"}</small></td>
-              <td>{shipment.estado || shipment.registro || "—"}</td>
-              <td>{dateLabel(shipment.hora_fecha || shipment.creado_en)}</td>
-              <td>{shipment.checkin ? `${shipment.checkin.largo || "—"} × ${shipment.checkin.ancho || "—"} × ${shipment.checkin.alto || "—"} · ${shipment.checkin.peso || "—"} lb` : "Not checked in"}</td>
-              <td>{shipment.notas || shipment.contenido || "—"}{shipment.checkin?.problema ? <><br /><strong style={{ color: "#b91c1c" }}>Problem: {shipment.checkin.problema_notas || "Yes"}</strong></> : null}</td>
-            </tr>)}</tbody>
+            <thead><tr><th>Location</th><th>Name</th><th>Customer ID</th><th>Tracking Number</th><th>Item</th><th>Item Cost</th><th>Additional Charges</th><th>Total Cost</th><th>Consolidates</th><th>Pkgs</th></tr></thead>
+            <tbody>{groupedShipments.flatMap((group) => group.map((shipment, index) => {
+              const additional = additionalChargeTotal(shipment.checkin?.cargos_adicionales);
+              const consolidated = selected?.shipments.filter((candidate) => candidate.checkin?.parent_box_id === shipment.id).map((candidate) => candidate.tracking).filter(Boolean) || [];
+              const dimensions = shipment.checkin && [shipment.checkin.largo, shipment.checkin.ancho, shipment.checkin.alto].some((value) => value != null)
+                ? ` ${shipment.checkin.largo || "—"}x${shipment.checkin.ancho || "—"}x${shipment.checkin.alto || "—"}`
+                : "";
+              return <tr key={shipment.id}>
+                {index === 0 && <td rowSpan={group.length}>{shipment.customer?.puerto || "Unassigned"}</td>}
+                {index === 0 && <td rowSpan={group.length}>{shipment.customer?.nombre || "Unknown owner"}</td>}
+                {index === 0 && <td rowSpan={group.length}>#{shipment.customer?.numero_cliente || "—"}</td>}
+                <td><strong>{shipment.tracking || "—"}</strong></td>
+                <td>{shipment.tipo_paquete || shipment.contenido || "—"}{dimensions}</td>
+                <td>{money(shipment.billing_subtotal)}</td>
+                <td>{additional ? money(additional) : "—"}</td>
+                <td>{money(shipment.billing_total ?? ((shipment.billing_subtotal || 0) + additional))}</td>
+                <td>{consolidated.length ? consolidated.join(", ") : "None"}</td>
+                <td>{consolidated.length + 1}</td>
+              </tr>;
+            }))}</tbody>
           </table>
         </div>
       </>}

@@ -40,6 +40,7 @@ import PickupStage from "./Pickup";
 import InvoicesStage from "./InvoicesStage";
 import InvoicePreview from "../components/InvoicePreview";
 import CaribexLabelPrint from "../components/CaribexLabelPrint";
+import CaribexBatchLabelPrint, { BatchBoxLabel } from "../components/CaribexBatchLabelPrint";
 
 import {
   Html5Qrcode,
@@ -327,7 +328,7 @@ export default function GestionAlmacen() {
   const [packages, setPackages] = useState<Package[]>([]);
 
   const [activeStage, setActiveStage] = useState<StageId>("RECIBIDO_FLORIDA");
-  const [activeWarehouseTab, setActiveWarehouseTab] = useState<"stages" | "client360">("stages");
+  const [activeWarehouseTab, setActiveWarehouseTab] = useState<"stages" | "client360" | "labels">("stages");
   const [client360Search, setClient360Search] = useState("");
   const [client360StatusFilter, setClient360StatusFilter] = useState("ALL");
   const [client360BalanceFilter, setClient360BalanceFilter] = useState("ALL");
@@ -348,6 +349,20 @@ export default function GestionAlmacen() {
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [labelPackage, setLabelPackage] = useState<Package | null>(null);
   const [labelMode, setLabelMode] = useState<"qr-reprint" | "box">("box");
+  const [newBoxLabelCount, setNewBoxLabelCount] = useState(1);
+  const [batchNewBoxLabels, setBatchNewBoxLabels] = useState<BatchBoxLabel[] | null>(null);
+
+  const generateNewBoxLabels = () => {
+    const count = Math.min(100, Math.max(1, Math.floor(Number(newBoxLabelCount) || 1)));
+    const labels = Array.from({ length: count }, () => {
+      const values = new Uint32Array(1);
+      if (typeof window !== "undefined" && window.crypto?.getRandomValues) window.crypto.getRandomValues(values);
+      const code = String(values[0] % 100000).padStart(5, "0");
+      const boxCode = `${code}-2026-Caribex`;
+      return { tracking: boxCode, boxCode };
+    });
+    setBatchNewBoxLabels(labels);
+  };
   const [viewCheckInDetails, setViewCheckInDetails] = useState<
     | {
         height: number | null;
@@ -3519,6 +3534,14 @@ const handlePackageCreated = (pkg: Package) => {
             <Users size={16} />
             Client 360
           </button>}
+          <button
+            type="button"
+            className={"ga-workspace-tab" + (activeWarehouseTab === "labels" ? " ga-workspace-tab-active" : "")}
+            onClick={() => setActiveWarehouseTab("labels")}
+          >
+            <Barcode size={16} />
+            {isEs ? "Etiquetas Caribex" : "Caribex labels"}
+          </button>
         </div>
 
         {activeWarehouseTab === "stages" && <div className="ga-stages-row">
@@ -3542,7 +3565,17 @@ const handlePackageCreated = (pkg: Package) => {
           ))}
         </div>}
 
-        {activeWarehouseTab === "client360" ? (
+        {activeWarehouseTab === "labels" ? (
+          <section className="ga-state-card" style={{ padding: "1.5rem" }}>
+            <h2 style={{ marginTop: 0 }}>{isEs ? "Generar etiquetas para cajas nuevas" : "Generate labels for new boxes"}</h2>
+            <p style={{ color: "#64748b" }}>{isEs ? "Estas etiquetas no están vinculadas a envíos existentes y son compatibles con el escáner QR de Caribex." : "These labels are independent of existing shipments and are compatible with the Caribex QR scanner."}</p>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" }}>
+              <label htmlFor="staff-new-box-label-count">{isEs ? "Cantidad" : "Quantity"}</label>
+              <input id="staff-new-box-label-count" type="number" min={1} max={100} value={newBoxLabelCount} onChange={(event) => setNewBoxLabelCount(Math.min(100, Math.max(1, Number(event.target.value) || 1)))} className="ga-input" style={{ width: 84 }} />
+              <button type="button" className="ga-primary-button" onClick={generateNewBoxLabels}>{isEs ? "Generar etiquetas Caribex" : "Generate Caribex labels"}</button>
+            </div>
+          </section>
+        ) : activeWarehouseTab === "client360" ? (
           <section className="ga-client360">
             <div className="ga-client360-toolbar">
               <div>
@@ -4148,13 +4181,6 @@ const handlePackageCreated = (pkg: Package) => {
               </button>
               <button
                 type="button"
-                className="ga-primary-button"
-                onClick={() => { setLabelMode("box"); setLabelPackage(viewPackage as Package); }}
-              >
-                {isEs ? "Nueva caja: generar etiqueta" : "New box: generate label"}
-              </button>
-              <button
-                type="button"
                 className="ga-secondary-button"
                 onClick={handleCloseViewModal}
               >
@@ -4710,6 +4736,12 @@ const handlePackageCreated = (pkg: Package) => {
             packageType: getCategoryLabel(labelPackage.type, isEs),
             details: labelPackage.dims,
           }}
+        />
+      )}
+      {batchNewBoxLabels && (
+        <CaribexBatchLabelPrint
+          labels={batchNewBoxLabels}
+          onClose={() => setBatchNewBoxLabels(null)}
         />
       )}
     </div>
