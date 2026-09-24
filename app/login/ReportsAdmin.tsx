@@ -39,21 +39,30 @@ export default function ReportsAdmin() {
   useEffect(() => {
     let mounted = true;
     (async () => {
-      const [{ data: packages, error: packageError }, { data: links, error: linkError }, { data: customers, error: customerError }] = await Promise.all([
-        supabase.from("paquetes_registro").select("id, tracking, estado, creado_en, registro, numero_cliente_id").order("creado_en", { ascending: false }),
+      const [{ data: packages, error: packageError }, { data: links, error: linkError }, { data: customers, error: customerError }, { data: checkins, error: checkinError }] = await Promise.all([
+        supabase.from("paquetes_registro").select("id, tracking, estado, creado_en, registro, numero_cliente_id, tipo_paquete, contenido").order("creado_en", { ascending: false }),
         supabase.from("contenedor_paquetes").select("paquete_id, contenedor_id"),
         supabase.from("numero_cliente").select("id, nombre, numero_cliente"),
+        supabase.from("paquetes_checkin").select("paquete_id, alto, ancho, largo"),
       ]);
-      if (packageError || linkError || customerError) throw packageError || linkError || customerError;
+      if (packageError || linkError || customerError || checkinError) throw packageError || linkError || customerError || checkinError;
       const customerById = new Map((customers || []).map((customer: any) => [customer.id, customer]));
       const containerByPackage = new Map((links || []).map((link: any) => [link.paquete_id, link.contenedor_id]));
+      const checkinByPackage = new Map((checkins || []).map((checkin: any) => [checkin.paquete_id, checkin]));
       const mapped = (packages || []).map((pkg: any) => ({
         id: pkg.id,
         nombre: customerById.get(pkg.numero_cliente_id)?.nombre || "",
         account: customerById.get(pkg.numero_cliente_id)?.numero_cliente ?? null,
         tracking: pkg.tracking || "",
         estado: pkg.estado || null,
-        item: pkg.tipo_paquete || pkg.contenido || "—",
+        item: (() => {
+          const checkin = checkinByPackage.get(pkg.id);
+          const type = String(pkg.tipo_paquete || "").trim() || (checkin ? "Package" : "Item");
+          const dimensions = checkin && [checkin.largo, checkin.ancho, checkin.alto].some((value: number | null) => value != null)
+            ? ` ${checkin.largo || "—"}x${checkin.ancho || "—"}x${checkin.alto || "—"}`
+            : "";
+          return `${type}${dimensions}`;
+        })(),
         creado_en: pkg.creado_en || pkg.registro || null,
         numero_cliente_id: pkg.numero_cliente_id || null,
         container_id: containerByPackage.get(pkg.id) || null,
