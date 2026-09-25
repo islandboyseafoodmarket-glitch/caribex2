@@ -64,7 +64,6 @@ export default function CaribexBatchLabelPrint({ labels, onClose }: Props) {
           {labels.map((label) => (
             <div className="caribex-batch-label" key={label.boxCode}>
               <strong>Caribex</strong>
-              <small>For new boxes only</small>
               {qrCodes[label.boxCode] ? <img src={qrCodes[label.boxCode]} alt={`QR for ${label.tracking}`} /> : <div style={{ height: 240, display: "grid", placeItems: "center" }}>Generating QR…</div>}
               <div className="caribex-batch-label-code">{label.boxCode}</div>
             </div>
