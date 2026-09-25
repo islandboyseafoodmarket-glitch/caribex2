@@ -1186,7 +1186,7 @@ const App = () => {
           display: block;
           margin-top: 6px;
           color: #065f46;
-          font-size: 0.76rem;
+          font-size: 0.92rem;
           font-weight: 800;
           letter-spacing: 0.1em;
           text-transform: uppercase;
@@ -1325,12 +1325,12 @@ const App = () => {
         .admin-brand-slogan {
           display: inline-block;
           margin-top: 9px;
-          padding: 5px 11px;
+          padding: 8px 16px;
           border: 1px solid #34d399;
           border-radius: 7px;
           background: #a7f3d0;
           color: #064e3b;
-          font-size: 1.02rem;
+          font-size: 1.12rem;
           font-weight: 900;
           letter-spacing: 0.12em;
           text-transform: uppercase;

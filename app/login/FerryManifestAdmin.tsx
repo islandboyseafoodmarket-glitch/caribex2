@@ -140,7 +140,7 @@ export default function FerryManifestAdmin() {
         <Image src="/imagenes/logo-clean.png" alt="Caribex Logistics Group — Your Cargo Our Commitment" width={220} height={97} style={{ width: "220px", height: "auto", maxWidth: "100%" }} />
         <div>
           <h2 style={{ margin: 0, color: "#0f172a", fontSize: "1.25rem" }}>Ferry manifests</h2>
-          <p style={{ margin: "0.25rem 0 0", color: "#0f766e", fontSize: "0.76rem", fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase" }}>Your cargo our commitment</p>
+          <p style={{ margin: "0.25rem 0 0", color: "#0f766e", fontSize: "0.92rem", fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase" }}>Your cargo our commitment</p>
           <p style={{ margin: "0.3rem 0 0", color: "#64748b", fontSize: "0.82rem" }}>Create, manage, and share shipment manifests.</p>
         </div>
       </div>
