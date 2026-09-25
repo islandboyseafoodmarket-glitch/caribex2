@@ -8,7 +8,6 @@ import { BrowserMultiFormatReader } from "@zxing/browser";
 import { Pencil, Trash2, Unlock, LogOut, Image as ImageIcon, Check, AlertCircle, Send, DollarSign, ChevronDown, Package, AlertTriangle, QrCode, BarChart3, UserPlus, Bell, Receipt, Ship, Container, UserCog } from "lucide-react";
 import FerryManifestAdmin from "./FerryManifestAdmin";
 import Client360Admin from "./Client360Admin";
-import CaribexLabelPrint from "../../components/CaribexLabelPrint";
 import CaribexBatchLabelPrint, { BatchBoxLabel } from "../../components/CaribexBatchLabelPrint";
 import ContainersAdmin from "./ContainersAdmin";
 import ReportsAdmin from "./ReportsAdmin";
@@ -263,8 +262,6 @@ const App = () => {
   const [pedidoDetalle, setPedidoDetalle] = useState<any | null>(null);
   const [pedidoDetalleLoading, setPedidoDetalleLoading] = useState(false);
   const [pedidoDetalleError, setPedidoDetalleError] = useState<string | null>(null);
-  const [adminLabelPackage, setAdminLabelPackage] = useState<any | null>(null);
-  const [adminLabelMode, setAdminLabelMode] = useState<"qr-reprint" | "box">("box");
   const [batchNewBoxLabels, setBatchNewBoxLabels] = useState<BatchBoxLabel[] | null>(null);
   const [newBoxLabelCount, setNewBoxLabelCount] = useState(1);
 
@@ -706,23 +703,6 @@ const App = () => {
   const generarQrDesdeFormulario = () => {
     const pedido = buildPedidoFromForm();
     generarQrPedido(pedido);
-  };
-
-  const reimprimirEtiquetaDesdeFormulario = () => {
-    if (!pedidoForm.tracking.trim()) {
-      alert("This shipment needs a tracking number before printing a label.");
-      return;
-    }
-    const cliente = clientes.find((item) => item.id === pedidoForm.numero_cliente_id);
-    setAdminLabelMode("qr-reprint");
-    setAdminLabelPackage({
-      tracking: pedidoForm.tracking.trim(),
-      customerName: cliente?.nombre || null,
-      accountNumber: cliente?.numero_cliente || null,
-      carrier: pedidoForm.carrier || null,
-      packageType: pedidoForm.tipo_paquete || "Package",
-      details: pedidoForm.contenido || null,
-    });
   };
 
   const handleCheckinFormChange = (
@@ -3079,30 +3059,6 @@ const App = () => {
                     Print QR
                   </button>
                 )}
-                <button
-                  type="button"
-                  className="pa-secondary-btn"
-                  onClick={() => {
-                    setAdminLabelMode("qr-reprint");
-                    const check = Array.isArray(pedidoDetalle.paquetes_checkin) ? pedidoDetalle.paquetes_checkin[0] : null;
-                    const length = Number(check?.largo);
-                    const width = Number(check?.ancho);
-                    const height = Number(check?.alto);
-                    const boxSize = [length, width, height].every((value) => Number.isFinite(value) && value > 0)
-                      ? `${length} x ${width} x ${height} in`
-                      : null;
-                    setAdminLabelPackage({
-                      tracking: String(pedidoDetalle.tracking || ""),
-                      customerName: pedidoDetalle.numero_cliente?.nombre || pedidoDetalle.cliente_nombre || null,
-                      accountNumber: pedidoDetalle.numero_cliente?.numero_cliente || pedidoDetalle.numero_cliente_numero || null,
-                      carrier: pedidoDetalle.nombre_paqueteria || pedidoDetalle.carrier || null,
-                      packageType: pedidoDetalle.tipo_paquete || "Package",
-                      details: boxSize || pedidoDetalle.contenido || null,
-                    });
-                  }}
-                >
-                  Reprint QR (damaged label)
-                </button>
                 <button type="button" className="pa-secondary-btn" onClick={() => setIsPedidoDetalleOpen(false)}>Close</button>
               </div>
             )}
@@ -3114,14 +3070,6 @@ const App = () => {
             )}
           </div>
         </div>
-      )}
-
-      {adminLabelPackage && (
-        <CaribexLabelPrint
-          label={adminLabelPackage}
-          mode={adminLabelMode}
-          onClose={() => setAdminLabelPackage(null)}
-        />
       )}
 
       {batchNewBoxLabels && (
@@ -3494,13 +3442,6 @@ const App = () => {
                     onClick={generarQrDesdeFormulario}
                   >
                     Generar QR
-                  </button>
-                  <button
-                    type="button"
-                    className="pa-primary-btn"
-                    onClick={reimprimirEtiquetaDesdeFormulario}
-                  >
-                    Reprint shipment label
                   </button>
                 </div>
                 {pedidoQrUrl && (

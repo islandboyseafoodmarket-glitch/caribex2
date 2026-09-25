@@ -7,7 +7,6 @@ import { Mail, Menu, Phone, Send, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { InicioSection } from "./inicio";
 import AcercaSection from "./acerca";
-import SeguimientoSection from "./seguimiento";
 import FCL from "./FCL";
 import LCL from "./LCL";
 import { supabase } from "../lib/supabaseClient";
@@ -15,7 +14,6 @@ import { supabase } from "../lib/supabaseClient";
 type PageId =
   | "inicio"
   | "acerca"
-  | "seguimiento"
   | "calculadora"
   | "fcl"
   | "lcl"
@@ -287,18 +285,6 @@ export default function HomePage() {
             <li>
               <button
                 type="button"
-                onClick={() => setActivePage("seguimiento")}
-                className={
-                  "nav-link-button" +
-                  (activePage === "seguimiento" ? " nav-link-button-active" : "")
-                }
-              >
-                {t("nav.seguimiento")}
-              </button>
-            </li>
-            <li>
-              <button
-                type="button"
                 onClick={() => setActivePage("calculadora")}
                 className={
                   "nav-link-button" +
@@ -390,21 +376,6 @@ export default function HomePage() {
                 }
               >
                 {t("nav.acerca")}
-              </button>
-            </li>
-            <li>
-              <button
-                type="button"
-                onClick={() => {
-                  setActivePage("seguimiento");
-                  setIsMobileMenuOpen(false);
-                }}
-                className={
-                  "nav-link-button" +
-                  (activePage === "seguimiento" ? " nav-link-button-active" : "")
-                }
-              >
-                {t("nav.seguimiento")}
               </button>
             </li>
             <li>
@@ -511,13 +482,6 @@ export default function HomePage() {
                 >
                   {t("home.primaryCta")}
                 </button>
-                <button
-                  type="button"
-                  className="hero-secondary-btn"
-                  onClick={() => setActivePage("seguimiento")}
-                >
-                  {t("home.secondaryCta")}
-                </button>
               </div>
             </div>
           </section>
@@ -539,9 +503,6 @@ export default function HomePage() {
 
       {/* ACERCA */}
       {activePage === "acerca" && <AcercaSection />}
-
-      {/* SEGUIMIENTO */}
-      {activePage === "seguimiento" && <SeguimientoSection />}
 
       {/* FCL */}
       {activePage === "fcl" && <FCL />}
@@ -792,15 +753,6 @@ export default function HomePage() {
                     onClick={() => setActivePage("inicio")}
                   >
                     {t("footer.services")}
-                  </button>
-                </li>
-                <li>
-                  <button
-                    type="button"
-                    className="footer-link footer-link-button"
-                    onClick={() => setActivePage("seguimiento")}
-                  >
-                    {t("footer.tracking")}
                   </button>
                 </li>
                 <li>
