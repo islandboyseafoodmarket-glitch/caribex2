@@ -5,7 +5,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { supabase } from "../../lib/supabaseClient";
 import { BrowserMultiFormatReader } from "@zxing/browser";
-import { Pencil, Trash2, Unlock, LogOut, Image as ImageIcon, Check, AlertCircle, Send, DollarSign, ChevronDown } from "lucide-react";
+import { Pencil, Trash2, Unlock, LogOut, Image as ImageIcon, Check, AlertCircle, Send, DollarSign, ChevronDown, Package, AlertTriangle, QrCode, BarChart3, UserPlus, Bell, Receipt, Ship, Container, UserCog } from "lucide-react";
 import FerryManifestAdmin from "./FerryManifestAdmin";
 import Client360Admin from "./Client360Admin";
 import CaribexLabelPrint from "../../components/CaribexLabelPrint";
@@ -1204,11 +1204,11 @@ const App = () => {
 
         .admin-sidebar-slogan {
           display: block;
-          margin-top: 2px;
-          color: #0f766e;
-          font-size: 0.62rem;
+          margin-top: 6px;
+          color: #065f46;
+          font-size: 0.76rem;
           font-weight: 800;
-          letter-spacing: 0.08em;
+          letter-spacing: 0.1em;
           text-transform: uppercase;
         }
 
@@ -1343,12 +1343,16 @@ const App = () => {
         }
 
         .admin-brand-slogan {
-          display: block;
-          margin-top: 4px;
-          color: #0f766e;
-          font-size: 0.7rem;
-          font-weight: 800;
-          letter-spacing: 0.08em;
+          display: inline-block;
+          margin-top: 9px;
+          padding: 5px 11px;
+          border: 1px solid #34d399;
+          border-radius: 7px;
+          background: #a7f3d0;
+          color: #064e3b;
+          font-size: 1.02rem;
+          font-weight: 900;
+          letter-spacing: 0.12em;
           text-transform: uppercase;
         }
 
@@ -1740,33 +1744,33 @@ const App = () => {
         <div className="admin-sidebar-group">
           <button type="button" className="admin-sidebar-group-title" onClick={() => toggleNavGroup('operations')}>Operations <ChevronDown size={14} className={expandedNavGroups.operations ? 'nav-chevron is-open' : 'nav-chevron'} /></button>
           {expandedNavGroups.operations && <div className="admin-sidebar-items">
-            <button className={`admin-sidebar-item ${activeTab === 'pedidos' ? 'active' : ''}`} onClick={() => setActiveTab('pedidos')}><IconBriefcase /> Shipments <span className="count-badge">{pedidos.length}</span></button>
+            <button className={`admin-sidebar-item ${activeTab === 'pedidos' ? 'active' : ''}`} onClick={() => setActiveTab('pedidos')}><Package /> Shipments <span className="count-badge">{pedidos.length}</span></button>
             <button className={`admin-sidebar-item ${activeTab === 'client360' ? 'active' : ''}`} onClick={() => setActiveTab('client360')}><IconUsers /> Client 360</button>
-            <button className={`admin-sidebar-item ${activeTab === 'incidencias' ? 'active' : ''}`} onClick={() => setActiveTab('incidencias')}><IconBriefcase /> Issues <span className="count-badge">{pedidosConIncidencia.length}</span></button>
-            <button className={`admin-sidebar-item ${activeTab === 'labels' ? 'active' : ''}`} onClick={() => setActiveTab('labels')}><IconBriefcase /> Caribex labels</button>
-            <button className={`admin-sidebar-item ${activeTab === 'reports' ? 'active' : ''}`} onClick={() => setActiveTab('reports')}><IconBriefcase /> Reports</button>
+            <button className={`admin-sidebar-item ${activeTab === 'incidencias' ? 'active' : ''}`} onClick={() => setActiveTab('incidencias')}><AlertTriangle /> Issues <span className="count-badge">{pedidosConIncidencia.length}</span></button>
+            <button className={`admin-sidebar-item ${activeTab === 'labels' ? 'active' : ''}`} onClick={() => setActiveTab('labels')}><QrCode /> Caribex labels</button>
+            <button className={`admin-sidebar-item ${activeTab === 'reports' ? 'active' : ''}`} onClick={() => setActiveTab('reports')}><BarChart3 /> Reports</button>
           </div>}
         </div>
         <div className="admin-sidebar-group">
           <button type="button" className="admin-sidebar-group-title" onClick={() => toggleNavGroup('customers')}>Customers <ChevronDown size={14} className={expandedNavGroups.customers ? 'nav-chevron is-open' : 'nav-chevron'} /></button>
           {expandedNavGroups.customers && <div className="admin-sidebar-items">
-            <button className={`admin-sidebar-item admin-sidebar-item--customers ${activeTab === 'clientes' ? 'active' : ''}`} onClick={() => setActiveTab('clientes')}><IconBriefcase /> Customer # <span className="count-badge">{clientes.length}</span></button>
-            <button className={`admin-sidebar-item admin-sidebar-item--customers ${activeTab === 'leads' ? 'active' : ''}`} onClick={() => setActiveTab('leads')}><IconBriefcase /> Leads <span className="count-badge">{leads.filter((lead) => lead.status === 'NEW').length}</span></button>
-            <button className={`admin-sidebar-item admin-sidebar-item--customers ${activeTab === 'portal' ? 'active' : ''}`} onClick={() => setActiveTab('portal')}><IconBriefcase /> Portal alerts <span className="count-badge">{portalEvents.filter((event) => !event.success).length}</span></button>
+            <button className={`admin-sidebar-item admin-sidebar-item--customers ${activeTab === 'clientes' ? 'active' : ''}`} onClick={() => setActiveTab('clientes')}><UserPlus /> Customer # <span className="count-badge">{clientes.length}</span></button>
+            <button className={`admin-sidebar-item admin-sidebar-item--customers ${activeTab === 'leads' ? 'active' : ''}`} onClick={() => setActiveTab('leads')}><UserPlus /> Leads <span className="count-badge">{leads.filter((lead) => lead.status === 'NEW').length}</span></button>
+            <button className={`admin-sidebar-item admin-sidebar-item--customers ${activeTab === 'portal' ? 'active' : ''}`} onClick={() => setActiveTab('portal')}><Bell /> Portal alerts <span className="count-badge">{portalEvents.filter((event) => !event.success).length}</span></button>
           </div>}
         </div>
         <div className="admin-sidebar-group">
           <button type="button" className="admin-sidebar-group-title" onClick={() => toggleNavGroup('billing')}>Billing & logistics <ChevronDown size={14} className={expandedNavGroups.billing ? 'nav-chevron is-open' : 'nav-chevron'} /></button>
           {expandedNavGroups.billing && <div className="admin-sidebar-items">
-            <button className={`admin-sidebar-item admin-sidebar-item--billing ${activeTab === 'facturas' ? 'active' : ''}`} onClick={() => setActiveTab('facturas')}><IconBriefcase /> Invoices <span className="count-badge">{facturasCount}</span></button>
-            <button className={`admin-sidebar-item admin-sidebar-item--billing ${activeTab === 'ferry' ? 'active' : ''}`} onClick={() => setActiveTab('ferry')}><IconBriefcase /> Ferry manifests</button>
-            <button className={`admin-sidebar-item admin-sidebar-item--billing ${activeTab === 'containers' ? 'active' : ''}`} onClick={() => setActiveTab('containers')}><IconBriefcase /> Containers</button>
+            <button className={`admin-sidebar-item admin-sidebar-item--billing ${activeTab === 'facturas' ? 'active' : ''}`} onClick={() => setActiveTab('facturas')}><Receipt /> Invoices <span className="count-badge">{facturasCount}</span></button>
+            <button className={`admin-sidebar-item admin-sidebar-item--billing ${activeTab === 'ferry' ? 'active' : ''}`} onClick={() => setActiveTab('ferry')}><Ship /> Ferry manifests</button>
+            <button className={`admin-sidebar-item admin-sidebar-item--billing ${activeTab === 'containers' ? 'active' : ''}`} onClick={() => setActiveTab('containers')}><Container /> Containers</button>
           </div>}
         </div>
         <div className="admin-sidebar-group">
           <button type="button" className="admin-sidebar-group-title" onClick={() => toggleNavGroup('administration')}>Administration <ChevronDown size={14} className={expandedNavGroups.administration ? 'nav-chevron is-open' : 'nav-chevron'} /></button>
           {expandedNavGroups.administration && <div className="admin-sidebar-items">
-            <button className={`admin-sidebar-item admin-sidebar-item--admin ${activeTab === 'personal' ? 'active' : ''}`} onClick={() => setActiveTab('personal')}><IconUsers /> Staff <span className="count-badge">{personal.length}</span></button>
+            <button className={`admin-sidebar-item admin-sidebar-item--admin ${activeTab === 'personal' ? 'active' : ''}`} onClick={() => setActiveTab('personal')}><UserCog /> Staff <span className="count-badge">{personal.length}</span></button>
           </div>}
         </div>
       </aside>
