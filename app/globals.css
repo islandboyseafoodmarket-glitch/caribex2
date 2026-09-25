@@ -1343,11 +1343,12 @@ main {
 
 .hero-badge {
   background: var(--accent-green);
-  padding: 5px 15px;
+  padding: 8px 20px;
   border-radius: 50px;
-  font-size: 0.8rem;
+  font-size: 1.05rem;
   font-weight: 700;
   text-transform: uppercase;
+  letter-spacing: 0.03em;
   margin-bottom: 20px;
   display: inline-block;
 }
