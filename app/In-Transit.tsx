@@ -31,6 +31,7 @@ type ContainerShipment = {
   type: string | null;
   estado: string | null;
   numeroCliente: number | null;
+  customerName: string | null;
   scanTime?: string | null;
   hasNote?: boolean;
   consolidationCount?: number | null;
@@ -57,6 +58,7 @@ const InTransitStage: React.FC<InTransitProps> = ({
   const [detailDebugMessage, setDetailDebugMessage] = useState<string | null>(
     null,
   );
+  const [shipmentSearch, setShipmentSearch] = useState("");
 
   const handleDeleteContainer = async (cont: ContainerRow) => {
     if (cont.shipmentCount > 0) {
@@ -202,7 +204,7 @@ const InTransitStage: React.FC<InTransitProps> = ({
     const { data: pkgs, error: pkgError } = await supabase
       .from("paquetes_registro")
       .select(
-        "id, tracking, nombre_paqueteria, tipo_paquete, estado, numero_cliente_id, numero_cliente (numero_cliente)",
+        "id, tracking, nombre_paqueteria, tipo_paquete, estado, numero_cliente_id, numero_cliente (numero_cliente, nombre)",
       )
       .in("id", paqueteIds as any[]);
 
@@ -234,6 +236,7 @@ const InTransitStage: React.FC<InTransitProps> = ({
       type: (p.tipo_paquete as string) ?? null,
       estado: (p.estado as string) ?? null,
       numeroCliente: p.numero_cliente?.numero_cliente ?? null,
+      customerName: p.numero_cliente?.nombre ?? null,
     }));
 
     // Enriquecer con datos de nota y consolidación desde el array packages
@@ -263,6 +266,18 @@ const InTransitStage: React.FC<InTransitProps> = ({
     enriched.sort((a, b) => a.tracking.localeCompare(b.tracking));
     setContainerShipments(enriched);
   };
+
+  const filteredContainerShipments = containerShipments.filter((shipment) => {
+    const term = shipmentSearch.trim().toLowerCase();
+    if (!term) return true;
+    return [
+      shipment.tracking,
+      shipment.customerName,
+      shipment.numeroCliente,
+      shipment.carrier,
+      shipment.type,
+    ].some((value) => String(value ?? "").toLowerCase().includes(term));
+  });
 
   return (
     <>
@@ -294,6 +309,16 @@ const InTransitStage: React.FC<InTransitProps> = ({
 
       {hasContainers ? (
         <div className="ga-table-card">
+          <div style={{ padding: "0.75rem", borderBottom: "1px solid #e5e7eb" }}>
+            <input
+              type="search"
+              value={shipmentSearch}
+              onChange={(event) => setShipmentSearch(event.target.value)}
+              placeholder={isEs ? "Buscar por cliente, cuenta o tracking..." : "Search by customer, account, or tracking..."}
+              aria-label={isEs ? "Buscar envíos en tránsito" : "Search in-transit shipments"}
+              style={{ width: "100%", maxWidth: 460, minHeight: 40, padding: "0.6rem 0.75rem", border: "1px solid #cbd5e1", borderRadius: "0.65rem" }}
+            />
+          </div>
           <table className="ga-table">
             <thead>
               <tr>
@@ -365,7 +390,7 @@ const InTransitStage: React.FC<InTransitProps> = ({
 
                   {expandedContainerId === c.id && (
                     <tr className="ga-table-row-detail">
-                      <td colSpan={4} style={{ backgroundColor: "#f9fafb" }}>
+                      <td colSpan={5} style={{ backgroundColor: "#f9fafb" }}>
                         {containerShipments.length === 0 ? (
                           <>
                             <p style={{ margin: "0.5rem 0" }}>
@@ -390,10 +415,14 @@ const InTransitStage: React.FC<InTransitProps> = ({
                             className="ga-table-card"
                             style={{ boxShadow: "none", marginTop: "0.5rem" }}
                           >
+                            <div style={{ padding: "0.5rem 0.75rem", color: "#64748b", fontSize: "0.8rem" }}>
+                              {filteredContainerShipments.length} {isEs ? "envío(s) mostrado(s)" : "shipment(s) shown"}
+                            </div>
                             <table className="ga-table">
                               <thead>
                                 <tr>
-                                  <th>{isEs ? "N.º cliente" : "Client #"}</th>
+                                  <th>{isEs ? "Cliente" : "Customer"}</th>
+                                  <th>{isEs ? "N.º cuenta" : "Account #"}</th>
                                   <th>Tracking</th>
                                   <th>{isEs ? "Paquetería" : "Carrier"}</th>
                                   <th>{isEs ? "Tipo" : "Type"}</th>
@@ -405,8 +434,9 @@ const InTransitStage: React.FC<InTransitProps> = ({
                                 </tr>
                               </thead>
                               <tbody>
-                                {containerShipments.map((s) => (
+                                {filteredContainerShipments.map((s) => (
                                   <tr key={s.id} className="ga-table-row">
+                                    <td className="ga-table-text">{s.customerName || "-"}</td>
                                     <td className="ga-table-text">
                                       {s.numeroCliente != null ? s.numeroCliente : "-"}
                                     </td>

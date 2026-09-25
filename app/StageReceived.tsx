@@ -210,8 +210,8 @@ const StageReceived: React.FC<StageReceivedProps> = ({
             setCarrier("");
             alert(
               isEs
-                ? "Este código USPS no es el número de tracking válido. Escanee el código de barras principal que contiene el número USPS de 20–22 dígitos."
-                : "This USPS barcode is not the valid tracking number. Scan the main barcode containing the 20–22 digit USPS tracking number.",
+                ? "Este código no es un tracking válido. Escanee el código de barras principal del envío."
+                : "This barcode was not recognized as a valid tracking number. Scan the shipment's main barcode.",
             );
           }
 
@@ -223,6 +223,7 @@ const StageReceived: React.FC<StageReceivedProps> = ({
             amazon: "Amazon logistics",
             shein: "SheIn",
             speedx: "SpeedX",
+            swiftx: "SwiftX",
             yanwen: "Yanwen Express",
             gofo: "GOFO Express",
           };

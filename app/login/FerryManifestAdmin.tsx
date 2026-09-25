@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Archive, Clipboard, Copy, ExternalLink, Plus, RefreshCw, Ship } from "lucide-react";
+import Image from "next/image";
 import { supabase } from "../../lib/supabaseClient";
 
 type Container = { id: string; codigo: string | null };
@@ -135,6 +136,14 @@ export default function FerryManifestAdmin() {
 
   return (
     <div style={{ width: "100%" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "1rem", flexWrap: "wrap", marginBottom: "1.25rem", padding: "0.75rem 1rem", borderRadius: "14px", background: "#ffffff", border: "1px solid #dbeafe", boxShadow: "0 6px 16px rgba(15, 23, 42, 0.06)" }}>
+        <Image src="/imagenes/logo-clean.png" alt="Caribex Logistics Group — Your Cargo Our Commitment" width={220} height={97} style={{ width: "220px", height: "auto", maxWidth: "100%" }} />
+        <div>
+          <h2 style={{ margin: 0, color: "#0f172a", fontSize: "1.25rem" }}>Ferry manifests</h2>
+          <p style={{ margin: "0.25rem 0 0", color: "#0f766e", fontSize: "0.76rem", fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase" }}>Your cargo our commitment</p>
+          <p style={{ margin: "0.3rem 0 0", color: "#64748b", fontSize: "0.82rem" }}>Create, manage, and share shipment manifests.</p>
+        </div>
+      </div>
       <div style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem", alignItems: "flex-end", marginBottom: "1.25rem" }}>
         <label style={{ flex: "1 1 280px", color: "#475569", fontSize: "0.82rem", fontWeight: 600 }}>
           Create manifest from container

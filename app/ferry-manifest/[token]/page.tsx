@@ -6,7 +6,7 @@ import { CheckCircle2, ClipboardList, Download, Loader2, Printer, Send, Ship, XC
 
 type Entry = {
   id: string;
-  puerto: "la_ceiba" | "utila";
+  puerto: "la_ceiba" | "utila" | "guanaja";
   numero_cuenta: string;
   nombre_cliente: string;
   etiqueta_cantidad: string;
@@ -55,6 +55,7 @@ export default function FerryManifestPage({ params }: { params: { token: string 
   const grouped = useMemo(() => ({
     la_ceiba: data?.entries.filter((entry) => entry.puerto === "la_ceiba") || [],
     utila: data?.entries.filter((entry) => entry.puerto === "utila") || [],
+    guanaja: data?.entries.filter((entry) => entry.puerto === "guanaja") || [],
   }), [data]);
 
   const updateDraft = (id: string, field: keyof Draft, value: string) => {
@@ -98,7 +99,7 @@ export default function FerryManifestPage({ params }: { params: { token: string 
   const exportCsv = () => {
     if (!data) return;
     const rows = [["PORT", "NO.", "ACCOUNT", "CUSTOMER NAME", "QUANTITY", "BOOKING #", "RECEIVER NAME"], ...data.entries.map((entry, index) => [
-      entry.puerto === "la_ceiba" ? "La Ceiba" : "Utila", String(index + 1), entry.numero_cuenta, entry.nombre_cliente,
+      entry.puerto === "la_ceiba" ? "La Ceiba" : entry.puerto === "guanaja" ? "Guanaja" : "Utila", String(index + 1), entry.numero_cuenta, entry.nombre_cliente,
       entry.etiqueta_cantidad, entry.numero_reserva || "", entry.nombre_receptor || "",
     ])];
     const csv = rows.map((row) => row.map((value) => `"${String(value).replace(/"/g, '""')}"`).join(",")).join("\n");
@@ -116,7 +117,7 @@ export default function FerryManifestPage({ params }: { params: { token: string 
 
   const readOnly = data.manifest.estado !== "active";
   const submittedCount = data.entries.filter((entry) => Boolean(entry.enviado_en)).length;
-  const renderSection = (port: "la_ceiba" | "utila", title: string) => {
+  const renderSection = (port: "la_ceiba" | "utila" | "guanaja", title: string) => {
     const entries = grouped[port];
     if (!entries.length) return null;
     return <section className="ferry-section" key={port}>
@@ -126,9 +127,9 @@ export default function FerryManifestPage({ params }: { params: { token: string 
           const locked = Boolean(entry.enviado_en) || readOnly;
           const draft = drafts[entry.id] || { booking: "", receiver: "" };
           return <tr className={locked ? "ferry-row-locked" : ""} key={entry.id}>
-            <td>{index + 1}</td><td className="ferry-acct">{entry.numero_cuenta}</td><td><strong>{entry.nombre_cliente}</strong></td><td>{entry.etiqueta_cantidad}</td>
+            <td>{index + 1}</td><td className={`ferry-acct ferry-acct-${entry.puerto}`}>{entry.numero_cuenta}</td><td><strong>{entry.nombre_cliente}</strong></td><td>{entry.etiqueta_cantidad}</td>
             <td>{locked ? <span className="ferry-booking-saved">{entry.numero_reserva || "—"} <CheckCircle2 size={15} /></span> : <input value={draft.booking} maxLength={100} placeholder="Booking #" onChange={(event) => updateDraft(entry.id, "booking", event.target.value)} />}</td>
-            <td>{locked ? <span>{entry.nombre_receptor || "—"}</span> : <input value={draft.receiver} maxLength={255} placeholder="Customer picking up" onChange={(event) => updateDraft(entry.id, "receiver", event.target.value)} />}</td>
+            <td>{locked ? <span>{entry.nombre_receptor || "—"}</span> : <input value={draft.receiver} maxLength={255} placeholder="Customer picking up" onChange={(event) => updateDraft(entry.id, "receiver", event.target.value)} />}<span className="ferry-print-signature-line" aria-hidden="true" /></td>
           </tr>;
         })}
       </tbody></table></div>
@@ -142,8 +143,9 @@ export default function FerryManifestPage({ params }: { params: { token: string 
     {error && <div className="ferry-error"><XCircle size={18} />{error}</div>}
     {notice && <div className="ferry-notice"><CheckCircle2 size={18} />{notice}</div>}
     <form onSubmit={submitAll}>
-      {renderSection("la_ceiba", "La Ceiba")}
-      {renderSection("utila", "Utila")}
+      {renderSection("la_ceiba", "LA CEIBA")}
+      {renderSection("utila", "UTILA")}
+      {renderSection("guanaja", "GUANAJA")}
       {!readOnly && <div className="ferry-actions"><p>Submitted rows turn grey and lock automatically. Blank rows can be completed later using this same link.</p><button type="submit" className="ferry-submit-all" disabled={submitting}>{submitting ? <Loader2 className="ferry-spin" size={18} /> : <Send size={18} />} {submitting ? "Saving…" : "Submit to Caribex"}</button></div>}
     </form>
     <footer className="ferry-footer">Caribex Logistics Group · The submitted list is visible to anyone with this manifest link.</footer>

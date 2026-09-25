@@ -1,4 +1,4 @@
-export type CarrierType = "fedex" | "ups" | "dhl" | "usps" | "amazon" | "shein" | "speedx" | "yanwen" | "gofo" | "unknown";
+export type CarrierType = "fedex" | "ups" | "dhl" | "usps" | "amazon" | "shein" | "speedx" | "swiftx" | "yanwen" | "gofo" | "unknown";
 
 export interface CarrierInfo {
   carrier: CarrierType;
@@ -77,6 +77,12 @@ export function detectCarrier(barcode: string): CarrierInfo {
     return { carrier: "usps", trackingNumber: cleanBarcode, confidence: 92 };
   }
 
+  // UPS also uses 24-digit numeric package identifiers on some labels.
+  // This must run before the generic numeric FedEx fallback.
+  if (/^\d{24}$/.test(cleanBarcode)) {
+    return { carrier: "ups", trackingNumber: cleanBarcode, confidence: 92 };
+  }
+
   // FedEx: the shipping label can encode a longer carrier barcode, while the
   // customer-facing tracking number is the final 12 digits (for example,
   // 8767 4172 2731 -> 876741722731).
@@ -108,6 +114,12 @@ export function detectCarrier(barcode: string): CarrierInfo {
     return { carrier: "shein", trackingNumber: cleanBarcode, confidence: 90 };
   }
 
+  // SwiftX labels use an SWX-prefixed alphanumeric tracking number.
+  const swiftxMatch = cleanBarcode.match(/SWX[A-Z0-9]{10,}/);
+  if (swiftxMatch) {
+    return { carrier: "swiftx", trackingNumber: swiftxMatch[0], confidence: 96 };
+  }
+
   // SpeedX labels use an SPX-prefixed alphanumeric tracking number.
   const speedxMatch = cleanBarcode.match(/SPX[A-Z0-9]{10,}/);
   if (speedxMatch) {
@@ -132,6 +144,7 @@ export function detectCarrier(barcode: string): CarrierInfo {
 /** Validate a tracking number against the selected carrier's known format. */
 export function validateTrackingNumber(carrier: CarrierType, trackingNumber: string): boolean {
   const value = trackingNumber.trim().toUpperCase().replace(/[\s-]/g, "");
+  if (carrier === "ups" && /^\d{24}$/.test(value)) return true;
   if (carrier === "ups") return isValidUpsCheckDigit(value);
 
   const patterns: Record<CarrierType, RegExp> = {
@@ -142,6 +155,7 @@ export function validateTrackingNumber(carrier: CarrierType, trackingNumber: str
     amazon: /^(?:TBA\d{10,12}|[A-Z0-9]*AMAZON[A-Z0-9]*)$/,
     shein: /^(?:SHEIN|SHIN)[A-Z0-9]{6,}$/,
     speedx: /^SPX[A-Z0-9]{10,}$/,
+    swiftx: /^SWX[A-Z0-9]{10,}$/,
     yanwen: /^YW[A-Z0-9]{10,}$/,
     gofo: /^GFUS[A-Z0-9]{10,}$/,
     unknown: /^.+$/,
@@ -153,6 +167,7 @@ export function validateTrackingNumber(carrier: CarrierType, trackingNumber: str
 export const CARRIER_LABELS: Record<Exclude<CarrierType, "unknown">, string> = {
   amazon: "Amazon logistics",
   speedx: "SpeedX",
+  swiftx: "SwiftX",
   yanwen: "Yanwen Express",
   gofo: "GOFO Express",
   ups: "UPS",

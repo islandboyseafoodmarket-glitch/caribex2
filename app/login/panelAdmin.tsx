@@ -1149,7 +1149,7 @@ const App = () => {
     <div className="dashboard-root">
       <style suppressHydrationWarning>{`
         :root {
-          --bg-main: #f4f7fa;
+          --bg-main: #8fc5e6;
           --primary-blue: #2563eb;
           --success-green: #166534;
           --success-bg: #dcfce7;
@@ -1169,9 +1169,151 @@ const App = () => {
         }
 
         .dashboard-root {
-          padding: 32px clamp(18px, 4vw, 56px) 56px;
+          min-height: 100vh;
+          padding: 32px clamp(18px, 4vw, 56px) 56px 310px;
           max-width: 1480px;
           margin: 0 auto;
+        }
+
+        .admin-sidebar {
+          position: fixed;
+          inset: 0 auto 0 0;
+          z-index: 20;
+          width: 264px;
+          padding: 24px 16px;
+          overflow-y: auto;
+          background: #ffffff;
+          border-right: 1px solid #e2e8f0;
+          box-shadow: 8px 0 24px rgba(15, 23, 42, 0.06);
+        }
+
+        .admin-sidebar-brand {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 0 8px 22px;
+          margin-bottom: 18px;
+          border-bottom: 1px solid #eef2f6;
+        }
+
+        .admin-sidebar-brand img {
+          width: 218px;
+          height: 96px;
+          object-fit: contain;
+        }
+
+        .admin-sidebar-slogan {
+          display: block;
+          margin-top: 2px;
+          color: #0f766e;
+          font-size: 0.62rem;
+          font-weight: 800;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+        }
+
+        .admin-sidebar-brand strong {
+          display: block;
+          color: #0f172a;
+          font-size: 0.92rem;
+          line-height: 1.15;
+        }
+
+        .admin-sidebar-brand span {
+          display: block;
+          margin-top: 3px;
+          color: #64748b;
+          font-size: 0.7rem;
+        }
+
+        .admin-sidebar-group {
+          margin-bottom: 18px;
+        }
+
+        .admin-sidebar-group-title {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          width: 100%;
+          padding: 0 8px 7px;
+          border: 0;
+          background: transparent;
+          color: #64748b;
+          font-size: 0.64rem;
+          font-weight: 800;
+          letter-spacing: 0.1em;
+          text-align: left;
+          text-transform: uppercase;
+          cursor: pointer;
+        }
+
+        .admin-sidebar-items {
+          display: grid;
+          gap: 4px;
+        }
+
+        .admin-sidebar-item {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          width: 100%;
+          min-height: 42px;
+          padding: 9px 11px;
+          border: 1px solid transparent;
+          border-radius: 10px;
+          background: transparent;
+          color: #475569;
+          font-size: 0.84rem;
+          font-weight: 600;
+          text-align: left;
+          cursor: pointer;
+          transition: background 160ms ease, color 160ms ease, border-color 160ms ease;
+        }
+
+        .admin-sidebar-item:hover {
+          background: #f8fafc;
+          color: #0f172a;
+        }
+
+        .admin-sidebar-item.active {
+          background: #eff6ff;
+          border-color: #bfdbfe;
+          color: #1d4ed8;
+          box-shadow: 0 4px 12px rgba(37, 99, 235, 0.12);
+        }
+
+        .admin-sidebar-item--customers.active { background: #f5f3ff; border-color: #ddd6fe; color: #6d28d9; }
+        .admin-sidebar-item--billing.active { background: #fffbeb; border-color: #fde68a; color: #92400e; }
+        .admin-sidebar-item--admin.active { background: #fdf2f8; border-color: #fbcfe8; color: #9d174d; }
+
+        .admin-sidebar-item .count-badge {
+          margin-left: auto;
+          font-size: 0.72rem;
+        }
+
+        @media (max-width: 800px) {
+          .dashboard-root {
+            padding: 18px 14px 40px;
+          }
+
+          .admin-sidebar {
+            position: static;
+            width: auto;
+            margin: -18px -14px 18px;
+            padding: 16px 14px;
+            border-right: 0;
+            border-bottom: 1px solid #e2e8f0;
+            box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
+          }
+
+          .admin-sidebar-brand {
+            padding-bottom: 14px;
+            margin-bottom: 14px;
+          }
+
+          .admin-sidebar-group {
+            margin-bottom: 10px;
+          }
         }
 
         .admin-brand {
@@ -1181,8 +1323,8 @@ const App = () => {
         }
 
         .admin-brand-logo {
-          width: 58px;
-          height: 58px;
+          width: 156px;
+          height: 70px;
           display: flex;
           align-items: center;
           justify-content: center;
@@ -1195,9 +1337,19 @@ const App = () => {
         }
 
         .admin-brand-logo img {
-          width: 48px;
-          height: 48px;
+          width: 148px;
+          height: 65px;
           object-fit: contain;
+        }
+
+        .admin-brand-slogan {
+          display: block;
+          margin-top: 4px;
+          color: #0f766e;
+          font-size: 0.7rem;
+          font-weight: 800;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
         }
 
         /* Header Style */
@@ -1542,11 +1694,12 @@ const App = () => {
       <header className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1.5rem' }}>
         <div className="admin-brand">
           <div className="admin-brand-logo">
-            <Image src="/imagenes/logo.png" alt="Caribex Logistics Group" width={58} height={58} />
+            <Image src="/imagenes/logo-clean.png" alt="Caribex Logistics Group — Your Cargo Our Commitment" width={148} height={65} />
           </div>
           <div>
           <h1>Warehouse management</h1>
           <p>Track and manage shipments across all stages</p>
+          <span className="admin-brand-slogan">Your cargo our commitment</span>
           </div>
         </div>
 
@@ -1575,41 +1728,48 @@ const App = () => {
         </button>
       </header>
 
-      {/* Grouped admin navigation */}
-      <div className="tabs-container">
-        <div className="admin-nav-group">
-          <button type="button" className="admin-nav-section-toggle" onClick={() => toggleNavGroup('operations')}><span className="admin-nav-label">Operations</span><ChevronDown size={15} className={expandedNavGroups.operations ? 'nav-chevron is-open' : 'nav-chevron'} /></button>
-          {expandedNavGroups.operations && <div className="admin-nav-buttons">
-            <button className={`tab-pill tab-pill--operations ${activeTab === 'pedidos' ? 'active' : ''}`} onClick={() => setActiveTab('pedidos')}><IconBriefcase /> Shipments <span className="count-badge">{pedidos.length}</span></button>
-            <button className={`tab-pill tab-pill--operations ${activeTab === 'client360' ? 'active' : ''}`} onClick={() => setActiveTab('client360')}><IconUsers /> Client 360</button>
-            <button className={`tab-pill tab-pill--operations ${activeTab === 'incidencias' ? 'active' : ''}`} onClick={() => setActiveTab('incidencias')}><IconBriefcase /> Issues <span className="count-badge">{pedidosConIncidencia.length}</span></button>
-            <button className={`tab-pill tab-pill--operations ${activeTab === 'labels' ? 'active' : ''}`} onClick={() => setActiveTab('labels')}><IconBriefcase /> Caribex labels</button>
-            <button className={`tab-pill tab-pill--operations ${activeTab === 'reports' ? 'active' : ''}`} onClick={() => setActiveTab('reports')}><IconBriefcase /> Reports</button>
+      {/* Sidebar navigation: all existing tabs and counters are preserved. */}
+      <aside className="admin-sidebar" aria-label="Admin navigation">
+        <div className="admin-sidebar-brand">
+          <div>
+            <Image src="/imagenes/logo-clean.png" alt="Caribex Logistics Group — Your Cargo Our Commitment" width={218} height={96} />
+            <span className="admin-sidebar-slogan">Your cargo our commitment</span>
+            <strong>Caribex Admin</strong><span>Warehouse management</span>
+          </div>
+        </div>
+        <div className="admin-sidebar-group">
+          <button type="button" className="admin-sidebar-group-title" onClick={() => toggleNavGroup('operations')}>Operations <ChevronDown size={14} className={expandedNavGroups.operations ? 'nav-chevron is-open' : 'nav-chevron'} /></button>
+          {expandedNavGroups.operations && <div className="admin-sidebar-items">
+            <button className={`admin-sidebar-item ${activeTab === 'pedidos' ? 'active' : ''}`} onClick={() => setActiveTab('pedidos')}><IconBriefcase /> Shipments <span className="count-badge">{pedidos.length}</span></button>
+            <button className={`admin-sidebar-item ${activeTab === 'client360' ? 'active' : ''}`} onClick={() => setActiveTab('client360')}><IconUsers /> Client 360</button>
+            <button className={`admin-sidebar-item ${activeTab === 'incidencias' ? 'active' : ''}`} onClick={() => setActiveTab('incidencias')}><IconBriefcase /> Issues <span className="count-badge">{pedidosConIncidencia.length}</span></button>
+            <button className={`admin-sidebar-item ${activeTab === 'labels' ? 'active' : ''}`} onClick={() => setActiveTab('labels')}><IconBriefcase /> Caribex labels</button>
+            <button className={`admin-sidebar-item ${activeTab === 'reports' ? 'active' : ''}`} onClick={() => setActiveTab('reports')}><IconBriefcase /> Reports</button>
           </div>}
         </div>
-        <div className="admin-nav-group">
-          <button type="button" className="admin-nav-section-toggle" onClick={() => toggleNavGroup('customers')}><span className="admin-nav-label">Customers</span><ChevronDown size={15} className={expandedNavGroups.customers ? 'nav-chevron is-open' : 'nav-chevron'} /></button>
-          {expandedNavGroups.customers && <div className="admin-nav-buttons">
-            <button className={`tab-pill tab-pill--customers ${activeTab === 'clientes' ? 'active' : ''}`} onClick={() => setActiveTab('clientes')}><IconBriefcase /> Customer # <span className="count-badge">{clientes.length}</span></button>
-            <button className={`tab-pill tab-pill--customers ${activeTab === 'leads' ? 'active' : ''}`} onClick={() => setActiveTab('leads')}><IconBriefcase /> Leads <span className="count-badge">{leads.filter((lead) => lead.status === 'NEW').length}</span></button>
-            <button className={`tab-pill tab-pill--customers ${activeTab === 'portal' ? 'active' : ''}`} onClick={() => setActiveTab('portal')}><IconBriefcase /> Portal alerts <span className="count-badge">{portalEvents.filter((event) => !event.success).length}</span></button>
+        <div className="admin-sidebar-group">
+          <button type="button" className="admin-sidebar-group-title" onClick={() => toggleNavGroup('customers')}>Customers <ChevronDown size={14} className={expandedNavGroups.customers ? 'nav-chevron is-open' : 'nav-chevron'} /></button>
+          {expandedNavGroups.customers && <div className="admin-sidebar-items">
+            <button className={`admin-sidebar-item admin-sidebar-item--customers ${activeTab === 'clientes' ? 'active' : ''}`} onClick={() => setActiveTab('clientes')}><IconBriefcase /> Customer # <span className="count-badge">{clientes.length}</span></button>
+            <button className={`admin-sidebar-item admin-sidebar-item--customers ${activeTab === 'leads' ? 'active' : ''}`} onClick={() => setActiveTab('leads')}><IconBriefcase /> Leads <span className="count-badge">{leads.filter((lead) => lead.status === 'NEW').length}</span></button>
+            <button className={`admin-sidebar-item admin-sidebar-item--customers ${activeTab === 'portal' ? 'active' : ''}`} onClick={() => setActiveTab('portal')}><IconBriefcase /> Portal alerts <span className="count-badge">{portalEvents.filter((event) => !event.success).length}</span></button>
           </div>}
         </div>
-        <div className="admin-nav-group">
-          <button type="button" className="admin-nav-section-toggle" onClick={() => toggleNavGroup('billing')}><span className="admin-nav-label">Billing & logistics</span><ChevronDown size={15} className={expandedNavGroups.billing ? 'nav-chevron is-open' : 'nav-chevron'} /></button>
-          {expandedNavGroups.billing && <div className="admin-nav-buttons">
-            <button className={`tab-pill tab-pill--billing ${activeTab === 'facturas' ? 'active' : ''}`} onClick={() => setActiveTab('facturas')}><IconBriefcase /> Invoices <span className="count-badge">{facturasCount}</span></button>
-            <button className={`tab-pill tab-pill--billing ${activeTab === 'ferry' ? 'active' : ''}`} onClick={() => setActiveTab('ferry')}><IconBriefcase /> Ferry manifests</button>
-            <button className={`tab-pill tab-pill--billing ${activeTab === 'containers' ? 'active' : ''}`} onClick={() => setActiveTab('containers')}><IconBriefcase /> Containers</button>
+        <div className="admin-sidebar-group">
+          <button type="button" className="admin-sidebar-group-title" onClick={() => toggleNavGroup('billing')}>Billing & logistics <ChevronDown size={14} className={expandedNavGroups.billing ? 'nav-chevron is-open' : 'nav-chevron'} /></button>
+          {expandedNavGroups.billing && <div className="admin-sidebar-items">
+            <button className={`admin-sidebar-item admin-sidebar-item--billing ${activeTab === 'facturas' ? 'active' : ''}`} onClick={() => setActiveTab('facturas')}><IconBriefcase /> Invoices <span className="count-badge">{facturasCount}</span></button>
+            <button className={`admin-sidebar-item admin-sidebar-item--billing ${activeTab === 'ferry' ? 'active' : ''}`} onClick={() => setActiveTab('ferry')}><IconBriefcase /> Ferry manifests</button>
+            <button className={`admin-sidebar-item admin-sidebar-item--billing ${activeTab === 'containers' ? 'active' : ''}`} onClick={() => setActiveTab('containers')}><IconBriefcase /> Containers</button>
           </div>}
         </div>
-        <div className="admin-nav-group">
-          <button type="button" className="admin-nav-section-toggle" onClick={() => toggleNavGroup('administration')}><span className="admin-nav-label">Administration</span><ChevronDown size={15} className={expandedNavGroups.administration ? 'nav-chevron is-open' : 'nav-chevron'} /></button>
-          {expandedNavGroups.administration && <div className="admin-nav-buttons">
-            <button className={`tab-pill tab-pill--admin ${activeTab === 'personal' ? 'active' : ''}`} onClick={() => setActiveTab('personal')}><IconUsers /> Staff <span className="count-badge">{personal.length}</span></button>
+        <div className="admin-sidebar-group">
+          <button type="button" className="admin-sidebar-group-title" onClick={() => toggleNavGroup('administration')}>Administration <ChevronDown size={14} className={expandedNavGroups.administration ? 'nav-chevron is-open' : 'nav-chevron'} /></button>
+          {expandedNavGroups.administration && <div className="admin-sidebar-items">
+            <button className={`admin-sidebar-item admin-sidebar-item--admin ${activeTab === 'personal' ? 'active' : ''}`} onClick={() => setActiveTab('personal')}><IconUsers /> Staff <span className="count-badge">{personal.length}</span></button>
           </div>}
         </div>
-      </div>
+      </aside>
 
       {/* Card de Visualización de Datos */}
       <div className="data-card">
@@ -2402,12 +2562,12 @@ const App = () => {
 
         {activeTab === 'pedidos' && pedidos.length > 0 && (
           <div style={{ width: '100%', overflowX: 'auto' }}>
-            {/* Filtro por número o nombre de cliente */}
+            {/* Filtro por tracking, número de cuenta o nombre de cliente */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
               <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
                 <input
                   type="text"
-                  placeholder="Search customer account or name..."
+                  placeholder="Search tracking, customer account, or name..."
                   value={pedidoFiltro}
                   onChange={(e) => setPedidoFiltro(e.target.value)}
                   style={{
@@ -2455,7 +2615,8 @@ const App = () => {
                   const term = pedidoFiltro.trim().toLowerCase();
                   const num = p.clienteNumero != null ? String(p.clienteNumero) : "";
                   const name = p.clienteNombre ? p.clienteNombre.toLowerCase() : "";
-                  const matchesCustomer = !term || num.includes(term) || name.includes(term);
+                  const tracking = p.tracking ? String(p.tracking).toLowerCase() : "";
+                  const matchesCustomer = !term || tracking.includes(term) || num.includes(term) || name.includes(term);
                   const matchesStage = pedidoEtapa === "ALL" || shipmentStage(p.estado) === pedidoEtapa;
                   return matchesCustomer && matchesStage;
                 })

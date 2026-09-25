@@ -22,7 +22,7 @@ export default function CaribexBatchLabelPrint({ labels, onClose }: Props) {
       const url = await QRCode.toDataURL(JSON.stringify({ tracking: label.tracking.trim() }), {
         errorCorrectionLevel: "M",
         margin: 2,
-        width: 260,
+        width: 360,
         color: { dark: "#111827", light: "#ffffff" },
       });
       return [label.boxCode, url] as const;
@@ -44,7 +44,7 @@ export default function CaribexBatchLabelPrint({ labels, onClose }: Props) {
         .caribex-batch-label { break-inside: avoid; border: 2px solid #0f4c81; border-radius: 10px; padding: 16px; text-align: center; color: #111827; }
         .caribex-batch-label strong { display: block; color: #0f4c81; font-size: 19px; letter-spacing: .03em; }
         .caribex-batch-label small { display: block; margin-top: 3px; color: #64748b; font-size: 11px; text-transform: uppercase; letter-spacing: .12em; }
-        .caribex-batch-label img { display: block; width: 190px; height: 190px; margin: 14px auto 9px; image-rendering: pixelated; }
+        .caribex-batch-label img { display: block; width: 240px; height: 240px; margin: 14px auto 9px; image-rendering: pixelated; }
         .caribex-batch-label-code { font-size: 18px; font-weight: 800; word-break: break-all; }
         @media print {
           body * { visibility: hidden !important; }
@@ -65,7 +65,7 @@ export default function CaribexBatchLabelPrint({ labels, onClose }: Props) {
             <div className="caribex-batch-label" key={label.boxCode}>
               <strong>Caribex</strong>
               <small>For new boxes only</small>
-              {qrCodes[label.boxCode] ? <img src={qrCodes[label.boxCode]} alt={`QR for ${label.tracking}`} /> : <div style={{ height: 190, display: "grid", placeItems: "center" }}>Generating QR…</div>}
+              {qrCodes[label.boxCode] ? <img src={qrCodes[label.boxCode]} alt={`QR for ${label.tracking}`} /> : <div style={{ height: 240, display: "grid", placeItems: "center" }}>Generating QR…</div>}
               <div className="caribex-batch-label-code">{label.boxCode}</div>
             </div>
           ))}

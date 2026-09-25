@@ -3475,6 +3475,7 @@ const handlePackageCreated = (pkg: Package) => {
               <span className="ga-nav-title-sub">
                 {isEs ? "Grupo logístico" : "Logistics group"}
               </span>
+              <span className="ga-nav-slogan">Your cargo our commitment</span>
             </div>
           </div>
 

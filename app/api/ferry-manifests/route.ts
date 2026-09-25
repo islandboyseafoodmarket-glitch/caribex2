@@ -55,6 +55,7 @@ function normalizePort(value: unknown) {
     .replace(/[\u0300-\u036f]/g, "");
   if (port.includes("ceiba")) return "la_ceiba";
   if (port === "utila") return "utila";
+  if (port === "guanaja") return "guanaja";
   return null;
 }
 
@@ -153,7 +154,7 @@ export async function POST(request: Request) {
         };
       })
       .filter(Boolean) as Array<Record<string, string>>;
-    if (!entryRows.length) return NextResponse.json({ error: "No La Ceiba or Utila packages were found" }, { status: 400 });
+    if (!entryRows.length) return NextResponse.json({ error: "No La Ceiba, Utila, or Guanaja packages were found" }, { status: 400 });
 
     const { start, end } = getWeekBounds();
     const { data: manifest, error: insertError } = await supabaseAdmin

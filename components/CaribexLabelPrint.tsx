@@ -43,7 +43,7 @@ export default function CaribexLabelPrint({ label, onClose, isEs = false, mode =
     QRCode.toDataURL(qrPayload, {
       errorCorrectionLevel: "M",
       margin: 2,
-      width: 300,
+      width: 360,
       color: { dark: "#111827", light: "#ffffff" },
     }).then((url) => {
       if (mounted) setQrCode(url);
@@ -59,7 +59,7 @@ export default function CaribexLabelPrint({ label, onClose, isEs = false, mode =
         .caribex-label-card { border: 2px solid #0f4c81; border-radius: 10px; padding: 18px; text-align: center; color: #111827; }
         .caribex-label-brand { color: #0f4c81; font-size: 19px; font-weight: 800; letter-spacing: .03em; }
         .caribex-label-subtitle { margin-top: 3px; color: #64748b; font-size: 11px; text-transform: uppercase; letter-spacing: .12em; }
-        .caribex-label-qr { display: block; width: 210px; height: 210px; margin: 16px auto 10px; image-rendering: pixelated; }
+        .caribex-label-qr { display: block; width: 260px; height: 260px; margin: 16px auto 10px; image-rendering: pixelated; }
         .caribex-label-tracking { font-size: 22px; font-weight: 800; letter-spacing: .08em; word-break: break-all; }
         .caribex-label-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 15px; text-align: left; font-size: 12px; }
         .caribex-label-meta div { padding: 7px; border-radius: 6px; background: #f1f5f9; }
@@ -72,7 +72,8 @@ export default function CaribexLabelPrint({ label, onClose, isEs = false, mode =
           .caribex-label-overlay, .caribex-label-overlay * { visibility: visible !important; }
           .caribex-label-overlay { position: static; padding: 0; background: #fff; }
           .caribex-label-sheet { width: 100%; padding: 0; box-shadow: none; }
-          .caribex-label-card { margin: 0 auto; width: 3.5in; min-height: 4.5in; }
+          .caribex-label-card { margin: 0 auto; width: 3.5in; min-height: 5in; }
+          .caribex-label-qr { width: 2.75in; height: 2.75in; }
           .caribex-label-actions { display: none; }
         }
       `}</style>
@@ -82,9 +83,9 @@ export default function CaribexLabelPrint({ label, onClose, isEs = false, mode =
           <div className="caribex-label-subtitle">
             {isQrReprint
               ? (isEs ? "Reimpresión QR" : "QR reprint")
-              : (isEs ? "Solo para caja nueva" : "For new boxes only")}
+              : ""}
           </div>
-          {qrCode ? <img className="caribex-label-qr" src={qrCode} alt={`QR code for ${label.tracking}`} /> : <div style={{ height: 210, display: "grid", placeItems: "center", color: "#64748b" }}>Generating QR…</div>}
+          {qrCode ? <img className="caribex-label-qr" src={qrCode} alt={`QR code for ${label.tracking}`} /> : <div style={{ height: 260, display: "grid", placeItems: "center", color: "#64748b" }}>Generating QR…</div>}
           <div className="caribex-label-tracking">
             {isQrReprint ? label.tracking : (label.boxCode || `${labelCode}-2026-Caribex`)}
           </div>
