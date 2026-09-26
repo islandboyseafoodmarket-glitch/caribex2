@@ -135,7 +135,7 @@ export async function POST(request: Request) {
                       <table role="presentation" cellpadding="0" cellspacing="0">
                         <tr>
                             <td style="font-size:12px; color:#4b5563;">
-                            <img src="https://www.caribexlogisticsgroup.com/imagenes/logo-clean.png" alt="Caribex Logistics Group" width="180" style="display:block; width:180px; height:auto; margin-bottom:10px;" />
+                            <img src="https://www.caribexlogisticsgroup.com/imagenes/logo-pages.png" alt="Caribex Logistics Group" width="180" style="display:block; width:180px; height:auto; margin-bottom:10px;" />
                             <div style="font-size:18px; font-weight:700; color:#111827; margin-bottom:4px;">Caribex Logistics Group</div>
                             <div>Roatán, Bay Islands, Honduras</div>
                             <div>billing@caribexlogisticsgroup.com</div>

@@ -118,9 +118,9 @@ const InvoicePreview: React.FC<InvoicePreviewProps> = ({
       >
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <img
-            src="/imagenes/logo.png"
+            src="/imagenes/logo-pages.png"
             alt="Caribex logo"
-            style={{ width: 40, height: 40, objectFit: "contain" }}
+            style={{ width: 120, height: 52, objectFit: "contain" }}
           />
           <div>
             <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>
