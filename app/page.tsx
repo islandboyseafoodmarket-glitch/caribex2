@@ -152,7 +152,7 @@ export default function HomePage() {
               <X size={22} />
             </button>
             <div className="caribex-popup__logo-wrap">
-              <Image src="/imagenes/logo-clean.png" alt="Caribex Logistics Group" width={220} height={97} className="caribex-popup__logo" />
+              <Image src="/imagenes/logo-standardized.png" alt="Caribex Logistics Group" width={220} height={94} className="caribex-popup__logo" />
             </div>
             <p className="caribex-popup__eyebrow">Caribex Logistics Group</p>
             <h2 id="caribex-promo-title">
@@ -186,10 +186,10 @@ export default function HomePage() {
         >
           <div className="logo-box">
             <Image
-              src="/imagenes/logo-clean.png"
+              src="/imagenes/logo-standardized.png"
               alt="Caribex Logistics Group"
               width={220}
-              height={97}
+              height={94}
               className="logo-image"
             />
           </div>

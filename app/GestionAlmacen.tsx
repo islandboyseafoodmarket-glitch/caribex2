@@ -3464,10 +3464,10 @@ const handlePackageCreated = (pkg: Package) => {
           <div className="ga-nav-brand">
             <div className="ga-nav-logo">
               <Image
-                src="/imagenes/logo-clean.png"
+                src="/imagenes/logo-standardized.png"
                 alt="Caribex Logistics Group"
                 width={220}
-                height={96}
+                height={94}
                 sizes="220px"
               />
             </div>
@@ -3476,7 +3476,6 @@ const handlePackageCreated = (pkg: Package) => {
               <span className="ga-nav-title-sub">
                 {isEs ? "Grupo logístico" : "Logistics group"}
               </span>
-              <span className="ga-nav-slogan">Your cargo our commitment</span>
             </div>
           </div>
 
