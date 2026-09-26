@@ -1678,7 +1678,7 @@ const App = () => {
       <header className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1.5rem' }}>
         <div className="admin-brand">
           <div className="admin-brand-logo">
-            <Image src="/imagenes/logo-standardized.png" alt="Caribex Logistics Group — Your Cargo Our Commitment" width={148} height={63} />
+            <Image src="/imagenes/logo-pages.png" alt="Caribex Logistics Group — Your Cargo Our Commitment" width={148} height={63} />
           </div>
           <div>
           <h1>Warehouse management</h1>
@@ -1715,7 +1715,7 @@ const App = () => {
       <aside className="admin-sidebar" aria-label="Admin navigation">
         <div className="admin-sidebar-brand">
           <div>
-            <Image src="/imagenes/logo-standardized.png" alt="Caribex Logistics Group — Your Cargo Our Commitment" width={218} height={93} />
+            <Image src="/imagenes/logo-pages.png" alt="Caribex Logistics Group — Your Cargo Our Commitment" width={218} height={93} />
             <strong>Caribex Admin</strong><span>Warehouse management</span>
           </div>
         </div>

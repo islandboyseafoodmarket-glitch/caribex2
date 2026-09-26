@@ -3464,7 +3464,7 @@ const handlePackageCreated = (pkg: Package) => {
           <div className="ga-nav-brand">
             <div className="ga-nav-logo">
               <Image
-                src="/imagenes/logo-standardized.png"
+                src="/imagenes/logo-pages.png"
                 alt="Caribex Logistics Group"
                 width={220}
                 height={94}
