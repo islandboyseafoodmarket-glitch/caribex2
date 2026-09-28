@@ -128,7 +128,7 @@ const InvoicePreview: React.FC<InvoicePreviewProps> = ({
             </div>
             <div style={{ fontSize: 12, color: "#4b5563" }}>
               <div>Roatán, Bay Islands, Honduras</div>
-              <div>billing@caribexlogistics.com</div>
+              <div>billing@caribexlogisticsgroup.com</div>
             </div>
           </div>
         </div>
