@@ -91,7 +91,7 @@ export async function POST(request: Request) {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: "billing@caribexlogisticsgroup.com",
+        from: "info@caribexlogisticsgroup.com",
         to,
         subject,
         html,

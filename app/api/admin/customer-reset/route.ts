@@ -23,7 +23,7 @@ export async function POST(request: Request) {
     recoveryLink.searchParams.set("redirect_to", resetUrl);
     if (!RESEND_API_KEY) return NextResponse.json({ error: "Email service is not configured" }, { status: 503 });
     const html = `<p>Hello ${customer.nombre || "Customer"},</p><p>An administrator requested a password reset for your Caribex account #${customer.numero_cliente}.</p><p><a href="${recoveryLink.toString()}">Change your password</a></p><p>This link expires according to your Supabase Auth settings.</p>`;
-    const sent = await fetch("https://api.resend.com/emails", { method: "POST", headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" }, body: JSON.stringify({ from: "billing@caribexlogisticsgroup.com", to: customer.email, subject: "Caribex password reset", html }) });
+    const sent = await fetch("https://api.resend.com/emails", { method: "POST", headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" }, body: JSON.stringify({ from: "info@caribexlogisticsgroup.com", to: customer.email, subject: "Caribex password reset", html }) });
     if (!sent.ok) throw new Error("Failed to send reset email");
     await supabase.from("customer_password_reset_requests").update({ status: "completed", handled_at: new Date().toISOString(), handled_by: authData.user.id }).eq("email", customer.email).eq("status", "requested");
     return NextResponse.json({ ok: true });

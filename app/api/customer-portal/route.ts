@@ -50,7 +50,7 @@ export async function POST(request: Request) {
         recoveryLink.searchParams.set("redirect_to", resetUrl);
         const safeName = escapeHtml(client.nombre || "Customer");
         const safeLink = escapeHtml(recoveryLink.toString());
-        await fetch("https://api.resend.com/emails", { method: "POST", headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" }, body: JSON.stringify({ from: "billing@caribexlogisticsgroup.com", to: client.email, subject: "Caribex password reset", html: `<p>Hello ${safeName},</p><p>Use the button below to change your Caribex portal password.</p><p><a href="${safeLink}" style="display:inline-block;background:#0f4c81;color:#fff;padding:12px 18px;border-radius:8px;text-decoration:none;font-weight:700">Change your password</a></p><p>This link expires according to your Supabase Auth settings.</p>` }) });
+        await fetch("https://api.resend.com/emails", { method: "POST", headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" }, body: JSON.stringify({ from: "info@caribexlogisticsgroup.com", to: client.email, subject: "Caribex password reset", html: `<p>Hello ${safeName},</p><p>Use the button below to change your Caribex portal password.</p><p><a href="${safeLink}" style="display:inline-block;background:#0f4c81;color:#fff;padding:12px 18px;border-radius:8px;text-decoration:none;font-weight:700">Change your password</a></p><p>This link expires according to your Supabase Auth settings.</p>` }) });
       }
     }
     return NextResponse.json({ ok: true });
