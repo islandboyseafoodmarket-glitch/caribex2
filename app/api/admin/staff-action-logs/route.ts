@@ -22,7 +22,10 @@ async function requireStaff(request: Request, supabase: SupabaseClient) {
     supabase.from("personal").select("id, rol, nombre, nombre_personal").eq("id", authData.user.id).maybeSingle(),
   ]);
   if (!admin && !staff) throw new Error("Staff access is required");
-  return { user: authData.user, role: admin ? "admin" : "staff", profile: admin || staff };
+  const profile = staff
+    ? { nombre: staff.nombre, nombre_personal: staff.nombre_personal, rol: staff.rol }
+    : { nombre: null, nombre_personal: null, rol: admin?.rol || "administrador" };
+  return { user: authData.user, role: admin ? "admin" : "staff", profile };
 }
 
 function errorResponse(error: unknown) {

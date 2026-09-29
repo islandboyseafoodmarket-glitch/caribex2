@@ -30,6 +30,7 @@ import {
   DollarSign,
   MapPin,
   CalendarDays,
+  ScanLine,
 } from "lucide-react";
 
 import StageReceived from "./StageReceived";
@@ -3489,6 +3490,14 @@ const handlePackageCreated = (pkg: Package) => {
             >
               <Globe2 size={16} />
               <span>{language.toUpperCase()}</span>
+            </button>
+            <button
+              type="button"
+              className="ga-lang-button"
+              onClick={() => router.push("/scanner-workflow")}
+            >
+              <ScanLine size={16} />
+              <span>{isEs ? "Flujo rápido" : "Workflow app"}</span>
             </button>
             <button
               type="button"

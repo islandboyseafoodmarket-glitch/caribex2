@@ -91,7 +91,8 @@ export async function PATCH(request: Request, { params }: { params: { token: str
     if (error) throw error;
 
     let emailSent = false;
-    if (RESEND_API_KEY && entry.numero_cliente_id) {
+    const isNotFound = bookingNumber.toUpperCase() === "NO";
+    if (!isNotFound && RESEND_API_KEY && entry.numero_cliente_id) {
       const [{ data: customer }, { data: packageRow }] = await Promise.all([
         supabaseAdmin.from("numero_cliente").select("nombre, email, puerto").eq("id", entry.numero_cliente_id).maybeSingle(),
         supabaseAdmin.from("paquetes_registro").select("tracking, contenido, notas").eq("id", entry.paquete_id).maybeSingle(),
