@@ -242,6 +242,12 @@ export async function POST(request: Request) {
                   <div style="font-size:13px; font-weight:600; margin-bottom:4px;">Note</div>
                   <p style="font-size:12px; color:#4b5563; margin:0;">Fee is not a sales tax, but a configurable charge per item to cover customs/duty or handling costs.</p>
                 </div>
+
+                <div style="margin-top:24px; padding:16px; background-color:#eff6ff; border-radius:10px; text-align:center;">
+                  <div style="font-size:14px; font-weight:700; color:#1e3a8a; margin-bottom:6px;">View your shipments and invoices online</div>
+                  <div style="font-size:12px; color:#475569; margin-bottom:12px;">Sign in to your Caribex customer portal to review your shipment history, status, and invoice history.</div>
+                  <a href="https://www.caribexlogisticsgroup.com/portal/login" style="display:inline-block; padding:10px 18px; background-color:#2563eb; color:#ffffff; border-radius:7px; font-size:13px; font-weight:700; text-decoration:none;">Access customer portal</a>
+                </div>
               </td>
             </tr>
           </table>
