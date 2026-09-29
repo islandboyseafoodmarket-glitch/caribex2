@@ -50,15 +50,17 @@ export async function GET(request: Request) {
       picked: ["Entregado", "Picked Up", "Recogido"],
       way: ["En tránsito", "In Transit", "En camino", "On the way"],
     };
-    const { data: packages, error: packageError } = await supabase
+    const { data: allPackages, error: packageError } = await supabase
       .from("paquetes_registro")
       .select("id, tracking, nombre_paqueteria, tipo_paquete, estado, billing_status, approval_status, billing_total, fecha_descargado, hora_descargado")
       .eq("numero_cliente_id", client.id)
-      .in("estado", statusFilters[view] || statusFilters.ready)
       .order("registro", { ascending: false })
       .limit(100);
     if (packageError) throw packageError;
-    return NextResponse.json({ client, packages: packages || [], view });
+    const packages = (allPackages || []).filter((item) => (statusFilters[view] || statusFilters.ready).includes(String(item.estado || "")));
+    const collected = (allPackages || []).filter((item) => ["Entregado", "Picked Up", "Recogido"].includes(String(item.estado || ""))).length;
+    const total = (allPackages || []).length;
+    return NextResponse.json({ client, packages, view, summary: { collected, total, pending: Math.max(total - collected, 0) } });
   } catch (error) {
     return errorResponse(error);
   }
