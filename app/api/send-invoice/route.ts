@@ -280,6 +280,26 @@ export async function POST(request: Request) {
       );
     }
 
+    const { data: actorProfile } = await authClient
+      .from("personal")
+      .select("nombre, nombre_personal, rol")
+      .eq("id", authData.user.id)
+      .maybeSingle();
+    await authClient.from("staff_action_logs").insert({
+      actor_id: authData.user.id,
+      actor_name: actorProfile?.nombre || actorProfile?.nombre_personal || authData.user.email || null,
+      actor_email: authData.user.email || null,
+      actor_role: admin ? "admin" : "staff",
+      action: "send_invoice",
+      entity_type: "invoice_email",
+      tracking,
+      customer_name: clientName || null,
+      customer_account_number: typeof clientNumber === "number" ? clientNumber : null,
+      success: true,
+      details: { recipient: to, subject, total, sender: "billing@caribexlogisticsgroup.com" },
+      user_agent: request.headers.get("user-agent") || null,
+    });
+
     return NextResponse.json({ ok: true });
   } catch (e: any) {
     console.error("Error in /api/send-invoice:", e);

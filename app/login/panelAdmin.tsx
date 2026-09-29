@@ -82,7 +82,7 @@ const SHIPMENT_STAGE_OPTIONS = [
 const App = () => {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<
-    'personal' | 'clientes' | 'client360' | 'pedidos' | 'incidencias' | 'facturas' | 'leads' | 'portal' | 'ferry' | 'containers' | 'labels' | 'reports'
+    'personal' | 'clientes' | 'client360' | 'pedidos' | 'incidencias' | 'facturas' | 'leads' | 'portal' | 'ferry' | 'containers' | 'labels' | 'reports' | 'activityLogs'
   >('personal');
   const [expandedNavGroups, setExpandedNavGroups] = useState<Record<string, boolean>>({
     operations: true,
@@ -169,6 +169,30 @@ const App = () => {
     const { data } = await supabase.from("customer_portal_login_events").select("id, customer_name, account_number, email, event_type, success, reason, created_at").order("created_at", { ascending: false }).limit(100);
     if (data) setPortalEvents(data as PortalEvent[]);
   }, []);
+  type StaffActionLog = { id: string; actor_name: string | null; actor_email: string | null; actor_role: string; action: string; entity_type: string; entity_id: string | null; tracking: string | null; customer_name: string | null; customer_account_number: number | null; success: boolean; error_message: string | null; details: Record<string, unknown> | null; created_at: string };
+  const [staffActionLogs, setStaffActionLogs] = useState<StaffActionLog[]>([]);
+  const [staffLogSearch, setStaffLogSearch] = useState('');
+  const [staffLogAction, setStaffLogAction] = useState('ALL');
+  const [staffLogsLoading, setStaffLogsLoading] = useState(false);
+  const cargarStaffActionLogs = useCallback(async () => {
+    setStaffLogsLoading(true);
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+      if (!token) return;
+      const params = new URLSearchParams({ limit: '300' });
+      if (staffLogSearch.trim()) params.set('search', staffLogSearch.trim());
+      if (staffLogAction !== 'ALL') params.set('action', staffLogAction);
+      const response = await fetch(`/api/admin/staff-action-logs?${params.toString()}`, { headers: { Authorization: `Bearer ${token}` } });
+      if (!response.ok) throw new Error('Unable to load staff activity logs');
+      const payload = await response.json();
+      setStaffActionLogs((payload.logs || []) as StaffActionLog[]);
+    } catch (error) {
+      setAdminNotice(error instanceof Error ? error.message : 'Unable to load staff activity logs');
+    } finally {
+      setStaffLogsLoading(false);
+    }
+  }, [staffLogAction, staffLogSearch]);
   const [adminNotice, setAdminNotice] = useState<string | null>(null);
   const cargarLeads = useCallback(async () => {
     const [{ data: contactData }, { data: customerData }] = await Promise.all([
@@ -1749,6 +1773,7 @@ const App = () => {
           <button type="button" className="admin-sidebar-group-title" onClick={() => toggleNavGroup('administration')}>Administration <ChevronDown size={14} className={expandedNavGroups.administration ? 'nav-chevron is-open' : 'nav-chevron'} /></button>
           {expandedNavGroups.administration && <div className="admin-sidebar-items">
             <button className={`admin-sidebar-item admin-sidebar-item--admin ${activeTab === 'personal' ? 'active' : ''}`} onClick={() => setActiveTab('personal')}><UserCog /> Staff <span className="count-badge">{personal.length}</span></button>
+            <button className={`admin-sidebar-item admin-sidebar-item--admin ${activeTab === 'activityLogs' ? 'active' : ''}`} onClick={() => { setActiveTab('activityLogs'); void cargarStaffActionLogs(); }}><Bell /> Activity logs</button>
           </div>}
         </div>
       </aside>
@@ -1761,6 +1786,8 @@ const App = () => {
               {activeTab === 'personal' ? <IconUsers /> : <IconBriefcase />}{' '}
               {activeTab === 'personal'
                 ? 'Listado de Personal'
+                : activeTab === 'activityLogs'
+                  ? 'Staff Activity Logs'
                 : activeTab === 'clientes'
                   ? 'Listado de Clientes'
                   : activeTab === 'client360'
@@ -1786,6 +1813,8 @@ const App = () => {
             <span>
               {activeTab === 'personal'
                 ? `${personal.length} registro${personal.length === 1 ? '' : 's'} en esta categoría`
+                : activeTab === 'activityLogs'
+                  ? `${staffActionLogs.length} recent staff events`
                 : activeTab === 'clientes'
                   ? `${clientes.length} registro${clientes.length === 1 ? '' : 's'} en esta categoría`
                   : activeTab === 'client360'
@@ -1879,6 +1908,22 @@ const App = () => {
 
         {activeTab === 'portal' && <div style={{ width: '100%', overflowX: 'auto' }}>
           {portalEvents.length === 0 ? <p style={{ padding: '1.5rem', color: '#64748b' }}>No customer portal or account events have been recorded yet.</p> : <table className="admin-table" style={{ minWidth: 980, width: '100%' }}><thead><tr><th>Date</th><th>Customer</th><th>Email</th><th>Result</th><th>Reason</th><th>Event</th></tr></thead><tbody>{portalEvents.map((event) => <tr key={event.id}><td>{new Date(event.created_at).toLocaleString()}</td><td>{event.customer_name || '-'}{event.account_number != null && <><br /><small>Account #{event.account_number}</small></>}</td><td>{event.email}</td><td><span style={{ color: event.success ? '#166534' : '#b91c1c', fontWeight: 700 }}>{event.success ? (event.event_type === 'login_attempt' ? 'Successful' : 'Completed') : 'Problem'}</span></td><td>{event.reason || '-'}</td><td>{portalEventLabel(event.event_type)}</td></tr>)}</tbody></table>}
+        </div>}
+
+        {activeTab === 'activityLogs' && <div style={{ width: '100%' }}>
+          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap', marginBottom: '1rem' }}>
+            <input value={staffLogSearch} onChange={(event) => setStaffLogSearch(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') void cargarStaffActionLogs(); }} placeholder="Search staff, tracking, customer, table" style={{ minWidth: 280, flex: 1, padding: '0.65rem 0.8rem', border: '1px solid #cbd5e1', borderRadius: '0.6rem' }} />
+            <select value={staffLogAction} onChange={(event) => { setStaffLogAction(event.target.value); }} style={{ padding: '0.65rem 0.8rem', border: '1px solid #cbd5e1', borderRadius: '0.6rem' }}>
+              <option value="ALL">All actions</option>
+              <option value="insert">Created</option>
+              <option value="update">Updated</option>
+              <option value="delete">Deleted</option>
+              <option value="login">Login / access</option>
+              <option value="send_invoice">Invoice sent</option>
+            </select>
+            <button type="button" className="pa-primary-btn" onClick={() => void cargarStaffActionLogs()} disabled={staffLogsLoading}>{staffLogsLoading ? 'Loading…' : 'Refresh logs'}</button>
+          </div>
+          {staffActionLogs.length === 0 ? <p style={{ padding: '1.5rem', color: '#64748b' }}>{staffLogsLoading ? 'Loading staff activity…' : 'No staff activity has been recorded yet.'}</p> : <div style={{ overflowX: 'auto' }}><table className="admin-table" style={{ minWidth: 1080, width: '100%' }}><thead><tr><th>Date</th><th>Staff member</th><th>Action</th><th>Area</th><th>Shipment / customer</th><th>Result</th><th>Details</th></tr></thead><tbody>{staffActionLogs.map((log) => <tr key={log.id}><td>{new Date(log.created_at).toLocaleString()}</td><td><strong>{log.actor_name || log.actor_email || 'Unknown staff'}</strong><br /><small>{log.actor_role}</small></td><td>{log.action.replaceAll('_', ' ')}</td><td>{log.entity_type}</td><td>{log.tracking || log.customer_name || log.entity_id || '-'}</td><td><span style={{ color: log.success ? '#166534' : '#b91c1c', fontWeight: 700 }}>{log.success ? 'Success' : 'Failed'}</span>{log.error_message && <><br /><small>{log.error_message}</small></>}</td><td><code style={{ whiteSpace: 'pre-wrap', fontSize: '0.75rem' }}>{JSON.stringify(log.details || {})}</code></td></tr>)}</tbody></table></div>}
         </div>}
 
         {activeTab === 'ferry' && <FerryManifestAdmin />}
