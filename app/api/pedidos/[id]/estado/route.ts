@@ -1,10 +1,18 @@
 import { NextResponse } from "next/server";
-import { supabase } from "../../../../../lib/supabaseClient";
+import { createClient } from "@supabase/supabase-js";
+
+function getSupabase() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!url || !key) throw new Error("Supabase environment variables are missing");
+  return createClient(url, key);
+}
 
 export async function POST(
   request: Request,
   { params }: { params: { id: string } },
 ) {
+  const supabase = getSupabase();
   const { id } = params;
   const body = await request.json();
   const { estado, usuario } = body;
