@@ -66,7 +66,11 @@ export async function GET(request: Request) {
       .order("registro", { ascending: false })
       .limit(100);
     if (packageError) throw packageError;
-    const packages = (allPackages || []).filter((item) => (statusFilters[view] || statusFilters.ready).includes(String(item.estado || "")));
+    const packages = (allPackages || []).filter((item) => {
+      const status = String(item.estado || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+      if (view === "ready") return status.includes("descargado") || status.includes("unloaded") || status.includes("ready for pickup") || status.includes("listo para recoger");
+      return (statusFilters[view] || statusFilters.ready).some((allowed) => status === allowed.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase());
+    });
     const collected = (allPackages || []).filter((item) => ["Entregado", "Picked Up", "Recogido"].includes(String(item.estado || ""))).length;
     const total = (allPackages || []).length;
     return NextResponse.json({ client, packages, view, summary: { collected, total, pending: Math.max(total - collected, 0) } });
