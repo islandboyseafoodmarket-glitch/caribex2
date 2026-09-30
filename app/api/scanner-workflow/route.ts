@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { calculateWorkflowBilling, isBox } from "@/lib/workflow-billing";
 
 export const dynamic = "force-dynamic";
 
@@ -55,6 +56,45 @@ function errorResponse(error: unknown) {
   return NextResponse.json({ error: message }, { status });
 }
 
+async function getLatestCheckin(supabase: SupabaseClient, packageId: string) {
+  const { data, error } = await supabase
+    .from("paquetes_checkin")
+    .select("id, alto, ancho, largo, peso, cargos_adicionales")
+    .eq("paquete_id", packageId)
+    .order("creado_en", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+async function validateAndRecalculateBox(supabase: SupabaseClient, shipment: any) {
+  if (!isBox(shipment)) return;
+  const checkin = await getLatestCheckin(supabase, shipment.id);
+  const dimensionsPresent = [checkin?.alto, checkin?.ancho, checkin?.largo]
+    .every((value) => Number.isFinite(Number(value)) && Number(value) > 0);
+  if (!dimensionsPresent) {
+    throw new Error(`BOX ${shipment.tracking} cannot move to In-Transit until Length, Width, and Height are entered.`);
+  }
+
+  let billingTotal = Number(shipment.billing_total);
+  if (!Number.isFinite(billingTotal) || billingTotal <= 0) {
+    const billing = calculateWorkflowBilling({ ...shipment, ...checkin });
+    if (!billing) throw new Error(`BOX ${shipment.tracking} cannot move to In-Transit until its billing total is calculated.`);
+    const { error } = await supabase.from("paquetes_registro").update({
+      billing_subtotal: billing.subtotal,
+      billing_tax: billing.tax,
+      billing_total: billing.total,
+      invoice_status: shipment.invoice_status || "PENDING",
+    }).eq("id", shipment.id);
+    if (error) throw error;
+    billingTotal = billing.total;
+  }
+  if (!Number.isFinite(billingTotal) || billingTotal <= 0) {
+    throw new Error(`BOX ${shipment.tracking} cannot move to In-Transit without a valid billing total.`);
+  }
+}
+
 export async function GET(request: Request) {
   try {
     const supabase = adminClient();
@@ -63,7 +103,7 @@ export async function GET(request: Request) {
     const rawCode = url.searchParams.get("code")?.trim() || "";
     if (!rawCode) return NextResponse.json({ error: "Scan or enter a tracking number" }, { status: 400 });
 
-    let query = supabase.from("paquetes_registro").select("id, tracking, nombre_paqueteria, tipo_paquete, estado, numero_cliente_id, numero_cliente:numero_cliente_id (numero_cliente, nombre)");
+    let query = supabase.from("paquetes_registro").select("id, tracking, nombre_paqueteria, tipo_paquete, estado, numero_cliente_id, billing_subtotal, billing_tax, billing_total, invoice_status, approval_status, numero_cliente:numero_cliente_id (numero_cliente, nombre)");
     const idMatch = rawCode.match(/(?:pedidos\/)?([0-9a-f]{8}-[0-9a-f-]{27})/i);
     if (idMatch) query = query.eq("id", idMatch[1]);
     else query = query.ilike("tracking", rawCode);
@@ -87,7 +127,7 @@ export async function POST(request: Request) {
     const requestedKey = String(body?.next_key || "").trim();
     if (!shipmentId || !requestedKey) return NextResponse.json({ error: "Shipment and next status are required" }, { status: 400 });
 
-    const { data: shipment, error: lookupError } = await supabase.from("paquetes_registro").select("id, tracking, estado, numero_cliente_id, numero_cliente:numero_cliente_id (numero_cliente, nombre)").eq("id", shipmentId).maybeSingle();
+    const { data: shipment, error: lookupError } = await supabase.from("paquetes_registro").select("id, tracking, estado, tipo_paquete, billing_subtotal, billing_tax, billing_total, invoice_status, approval_status, numero_cliente_id, numero_cliente:numero_cliente_id (numero_cliente, nombre)").eq("id", shipmentId).maybeSingle();
     if (lookupError) throw lookupError;
     if (!shipment) return NextResponse.json({ error: "Shipment not found" }, { status: 404 });
 
@@ -95,6 +135,15 @@ export async function POST(request: Request) {
     const expectedNext = WORKFLOW[beforeIndex + 1];
     if (!expectedNext || expectedNext.key !== requestedKey) {
       return NextResponse.json({ error: "Only the next workflow status can be applied", current: WORKFLOW[beforeIndex], next: expectedNext || null }, { status: 409 });
+    }
+
+    if (expectedNext.key === "IN_TRANSIT") {
+      try {
+        await validateAndRecalculateBox(supabase, shipment);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "BOX billing validation failed";
+        return NextResponse.json({ error: message, code: "BILLING_VALIDATION_REQUIRED", tracking: shipment.tracking }, { status: 422 });
+      }
     }
 
     const now = new Date();

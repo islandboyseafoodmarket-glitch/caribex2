@@ -42,6 +42,7 @@ import InvoicesStage from "./InvoicesStage";
 import InvoicePreview from "../components/InvoicePreview";
 import CaribexLabelPrint from "../components/CaribexLabelPrint";
 import CaribexBatchLabelPrint, { BatchBoxLabel } from "../components/CaribexBatchLabelPrint";
+import { calculateWorkflowBilling, isBox } from "../lib/workflow-billing";
 
 import {
   Html5Qrcode,
@@ -121,6 +122,8 @@ type Package = {
   numeroCliente?: number | null;
   clienteNombre?: string | null;
   clienteEmail?: string | null;
+  containerCode?: string | null;
+  containerCreatedAt?: string | null;
   notas_imagenes?: string[] | null;
   consolidatedChildrenTrackings?: string[] | null;
   consolidatedIntoBoxTracking?: string | null;
@@ -1963,7 +1966,21 @@ export default function GestionAlmacen() {
       )
       .order("creado_en", { ascending: false });
 
-    if (!error && data) {
+      if (!error && data) {
+      const packageIds = (data as any[]).map((row) => row.id).filter(Boolean);
+      const { data: containerLinks } = packageIds.length
+        ? await supabase.from("contenedor_paquetes").select("paquete_id, contenedor_id").in("paquete_id", packageIds)
+        : { data: [] };
+      const containerIds = Array.from(new Set((containerLinks || []).map((link: any) => link.contenedor_id).filter(Boolean)));
+      const { data: containers } = containerIds.length
+        ? await supabase.from("contenedores").select("id, codigo, creado_en").in("id", containerIds)
+        : { data: [] };
+      const containerById = new Map((containers || []).map((container: any) => [container.id, container]));
+      const containerByPackageId = new Map<string, any>();
+      for (const link of containerLinks || []) {
+        const container = containerById.get(link.contenedor_id);
+        if (container) containerByPackageId.set(String(link.paquete_id), container);
+      }
       // Obtener conteo y relaciones de consolidación (caja -> hijos y paquete hijo -> caja)
       const { data: consData, error: consError } = await supabase
         .from("paquetes_checkin")
@@ -2085,6 +2102,8 @@ export default function GestionAlmacen() {
               ? clientNameById[effectiveClientId]
               : null,
           clienteEmail: effectiveEmail,
+          containerCode: containerByPackageId.get(rowId)?.codigo || null,
+          containerCreatedAt: containerByPackageId.get(rowId)?.creado_en || null,
           consolidatedChildrenTrackings,
           consolidatedIntoBoxTracking,
           billing_subtotal: row.billing_subtotal ?? null,
@@ -3381,10 +3400,54 @@ const handlePackageCreated = (pkg: Package) => {
 
     const ids = checkInPackages.map((p) => p.id);
 
+    const boxIds = checkInPackages.filter((pkg) => isBox({ tipo_paquete: pkg.type })).map((pkg) => pkg.id);
+    if (boxIds.length > 0) {
+      const { data: checkins, error: checkinError } = await supabase
+        .from("paquetes_checkin")
+        .select("paquete_id, alto, ancho, largo, peso, cargos_adicionales, creado_en")
+        .in("paquete_id", boxIds)
+        .order("creado_en", { ascending: false });
+      if (checkinError) {
+        alert(checkinError.message || (isEs ? "No se pudieron validar las medidas" : "Could not validate measurements"));
+        return;
+      }
+      const latestCheckin = new Map<string, any>();
+      for (const row of checkins || []) latestCheckin.set(String(row.paquete_id), row);
+      const blocked = checkInPackages.filter((pkg) => {
+        if (!isBox({ tipo_paquete: pkg.type })) return false;
+        const checkin = latestCheckin.get(String(pkg.id));
+        const hasDimensions = [checkin?.alto, checkin?.ancho, checkin?.largo].every((value) => Number.isFinite(Number(value)) && Number(value) > 0);
+        if (!hasDimensions) return true;
+        const hasBilling = Number.isFinite(Number(pkg.billing_total)) && Number(pkg.billing_total) > 0;
+        return !hasBilling && !calculateWorkflowBilling({ tipo_paquete: pkg.type, ...checkin });
+      });
+      if (blocked.length > 0) {
+        alert(isEs
+          ? `No se puede mover ${blocked.length} caja(s): faltan Alto, Ancho, Largo o facturación.`
+          : `${blocked.length} BOX shipment(s) cannot move: Height, Width, Length, or billing is missing.`);
+        return;
+      }
+      for (const pkg of checkInPackages.filter((item) => isBox({ tipo_paquete: item.type }))) {
+        if (Number.isFinite(Number(pkg.billing_total)) && Number(pkg.billing_total) > 0) continue;
+        const billing = calculateWorkflowBilling({ tipo_paquete: pkg.type, ...latestCheckin.get(String(pkg.id)) });
+        if (!billing) continue;
+        const { error: billingError } = await supabase.from("paquetes_registro").update({
+          billing_subtotal: billing.subtotal,
+          billing_tax: billing.tax,
+          billing_total: billing.total,
+          invoice_status: pkg.invoice_status || "PENDING",
+        }).eq("id", pkg.id);
+        if (billingError) {
+          alert(billingError.message || (isEs ? "No se pudo calcular la factura" : "Could not calculate the invoice"));
+          return;
+        }
+      }
+    }
+
     // 1) Crear un contenedor nuevo con un código autogenerado
     const now = new Date();
     const datePart = now.toISOString().slice(0, 10); // YYYY-MM-DD
-    const codigoContenedor = datePart;
+    const codigoContenedor = `CONT-${datePart}`;
 
     const { data: contData, error: contError } = await supabase
       .from("contenedores")
@@ -3682,12 +3745,13 @@ const handlePackageCreated = (pkg: Package) => {
                       <div className="ga-client360-card-header"><div><h3>{isEs ? "Historial de paquetes" : "Package history"}</h3><p>{isEs ? "Más recientes primero." : "Most recent first."}</p></div><PackageOpen size={18} /></div>
                       <div className="ga-client360-table-wrap">
                         <table className="ga-client360-table">
-                          <thead><tr><th>{isEs ? "Registrado" : "Recorded"}</th><th>Tracking</th><th>{isEs ? "Estado" : "Status"}</th><th>{isEs ? "Factura" : "Invoice"}</th></tr></thead>
+                          <thead><tr><th>{isEs ? "Registrado" : "Recorded"}</th><th>Tracking</th><th>{isEs ? "Contenedor" : "Container"}</th><th>{isEs ? "Estado" : "Status"}</th><th>{isEs ? "Factura" : "Invoice"}</th></tr></thead>
                           <tbody>
                             {selectedClient360.packages.slice(0, 30).map((pkg) => (
                               <tr key={pkg.id}>
                                 <td>{client360DateLabel(pkg.horaFecha || pkg.registro, isEs ? "es-ES" : "en-US")}</td>
                                 <td><button type="button" className="ga-client360-tracking" onClick={() => handleViewPackage(pkg)}>{pkg.tracking}</button></td>
+                                <td>{pkg.containerCode ? <><strong>{pkg.containerCode}</strong><br /><small>{client360DateLabel(pkg.containerCreatedAt, isEs ? "es-ES" : "en-US")}</small></> : "-"}</td>
                                 <td><span className="ga-client360-status">{pkg.estado || "-"}</span></td>
                                 <td>{pkg.billing_total != null ? `$${Number(pkg.billing_total).toFixed(2)}` : "-"}</td>
                               </tr>
