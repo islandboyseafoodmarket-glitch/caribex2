@@ -6,10 +6,10 @@ export async function GET() {
   return NextResponse.json(
     {
       app: "Caribex Warehouse Management",
-      version: "1.1.7",
-      version_code: 117,
-      apk_url: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663449196187/HAkVIJgZyVJBKXWW.apk",
-      filename: "Caribex-Warehouse-Management-1.1.7.apk",
+      version: "1.1.9",
+      version_code: 119,
+      apk_url: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663449196187/qQbFhqVLDCYRcobu.apk",
+      filename: "Caribex-Warehouse-Management-1.1.9.apk",
       release_notes: [
         "Web-equivalent Receiving, Check In, consolidation, and customer assignment",
         "Client Pickup now shows every shipment tracking number with the authoritative invoice status",

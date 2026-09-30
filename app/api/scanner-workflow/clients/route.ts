@@ -57,9 +57,9 @@ export async function GET(request: Request) {
     if (!client) return NextResponse.json({ client: null, packages: [] });
 
     const statusFilters: Record<string, string[]> = {
-      ready: ["Descargado", "Unloaded", "Ready for Pickup", "Listo para recoger"],
-      picked: ["Entregado", "Picked Up", "Recogido"],
-      way: ["En tránsito", "In Transit", "En camino", "On the way"],
+      ready: ["Descargado"],
+      picked: ["Entregado"],
+      way: ["En tránsito"],
     };
     const { data: allPackages, error: packageError } = await supabase
       .from("paquetes_registro")
@@ -68,12 +68,28 @@ export async function GET(request: Request) {
       .order("registro", { ascending: false })
       .limit(100);
     if (packageError) throw packageError;
-    const packages = (allPackages || []).filter((item) => {
+    const packageIds = (allPackages || []).map((item) => item.id);
+    const { data: containerLinks, error: linkError } = packageIds.length
+      ? await supabase.from("contenedor_paquetes").select("paquete_id, contenedor_id").in("paquete_id", packageIds).limit(500)
+      : { data: [], error: null };
+    if (linkError) throw linkError;
+    const containerIds = Array.from(new Set((containerLinks || []).map((link) => link.contenedor_id).filter(Boolean)));
+    const { data: containers, error: containerError } = containerIds.length
+      ? await supabase.from("contenedores").select("id, codigo").in("id", containerIds).limit(500)
+      : { data: [], error: null };
+    if (containerError) throw containerError;
+    const containerById = new Map((containers || []).map((container) => [container.id, container.codigo]));
+    const containerByPackageId = new Map<string, string>();
+    for (const link of containerLinks || []) {
+      const code = containerById.get(link.contenedor_id);
+      if (code) containerByPackageId.set(link.paquete_id, code);
+    }
+    const packages = (allPackages || []).map((item) => ({ ...item, container_code: containerByPackageId.get(item.id) || null })).filter((item) => {
       const status = String(item.estado || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
-      if (view === "ready") return status.includes("descargado") || status.includes("unloaded") || status.includes("ready for pickup") || status.includes("listo para recoger");
+      if (view === "ready") return status === "descargado";
       return (statusFilters[view] || statusFilters.ready).some((allowed) => status === allowed.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase());
     });
-    const collected = (allPackages || []).filter((item) => ["Entregado", "Picked Up", "Recogido"].includes(String(item.estado || ""))).length;
+    const collected = (allPackages || []).filter((item) => item.estado === "Entregado").length;
     const total = (allPackages || []).length;
     return NextResponse.json({ client, packages, view, summary: { collected, total, pending: Math.max(total - collected, 0) } });
   } catch (error) {

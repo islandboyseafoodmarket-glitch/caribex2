@@ -33,11 +33,18 @@ export async function GET(request: Request) {
     const supabase = adminClient();
     await requireStaff(request, supabase);
     const search = new URL(request.url).searchParams.get("search")?.trim() || "";
-    let query = supabase.from("paquetes_registro").select("id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, notas_imagenes, registro, estado, hora_fecha, creado_en").ilike("estado", "%recibido%").order("creado_en", { ascending: false }).limit(100);
+    let query = supabase.from("paquetes_registro").select("id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, notas_imagenes, registro, estado, hora_fecha, creado_en, numero_cliente_id, billing_subtotal, billing_tax, billing_total, invoice_status, approval_status, numero_cliente:numero_cliente_id (id, numero_cliente, nombre)").eq("estado", "Recibido").order("creado_en", { ascending: false }).limit(1000);
     if (search) query = query.or(`tracking.ilike.%${search}%,nombre_paqueteria.ilike.%${search}%,contenido.ilike.%${search}%`);
     const { data, error } = await query;
     if (error) throw error;
-    return NextResponse.json({ packages: data || [] });
+    const ids = (data || []).map((row) => row.id);
+    const { data: checkins, error: checkinError } = ids.length
+      ? await supabase.from("paquetes_checkin").select("paquete_id, alto, ancho, largo, peso, cargos_adicionales, creado_en").in("paquete_id", ids).order("creado_en", { ascending: false })
+      : { data: [], error: null };
+    if (checkinError) throw checkinError;
+    const checkinByPackage = new Map<string, any>();
+    for (const row of checkins || []) checkinByPackage.set(String(row.paquete_id), row);
+    return NextResponse.json({ packages: (data || []).map((row) => ({ ...row, checkin: checkinByPackage.get(String(row.id)) || null })) });
   } catch (error) { return errorResponse(error); }
 }
 
@@ -52,10 +59,11 @@ export async function POST(request: Request) {
     if (!type) return NextResponse.json({ error: "Select Box or Package" }, { status: 400 });
     const { data: existing } = await supabase.from("paquetes_registro").select("id").eq("tracking", tracking).maybeSingle();
     if (existing) return NextResponse.json({ error: "A shipment with this tracking number is already registered" }, { status: 409 });
+    const customerId = String(body?.customer_id || "").trim() || null;
     const note = [body?.owner_unknown ? "UNKNOWN OWNER - pending customer identification" : "", String(body?.note || "").trim()].filter(Boolean).join("\n") || null;
-    const { data, error } = await supabase.from("paquetes_registro").insert({ tracking, nombre_paqueteria: String(body?.carrier || "").trim() || "", tipo_paquete: type, contenido: String(body?.contents || "").trim() || null, notas: note, registro: actor.name, estado: "Recibido" }).select("id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, registro, estado, hora_fecha").single();
+    const { data, error } = await supabase.from("paquetes_registro").insert({ tracking, nombre_paqueteria: String(body?.carrier || "").trim() || "", tipo_paquete: type, contenido: String(body?.contents || "").trim() || null, notas: note, numero_cliente_id: customerId, registro: actor.name, estado: "Recibido" }).select("id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, registro, estado, hora_fecha").single();
     if (error) throw error;
-    await supabase.from("staff_action_logs").insert({ actor_id: actor.user.id, actor_name: actor.name, actor_email: actor.user.email || null, actor_role: actor.role, action: "receiving_package_created", entity_type: "paquetes_registro", entity_id: data.id, tracking, success: true, details: { type, owner_unknown: Boolean(body?.owner_unknown), source: "scanner_workflow_app" } });
+    await supabase.from("staff_action_logs").insert({ actor_id: actor.user.id, actor_name: actor.name, actor_email: actor.user.email || null, actor_role: actor.role, action: "receiving_package_created", entity_type: "paquetes_registro", entity_id: data.id, tracking, success: true, details: { type, owner_unknown: Boolean(body?.owner_unknown), customer_id: customerId, source: "scanner_workflow_app" } });
     return NextResponse.json({ package: data });
   } catch (error) { return errorResponse(error); }
 }
@@ -67,11 +75,28 @@ export async function PATCH(request: Request) {
     const body = await request.json();
     const id = String(body?.id || "").trim();
     if (!id) return NextResponse.json({ error: "Package id is required" }, { status: 400 });
-    const update = { tracking: String(body?.tracking || "").trim().toUpperCase(), nombre_paqueteria: String(body?.carrier || "").trim(), tipo_paquete: body?.type === "BOX" ? "BOX" : "PACKAGE", contenido: String(body?.contents || "").trim() || null, notas: String(body?.note || "").trim() || null };
+    const customerId = String(body?.customer_id || "").trim() || null;
+    const update = { tracking: String(body?.tracking || "").trim().toUpperCase(), nombre_paqueteria: String(body?.carrier || "").trim(), tipo_paquete: body?.type === "BOX" ? "BOX" : "PACKAGE", contenido: String(body?.contents || "").trim() || null, notas: String(body?.note || "").trim() || null, numero_cliente_id: customerId };
     if (!update.tracking) return NextResponse.json({ error: "Tracking number is required" }, { status: 400 });
     const { data, error } = await supabase.from("paquetes_registro").update(update).eq("id", id).select("id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, registro, estado, hora_fecha").single();
     if (error) throw error;
-    await supabase.from("staff_action_logs").insert({ actor_id: actor.user.id, actor_name: actor.name, actor_email: actor.user.email || null, actor_role: actor.role, action: "receiving_package_updated", entity_type: "paquetes_registro", entity_id: id, tracking: data.tracking, success: true, details: { source: "scanner_workflow_app" } });
+    const hasCheckinFields = [body?.alto, body?.ancho, body?.largo, body?.peso, body?.cargos_adicionales].some((value) => value !== undefined);
+    if (hasCheckinFields) {
+      const checkinPayload = {
+        paquete_id: id,
+        alto: body?.alto === "" || body?.alto == null ? null : Number(body.alto),
+        ancho: body?.ancho === "" || body?.ancho == null ? null : Number(body.ancho),
+        largo: body?.largo === "" || body?.largo == null ? null : Number(body.largo),
+        peso: body?.peso === "" || body?.peso == null ? null : Number(body.peso),
+        cargos_adicionales: String(body?.cargos_adicionales || "").trim() || null,
+      };
+      const { data: existingCheckin } = await supabase.from("paquetes_checkin").select("id").eq("paquete_id", id).order("creado_en", { ascending: false }).limit(1).maybeSingle();
+      const checkinResult = existingCheckin?.id
+        ? await supabase.from("paquetes_checkin").update(checkinPayload).eq("id", existingCheckin.id)
+        : await supabase.from("paquetes_checkin").insert(checkinPayload);
+      if (checkinResult.error) throw checkinResult.error;
+    }
+    await supabase.from("staff_action_logs").insert({ actor_id: actor.user.id, actor_name: actor.name, actor_email: actor.user.email || null, actor_role: actor.role, action: "receiving_package_updated", entity_type: "paquetes_registro", entity_id: id, tracking: data.tracking, success: true, details: { customer_id: customerId, source: "scanner_workflow_app" } });
     return NextResponse.json({ package: data });
   } catch (error) { return errorResponse(error); }
 }
