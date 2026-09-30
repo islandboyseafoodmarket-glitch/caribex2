@@ -6,15 +6,16 @@ export async function GET() {
   return NextResponse.json(
     {
       app: "Caribex Warehouse Management",
-      version: "1.0.6",
-      version_code: 6,
-      apk_url: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663449196187/yaJEfnkejyRuSelT.apk",
-      filename: "Caribex-Warehouse-Management-1.0.6.apk",
+      version: "1.0.7",
+      version_code: 7,
+      apk_url: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663449196187/LZudprBrfjWvKVvN.apk",
+      filename: "Caribex-Warehouse-Management-1.0.7.apk",
       release_notes: [
         "Receiving scan and manual entry controls",
         "Web-equivalent UPS, USPS, FedEx, and carrier detection rules",
         "Home returns to the approved-role screen and closes the active stage",
-        "Camera permission and Scan package controls now show clear feedback",
+        "Scan package opens in a dedicated full-screen camera scanner",
+        "Home remains a separate control for returning to role selection",
         "Check In bulk move-to-In-Transit action",
         "Working Sync, Settings, and Home actions",
         "Client and customer refresh from the server",
