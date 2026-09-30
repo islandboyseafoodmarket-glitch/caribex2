@@ -34,6 +34,15 @@ export async function GET(request: Request) {
     const url = new URL(request.url);
     const query = url.searchParams.get("query")?.trim() || "";
     const view = url.searchParams.get("view") || "ready";
+    if (url.searchParams.get("list") === "1") {
+      const { data: clients, error: clientListError } = await supabase
+        .from("numero_cliente")
+        .select("id, numero_cliente, nombre, email, telefono, puerto")
+        .order("nombre", { ascending: true })
+        .limit(1000);
+      if (clientListError) throw clientListError;
+      return NextResponse.json({ clients: clients || [] });
+    }
     if (query.length < 1) return NextResponse.json({ client: null, packages: [] });
 
     const numeric = query.replace(/[^0-9]/g, "");
