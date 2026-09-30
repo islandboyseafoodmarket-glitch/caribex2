@@ -63,7 +63,7 @@ export async function GET(request: Request) {
     };
     const { data: allPackages, error: packageError } = await supabase
       .from("paquetes_registro")
-      .select("id, tracking, nombre_paqueteria, tipo_paquete, estado, billing_status, approval_status, billing_total, fecha_descargado, hora_descargado")
+      .select("id, tracking, nombre_paqueteria, tipo_paquete, estado, invoice_status, approval_status, billing_total, fecha_descargado, hora_descargado")
       .eq("numero_cliente_id", client.id)
       .order("registro", { ascending: false })
       .limit(100);
