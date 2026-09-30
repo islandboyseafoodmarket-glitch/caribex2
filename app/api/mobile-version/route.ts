@@ -6,10 +6,10 @@ export async function GET() {
   return NextResponse.json(
     {
       app: "Caribex Warehouse Management",
-      version: "1.2.1",
-      version_code: 121,
-      apk_url: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663449196187/jMpxntbCjjWszbXQ.apk",
-      filename: "Caribex-Warehouse-Management-1.2.1.apk",
+      version: "1.2.2",
+      version_code: 122,
+      apk_url: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663449196187/bdAKsImYtMQltems.apk",
+      filename: "Caribex-Warehouse-Management-1.2.2.apk",
       release_notes: [
         "Web-equivalent Receiving, Check In, consolidation, and customer assignment",
         "Client Pickup now shows every shipment tracking number with the authoritative invoice status",
@@ -22,6 +22,8 @@ export async function GET() {
         "Home, Sync, Settings, rescan, and Client Pickup actions",
         "Already Picked Up warning for shipments already marked Entregado / Recogido",
         "Scanned-only customer signatures, fixed Home reset, and client lookup dropdown behavior",
+        "Unknown Owner can be saved without a customer but requires an internal note or photo",
+        "Receiving customer lookup refreshes like Client Pickup, and Contents is optional",
       ],
     },
     { headers: { "Cache-Control": "no-store, max-age=0" } },

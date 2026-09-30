@@ -52,19 +52,38 @@ export async function POST(request: Request) {
   try {
     const supabase = adminClient();
     const actor = await requireStaff(request, supabase);
-    const body = await request.json();
-    const tracking = String(body?.tracking || "").trim().toUpperCase();
-    const type = body?.type === "BOX" ? "BOX" : body?.type === "PACKAGE" ? "PACKAGE" : "";
+    const isMultipart = request.headers.get("content-type")?.toLowerCase().includes("multipart/form-data") || false;
+    const body = isMultipart ? await request.formData() : await request.json();
+    const value = (key: string) => isMultipart ? String(body.get(key) || "") : String(body?.[key] || "");
+    const ownerUnknown = value("owner_unknown").toLowerCase() === "true";
+    const noteText = value("note").trim();
+    const photo = isMultipart ? body.get("photo") : null;
+    const tracking = value("tracking").trim().toUpperCase();
+    const type = value("type") === "BOX" ? "BOX" : value("type") === "PACKAGE" ? "PACKAGE" : "";
     if (!tracking) return NextResponse.json({ error: "Tracking number or barcode is required" }, { status: 400 });
     if (!type) return NextResponse.json({ error: "Select Box or Package" }, { status: 400 });
+    if (ownerUnknown && !noteText && !(photo instanceof File && photo.size > 0)) return NextResponse.json({ error: "Unknown Owner requires an internal note or a photo" }, { status: 400 });
+    if (photo && !(photo instanceof File)) return NextResponse.json({ error: "Invalid photo upload" }, { status: 400 });
+    if (photo instanceof File && photo.size > 8 * 1024 * 1024) return NextResponse.json({ error: "Photo must be 8 MB or smaller" }, { status: 400 });
     const { data: existing } = await supabase.from("paquetes_registro").select("id").eq("tracking", tracking).maybeSingle();
     if (existing) return NextResponse.json({ error: "A shipment with this tracking number is already registered" }, { status: 409 });
-    const customerId = String(body?.customer_id || "").trim() || null;
-    const note = [body?.owner_unknown ? "UNKNOWN OWNER - pending customer identification" : "", String(body?.note || "").trim()].filter(Boolean).join("\n") || null;
-    const { data, error } = await supabase.from("paquetes_registro").insert({ tracking, nombre_paqueteria: String(body?.carrier || "").trim() || "", tipo_paquete: type, contenido: String(body?.contents || "").trim() || null, notas: note, numero_cliente_id: customerId, registro: actor.name, estado: "Recibido" }).select("id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, registro, estado, hora_fecha").single();
+    const customerId = value("customer_id").trim() || null;
+    const note = [ownerUnknown ? "UNKNOWN OWNER - pending customer identification" : "", noteText].filter(Boolean).join("\n") || null;
+    const { data, error } = await supabase.from("paquetes_registro").insert({ tracking, nombre_paqueteria: value("carrier").trim() || "", tipo_paquete: type, contenido: value("contents").trim() || null, notas: note, numero_cliente_id: customerId, registro: actor.name, estado: "Recibido" }).select("id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, notas_imagenes, registro, estado, hora_fecha").single();
     if (error) throw error;
-    await supabase.from("staff_action_logs").insert({ actor_id: actor.user.id, actor_name: actor.name, actor_email: actor.user.email || null, actor_role: actor.role, action: "receiving_package_created", entity_type: "paquetes_registro", entity_id: data.id, tracking, success: true, details: { type, owner_unknown: Boolean(body?.owner_unknown), customer_id: customerId, source: "scanner_workflow_app" } });
-    return NextResponse.json({ package: data });
+    let savedPackage = data;
+    if (photo instanceof File && photo.size > 0) {
+      const extension = (photo.name.split(".").pop() || "jpg").replace(/[^a-z0-9]/gi, "").toLowerCase() || "jpg";
+      const path = `scanner/${data.id}/${Date.now()}-${crypto.randomUUID()}.${extension}`;
+      const upload = await supabase.storage.from("notas-imagenes").upload(path, photo, { contentType: photo.type || "image/jpeg", upsert: false });
+      if (upload.error) throw upload.error;
+      const { data: publicUrl } = supabase.storage.from("notas-imagenes").getPublicUrl(path);
+      const { data: updated, error: imageError } = await supabase.from("paquetes_registro").update({ notas_imagenes: [publicUrl.publicUrl] }).eq("id", data.id).select("id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, notas_imagenes, registro, estado, hora_fecha").single();
+      if (imageError) throw imageError;
+      savedPackage = updated;
+    }
+    await supabase.from("staff_action_logs").insert({ actor_id: actor.user.id, actor_name: actor.name, actor_email: actor.user.email || null, actor_role: actor.role, action: "receiving_package_created", entity_type: "paquetes_registro", entity_id: data.id, tracking, success: true, details: { type, owner_unknown: ownerUnknown, customer_id: customerId, photo_uploaded: photo instanceof File, source: "scanner_workflow_app" } });
+    return NextResponse.json({ package: savedPackage });
   } catch (error) { return errorResponse(error); }
 }
 
