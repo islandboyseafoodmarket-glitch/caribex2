@@ -33,6 +33,7 @@ export async function GET(request: Request) {
     await requireStaff(request, supabase);
     const url = new URL(request.url);
     const query = url.searchParams.get("query")?.trim() || "";
+    const clientId = url.searchParams.get("client_id")?.trim() || "";
     const view = url.searchParams.get("view") || "ready";
     if (url.searchParams.get("list") === "1") {
       const { data: clients, error: clientListError } = await supabase
@@ -43,11 +44,12 @@ export async function GET(request: Request) {
       if (clientListError) throw clientListError;
       return NextResponse.json({ clients: clients || [] });
     }
-    if (query.length < 1) return NextResponse.json({ client: null, packages: [] });
+    if (query.length < 1 && !clientId) return NextResponse.json({ client: null, packages: [] });
 
     const numeric = query.replace(/[^0-9]/g, "");
     let clientQuery = supabase.from("numero_cliente").select("id, numero_cliente, nombre, email, telefono, puerto").limit(5);
-    if (numeric && numeric === query.replace(/^L/i, "").replace(/^0+/, "") && numeric.length > 0) clientQuery = clientQuery.eq("numero_cliente", Number(numeric));
+    if (clientId) clientQuery = clientQuery.eq("id", clientId);
+    else if (numeric && numeric === query.replace(/^L/i, "").replace(/^0+/, "") && numeric.length > 0) clientQuery = clientQuery.eq("numero_cliente", Number(numeric));
     else clientQuery = clientQuery.ilike("nombre", `%${query}%`);
     const { data: clients, error: clientError } = await clientQuery;
     if (clientError) throw clientError;
