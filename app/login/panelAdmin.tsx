@@ -1018,7 +1018,6 @@ const App = () => {
 
   const handleAdminSendInvoice = async (factura: Factura) => {
     if (!factura.clienteEmail) { alert("This customer does not have an email address."); return; }
-    if ((factura.approval_status || "PENDING").toUpperCase() !== "APPROVED") { alert("Approve the invoice before sending it."); return; }
     const { data: checkin } = await supabase.from("paquetes_checkin").select("cargos_adicionales, consolidacion").eq("paquete_id", factura.id).order("creado_en", { ascending: false }).limit(1).maybeSingle();
     const extraCharges = String(checkin?.cargos_adicionales || "").split(",").map((item) => item.trim()).filter(Boolean);
     const { data: sessionData } = await supabase.auth.getSession();
