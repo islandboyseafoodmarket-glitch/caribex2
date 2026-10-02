@@ -2022,7 +2022,7 @@ const App = () => {
         )}
 
         {activeTab === 'facturas' && facturas.length > 0 && (
-          <div style={{ width: '100%', overflowX: 'hidden' }}>
+          <div style={{ width: '100%', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
             <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center', marginBottom: '0.85rem' }}>
               <input
                 type="search"
@@ -2108,7 +2108,7 @@ const App = () => {
               <span style={{ minWidth: 90 }}>Total</span>
               <span style={{ minWidth: 150 }}>Aprobación</span>
               <span style={{ minWidth: 150 }}>Estado factura</span>
-              <span style={{ textAlign: 'right', minWidth: 160 }}>Acciones</span>
+              <span style={{ textAlign: 'right', minWidth: 160, position: 'sticky', right: 0, zIndex: 2, background: '#fff' }}>Acciones</span>
             </div>
 
             <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
@@ -2234,6 +2234,11 @@ const App = () => {
                         justifyContent: 'flex-end',
                         gap: '0.35rem',
                         minWidth: 160,
+                        position: 'sticky',
+                        right: 0,
+                        zIndex: 1,
+                        background: '#fff',
+                        paddingLeft: '0.35rem',
                       }}
                     >
                       <button
