@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { DATABASE_STATUS, statusMatches } from "@/lib/shipping-rules";
 
 export const dynamic = "force-dynamic";
 
@@ -57,9 +58,9 @@ export async function GET(request: Request) {
     if (!client) return NextResponse.json({ client: null, packages: [] });
 
     const statusFilters: Record<string, string[]> = {
-      ready: ["Descargado"],
-      picked: ["Entregado"],
-      way: ["En tránsito"],
+      ready: [DATABASE_STATUS.UNLOADED],
+      picked: [DATABASE_STATUS.PICKED_UP],
+      way: [DATABASE_STATUS.IN_TRANSIT],
     };
     const { data: allPackages, error: packageError } = await supabase
       .from("paquetes_registro")
@@ -85,11 +86,10 @@ export async function GET(request: Request) {
       if (code) containerByPackageId.set(link.paquete_id, code);
     }
     const packages = (allPackages || []).map((item) => ({ ...item, container_code: containerByPackageId.get(item.id) || null })).filter((item) => {
-      const status = String(item.estado || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
-      if (view === "ready") return status === "descargado";
-      return (statusFilters[view] || statusFilters.ready).some((allowed) => status === allowed.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase());
+      if (view === "ready") return statusMatches(item.estado, DATABASE_STATUS.UNLOADED);
+      return (statusFilters[view] || statusFilters.ready).some((allowed) => statusMatches(item.estado, allowed as typeof DATABASE_STATUS[keyof typeof DATABASE_STATUS]));
     });
-    const collected = (allPackages || []).filter((item) => item.estado === "Entregado").length;
+    const collected = (allPackages || []).filter((item) => statusMatches(item.estado, DATABASE_STATUS.PICKED_UP)).length;
     const total = (allPackages || []).length;
     return NextResponse.json({ client, packages, view, summary: { collected, total, pending: Math.max(total - collected, 0) } });
   } catch (error) {

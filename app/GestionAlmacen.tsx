@@ -43,6 +43,7 @@ import InvoicePreview from "../components/InvoicePreview";
 import CaribexLabelPrint from "../components/CaribexLabelPrint";
 import CaribexBatchLabelPrint, { BatchBoxLabel } from "../components/CaribexBatchLabelPrint";
 import { calculateWorkflowBilling, isBox } from "../lib/workflow-billing";
+import { DATABASE_STATUS } from "../lib/shipping-rules";
 
 import {
   Html5Qrcode,
@@ -1434,8 +1435,8 @@ export default function GestionAlmacen() {
         continue;
       }
 
-      // "Check In" / "Check-In" / variantes
-      if (raw === "check in" || raw === "check-in" || raw === "checkin") {
+      // Canonical database Check In status is "Registrado"; retain legacy labels too.
+      if (raw === "registrado" || raw === "check in" || raw === "check-in" || raw === "checkin") {
         grouped.REGISTRO.push(p);
         continue;
       }
@@ -3349,12 +3350,35 @@ export default function GestionAlmacen() {
 const handleConfirmTransit = async () => {
   if (!selectedPackage) return;
 
+  const now = new Date();
+  const codigoContenedor = `CONT-${now.toISOString().slice(0, 10)}-${String(Date.now()).slice(-6)}`;
+  const { data: contData, error: contError } = await supabase
+    .from("contenedores")
+    .insert({ codigo: codigoContenedor })
+    .select("id, codigo")
+    .single();
+  if (contError || !contData) {
+    alert(contError?.message || "Could not create container for In-Transit");
+    return;
+  }
+
+  const { error: relError } = await supabase
+    .from("contenedor_paquetes")
+    .insert({ contenedor_id: contData.id, paquete_id: selectedPackage.id });
+  if (relError) {
+    await supabase.from("contenedores").delete().eq("id", contData.id);
+    alert(relError.message || "Could not associate shipment with container");
+    return;
+  }
+
   const { error } = await supabase
     .from("paquetes_registro")
-    .update({ estado: "En transito" })
+    .update({ estado: DATABASE_STATUS.IN_TRANSIT, fecha_transito: now.toISOString() })
     .eq("tracking", selectedPackage.tracking);
 
   if (error) {
+    await supabase.from("contenedor_paquetes").delete().eq("contenedor_id", contData.id).eq("paquete_id", selectedPackage.id);
+    await supabase.from("contenedores").delete().eq("id", contData.id);
     alert(
       error.message ||
         (isEs
@@ -3369,7 +3393,7 @@ const handleConfirmTransit = async () => {
       p.id === selectedPackage.id
         ? {
             ...p,
-            estado: "En transito",
+            estado: DATABASE_STATUS.IN_TRANSIT,
           }
         : p,
     ),
@@ -3491,7 +3515,7 @@ const handlePackageCreated = (pkg: Package) => {
     const { error } = await supabase
       .from("paquetes_registro")
       .update({
-        estado: "En transito",
+        estado: DATABASE_STATUS.IN_TRANSIT,
         fecha_transito: now.toISOString(),
       })
       .in("id", ids as any);
@@ -3512,7 +3536,7 @@ const handlePackageCreated = (pkg: Package) => {
         ids.includes(p.id)
           ? {
               ...p,
-              estado: "En transito",
+              estado: DATABASE_STATUS.IN_TRANSIT,
             }
           : p,
       ),

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { CHECK_IN_STAGE_QUERY, RECEIVING_STAGE_QUERY } from "@/lib/shipping-rules";
 
 export const dynamic = "force-dynamic";
 
@@ -32,8 +33,11 @@ export async function GET(request: Request) {
   try {
     const supabase = adminClient();
     await requireStaff(request, supabase);
-    const search = new URL(request.url).searchParams.get("search")?.trim() || "";
-    let query = supabase.from("paquetes_registro").select("id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, notas_imagenes, registro, estado, hora_fecha, creado_en, numero_cliente_id, billing_subtotal, billing_tax, billing_total, invoice_status, approval_status, numero_cliente:numero_cliente_id (id, numero_cliente, nombre)").eq("estado", "Recibido").order("creado_en", { ascending: false }).limit(1000);
+    const params = new URL(request.url).searchParams;
+    const search = params.get("search")?.trim() || "";
+    const stage = params.get("stage") === "check_in" ? "check_in" : "received";
+    const statuses = stage === "check_in" ? CHECK_IN_STAGE_QUERY : RECEIVING_STAGE_QUERY;
+    let query = supabase.from("paquetes_registro").select("id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, notas_imagenes, registro, estado, hora_fecha, creado_en, numero_cliente_id, billing_subtotal, billing_tax, billing_total, invoice_status, approval_status, numero_cliente:numero_cliente_id (id, numero_cliente, nombre)").in("estado", statuses).order("creado_en", { ascending: false }).limit(1000);
     if (search) query = query.or(`tracking.ilike.%${search}%,nombre_paqueteria.ilike.%${search}%,contenido.ilike.%${search}%`);
     const { data, error } = await query;
     if (error) throw error;
@@ -44,7 +48,7 @@ export async function GET(request: Request) {
     if (checkinError) throw checkinError;
     const checkinByPackage = new Map<string, any>();
     for (const row of checkins || []) checkinByPackage.set(String(row.paquete_id), row);
-    return NextResponse.json({ packages: (data || []).map((row) => ({ ...row, checkin: checkinByPackage.get(String(row.id)) || null })) });
+    return NextResponse.json({ stage, status_values: statuses, packages: (data || []).map((row) => ({ ...row, checkin: checkinByPackage.get(String(row.id)) || null })) });
   } catch (error) { return errorResponse(error); }
 }
 
@@ -65,8 +69,15 @@ export async function POST(request: Request) {
     if (ownerUnknown && !noteText && !(photo instanceof File && photo.size > 0)) return NextResponse.json({ error: "Unknown Owner requires an internal note or a photo" }, { status: 400 });
     if (photo && !(photo instanceof File)) return NextResponse.json({ error: "Invalid photo upload" }, { status: 400 });
     if (photo instanceof File && photo.size > 8 * 1024 * 1024) return NextResponse.json({ error: "Photo must be 8 MB or smaller" }, { status: 400 });
-    const { data: existing } = await supabase.from("paquetes_registro").select("id").eq("tracking", tracking).maybeSingle();
-    if (existing) return NextResponse.json({ error: "A shipment with this tracking number is already registered" }, { status: 409 });
+    const { data: existing } = await supabase.from("paquetes_registro").select("id, tracking, estado").eq("tracking", tracking).maybeSingle();
+    if (existing) {
+      return NextResponse.json({
+        error: "This tracking number is already registered and cannot be received a second time.",
+        code: "DUPLICATE_TRACKING",
+        tracking: existing.tracking,
+        current_status: existing.estado,
+      }, { status: 409 });
+    }
     const customerId = value("customer_id").trim() || null;
     const note = [ownerUnknown ? "UNKNOWN OWNER - pending customer identification" : "", noteText].filter(Boolean).join("\n") || null;
     const { data, error } = await supabase.from("paquetes_registro").insert({ tracking, nombre_paqueteria: value("carrier").trim() || "", tipo_paquete: type, contenido: value("contents").trim() || null, notas: note, numero_cliente_id: customerId, registro: actor.name, estado: "Recibido" }).select("id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, notas_imagenes, registro, estado, hora_fecha").single();

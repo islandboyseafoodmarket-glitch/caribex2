@@ -1,17 +1,18 @@
 import { NextResponse } from "next/server";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { calculateWorkflowBilling, isBox } from "@/lib/workflow-billing";
+import { DATABASE_STATUS } from "@/lib/shipping-rules";
 
 export const dynamic = "force-dynamic";
 
 type WorkflowStep = { key: string; status: string; label: string; description: string };
 
 const WORKFLOW: WorkflowStep[] = [
-  { key: "RECEIVED", status: "Recibido", label: "Received", description: "Shipment received" },
-  { key: "CHECK_IN", status: "Registrado", label: "Check In", description: "Shipment checked in" },
-  { key: "IN_TRANSIT", status: "En tránsito", label: "In Transit", description: "Shipment moved in transit" },
-  { key: "UNLOADED", status: "Descargado", label: "Ready for Pickup", description: "Shipment unloaded and ready for pickup" },
-  { key: "PICKED_UP", status: "Entregado", label: "Picked Up", description: "Shipment picked up" },
+  { key: "RECEIVED", status: DATABASE_STATUS.RECEIVED, label: "Received", description: "Shipment received" },
+  { key: "CHECK_IN", status: DATABASE_STATUS.CHECK_IN, label: "Check In", description: "Shipment checked in" },
+  { key: "IN_TRANSIT", status: DATABASE_STATUS.IN_TRANSIT, label: "In Transit", description: "Shipment moved in transit" },
+  { key: "UNLOADED", status: DATABASE_STATUS.UNLOADED, label: "Ready for Pickup", description: "Shipment unloaded and ready for pickup" },
+  { key: "PICKED_UP", status: DATABASE_STATUS.PICKED_UP, label: "Picked Up", description: "Shipment picked up" },
 ];
 
 function adminClient() {
@@ -103,7 +104,7 @@ export async function GET(request: Request) {
     const rawCode = url.searchParams.get("code")?.trim() || "";
     if (!rawCode) return NextResponse.json({ error: "Scan or enter a tracking number" }, { status: 400 });
 
-    let query = supabase.from("paquetes_registro").select("id, tracking, nombre_paqueteria, tipo_paquete, estado, numero_cliente_id, billing_subtotal, billing_tax, billing_total, invoice_status, approval_status, numero_cliente:numero_cliente_id (numero_cliente, nombre)");
+    let query = supabase.from("paquetes_registro").select("id, tracking, nombre_paqueteria, tipo_paquete, estado, numero_cliente_id, billing_subtotal, billing_tax, billing_total, invoice_status, approval_status, numero_cliente:numero_cliente_id (numero_cliente, nombre, email, telefono)");
     const idMatch = rawCode.match(/(?:pedidos\/)?([0-9a-f]{8}-[0-9a-f-]{27})/i);
     if (idMatch) query = query.eq("id", idMatch[1]);
     else query = query.ilike("tracking", rawCode);
@@ -127,7 +128,7 @@ export async function POST(request: Request) {
     const requestedKey = String(body?.next_key || "").trim();
     if (!shipmentId || !requestedKey) return NextResponse.json({ error: "Shipment and next status are required" }, { status: 400 });
 
-    const { data: shipment, error: lookupError } = await supabase.from("paquetes_registro").select("id, tracking, estado, tipo_paquete, billing_subtotal, billing_tax, billing_total, invoice_status, approval_status, numero_cliente_id, numero_cliente:numero_cliente_id (numero_cliente, nombre)").eq("id", shipmentId).maybeSingle();
+    const { data: shipment, error: lookupError } = await supabase.from("paquetes_registro").select("id, tracking, estado, tipo_paquete, billing_subtotal, billing_tax, billing_total, invoice_status, approval_status, numero_cliente_id, numero_cliente:numero_cliente_id (numero_cliente, nombre, email, telefono)").eq("id", shipmentId).maybeSingle();
     if (lookupError) throw lookupError;
     if (!shipment) return NextResponse.json({ error: "Shipment not found" }, { status: 404 });
 
@@ -158,8 +159,34 @@ export async function POST(request: Request) {
       payload.hora_entregado = now.toTimeString().split(" ")[0];
       payload.entregado_por = actor.profile?.nombre || actor.profile?.nombre_personal || actor.user.email || "Staff";
     }
+    let container: { id: string; codigo: string } | null = null;
+    if (expectedNext.key === "IN_TRANSIT") {
+      const containerCode = `CONT-${now.toISOString().slice(0, 10)}-${String(Date.now()).slice(-6)}`;
+      const { data: createdContainer, error: containerError } = await supabase
+        .from("contenedores")
+        .insert({ codigo: containerCode })
+        .select("id, codigo")
+        .single();
+      if (containerError || !createdContainer) throw containerError || new Error("Could not create container for In-Transit");
+      container = createdContainer;
+
+      const { error: linkError } = await supabase
+        .from("contenedor_paquetes")
+        .insert({ contenedor_id: container.id, paquete_id: shipment.id });
+      if (linkError) {
+        await supabase.from("contenedores").delete().eq("id", container.id);
+        throw linkError;
+      }
+      payload.fecha_transito = now.toISOString();
+    }
     const { error: updateError } = await supabase.from("paquetes_registro").update(payload).eq("id", shipmentId);
-    if (updateError) throw updateError;
+    if (updateError) {
+      if (container) {
+        await supabase.from("contenedor_paquetes").delete().eq("contenedor_id", container.id).eq("paquete_id", shipment.id);
+        await supabase.from("contenedores").delete().eq("id", container.id);
+      }
+      throw updateError;
+    }
 
     const customer = Array.isArray(shipment.numero_cliente) ? shipment.numero_cliente[0] : shipment.numero_cliente;
     await supabase.from("staff_action_logs").insert({
@@ -174,10 +201,10 @@ export async function POST(request: Request) {
       customer_name: customer?.nombre || null,
       customer_account_number: customer?.numero_cliente || null,
       success: true,
-      details: { from_status: shipment.estado, to_status: expectedNext.status, source: "scanner_workflow_app" },
+      details: { from_status: shipment.estado, to_status: expectedNext.status, container_code: container?.codigo || null, source: "scanner_workflow_app" },
       user_agent: request.headers.get("user-agent") || null,
     });
-    return NextResponse.json({ ok: true, previous: WORKFLOW[beforeIndex], current: expectedNext, tracking: shipment.tracking });
+    return NextResponse.json({ ok: true, previous: WORKFLOW[beforeIndex], current: expectedNext, tracking: shipment.tracking, container });
   } catch (error) {
     return errorResponse(error);
   }

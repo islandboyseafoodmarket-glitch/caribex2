@@ -1,6 +1,7 @@
 import { randomBytes } from "crypto";
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { normalizeFerryPort } from "@/lib/shipping-rules";
 
 export const dynamic = "force-dynamic";
 
@@ -45,18 +46,6 @@ function getWeekBounds(date = new Date()) {
   end.setDate(end.getDate() + 6);
   end.setHours(23, 59, 59, 999);
   return { start, end };
-}
-
-function normalizePort(value: unknown) {
-  const port = String(value || "")
-    .trim()
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
-  if (port.includes("ceiba")) return "la_ceiba";
-  if (port === "utila") return "utila";
-  if (port === "guanaja") return "guanaja";
-  return null;
 }
 
 export async function GET(request: Request) {
@@ -140,7 +129,7 @@ export async function POST(request: Request) {
     const entryRows = (packages || [])
       .map((item) => {
         const customer = customerById.get(item.numero_cliente_id);
-        const port = normalizePort(customer?.puerto);
+        const port = normalizeFerryPort(customer?.puerto);
         if (!customer || !port) return null;
         const source = `${item.notas || ""} ${item.contenido || ""}`;
         const quantityMatch = source.match(/(?:BOXES?|PACKAGES?)\s*[=:]\s*\d+/i);

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { calculateWorkflowBilling, isBox } from "@/lib/workflow-billing";
+import { CHECK_IN_STAGE_QUERY, DATABASE_STATUS, RECEIVING_STAGE_QUERY } from "@/lib/shipping-rules";
 
 export const dynamic = "force-dynamic";
 
@@ -39,12 +40,12 @@ export async function POST(request: Request) {
       const { data: received, error: listError } = await supabase
         .from("paquetes_registro")
         .select("id, tracking")
-        .eq("estado", "Recibido")
+        .in("estado", RECEIVING_STAGE_QUERY)
         .limit(500);
       if (listError) throw listError;
       const ids = (received || []).map((row) => row.id);
       if (!ids.length) return NextResponse.json({ ok: true, moved: 0 });
-      const { error: updateError } = await supabase.from("paquetes_registro").update({ estado: "Registrado" }).in("id", ids);
+      const { error: updateError } = await supabase.from("paquetes_registro").update({ estado: DATABASE_STATUS.CHECK_IN }).in("id", ids);
       if (updateError) throw updateError;
       await supabase.from("staff_action_logs").insert({
         actor_id: actor.user.id,
@@ -55,7 +56,7 @@ export async function POST(request: Request) {
         entity_type: "paquetes_registro",
         entity_id: null,
         success: true,
-        details: { from_status: "Recibido", to_status: "Registrado", moved: ids.length, source: "scanner_workflow_app" },
+        details: { from_status: DATABASE_STATUS.RECEIVED, to_status: DATABASE_STATUS.CHECK_IN, moved: ids.length, source: "scanner_workflow_app" },
         user_agent: request.headers.get("user-agent") || null,
       });
       return NextResponse.json({ ok: true, moved: ids.length });
@@ -66,7 +67,7 @@ export async function POST(request: Request) {
     const { data: rows, error: listError } = await supabase
       .from("paquetes_registro")
       .select("id, tracking, tipo_paquete, billing_subtotal, billing_tax, billing_total, invoice_status")
-      .in("estado", ["Registrado", "Check In", "Check-in"])
+      .in("estado", CHECK_IN_STAGE_QUERY)
       .limit(500);
     if (listError) throw listError;
     const candidates = rows || [];
@@ -110,7 +111,22 @@ export async function POST(request: Request) {
       const { error } = await supabase.from("paquetes_registro").update({ billing_subtotal: update.billing_subtotal, billing_tax: update.billing_tax, billing_total: update.billing_total, invoice_status: update.invoice_status }).eq("id", update.id);
       if (error) throw error;
     }
-    const { error: updateError } = await supabase.from("paquetes_registro").update({ estado: "En tránsito" }).in("id", ids);
+    const now = new Date();
+    const containerCode = `CONT-${now.toISOString().slice(0, 10)}-${String(Date.now()).slice(-6)}`;
+    const { data: container, error: containerError } = await supabase
+      .from("contenedores")
+      .insert({ codigo: containerCode })
+      .select("id, codigo")
+      .single();
+    if (containerError || !container) throw containerError || new Error("Could not create container for In-Transit");
+
+    const { error: linkError } = await supabase.from("contenedor_paquetes").insert(ids.map((paquete_id) => ({ contenedor_id: container.id, paquete_id })));
+    if (linkError) {
+      await supabase.from("contenedores").delete().eq("id", container.id);
+      throw linkError;
+    }
+
+    const { error: updateError } = await supabase.from("paquetes_registro").update({ estado: DATABASE_STATUS.IN_TRANSIT, fecha_transito: now.toISOString() }).in("id", ids);
     if (updateError) throw updateError;
     await supabase.from("staff_action_logs").insert({
       actor_id: actor.user.id,
@@ -121,10 +137,10 @@ export async function POST(request: Request) {
       entity_type: "paquetes_registro",
       entity_id: null,
       success: true,
-      details: { from_status: "Registrado", to_status: "En tránsito", moved: ids.length, recalculated_billing: billingUpdates.length, source: "scanner_workflow_app" },
+      details: { from_status: DATABASE_STATUS.CHECK_IN, to_status: DATABASE_STATUS.IN_TRANSIT, moved: ids.length, container_code: container.codigo, recalculated_billing: billingUpdates.length, source: "scanner_workflow_app" },
       user_agent: request.headers.get("user-agent") || null,
     });
-    return NextResponse.json({ ok: true, moved: ids.length, blocked: [], recalculated_billing: billingUpdates.length });
+    return NextResponse.json({ ok: true, moved: ids.length, blocked: [], recalculated_billing: billingUpdates.length, container });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unexpected error";
     return NextResponse.json({ error: message }, { status: /authentication|token|access|required/i.test(message) ? 401 : 500 });
