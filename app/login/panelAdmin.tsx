@@ -2302,7 +2302,7 @@ const App = () => {
                       </button>
                       <button
                         type="button"
-                        title="Marcar como enviada"
+                        title={isSent ? 'Reenviar factura' : 'Enviar factura'}
                         style={{
                           minWidth: 28,
                           height: 28,
@@ -2310,16 +2310,16 @@ const App = () => {
                           border: '1px solid #bfdbfe',
                           backgroundColor: '#eff6ff',
                           fontSize: '0.75rem',
-                          cursor: isSent || isPaid ? 'default' : 'pointer',
-                          opacity: isSent || isPaid ? 0.5 : 1,
+                          cursor: isPaid ? 'default' : 'pointer',
+                          opacity: isPaid ? 0.5 : 1,
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
                         }}
-                        disabled={isSent || isPaid}
-                        onClick={() => !(isSent || isPaid) && void handleAdminSendInvoice(f)}
+                        disabled={isPaid}
+                        onClick={() => !isPaid && void handleAdminSendInvoice(f)}
                       >
-                        <Send size={14} /> <span style={{ fontSize: '0.72rem' }}>Send</span>
+                        <Send size={14} /> <span style={{ fontSize: '0.72rem' }}>{isSent ? 'Resend' : 'Send'}</span>
                       </button>
                       <button
                         type="button"
