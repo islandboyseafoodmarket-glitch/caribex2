@@ -63,15 +63,16 @@ export function detectCarrier(barcode: string): CarrierInfo {
     };
   }
 
-  // USPS: preserve the complete 20–22 digit tracking number. Some scanner
-  // payloads contain extra label text, so extract the full USPS sequence.
+  // USPS labels used by Caribex include a three-digit service prefix before
+  // the customer-facing tracking number. Validate the complete encoded value
+  // first, then remove that prefix before saving/displaying the tracking.
   const uspsMatch = cleanBarcode.match(/(?:92|93|94|95)\d{18,20}/);
   if (uspsMatch) {
-    const trackingNumber = uspsMatch[0];
-    if (!isValidUspsCheckDigit(trackingNumber)) {
+    const encodedTrackingNumber = uspsMatch[0];
+    if (!isValidUspsCheckDigit(encodedTrackingNumber)) {
       return { carrier: "unknown", trackingNumber: "", confidence: 0 };
     }
-    return { carrier: "usps", trackingNumber, confidence: 99 };
+    return { carrier: "usps", trackingNumber: encodedTrackingNumber.slice(3), confidence: 99 };
   }
   if (/^[A-Z]{2}\d{9}US$/.test(cleanBarcode)) {
     return { carrier: "usps", trackingNumber: cleanBarcode, confidence: 92 };
