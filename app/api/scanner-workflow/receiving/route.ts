@@ -29,6 +29,18 @@ function errorResponse(error: unknown) {
   return NextResponse.json({ error: message }, { status: /authentication|token|access|required/i.test(message) ? 401 : 500 });
 }
 
+function normalizeUspsTracking(tracking: string, carrier: string) {
+  const value = tracking.trim().toUpperCase();
+  const carrierValue = carrier.trim().toUpperCase();
+  // The installed Caribex APK sends the full USPS barcode payload. For the
+  // numeric USPS labels used by Caribex, the first three digits are the
+  // service prefix and are not part of the customer-facing tracking number.
+  if (carrierValue === "USPS" && /^\d{20}$|^\d{22}$/.test(value)) {
+    return value.slice(3);
+  }
+  return value;
+}
+
 export async function GET(request: Request) {
   try {
     const supabase = adminClient();
@@ -62,7 +74,8 @@ export async function POST(request: Request) {
     const ownerUnknown = value("owner_unknown").toLowerCase() === "true";
     const noteText = value("note").trim();
     const photo = isMultipart ? body.get("photo") : null;
-    const tracking = value("tracking").trim().toUpperCase();
+    const carrier = value("carrier").trim();
+    const tracking = normalizeUspsTracking(value("tracking"), carrier);
     const type = value("type") === "BOX" ? "BOX" : value("type") === "PACKAGE" ? "PACKAGE" : "";
     if (!tracking) return NextResponse.json({ error: "Tracking number or barcode is required" }, { status: 400 });
     if (!type) return NextResponse.json({ error: "Select Box or Package" }, { status: 400 });
@@ -80,7 +93,7 @@ export async function POST(request: Request) {
     }
     const customerId = value("customer_id").trim() || null;
     const note = [ownerUnknown ? "UNKNOWN OWNER - pending customer identification" : "", noteText].filter(Boolean).join("\n") || null;
-    const { data, error } = await supabase.from("paquetes_registro").insert({ tracking, nombre_paqueteria: value("carrier").trim() || "", tipo_paquete: type, contenido: value("contents").trim() || null, notas: note, numero_cliente_id: customerId, registro: actor.name, estado: "Recibido" }).select("id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, notas_imagenes, registro, estado, hora_fecha").single();
+    const { data, error } = await supabase.from("paquetes_registro").insert({ tracking, nombre_paqueteria: carrier, tipo_paquete: type, contenido: value("contents").trim() || null, notas: note, numero_cliente_id: customerId, registro: actor.name, estado: "Recibido" }).select("id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, notas_imagenes, registro, estado, hora_fecha").single();
     if (error) throw error;
     let savedPackage = data;
     if (photo instanceof File && photo.size > 0) {
@@ -106,7 +119,8 @@ export async function PATCH(request: Request) {
     const id = String(body?.id || "").trim();
     if (!id) return NextResponse.json({ error: "Package id is required" }, { status: 400 });
     const customerId = String(body?.customer_id || "").trim() || null;
-    const update = { tracking: String(body?.tracking || "").trim().toUpperCase(), nombre_paqueteria: String(body?.carrier || "").trim(), tipo_paquete: body?.type === "BOX" ? "BOX" : "PACKAGE", contenido: String(body?.contents || "").trim() || null, notas: String(body?.note || "").trim() || null, numero_cliente_id: customerId };
+    const carrier = String(body?.carrier || "").trim();
+    const update = { tracking: normalizeUspsTracking(String(body?.tracking || ""), carrier), nombre_paqueteria: carrier, tipo_paquete: body?.type === "BOX" ? "BOX" : "PACKAGE", contenido: String(body?.contents || "").trim() || null, notas: String(body?.note || "").trim() || null, numero_cliente_id: customerId };
     if (!update.tracking) return NextResponse.json({ error: "Tracking number is required" }, { status: 400 });
     const { data, error } = await supabase.from("paquetes_registro").update(update).eq("id", id).select("id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, registro, estado, hora_fecha").single();
     if (error) throw error;
