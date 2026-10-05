@@ -6,10 +6,10 @@ export async function GET() {
   return NextResponse.json(
     {
       app: "Caribex Warehouse Management",
-      version: "1.2.9",
-      version_code: 129,
-      apk_url: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663449196187/UhJmWLdzbOItdWuH.apk",
-      filename: "Caribex-Warehouse-Management-1.2.9.apk",
+      version: "1.2.10",
+      version_code: 1210,
+      apk_url: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663449196187/jFYirkfiMqymtlBZ.apk",
+      filename: "Caribex-Warehouse-Management-1.2.10.apk",
       release_notes: [
         "Web-equivalent Receiving, Check In, consolidation, and customer assignment",
         "Client Pickup now shows every shipment tracking number with the authoritative invoice status",
@@ -29,6 +29,7 @@ export async function GET() {
         "Same-version and older-version releases never show a download prompt",
         "Receiving modal stays fully visible above the Android keyboard",
         "The login screen uses lightweight text branding without bundling the large page logo image",
+        "USPS barcode routing prefixes are removed before every workflow lookup",
       ],
     },
     { headers: { "Cache-Control": "no-store, max-age=0" } },

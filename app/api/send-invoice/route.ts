@@ -264,7 +264,7 @@ export async function POST(request: Request) {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: "billing@caribexlogisticsgroup.com",
+        from: "CARIBEX <billing@caribexlogisticsgroup.com>",
         to,
         subject,
         html,
@@ -296,7 +296,7 @@ export async function POST(request: Request) {
       customer_name: clientName || null,
       customer_account_number: typeof clientNumber === "number" ? clientNumber : null,
       success: true,
-      details: { recipient: to, subject, total, sender: "billing@caribexlogisticsgroup.com" },
+      details: { recipient: to, subject, total, sender: "CARIBEX <billing@caribexlogisticsgroup.com>" },
       user_agent: request.headers.get("user-agent") || null,
     });
 
