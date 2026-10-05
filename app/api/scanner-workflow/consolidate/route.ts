@@ -28,6 +28,26 @@ function errorResponse(error: unknown) {
   return NextResponse.json({ error: message }, { status: /authentication|token|access|required/i.test(message) ? 401 : 500 });
 }
 
+async function saveCheckinRelationship(
+  supabase: SupabaseClient,
+  paqueteId: string,
+  values: { parent_box_id?: string | null; numero_cliente_id?: string | null; consolidacion: boolean },
+) {
+  const { data: existing, error: lookupError } = await supabase
+    .from("paquetes_checkin")
+    .select("id")
+    .eq("paquete_id", paqueteId)
+    .maybeSingle();
+  if (lookupError) throw lookupError;
+  if (existing?.id) {
+    const { error } = await supabase.from("paquetes_checkin").update(values).eq("id", existing.id);
+    if (error) throw error;
+    return;
+  }
+  const { error } = await supabase.from("paquetes_checkin").insert({ paquete_id: paqueteId, ...values });
+  if (error) throw error;
+}
+
 export async function POST(request: Request) {
   try {
     const supabase = adminClient();
@@ -47,10 +67,10 @@ export async function POST(request: Request) {
     if (children.length !== childIds.length || children.some((row) => row.tipo_paquete !== "PACKAGE")) return NextResponse.json({ error: "Every selected child must be a PACKAGE shipment" }, { status: 400 });
 
     const inheritedCustomerId = customerId || box.numero_cliente_id || null;
-    const { error: boxCheckinError } = await supabase.from("paquetes_checkin").insert({ paquete_id: boxId, numero_cliente_id: inheritedCustomerId, consolidacion: true });
-    if (boxCheckinError) throw boxCheckinError;
-    const { error: childCheckinError } = await supabase.from("paquetes_checkin").insert(children.map((child) => ({ paquete_id: child.id, parent_box_id: boxId, numero_cliente_id: inheritedCustomerId, consolidacion: true })));
-    if (childCheckinError) throw childCheckinError;
+    await saveCheckinRelationship(supabase, boxId, { parent_box_id: null, numero_cliente_id: inheritedCustomerId, consolidacion: true });
+    for (const child of children) {
+      await saveCheckinRelationship(supabase, child.id, { parent_box_id: boxId, numero_cliente_id: inheritedCustomerId, consolidacion: true });
+    }
     const ids = [boxId, ...children.map((child) => child.id)];
     const { error: updateError } = await supabase.from("paquetes_registro").update({ estado: "Check In", numero_cliente_id: inheritedCustomerId }).in("id", ids);
     if (updateError) throw updateError;

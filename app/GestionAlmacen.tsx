@@ -9,7 +9,7 @@ import React, {
 } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { formatStaffDateTime } from "../lib/staff-date-format";
+import { centralAmericaDateParts, formatStaffDateTime } from "../lib/staff-date-format";
 import { invoiceApprovalStatus } from "../lib/invoice-approval";
 
 import {
@@ -118,6 +118,7 @@ type Package = {
   horaFecha?: string | null;
   fechaDescargado?: string | null;
   fechaEntregado?: string | null;
+  horaEntregado?: string | null;
   barcode?: string;
   codigosTrackingId?: string | null;
   consolidationCount?: number;
@@ -1999,7 +2000,7 @@ export default function GestionAlmacen() {
     const { data, error } = await supabase
       .from("paquetes_registro")
       .select(
-        "id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, notas_imagenes, registro, descargado, entregado_por, estado, hora_fecha, fecha_descargado, fecha_entregado, numero_cliente_id, billing_subtotal, billing_tax, billing_total, approval_status, invoice_status, issue_status",
+        "id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, notas_imagenes, registro, descargado, entregado_por, estado, hora_fecha, fecha_descargado, fecha_entregado, hora_entregado, numero_cliente_id, billing_subtotal, billing_tax, billing_total, approval_status, invoice_status, issue_status",
       )
       .order("creado_en", { ascending: false });
 
@@ -2129,6 +2130,7 @@ export default function GestionAlmacen() {
           horaFecha: row.hora_fecha || null,
           fechaDescargado: row.fecha_descargado || null,
           fechaEntregado: row.fecha_entregado || null,
+          horaEntregado: row.hora_entregado || null,
           numeroClienteId: effectiveClientId,
           numeroCliente:
             effectiveClientId && clientNumberById[effectiveClientId]
@@ -2716,9 +2718,7 @@ export default function GestionAlmacen() {
         return;
       }
       const pedidoActualizado = await fetchPedidoById(idStr);
-      const now = new Date();
-      const nowIso = now.toISOString();
-      const timeStr = nowIso.substring(11, 19);
+      const centralNow = centralAmericaDateParts();
 
       // Si tenemos tracking desde el pedido QR, lo usamos para actualizar la fila
       // correspondiente en paquetes_registro. Esto funciona tanto para código de
@@ -2739,8 +2739,8 @@ export default function GestionAlmacen() {
         .update({
           estado: estado === "Entregado" ? "Entregado" : "Descargado",
           entregado_por: currentUserName,
-          fecha_entregado: estado === "Entregado" ? nowIso : null,
-          hora_entregado: estado === "Entregado" ? timeStr : null,
+          fecha_entregado: estado === "Entregado" ? centralNow.date : null,
+          hora_entregado: estado === "Entregado" ? centralNow.time : null,
           ...(estado === "Entregado" ? { issue_status: "RESOLVED" } : {}),
         })
         .eq("tracking", trackingClave);
@@ -2801,17 +2801,15 @@ export default function GestionAlmacen() {
         return;
       }
 
-      const now = new Date();
-      const nowIso = now.toISOString();
-      const timeStr = nowIso.substring(11, 19);
+      const centralNow = centralAmericaDateParts();
 
       const { error: updError } = await supabase
         .from("paquetes_registro")
         .update({
           estado: "Entregado",
           entregado_por: currentUserName,
-          fecha_entregado: nowIso,
-          hora_entregado: timeStr,
+          fecha_entregado: centralNow.date,
+          hora_entregado: centralNow.time,
           issue_status: "RESOLVED",
         })
         .eq("id", data.id);
@@ -4292,6 +4290,13 @@ const handlePackageCreated = (pkg: Package) => {
                       <label>{isEs ? "Fecha entrega" : "Delivery date"}</label>
                       <div className="ga-input" style={{ border: "none", paddingLeft: 0 }}>
                         {formatStaffDateTime(viewPackage.fechaEntregado, isEs ? "es-ES" : "en-US")}
+                      </div>
+                    </div>
+
+                    <div className="ga-field-group">
+                      <label>{isEs ? "Hora entrega" : "Handover time"}</label>
+                      <div className="ga-input" style={{ border: "none", paddingLeft: 0 }}>
+                        {formatStaffDateTime(viewPackage.horaEntregado, isEs ? "es-ES" : "en-US")}
                       </div>
                     </div>
                   </>

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../../lib/supabaseClient";
+import { CENTRAL_AMERICA_TIME_ZONE } from "../../lib/staff-date-format";
 
 type Shipment = {
   id: string;
@@ -32,6 +33,7 @@ function dateLabel(value: string | null) {
   if (!value) return "—";
   const parsed = new Date(value);
   return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString(undefined, {
+    timeZone: CENTRAL_AMERICA_TIME_ZONE,
     month: "numeric",
     day: "numeric",
     year: "numeric",

@@ -1,6 +1,7 @@
 import { randomBytes } from "crypto";
 import { NextResponse } from "next/server";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { centralAmericaDateParts } from "../../../lib/staff-date-format";
 import { invoiceApprovalStatus } from "@/lib/invoice-approval";
 import { calculateWorkflowBilling, isBox } from "@/lib/workflow-billing";
 import { DATABASE_STATUS, normalizeFerryPort } from "@/lib/shipping-rules";
@@ -250,16 +251,16 @@ export async function POST(request: Request) {
 
     if (expectedNext.key === "CHECK_IN") await ensureCheckinRecord(supabase, shipment);
 
-    const now = new Date();
+    const now = centralAmericaDateParts();
     const payload: Record<string, unknown> = { estado: expectedNext.status };
     if (expectedNext.key === "UNLOADED") {
-      payload.fecha_descargado = now.toISOString().split("T")[0];
-      payload.hora_descargado = now.toTimeString().split(" ")[0];
+      payload.fecha_descargado = now.date;
+      payload.hora_descargado = now.time;
       payload.descargado = actor.profile?.nombre || actor.profile?.nombre_personal || actor.user.email || "Staff";
     }
     if (expectedNext.key === "PICKED_UP") {
-      payload.fecha_entregado = now.toISOString().split("T")[0];
-      payload.hora_entregado = now.toTimeString().split(" ")[0];
+      payload.fecha_entregado = now.date;
+      payload.hora_entregado = now.time;
       payload.entregado_por = actor.profile?.nombre || actor.profile?.nombre_personal || actor.user.email || "Staff";
       payload.issue_status = "RESOLVED";
     }
