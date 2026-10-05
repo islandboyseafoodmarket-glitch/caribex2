@@ -1,7 +1,8 @@
+import { randomBytes } from "crypto";
 import { NextResponse } from "next/server";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { calculateWorkflowBilling, isBox } from "@/lib/workflow-billing";
-import { DATABASE_STATUS } from "@/lib/shipping-rules";
+import { DATABASE_STATUS, normalizeFerryPort } from "@/lib/shipping-rules";
 
 export const dynamic = "force-dynamic";
 
@@ -57,6 +58,85 @@ function errorResponse(error: unknown) {
   return NextResponse.json({ error: message }, { status });
 }
 
+function getWeekBounds(date = new Date()) {
+  const start = new Date(date);
+  start.setHours(0, 0, 0, 0);
+  const day = start.getDay();
+  start.setDate(start.getDate() - (day === 0 ? 6 : day - 1));
+  const end = new Date(start);
+  end.setDate(end.getDate() + 6);
+  end.setHours(23, 59, 59, 999);
+  return { start, end };
+}
+
+function ferryPortForCustomer(customer: any) {
+  const port = normalizeFerryPort(customer?.puerto);
+  return port === "la_ceiba" || port === "utila" ? port : null;
+}
+
+async function registerFerryShipment(supabase: SupabaseClient, shipment: any, customer: any, createdBy: string) {
+  const puerto = ferryPortForCustomer(customer);
+  if (!puerto) return { isFerry: false as const };
+
+  const { data: link, error: linkError } = await supabase
+    .from("contenedor_paquetes")
+    .select("contenedor_id")
+    .eq("paquete_id", shipment.id)
+    .limit(1)
+    .maybeSingle();
+  if (linkError) throw linkError;
+  if (!link?.contenedor_id) return { isFerry: true as const, puerto, registered: false as const };
+
+  let { data: manifest, error: manifestError } = await supabase
+    .from("ferry_manifests")
+    .select("id, token")
+    .eq("contenedor_id", link.contenedor_id)
+    .maybeSingle();
+  if (manifestError) throw manifestError;
+
+  if (!manifest) {
+    const { start, end } = getWeekBounds();
+    const created = await supabase
+      .from("ferry_manifests")
+      .insert({
+        contenedor_id: link.contenedor_id,
+        token: randomBytes(24).toString("hex"),
+        semana_inicio: start.toISOString(),
+        semana_fin: end.toISOString(),
+        estado: "active",
+        creado_por: createdBy,
+      })
+      .select("id, token")
+      .maybeSingle();
+    if (created.error) {
+      const retry = await supabase
+        .from("ferry_manifests")
+        .select("id, token")
+        .eq("contenedor_id", link.contenedor_id)
+        .maybeSingle();
+      if (retry.error || !retry.data) throw created.error;
+      manifest = retry.data;
+    } else {
+      manifest = created.data;
+    }
+  }
+  if (!manifest) return { isFerry: true as const, puerto, registered: false as const };
+
+  const { error: entryError } = await supabase
+    .from("ferry_manifest_entries")
+    .upsert({
+      manifiesto_id: manifest.id,
+      paquete_id: shipment.id,
+      numero_cliente_id: customer.id || shipment.numero_cliente_id,
+      puerto,
+      numero_cuenta: String(customer.numero_cliente || ""),
+      nombre_cliente: customer.nombre || "Unknown customer",
+      etiqueta_cantidad: "BOX= 1",
+    }, { onConflict: "manifiesto_id,paquete_id" });
+  if (entryError) throw entryError;
+  return { isFerry: true as const, puerto, registered: true as const, manifestToken: manifest.token };
+}
+
 async function getLatestCheckin(supabase: SupabaseClient, packageId: string) {
   const { data, error } = await supabase
     .from("paquetes_checkin")
@@ -104,7 +184,7 @@ export async function GET(request: Request) {
     const rawCode = url.searchParams.get("code")?.trim() || "";
     if (!rawCode) return NextResponse.json({ error: "Scan or enter a tracking number" }, { status: 400 });
 
-    let query = supabase.from("paquetes_registro").select("id, tracking, nombre_paqueteria, tipo_paquete, estado, numero_cliente_id, billing_subtotal, billing_tax, billing_total, invoice_status, approval_status, numero_cliente:numero_cliente_id (numero_cliente, nombre, email, telefono)");
+    let query = supabase.from("paquetes_registro").select("id, tracking, nombre_paqueteria, tipo_paquete, estado, numero_cliente_id, billing_subtotal, billing_tax, billing_total, invoice_status, approval_status, numero_cliente:numero_cliente_id (id, numero_cliente, nombre, email, telefono, puerto)");
     const idMatch = rawCode.match(/(?:pedidos\/)?([0-9a-f]{8}-[0-9a-f-]{27})/i);
     if (idMatch) query = query.eq("id", idMatch[1]);
     else query = query.ilike("tracking", rawCode);
@@ -113,7 +193,9 @@ export async function GET(request: Request) {
     if (!data) return NextResponse.json({ error: "Shipment not found", code: "NOT_FOUND" }, { status: 404 });
     const index = currentIndex(data.estado);
     const next = index < WORKFLOW.length - 1 ? WORKFLOW[index + 1] : null;
-    return NextResponse.json({ shipment: data, current: WORKFLOW[index], next, workflow: WORKFLOW });
+    const customer = Array.isArray(data.numero_cliente) ? data.numero_cliente[0] : data.numero_cliente;
+    const puerto = ferryPortForCustomer(customer);
+    return NextResponse.json({ shipment: data, current: WORKFLOW[index], next, workflow: WORKFLOW, ferry: puerto ? { isFerry: true, puerto } : { isFerry: false } });
   } catch (error) {
     return errorResponse(error);
   }
@@ -128,7 +210,7 @@ export async function POST(request: Request) {
     const requestedKey = String(body?.next_key || "").trim();
     if (!shipmentId || !requestedKey) return NextResponse.json({ error: "Shipment and next status are required" }, { status: 400 });
 
-    const { data: shipment, error: lookupError } = await supabase.from("paquetes_registro").select("id, tracking, estado, tipo_paquete, billing_subtotal, billing_tax, billing_total, invoice_status, approval_status, numero_cliente_id, numero_cliente:numero_cliente_id (numero_cliente, nombre, email, telefono)").eq("id", shipmentId).maybeSingle();
+    const { data: shipment, error: lookupError } = await supabase.from("paquetes_registro").select("id, tracking, nombre_paqueteria, contenido, notas, notas_imagenes, estado, tipo_paquete, billing_subtotal, billing_tax, billing_total, invoice_status, approval_status, numero_cliente_id, numero_cliente:numero_cliente_id (id, numero_cliente, nombre, email, telefono, puerto)").eq("id", shipmentId).maybeSingle();
     if (lookupError) throw lookupError;
     if (!shipment) return NextResponse.json({ error: "Shipment not found" }, { status: 404 });
 
@@ -139,12 +221,11 @@ export async function POST(request: Request) {
     }
 
     if (expectedNext.key === "IN_TRANSIT") {
-      try {
-        await validateAndRecalculateBox(supabase, shipment);
-      } catch (error) {
-        const message = error instanceof Error ? error.message : "BOX billing validation failed";
-        return NextResponse.json({ error: message, code: "BILLING_VALIDATION_REQUIRED", tracking: shipment.tracking }, { status: 422 });
-      }
+      return NextResponse.json({
+        error: "Individual In-Transit is disabled. Use Check In all to create one container for the eligible shipment group.",
+        code: "BULK_IN_TRANSIT_REQUIRED",
+        tracking: shipment.tracking,
+      }, { status: 409 });
     }
 
     const now = new Date();
@@ -159,36 +240,74 @@ export async function POST(request: Request) {
       payload.hora_entregado = now.toTimeString().split(" ")[0];
       payload.entregado_por = actor.profile?.nombre || actor.profile?.nombre_personal || actor.user.email || "Staff";
     }
-    let container: { id: string; codigo: string } | null = null;
-    if (expectedNext.key === "IN_TRANSIT") {
-      const containerCode = `CONT-${now.toISOString().slice(0, 10)}-${String(Date.now()).slice(-6)}`;
-      const { data: createdContainer, error: containerError } = await supabase
-        .from("contenedores")
-        .insert({ codigo: containerCode })
-        .select("id, codigo")
-        .single();
-      if (containerError || !createdContainer) throw containerError || new Error("Could not create container for In-Transit");
-      container = createdContainer;
-
-      const { error: linkError } = await supabase
-        .from("contenedor_paquetes")
-        .insert({ contenedor_id: container.id, paquete_id: shipment.id });
-      if (linkError) {
-        await supabase.from("contenedores").delete().eq("id", container.id);
-        throw linkError;
-      }
-      payload.fecha_transito = now.toISOString();
-    }
+    let ferry: { isFerry: boolean; puerto?: string; registered?: boolean; manifestToken?: string } = { isFerry: false };
+    let invoice: { sent: boolean; reason?: string } = {
+      sent: false,
+      reason: "Invoice delivery is evaluated after the shipment is unloaded.",
+    };
     const { error: updateError } = await supabase.from("paquetes_registro").update(payload).eq("id", shipmentId);
-    if (updateError) {
-      if (container) {
-        await supabase.from("contenedor_paquetes").delete().eq("contenedor_id", container.id).eq("paquete_id", shipment.id);
-        await supabase.from("contenedores").delete().eq("id", container.id);
-      }
-      throw updateError;
-    }
+    if (updateError) throw updateError;
 
     const customer = Array.isArray(shipment.numero_cliente) ? shipment.numero_cliente[0] : shipment.numero_cliente;
+    if (expectedNext.key === "UNLOADED") {
+      try {
+        ferry = await registerFerryShipment(supabase, shipment, customer, actor.user.id);
+      } catch (ferryError) {
+        console.error("Ferry report registration failed after unload", ferryError);
+        ferry = { isFerry: Boolean(ferryPortForCustomer(customer)), puerto: ferryPortForCustomer(customer) || undefined, registered: false };
+      }
+      const hasProblem = Boolean(String(shipment.notas || "").trim()) || (Array.isArray(shipment.notas_imagenes) && shipment.notas_imagenes.length > 0);
+      let subtotal = Number(shipment.billing_subtotal);
+      let tax = Number(shipment.billing_tax);
+      let total = Number(shipment.billing_total);
+      if (!Number.isFinite(total) || total <= 0) {
+        const checkin = await getLatestCheckin(supabase, shipment.id);
+        const billing = calculateWorkflowBilling({ ...shipment, ...checkin });
+        if (billing) {
+          subtotal = billing.subtotal;
+          tax = billing.tax;
+          total = billing.total;
+          const { error: billingError } = await supabase.from("paquetes_registro").update({ billing_subtotal: subtotal, billing_tax: tax, billing_total: total }).eq("id", shipment.id);
+          if (billingError) throw billingError;
+        }
+      }
+      if (shipment.invoice_status === "SENT") invoice = { sent: false, reason: "Invoice was already sent." };
+      else if (hasProblem) invoice = { sent: false, reason: "Invoice requires review because the shipment has an internal note or photo." };
+      else if (!customer?.email) invoice = { sent: false, reason: "Customer has no email address." };
+      else if (!Number.isFinite(total) || total <= 0) invoice = { sent: false, reason: "Shipment has no valid billing total." };
+      else {
+        const invoiceResponse = await fetch(new URL("/api/send-invoice", request.url), {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: request.headers.get("authorization") || "",
+          },
+          body: JSON.stringify({
+            to: customer.email,
+            subject: `Invoice for ${customer.nombre || shipment.tracking}`,
+            clientName: customer.nombre || "",
+            clientNumber: customer.numero_cliente || null,
+            tracking: shipment.tracking,
+            typeLabel: shipment.tipo_paquete || "Shipment",
+            contents: shipment.contenido || null,
+            subtotal: Number.isFinite(subtotal) ? subtotal : 0,
+            tax: Number.isFinite(tax) ? tax : 0,
+            total,
+            extraCharges: [],
+            isConsolidationBox: false,
+            consolidatedPackagesCount: null,
+          }),
+        });
+        if (invoiceResponse.ok) {
+          const { error: invoiceStatusError } = await supabase.from("paquetes_registro").update({ invoice_status: "SENT" }).eq("id", shipment.id);
+          if (invoiceStatusError) throw invoiceStatusError;
+          invoice = { sent: true };
+        } else {
+          const invoicePayload = await invoiceResponse.json().catch(() => ({}));
+          invoice = { sent: false, reason: invoicePayload.error || "Invoice email could not be sent." };
+        }
+      }
+    }
     await supabase.from("staff_action_logs").insert({
       actor_id: actor.user.id,
       actor_name: actor.profile?.nombre || actor.profile?.nombre_personal || actor.user.email || null,
@@ -201,10 +320,10 @@ export async function POST(request: Request) {
       customer_name: customer?.nombre || null,
       customer_account_number: customer?.numero_cliente || null,
       success: true,
-      details: { from_status: shipment.estado, to_status: expectedNext.status, container_code: container?.codigo || null, source: "scanner_workflow_app" },
+      details: { from_status: shipment.estado, to_status: expectedNext.status, invoice_sent: invoice.sent, invoice_reason: invoice.reason || null, source: "scanner_workflow_app" },
       user_agent: request.headers.get("user-agent") || null,
     });
-    return NextResponse.json({ ok: true, previous: WORKFLOW[beforeIndex], current: expectedNext, tracking: shipment.tracking, container });
+    return NextResponse.json({ ok: true, previous: WORKFLOW[beforeIndex], current: expectedNext, tracking: shipment.tracking, invoice, ferry });
   } catch (error) {
     return errorResponse(error);
   }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Archive, Clipboard, Copy, ExternalLink, Plus, RefreshCw, Ship } from "lucide-react";
+import { Archive, Clipboard, Copy, ExternalLink, MessageCircle, Plus, RefreshCw, Ship } from "lucide-react";
 import Image from "next/image";
 import { supabase } from "../../lib/supabaseClient";
 
@@ -104,6 +104,12 @@ export default function FerryManifestAdmin() {
     setNotice("Manifest link copied to clipboard.");
   };
 
+  const shareWhatsApp = (token: string) => {
+    const link = `${window.location.origin}/ferry-manifest/${token}`;
+    const message = `Caribex Ferry Report — enter booking numbers here: ${link}`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, "_blank", "noopener,noreferrer");
+  };
+
   const openManifest = (token: string) => {
     window.open(`/ferry-manifest/${token}`, "_blank", "noopener,noreferrer");
   };
@@ -125,7 +131,7 @@ export default function FerryManifestAdmin() {
     const draft = entryDrafts[entry.id];
     if (!draft?.booking.trim()) return;
     try {
-      await request(`/api/ferry-manifests/${entryManifest.token}`, { method: "PATCH", body: JSON.stringify({ entry_id: entry.id, numero_reserva: draft.booking.trim(), nombre_receptor: draft.receiver.trim() }) });
+      await request(`/api/ferry-manifests/${entryManifest.token}`, { method: "PATCH", body: JSON.stringify({ entry_id: entry.id, numero_reserva: draft.booking.trim(), nombre_receptor: draft.receiver.trim(), notify: true }) });
       setNotice(`Booking ${draft.booking.trim()} saved. The customer notification was sent when an email is available.`);
       await openAdminEntryForm(entryManifest);
       await load();
@@ -143,6 +149,18 @@ export default function FerryManifestAdmin() {
           <p style={{ margin: "0.3rem 0 0", color: "#64748b", fontSize: "0.82rem" }}>Create, manage, and share shipment manifests.</p>
         </div>
       </div>
+      <section aria-labelledby="ferry-workflow-instructions" style={{ marginBottom: "1.25rem", padding: "1rem 1.1rem", borderRadius: "14px", background: "#f0f9ff", border: "1px solid #bae6fd", color: "#0f3d68" }}>
+        <h3 id="ferry-workflow-instructions" style={{ margin: 0, fontSize: "1rem" }}>Ferry workflow instructions</h3>
+        <ol style={{ margin: "0.65rem 0 0", paddingLeft: "1.25rem", lineHeight: 1.55, fontSize: "0.84rem" }}>
+          <li>Unload each container package normally. La Ceiba and Utila packages are automatically added to the Ferry Report.</li>
+          <li>When the mobile app gives the triple-beep ferry alert, set that package aside for the ferry.</li>
+          <li>The customer invoice is billed and sent at unload using the normal invoice rules. The ferry booking notification is sent later.</li>
+          <li>Open the active manifest and use <strong>Send by WhatsApp</strong> to share the private link with Joni.</li>
+          <li>Joni enters each booking number and receiver name, then presses <strong>Submit to Caribex</strong>. Blank rows can be completed later.</li>
+          <li>Use <strong>Print receiver sheet</strong> from the public link for the signed handover sheet.</li>
+          <li>After each submitted booking, Caribex sends that customer a confirmation email with the booking number. No email is sent for a row marked <strong>NO</strong>.</li>
+        </ol>
+      </section>
       <div style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem", alignItems: "flex-end", marginBottom: "1.25rem" }}>
         <label style={{ flex: "1 1 280px", color: "#475569", fontSize: "0.82rem", fontWeight: 600 }}>
           Create manifest from container
@@ -167,7 +185,7 @@ export default function FerryManifestAdmin() {
 
       {notice && <div style={{ padding: "0.7rem 0.85rem", marginBottom: "0.8rem", background: "#ecfdf5", color: "#166534", borderRadius: "10px", fontSize: "0.85rem" }}>{notice}</div>}
       {error && <div style={{ padding: "0.7rem 0.85rem", marginBottom: "0.8rem", background: "#fef2f2", color: "#b91c1c", borderRadius: "10px", fontSize: "0.85rem" }}>{error}</div>}
-      {lastToken && <div style={{ padding: "0.7rem 0.85rem", marginBottom: "1rem", background: "#eff6ff", color: "#1e40af", borderRadius: "10px", fontSize: "0.85rem", display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}><Clipboard size={16} /> New ferry link is ready. <button type="button" onClick={() => void copyToken(lastToken)} style={{ border: 0, background: "transparent", color: "#1d4ed8", fontWeight: 700, cursor: "pointer", display: "inline-flex", gap: "0.3rem", alignItems: "center" }}><Copy size={14} /> Copy link</button></div>}
+      {lastToken && <div style={{ padding: "0.7rem 0.85rem", marginBottom: "1rem", background: "#eff6ff", color: "#1e40af", borderRadius: "10px", fontSize: "0.85rem", display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}><Clipboard size={16} /> New ferry link is ready. <button type="button" onClick={() => void copyToken(lastToken)} style={{ border: 0, background: "transparent", color: "#1d4ed8", fontWeight: 700, cursor: "pointer", display: "inline-flex", gap: "0.3rem", alignItems: "center" }}><Copy size={14} /> Copy link</button><button type="button" onClick={() => shareWhatsApp(lastToken)} style={{ border: 0, background: "transparent", color: "#15803d", fontWeight: 700, cursor: "pointer", display: "inline-flex", gap: "0.3rem", alignItems: "center" }}><MessageCircle size={14} /> Send by WhatsApp</button></div>}
 
       {loading ? <p style={{ color: "#64748b" }}>Loading ferry manifests…</p> : manifests.length === 0 ? (
         <div style={{ padding: "2rem 1rem", textAlign: "center", color: "#64748b", border: "1px dashed #cbd5e1", borderRadius: "14px" }}><Ship size={28} style={{ marginBottom: "0.5rem", color: "#2563eb" }} /><div>No ferry manifests yet.</div><small>Choose an existing container above to generate the first manifest.</small></div>
@@ -184,6 +202,7 @@ export default function FerryManifestAdmin() {
                 {manifest.estado === "active" && <button type="button" className="pa-primary-btn" onClick={() => void openAdminEntryForm(manifest)} style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", whiteSpace: "nowrap" }}>Enter bookings manually</button>}
                 <button type="button" className="pa-secondary-btn" onClick={() => openManifest(manifest.token)} style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem" }}><ExternalLink size={14} /> Preview</button>
                 <button type="button" className="pa-secondary-btn" onClick={() => void copyToken(manifest.token)} style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem" }}><Copy size={14} /> Copy link</button>
+                <button type="button" className="pa-secondary-btn" onClick={() => shareWhatsApp(manifest.token)} style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", color: "#15803d" }}><MessageCircle size={14} /> WhatsApp</button>
                 {manifest.estado === "active" && <button type="button" onClick={() => void archiveManifest(manifest)} style={{ border: "1px solid #fed7aa", background: "#fff7ed", color: "#c2410c", borderRadius: "999px", padding: "0.45rem 0.75rem", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "0.3rem" }}><Archive size={14} /> Archive</button>}
               </div>
             </div>

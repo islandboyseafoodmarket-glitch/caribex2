@@ -80,7 +80,7 @@ export default function FerryManifestPage({ params }: { params: { token: string 
         const response = await fetch(`/api/ferry-manifests/${params.token}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ entry_id: entry.id, numero_reserva: draft.booking, nombre_receptor: draft.receiver }),
+          body: JSON.stringify({ entry_id: entry.id, numero_reserva: draft.booking, nombre_receptor: draft.receiver, notify: true }),
         });
         const body = await response.json();
         if (!response.ok) throw new Error(body.error || `Could not submit ${entry.nombre_cliente}`);
@@ -139,7 +139,6 @@ export default function FerryManifestPage({ params }: { params: { token: string 
   return <main className="ferry-page">
     <header className="ferry-header"><div className="ferry-brand"><Image src="/imagenes/logo-pages.png" alt="Caribex Logistics Group" width={190} height={81} /><span>Ferry manifest</span></div><div className={`ferry-status ${readOnly ? "ferry-status-locked" : ""}`}>{readOnly ? "Read-only" : `${submittedCount} of ${data.entries.length} submitted`}</div></header>
     <div className="ferry-hero"><div className="ferry-icon"><Ship size={25} /></div><div><p className="ferry-eyebrow">Ferry operations</p><h1>Weekly shipment manifest</h1><p>Enter the booking number for each customer who has shipped. Blank rows remain open for the next ferry.</p></div></div>
-    <section className="ferry-instructions" aria-labelledby="ferry-instructions-title"><h2 id="ferry-instructions-title">How to fill in this sheet</h2><ol><li>Type each customer&apos;s booking number in the <strong>BOOKING #</strong> box, then press <strong>Submit to Caribex</strong>. Normally, fill in everyone who sailed and submit once.</li><li>Type <strong>NO</strong> only when a customer&apos;s boxes are lost or cannot be found. If they simply have not sailed yet, leave the box <strong>blank</strong>.</li><li>If a few boxes catch an earlier ferry, fill in only those rows and submit. The remaining blank rows stay open.</li><li>Submitted rows turn gray and lock permanently. Reopen this same link later to complete the remaining blank rows.</li><li>To correct a locked row, contact the Caribex office; it cannot be changed from this link.</li></ol></section>
     <div className="ferry-meta"><span><ClipboardList size={16} /> Week: {dateLabel(data.manifest.semana_inicio)} – {dateLabel(data.manifest.semana_fin)}</span><span>Container: <strong>{data.manifest.container_codigo || "—"}</strong></span><div className="ferry-export-actions"><button type="button" onClick={exportCsv}><Download size={15} /> Export CSV</button><button type="button" onClick={() => window.print()}><Printer size={15} /> Print receiver sheet</button></div></div>
     {error && <div className="ferry-error"><XCircle size={18} />{error}</div>}
     {notice && <div className="ferry-notice"><CheckCircle2 size={18} />{notice}</div>}

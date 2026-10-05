@@ -31,7 +31,7 @@ async function getManifest(token: string) {
   const [{ data: entries, error: entriesError }, { data: container, error: containerError }] = await Promise.all([
     supabaseAdmin
       .from("ferry_manifest_entries")
-      .select("id, manifiesto_id, puerto, numero_cuenta, nombre_cliente, etiqueta_cantidad, numero_reserva, nombre_receptor, enviado_en")
+      .select("id, manifiesto_id, paquete_id, numero_cliente_id, puerto, numero_cuenta, nombre_cliente, etiqueta_cantidad, numero_reserva, nombre_receptor, enviado_en")
       .eq("manifiesto_id", manifest.id)
       .order("puerto", { ascending: true })
       .order("nombre_cliente", { ascending: true }),
@@ -40,7 +40,27 @@ async function getManifest(token: string) {
   if (entriesError) throw entriesError;
   if (containerError) throw containerError;
 
-  return { manifest: { ...manifest, container_codigo: container?.codigo || null }, entries: entries || [] };
+  const grouped = new Map<string, any>();
+  for (const entry of entries || []) {
+    const key = `${entry.numero_cliente_id}:${entry.puerto}`;
+    const current = grouped.get(key);
+    if (current) {
+      current.package_count += 1;
+      current.package_ids.push(entry.paquete_id);
+      if (!current.numero_reserva && entry.numero_reserva) current.numero_reserva = entry.numero_reserva;
+      if (!current.nombre_receptor && entry.nombre_receptor) current.nombre_receptor = entry.nombre_receptor;
+      if (!current.enviado_en && entry.enviado_en) current.enviado_en = entry.enviado_en;
+    } else {
+      grouped.set(key, {
+        ...entry,
+        package_count: 1,
+        package_ids: [entry.paquete_id],
+        etiqueta_cantidad: "BOX= 1",
+      });
+    }
+  }
+  for (const entry of grouped.values()) entry.etiqueta_cantidad = `BOX= ${entry.package_count}`;
+  return { manifest: { ...manifest, container_codigo: container?.codigo || null }, entries: Array.from(grouped.values()) };
 }
 
 export async function GET(_request: Request, { params }: { params: { token: string } }) {
@@ -61,6 +81,7 @@ export async function PATCH(request: Request, { params }: { params: { token: str
     const entryId = String(body?.entry_id || "");
     const bookingNumber = String(body?.numero_reserva || "").trim();
     const receiverName = String(body?.nombre_receptor || "").trim();
+    const sendNotification = body?.notify === true;
     if (!entryId || !bookingNumber) return NextResponse.json({ error: "A booking number is required" }, { status: 400 });
     if (bookingNumber.length > 100 || receiverName.length > 255) return NextResponse.json({ error: "The submitted value is too long" }, { status: 400 });
 
@@ -83,25 +104,34 @@ export async function PATCH(request: Request, { params }: { params: { token: str
     if (entryLookupError) throw entryLookupError;
     if (!entry) return NextResponse.json({ error: "Manifest entry not found" }, { status: 404 });
 
+    const { data: customerEntries, error: customerEntriesError } = await supabaseAdmin
+      .from("ferry_manifest_entries")
+      .select("id, paquete_id")
+      .eq("manifiesto_id", manifest.id)
+      .eq("numero_cliente_id", entry.numero_cliente_id)
+      .eq("puerto", entry.puerto);
+    if (customerEntriesError) throw customerEntriesError;
+
     const { error } = await supabaseAdmin
       .from("ferry_manifest_entries")
       .update({ numero_reserva: bookingNumber, nombre_receptor: receiverName || null, enviado_en: new Date().toISOString() })
-      .eq("id", entryId)
-      .eq("manifiesto_id", manifest.id);
+      .eq("manifiesto_id", manifest.id)
+      .eq("numero_cliente_id", entry.numero_cliente_id)
+      .eq("puerto", entry.puerto);
     if (error) throw error;
 
     let emailSent = false;
     const isNotFound = bookingNumber.toUpperCase() === "NO";
-    if (!isNotFound && RESEND_API_KEY && entry.numero_cliente_id) {
+    if (sendNotification && !isNotFound && RESEND_API_KEY && entry.numero_cliente_id) {
       const [{ data: customer }, { data: packageRow }] = await Promise.all([
         supabaseAdmin.from("numero_cliente").select("nombre, email, puerto").eq("id", entry.numero_cliente_id).maybeSingle(),
-        supabaseAdmin.from("paquetes_registro").select("tracking, contenido, notas").eq("id", entry.paquete_id).maybeSingle(),
+        supabaseAdmin.from("paquetes_registro").select("tracking, contenido, notas").in("id", (customerEntries || []).map((item) => item.paquete_id)),
       ]);
       if (customer?.email) {
         const safeName = escapeHtml(customer.nombre || entry.nombre_cliente || "Customer");
         const safeBooking = escapeHtml(bookingNumber);
-        const safeTracking = escapeHtml(packageRow?.tracking || "your shipment");
-        const html = `<div style="font-family:Arial,sans-serif;color:#0f172a;max-width:620px;margin:auto"><h1 style="color:#0f4c81">Caribex Logistics Group</h1><h2>Ferry booking confirmed</h2><p>Hello ${safeName},</p><p>Your ferry booking number has been confirmed and your item is scheduled to ship with the ferry service.</p><div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:16px"><p><strong>Booking number:</strong> ${safeBooking}</p><p><strong>Tracking:</strong> ${safeTracking}</p><p><strong>Port:</strong> ${escapeHtml(customer.puerto || entry.puerto || "-")}</p></div><p>Please keep this booking number for pickup and future reference. You can view your shipment status and ferry bookings in the <a href="${escapeHtml(`${publicOrigin(request)}/portal/login`)}">Caribex Customer Portal</a>.</p><p>Thank you,<br />Caribex Logistics Group</p></div>`;
+        const safeTracking = escapeHtml((packageRow || []).map((item: any) => item.tracking).filter(Boolean).join(", ") || "your shipment");
+        const html = `<div style="font-family:Arial,sans-serif;color:#0f172a;max-width:620px;margin:auto"><h1 style="color:#0f4c81">Caribex Logistics Group</h1><h2>Ferry booking confirmed</h2><p>Hello ${safeName},</p><p>Your ferry booking number has been confirmed for ${customerEntries?.length || 1} shipment${(customerEntries?.length || 1) === 1 ? "" : "s"}.</p><div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:16px"><p><strong>Booking number:</strong> ${safeBooking}</p><p><strong>Tracking:</strong> ${safeTracking}</p><p><strong>Port:</strong> ${escapeHtml(customer.puerto || entry.puerto || "-")}</p></div><p>Please keep this booking number for pickup and future reference. You can view your shipment status and ferry bookings in the <a href="${escapeHtml(`${publicOrigin(request)}/portal/login`)}">Caribex Customer Portal</a>.</p><p>Thank you,<br />Caribex Logistics Group</p></div>`;
         const sent = await fetch("https://api.resend.com/emails", { method: "POST", headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" }, body: JSON.stringify({ from: "info@caribexlogisticsgroup.com", to: customer.email, subject: `Ferry booking confirmed: ${bookingNumber}`, html }) });
         emailSent = sent.ok;
       }

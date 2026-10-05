@@ -130,7 +130,7 @@ export async function POST(request: Request) {
       .map((item) => {
         const customer = customerById.get(item.numero_cliente_id);
         const port = normalizeFerryPort(customer?.puerto);
-        if (!customer || !port) return null;
+        if (!customer || (port !== "la_ceiba" && port !== "utila")) return null;
         const source = `${item.notas || ""} ${item.contenido || ""}`;
         const quantityMatch = source.match(/(?:BOXES?|PACKAGES?)\s*[=:]\s*\d+/i);
         return {
@@ -143,7 +143,7 @@ export async function POST(request: Request) {
         };
       })
       .filter(Boolean) as Array<Record<string, string>>;
-    if (!entryRows.length) return NextResponse.json({ error: "No La Ceiba, Utila, or Guanaja packages were found" }, { status: 400 });
+    if (!entryRows.length) return NextResponse.json({ error: "No La Ceiba or Utila packages were found" }, { status: 400 });
 
     const { start, end } = getWeekBounds();
     const { data: manifest, error: insertError } = await supabaseAdmin

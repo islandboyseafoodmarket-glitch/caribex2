@@ -44,6 +44,8 @@ const DEFAULT_STAFF_PERMISSIONS: StaffPermissions = {
 };
 
 const ADMIN_EXTRA_CHARGE_OPTIONS = [
+  "Discount",
+  "Customer credit",
   "Storage fees (daily)",
   "Handling fees",
   "Documentation fees",
@@ -1002,11 +1004,12 @@ const App = () => {
     if (!Number.isFinite(amount) || amount <= 0) { alert("Enter an amount greater than zero."); return; }
     const { data: checkin } = await supabase.from("paquetes_checkin").select("id, cargos_adicionales").eq("paquete_id", editingInvoiceAddOns.id).order("creado_en", { ascending: false }).limit(1).maybeSingle();
     if (!checkin) { alert("No check-in record exists for this invoice yet."); return; }
-    const subtotal = Number(editingInvoiceAddOns.subtotal || 0) + amount;
+    const isReduction = invoiceAddOnType === "Discount" || invoiceAddOnType === "Customer credit";
+    const subtotal = Math.max(0, Number(editingInvoiceAddOns.subtotal || 0) + (isReduction ? -amount : amount));
     const tax = subtotal * 0.15;
     const total = subtotal + tax;
     const prior = String(checkin.cargos_adicionales || "").split(",").map((item) => item.trim()).filter(Boolean);
-    const charge = `${invoiceAddOnType} ($${amount.toFixed(2)})`;
+    const charge = `${invoiceAddOnType} (${isReduction ? "-" : "+"}$${amount.toFixed(2)})`;
     const [invoiceUpdate, checkinUpdate] = await Promise.all([
       supabase.from("paquetes_registro").update({ billing_subtotal: subtotal, billing_tax: tax, billing_total: total }).eq("id", editingInvoiceAddOns.id),
       supabase.from("paquetes_checkin").update({ cargos_adicionales: [...prior, charge].join(", ") }).eq("id", checkin.id),
@@ -2838,13 +2841,13 @@ const App = () => {
         <div className="pa-modal-overlay">
           <div className="pa-modal">
             <div className="pa-modal-header">
-              <h4 className="pa-modal-title">Edit invoice add-on</h4>
+              <h4 className="pa-modal-title">Edit invoice charge, discount, or credit</h4>
               <button type="button" className="pa-close-btn" onClick={() => setEditingInvoiceAddOns(null)}>×</button>
             </div>
             <div className="pa-field">
-              <label htmlFor="admin-invoice-charge-type">Charge type</label>
+              <label htmlFor="admin-invoice-charge-type">Adjustment type</label>
               <select id="admin-invoice-charge-type" className="pa-input" value={invoiceAddOnType} onChange={(event) => setInvoiceAddOnType(event.target.value)}>
-                <option value="">Select a charge type</option>
+                <option value="">Select an adjustment</option>
                 {ADMIN_EXTRA_CHARGE_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
               </select>
             </div>
@@ -2854,7 +2857,7 @@ const App = () => {
             </div>
             <div className="pa-modal-actions">
               <button type="button" className="pa-secondary-btn" onClick={() => setEditingInvoiceAddOns(null)}>Cancel</button>
-              <button type="button" className="pa-primary-btn" disabled={!invoiceAddOnType || !invoiceAddOnAmount} onClick={() => void saveAdminInvoiceAddOn()}>Save charge</button>
+              <button type="button" className="pa-primary-btn" disabled={!invoiceAddOnType || !invoiceAddOnAmount} onClick={() => void saveAdminInvoiceAddOn()}>Save adjustment</button>
             </div>
           </div>
         </div>

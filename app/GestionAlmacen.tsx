@@ -791,7 +791,7 @@ export default function GestionAlmacen() {
     const { data, error } = await supabase
       .from("paquetes_registro")
       .select(
-        "id, tracking, estado, notas, tipo_paquete, billing_subtotal, billing_tax, billing_total, approval_status, invoice_status",
+        "id, tracking, nombre_paqueteria, contenido, estado, notas, notas_imagenes, tipo_paquete, billing_subtotal, billing_tax, billing_total, approval_status, invoice_status, numero_cliente:numero_cliente_id (numero_cliente, nombre, email)",
       )
       .eq("tracking", trackingValue);
 
@@ -844,8 +844,8 @@ export default function GestionAlmacen() {
     const timeStr = isoNow.substring(11, 19);
 
     // Determinar si el envío tiene notas de problema para la aprobación automática
-    const hasNotes = row.notas && String(row.notas).trim().length > 0;
-    const approvalStatus = hasNotes ? "PENDING" : "APPROVED";
+    const hasProblemDetails = Boolean(String(row.notas || "").trim()) || (Array.isArray(row.notas_imagenes) && row.notas_imagenes.length > 0);
+    const approvalStatus = hasProblemDetails ? "PENDING" : "APPROVED";
 
     // Determinar / calcular subtotal de facturación según tipo de paquete.
     // Si ya existe un subtotal válido, se respeta; en caso contrario, se calcula
@@ -1039,6 +1039,40 @@ export default function GestionAlmacen() {
       }
     } catch (e) {
       console.error("Error limpiando contenedor_paquetes / contenedores al descargar", e);
+    }
+
+    const unloadCustomer = Array.isArray(row.numero_cliente) ? row.numero_cliente[0] : row.numero_cliente;
+    const invoiceTotal = Number(computedTotal ?? row.billing_total);
+    if (approvalStatus === "APPROVED" && row.invoice_status !== "SENT" && unloadCustomer?.email && Number.isFinite(invoiceTotal) && invoiceTotal > 0) {
+      try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const invoiceResponse = await fetch("/api/send-invoice", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${sessionData.session?.access_token || ""}` },
+          body: JSON.stringify({
+            to: unloadCustomer.email,
+            subject: `Invoice for ${unloadCustomer.nombre || trackingValue}`,
+            clientName: unloadCustomer.nombre || "",
+            clientNumber: unloadCustomer.numero_cliente || null,
+            tracking: trackingValue,
+            typeLabel: row.tipo_paquete || "Shipment",
+            contents: row.contenido || null,
+            subtotal: Number(safeSubtotal) || 0,
+            tax: Number(computedTax) || 0,
+            total: invoiceTotal,
+            extraCharges: [],
+            isConsolidationBox: false,
+            consolidatedPackagesCount: null,
+          }),
+        });
+        if (invoiceResponse.ok) {
+          await supabase.from("paquetes_registro").update({ invoice_status: "SENT" }).eq("id", row.id);
+        } else {
+          console.error("Automatic unload invoice failed:", await invoiceResponse.text());
+        }
+      } catch (invoiceError) {
+        console.error("Automatic unload invoice failed:", invoiceError);
+      }
     }
 
     setIsUnloadModalOpen(false);

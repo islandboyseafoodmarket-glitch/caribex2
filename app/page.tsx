@@ -772,14 +772,14 @@ export default function HomePage() {
               <h3 className="footer-column-title">{t("footer.legal")}</h3>
               <ul className="footer-links">
                 <li>
-                  <a href="#" className="footer-link">
+                  <Link href="/privacidad" className="footer-link">
                     {t("footer.privacy")}
-                  </a>
+                  </Link>
                 </li>
                 <li>
-                  <a href="#" className="footer-link">
+                  <Link href="/terminos" className="footer-link">
                     {t("footer.terms")}
-                  </a>
+                  </Link>
                 </li>
               </ul>
             </div>
