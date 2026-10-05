@@ -2077,7 +2077,7 @@ main {
   height: 96px;
   border-radius: 0.65rem;
   overflow: hidden;
-  background: #ffffff;
+  background: transparent;
   display: flex;
   align-items: center;
   justify-content: center;
