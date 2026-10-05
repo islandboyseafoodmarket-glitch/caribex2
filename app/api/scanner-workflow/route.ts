@@ -149,6 +149,25 @@ async function getLatestCheckin(supabase: SupabaseClient, packageId: string) {
   return data;
 }
 
+async function ensureCheckinRecord(supabase: SupabaseClient, shipment: { id: string; numero_cliente_id?: string | null }) {
+  const { data: existing, error: lookupError } = await supabase
+    .from("paquetes_checkin")
+    .select("id")
+    .eq("paquete_id", shipment.id)
+    .order("creado_en", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (lookupError) throw lookupError;
+  if (existing) return existing;
+  const { data: created, error: insertError } = await supabase
+    .from("paquetes_checkin")
+    .insert({ paquete_id: shipment.id, numero_cliente_id: shipment.numero_cliente_id || null })
+    .select("id")
+    .single();
+  if (insertError) throw insertError;
+  return created;
+}
+
 async function validateAndRecalculateBox(supabase: SupabaseClient, shipment: any) {
   if (!isBox(shipment)) return;
   const checkin = await getLatestCheckin(supabase, shipment.id);
@@ -227,6 +246,8 @@ export async function POST(request: Request) {
         tracking: shipment.tracking,
       }, { status: 409 });
     }
+
+    if (expectedNext.key === "CHECK_IN") await ensureCheckinRecord(supabase, shipment);
 
     const now = new Date();
     const payload: Record<string, unknown> = { estado: expectedNext.status };

@@ -39,12 +39,25 @@ export async function POST(request: Request) {
     if (nextKey === "CHECK_IN") {
       const { data: received, error: listError } = await supabase
         .from("paquetes_registro")
-        .select("id, tracking")
+        .select("id, tracking, numero_cliente_id")
         .in("estado", RECEIVING_STAGE_QUERY)
         .limit(500);
       if (listError) throw listError;
       const ids = (received || []).map((row) => row.id);
       if (!ids.length) return NextResponse.json({ ok: true, moved: 0 });
+      const { data: existingCheckins, error: checkinLookupError } = await supabase
+        .from("paquetes_checkin")
+        .select("paquete_id")
+        .in("paquete_id", ids);
+      if (checkinLookupError) throw checkinLookupError;
+      const existingIds = new Set((existingCheckins || []).map((row) => String(row.paquete_id)));
+      const missingCheckins = (received || [])
+        .filter((row) => !existingIds.has(String(row.id)))
+        .map((row) => ({ paquete_id: row.id, numero_cliente_id: row.numero_cliente_id || null }));
+      if (missingCheckins.length) {
+        const { error: checkinInsertError } = await supabase.from("paquetes_checkin").insert(missingCheckins);
+        if (checkinInsertError) throw checkinInsertError;
+      }
       const { error: updateError } = await supabase.from("paquetes_registro").update({ estado: DATABASE_STATUS.CHECK_IN }).in("id", ids);
       if (updateError) throw updateError;
       await supabase.from("staff_action_logs").insert({

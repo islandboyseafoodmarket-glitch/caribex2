@@ -198,6 +198,10 @@ const App = () => {
     }
   }, [staffLogAction, staffLogSearch]);
   const [adminNotice, setAdminNotice] = useState<string | null>(null);
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+  const [newAdminPassword, setNewAdminPassword] = useState("");
+  const [confirmAdminPassword, setConfirmAdminPassword] = useState("");
+  const [passwordSaving, setPasswordSaving] = useState(false);
   const cargarLeads = useCallback(async () => {
     const [{ data: contactData }, { data: customerData }] = await Promise.all([
       supabase.from('contact_submissions').select('id, nombre, email, telefono, mensaje, service_type, status, admin_notes, created_at').order('created_at', { ascending: false }),
@@ -383,6 +387,28 @@ const App = () => {
     }
     await cargarPersonal();
     setEditingStaff(null);
+  };
+
+  const changeAdminPassword = async () => {
+    if (newAdminPassword.length < 8) {
+      setAdminNotice("The new password must contain at least 8 characters.");
+      return;
+    }
+    if (newAdminPassword !== confirmAdminPassword) {
+      setAdminNotice("The password confirmation does not match.");
+      return;
+    }
+    setPasswordSaving(true);
+    const { error } = await supabase.auth.updateUser({ password: newAdminPassword });
+    setPasswordSaving(false);
+    if (error) {
+      setAdminNotice(error.message || "Could not change the Admin password.");
+      return;
+    }
+    setNewAdminPassword("");
+    setConfirmAdminPassword("");
+    setIsPasswordModalOpen(false);
+    setAdminNotice("Admin password changed successfully.");
   };
 
     const pedidosConIncidencia = useMemo(
@@ -1720,29 +1746,34 @@ const App = () => {
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={async () => {
-            await supabase.auth.signOut();
-            router.push("/login");
-          }}
-          style={{
-            padding: '0.45rem 0.7rem',
-            borderRadius: '999px',
-            border: '1px solid #e11d48',
-            backgroundColor: '#fee2e2',
-            color: '#b91c1c',
-            fontSize: '0.85rem',
-            fontWeight: 600,
-            cursor: 'pointer',
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-          title="Cerrar sesión"
-        >
-          <LogOut size={16} />
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <button type="button" className="pa-secondary-btn" onClick={() => setIsPasswordModalOpen(true)} title="Change Admin password">
+            <Unlock size={16} /> Change password
+          </button>
+          <button
+            type="button"
+            onClick={async () => {
+              await supabase.auth.signOut();
+              router.push("/login");
+            }}
+            style={{
+              padding: '0.45rem 0.7rem',
+              borderRadius: '999px',
+              border: '1px solid #e11d48',
+              backgroundColor: '#fee2e2',
+              color: '#b91c1c',
+              fontSize: '0.85rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+            title="Cerrar sesión"
+          >
+            <LogOut size={16} />
+          </button>
+        </div>
       </header>
 
       {/* Sidebar navigation: all existing tabs and counters are preserved. */}
@@ -2876,6 +2907,34 @@ const App = () => {
             <div className="pa-modal-actions">
               <button type="button" className="pa-secondary-btn" onClick={() => setEditingInvoiceAddOns(null)}>Cancel</button>
               <button type="button" className="pa-primary-btn" disabled={!invoiceAddOnType || !invoiceAddOnAmount} onClick={() => void saveAdminInvoiceAddOn()}>Save adjustment</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isPasswordModalOpen && (
+        <div className="pa-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="admin-password-title">
+          <div className="pa-modal" style={{ maxWidth: "460px" }}>
+            <div className="pa-modal-header">
+              <h4 id="admin-password-title" className="pa-modal-title">Change Admin password</h4>
+              <button type="button" className="pa-close-btn" onClick={() => setIsPasswordModalOpen(false)} aria-label="Close">×</button>
+            </div>
+            <p style={{ margin: "0 0 1rem", color: "#64748b", fontSize: "0.88rem" }}>
+              This changes the password for the Admin account currently signed in.
+            </p>
+            <div className="pa-field">
+              <label htmlFor="new-admin-password">New password</label>
+              <input id="new-admin-password" className="pa-input" type="password" minLength={8} value={newAdminPassword} onChange={(event) => setNewAdminPassword(event.target.value)} autoComplete="new-password" />
+            </div>
+            <div className="pa-field">
+              <label htmlFor="confirm-admin-password">Confirm new password</label>
+              <input id="confirm-admin-password" className="pa-input" type="password" minLength={8} value={confirmAdminPassword} onChange={(event) => setConfirmAdminPassword(event.target.value)} autoComplete="new-password" />
+            </div>
+            <div className="pa-modal-actions">
+              <button type="button" className="pa-secondary-btn" onClick={() => setIsPasswordModalOpen(false)}>Cancel</button>
+              <button type="button" className="pa-primary-btn" disabled={passwordSaving || !newAdminPassword || !confirmAdminPassword} onClick={() => void changeAdminPassword()}>
+                {passwordSaving ? "Saving…" : "Change password"}
+              </button>
             </div>
           </div>
         </div>
