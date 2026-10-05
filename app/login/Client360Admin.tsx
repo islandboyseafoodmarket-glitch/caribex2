@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { AlertCircle, ArrowLeft, CalendarDays, Mail, MapPin, Phone, PackageOpen, Search, UserRound, Users } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
+import { formatStaffDateTime } from "../../lib/staff-date-format";
 
 type Cliente = { id: string; nombre: string; numero_cliente: number; email: string | null; telefono: string | null; puerto: string | null; tipo_cuenta: string | null; creado_en: string | null; auth_user_id?: string | null };
 type Pedido = { id: string; tracking: string; clienteNumero: number | null; clienteNombre: string | null; estado: string | null; carrier?: string | null; tipo_paquete?: string | null; contenido?: string | null; notas?: string | null; numero_cliente_id?: string | null; registro?: string | null; hora_fecha?: string | null; fecha_entregado?: string | null; problema?: boolean | null; problema_notas?: string | null };
@@ -19,7 +20,7 @@ function safeDate(value: string | null | undefined) {
     : raw;
   const date = new Date(normalized);
   if (Number.isNaN(date.getTime())) return "-";
-  return /(?:T|\s)\d{1,2}:\d{2}/.test(raw) ? date.toLocaleString() : date.toLocaleDateString();
+  return /(?:T|\s)\d{1,2}:\d{2}/.test(raw) ? formatStaffDateTime(date) : date.toLocaleDateString("en-US");
 }
 
 function stageFor(status: string | null) {

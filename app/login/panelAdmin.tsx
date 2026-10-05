@@ -11,6 +11,7 @@ import Client360Admin from "./Client360Admin";
 import CaribexBatchLabelPrint, { BatchBoxLabel } from "../../components/CaribexBatchLabelPrint";
 import ContainersAdmin from "./ContainersAdmin";
 import ReportsAdmin from "./ReportsAdmin";
+import { formatStaffDateTime } from "../../lib/staff-date-format";
 
 /**
  * DASHBOARD OPERATIVO - VERSIÓN VISUAL PURA
@@ -1905,11 +1906,11 @@ const App = () => {
         {activeTab === 'client360' && <Client360Admin clientes={clientes} pedidos={pedidos} facturas={facturas} />}
 
         {activeTab === 'leads' && <div style={{ width: '100%', overflowX: 'auto' }}>
-          {leads.length === 0 ? <p style={{ padding: '1.5rem', color: '#64748b' }}>No customer leads have been received yet.</p> : <table className="admin-table" style={{ minWidth: 980, width: '100%' }}><thead><tr><th>Date</th><th>Customer</th><th>Contact</th><th>Message</th><th>Status</th><th>Admin notes</th></tr></thead><tbody>{leads.map((lead) => <tr key={lead.id}><td>{new Date(lead.created_at).toLocaleString()}</td><td><strong>{lead.nombre}</strong><br /><small>{lead.service_type || 'Website contact'}</small></td><td><a href={`mailto:${lead.email}`}>{lead.email}</a><br />{lead.telefono || '-'}</td><td style={{ maxWidth: 320, whiteSpace: 'pre-wrap' }}>{lead.mensaje}</td><td><select value={lead.status} onChange={(event) => actualizarLead(lead.id, { status: event.target.value as Lead['status'] })}><option value="NEW">New</option><option value="CONTACTED">Contacted</option><option value="CONVERTED">Converted</option><option value="CLOSED">Closed</option></select></td><td><textarea defaultValue={lead.admin_notes || ''} rows={2} placeholder="Add notes" onBlur={(event) => { const notes = event.target.value; if (notes !== (lead.admin_notes || '')) actualizarLead(lead.id, { admin_notes: notes }); }} /></td></tr>)}</tbody></table>}
+          {leads.length === 0 ? <p style={{ padding: '1.5rem', color: '#64748b' }}>No customer leads have been received yet.</p> : <table className="admin-table" style={{ minWidth: 980, width: '100%' }}><thead><tr><th>Date</th><th>Customer</th><th>Contact</th><th>Message</th><th>Status</th><th>Admin notes</th></tr></thead><tbody>{leads.map((lead) => <tr key={lead.id}><td>{formatStaffDateTime(lead.created_at)}</td><td><strong>{lead.nombre}</strong><br /><small>{lead.service_type || 'Website contact'}</small></td><td><a href={`mailto:${lead.email}`}>{lead.email}</a><br />{lead.telefono || '-'}</td><td style={{ maxWidth: 320, whiteSpace: 'pre-wrap' }}>{lead.mensaje}</td><td><select value={lead.status} onChange={(event) => actualizarLead(lead.id, { status: event.target.value as Lead['status'] })}><option value="NEW">New</option><option value="CONTACTED">Contacted</option><option value="CONVERTED">Converted</option><option value="CLOSED">Closed</option></select></td><td><textarea defaultValue={lead.admin_notes || ''} rows={2} placeholder="Add notes" onBlur={(event) => { const notes = event.target.value; if (notes !== (lead.admin_notes || '')) actualizarLead(lead.id, { admin_notes: notes }); }} /></td></tr>)}</tbody></table>}
         </div>}
 
         {activeTab === 'portal' && <div style={{ width: '100%', overflowX: 'auto' }}>
-          {portalEvents.length === 0 ? <p style={{ padding: '1.5rem', color: '#64748b' }}>No customer portal or account events have been recorded yet.</p> : <table className="admin-table" style={{ minWidth: 980, width: '100%' }}><thead><tr><th>Date</th><th>Customer</th><th>Email</th><th>Result</th><th>Reason</th><th>Event</th></tr></thead><tbody>{portalEvents.map((event) => <tr key={event.id}><td>{new Date(event.created_at).toLocaleString()}</td><td>{event.customer_name || '-'}{event.account_number != null && <><br /><small>Account #{event.account_number}</small></>}</td><td>{event.email}</td><td><span style={{ color: event.success ? '#166534' : '#b91c1c', fontWeight: 700 }}>{event.success ? (event.event_type === 'login_attempt' ? 'Successful' : 'Completed') : 'Problem'}</span></td><td>{event.reason || '-'}</td><td>{portalEventLabel(event.event_type)}</td></tr>)}</tbody></table>}
+          {portalEvents.length === 0 ? <p style={{ padding: '1.5rem', color: '#64748b' }}>No customer portal or account events have been recorded yet.</p> : <table className="admin-table" style={{ minWidth: 980, width: '100%' }}><thead><tr><th>Date</th><th>Customer</th><th>Email</th><th>Result</th><th>Reason</th><th>Event</th></tr></thead><tbody>{portalEvents.map((event) => <tr key={event.id}><td>{formatStaffDateTime(event.created_at)}</td><td>{event.customer_name || '-'}{event.account_number != null && <><br /><small>Account #{event.account_number}</small></>}</td><td>{event.email}</td><td><span style={{ color: event.success ? '#166534' : '#b91c1c', fontWeight: 700 }}>{event.success ? (event.event_type === 'login_attempt' ? 'Successful' : 'Completed') : 'Problem'}</span></td><td>{event.reason || '-'}</td><td>{portalEventLabel(event.event_type)}</td></tr>)}</tbody></table>}
         </div>}
 
         {activeTab === 'activityLogs' && <div style={{ width: '100%' }}>
@@ -1925,7 +1926,7 @@ const App = () => {
             </select>
             <button type="button" className="pa-primary-btn" onClick={() => void cargarStaffActionLogs()} disabled={staffLogsLoading}>{staffLogsLoading ? 'Loading…' : 'Refresh logs'}</button>
           </div>
-          {staffActionLogs.length === 0 ? <p style={{ padding: '1.5rem', color: '#64748b' }}>{staffLogsLoading ? 'Loading staff activity…' : 'No staff activity has been recorded yet.'}</p> : <div style={{ overflowX: 'auto' }}><table className="admin-table" style={{ minWidth: 1080, width: '100%' }}><thead><tr><th>Date</th><th>Staff member</th><th>Action</th><th>Area</th><th>Shipment / customer</th><th>Result</th><th>Details</th></tr></thead><tbody>{staffActionLogs.map((log) => <tr key={log.id}><td>{new Date(log.created_at).toLocaleString()}</td><td><strong>{log.actor_name || log.actor_email || 'Unknown staff'}</strong><br /><small>{log.actor_role}</small></td><td>{log.action.replaceAll('_', ' ')}</td><td>{log.entity_type}</td><td>{log.tracking || log.customer_name || log.entity_id || '-'}</td><td><span style={{ color: log.success ? '#166534' : '#b91c1c', fontWeight: 700 }}>{log.success ? 'Success' : 'Failed'}</span>{log.error_message && <><br /><small>{log.error_message}</small></>}</td><td><code style={{ whiteSpace: 'pre-wrap', fontSize: '0.75rem' }}>{JSON.stringify(log.details || {})}</code></td></tr>)}</tbody></table></div>}
+          {staffActionLogs.length === 0 ? <p style={{ padding: '1.5rem', color: '#64748b' }}>{staffLogsLoading ? 'Loading staff activity…' : 'No staff activity has been recorded yet.'}</p> : <div style={{ overflowX: 'auto' }}><table className="admin-table" style={{ minWidth: 1080, width: '100%' }}><thead><tr><th>Date</th><th>Staff member</th><th>Action</th><th>Area</th><th>Shipment / customer</th><th>Result</th><th>Details</th></tr></thead><tbody>{staffActionLogs.map((log) => <tr key={log.id}><td>{formatStaffDateTime(log.created_at)}</td><td><strong>{log.actor_name || log.actor_email || 'Unknown staff'}</strong><br /><small>{log.actor_role}</small></td><td>{log.action.replaceAll('_', ' ')}</td><td>{log.entity_type}</td><td>{log.tracking || log.customer_name || log.entity_id || '-'}</td><td><span style={{ color: log.success ? '#166534' : '#b91c1c', fontWeight: 700 }}>{log.success ? 'Success' : 'Failed'}</span>{log.error_message && <><br /><small>{log.error_message}</small></>}</td><td><code style={{ whiteSpace: 'pre-wrap', fontSize: '0.75rem' }}>{JSON.stringify(log.details || {})}</code></td></tr>)}</tbody></table></div>}
         </div>}
 
         {activeTab === 'ferry' && <FerryManifestAdmin />}
@@ -3275,7 +3276,7 @@ const App = () => {
                   </div>
                   <div>
                     <div style={{ fontWeight: 600, color: "#4b5563" }}>Hora/fecha recibido</div>
-                    <div style={{ color: "#111827" }}>{pedidoForm.hora_fecha || "-"}</div>
+                    <div style={{ color: "#111827" }}>{formatStaffDateTime(pedidoForm.hora_fecha)}</div>
                   </div>
                   <div>
                     <div style={{ fontWeight: 600, color: "#4b5563" }}>Descargado por</div>
@@ -3284,7 +3285,7 @@ const App = () => {
                   <div>
                     <div style={{ fontWeight: 600, color: "#4b5563" }}>Fecha/hora descargado</div>
                     <div style={{ color: "#111827" }}>
-                      {pedidoForm.fecha_descargado || "-"} {pedidoForm.hora_descargado || ""}
+                      {pedidoForm.fecha_descargado || "-"} {pedidoForm.hora_descargado ? formatStaffDateTime(pedidoForm.hora_descargado) : ""}
                     </div>
                   </div>
                   <div>
@@ -3294,7 +3295,7 @@ const App = () => {
                   <div>
                     <div style={{ fontWeight: 600, color: "#4b5563" }}>Fecha/hora entregado</div>
                     <div style={{ color: "#111827" }}>
-                      {pedidoForm.fecha_entregado || "-"} {pedidoForm.hora_entregado || ""}
+                      {pedidoForm.fecha_entregado || "-"} {pedidoForm.hora_entregado ? formatStaffDateTime(pedidoForm.hora_entregado) : ""}
                     </div>
                   </div>
                 </div>

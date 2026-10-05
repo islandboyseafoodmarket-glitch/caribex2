@@ -9,6 +9,7 @@ import React, {
 } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
+import { formatStaffDateTime } from "../lib/staff-date-format";
 
 import {
   Box,
@@ -152,7 +153,7 @@ function client360DateLabel(value: string | null | undefined, locale: string) {
   const raw = String(value || "").trim();
   const parsed = parseClient360Date(value);
   if (!parsed) return "-";
-  return /(?:T|\s)\d{1,2}:\d{2}/.test(raw) ? parsed.toLocaleString(locale) : parsed.toLocaleDateString(locale);
+  return /(?:T|\s)\d{1,2}:\d{2}/.test(raw) ? formatStaffDateTime(parsed, locale) : parsed.toLocaleDateString(locale);
 }
 
 type StageId =
@@ -3978,11 +3979,7 @@ const handlePackageCreated = (pkg: Package) => {
                 <div className="ga-field-group">
                   <label>{isEs ? "Tiempo de escaneo" : "Scan time"}</label>
                   <div className="ga-input" style={{ border: "none", paddingLeft: 0 }}>
-                    {viewPackage.horaFecha
-                      ? new Date(viewPackage.horaFecha).toLocaleString(
-                          isEs ? "es-ES" : "en-US",
-                        )
-                      : "-"}
+                    {formatStaffDateTime(viewPackage.horaFecha, isEs ? "es-ES" : "en-US")}
                   </div>
                 </div>
 
@@ -4259,11 +4256,7 @@ const handlePackageCreated = (pkg: Package) => {
                     <div className="ga-field-group">
                       <label>{isEs ? "Fecha descarga" : "Unload date"}</label>
                       <div className="ga-input" style={{ border: "none", paddingLeft: 0 }}>
-                        {viewPackage.fechaDescargado
-                          ? new Date(viewPackage.fechaDescargado).toLocaleString(
-                              isEs ? "es-ES" : "en-US",
-                            )
-                          : "-"}
+                        {formatStaffDateTime(viewPackage.fechaDescargado, isEs ? "es-ES" : "en-US")}
                       </div>
                     </div>
 
@@ -4291,11 +4284,7 @@ const handlePackageCreated = (pkg: Package) => {
                     <div className="ga-field-group">
                       <label>{isEs ? "Fecha entrega" : "Delivery date"}</label>
                       <div className="ga-input" style={{ border: "none", paddingLeft: 0 }}>
-                        {viewPackage.fechaEntregado
-                          ? new Date(viewPackage.fechaEntregado).toLocaleString(
-                              isEs ? "es-ES" : "en-US",
-                            )
-                          : "-"}
+                        {formatStaffDateTime(viewPackage.fechaEntregado, isEs ? "es-ES" : "en-US")}
                       </div>
                     </div>
                   </>

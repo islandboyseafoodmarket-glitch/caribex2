@@ -3,6 +3,7 @@
 import React, { useState, useMemo } from "react";
 import { Box, Package as PackageIcon, Truck, Eye, Pencil, Trash2 } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
+import { formatStaffDateTime } from "../lib/staff-date-format";
 
 type PackageCategoryId = "BOX" | "PACKAGE";
 
@@ -232,9 +233,7 @@ const StageCheckIn: React.FC<StageCheckInProps> = ({
                   </td>
                   <td className="ga-table-text">{p.estado || "-"}</td>
                   <td className="ga-table-text">
-                    {p.horaFecha
-                      ? new Date(p.horaFecha).toLocaleString(isEs ? "es-ES" : "en-US")
-                      : "-"}
+                    {formatStaffDateTime(p.horaFecha, isEs ? "es-ES" : "en-US")}
                   </td>
                   <td className="ga-table-actions">
                     <button

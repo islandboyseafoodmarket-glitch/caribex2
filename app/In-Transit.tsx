@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { Box, PackageOpen, ChevronDown, ChevronUp, Eye, Trash2 } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
+import { formatStaffDateTime } from "../lib/staff-date-format";
 
 type InTransitPackage = {
   id: number;
@@ -357,11 +358,7 @@ const InTransitStage: React.FC<InTransitProps> = ({
                     <td className="ga-table-text">{c.codigo}</td>
                     <td className="ga-table-text">{c.shipmentCount}</td>
                     <td className="ga-table-text">
-                      {c.creado_en
-                        ? new Date(c.creado_en).toLocaleString(
-                            isEs ? "es-ES" : "en-US",
-                          )
-                        : "-"}
+                      {formatStaffDateTime(c.creado_en, isEs ? "es-ES" : "en-US")}
                     </td>
                     <td className="ga-table-actions">
                       <button
@@ -467,11 +464,7 @@ const InTransitStage: React.FC<InTransitProps> = ({
                                     </td>
                                     <td className="ga-table-text">{s.estado || "-"}</td>
                                     <td className="ga-table-text">
-                                      {s.scanTime
-                                        ? new Date(s.scanTime).toLocaleString(
-                                            isEs ? "es-ES" : "en-US",
-                                          )
-                                        : "-"}
+                                      {formatStaffDateTime(s.scanTime, isEs ? "es-ES" : "en-US")}
                                     </td>
                                     <td className="ga-table-actions">
                                       <button
