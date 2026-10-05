@@ -49,6 +49,7 @@ export default function ContainersAdmin() {
   const [filter, setFilter] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [invoiceGroup, setInvoiceGroup] = useState<Shipment[] | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -91,6 +92,20 @@ export default function ContainersAdmin() {
     }
     return Array.from(groups.values());
   }, [visibleShipments]);
+  const invoiceTotals = useMemo(() => {
+    const lines = invoiceGroup || [];
+    return lines.reduce((totals, shipment) => {
+      const additional = additionalChargeTotal(shipment.checkin?.cargos_adicionales);
+      const subtotal = Number(shipment.billing_subtotal || 0);
+      const tax = Number(shipment.billing_tax || 0);
+      const total = Number(shipment.billing_total ?? (subtotal + tax));
+      totals.subtotal += subtotal;
+      totals.additional += additional;
+      totals.tax += tax;
+      totals.total += total + additional;
+      return totals;
+    }, { subtotal: 0, additional: 0, tax: 0, total: 0 });
+  }, [invoiceGroup]);
 
   if (loading) return <div className="container-dashboard-state">Loading container dashboard…</div>;
   if (error) return <div className="container-dashboard-state container-dashboard-error">{error}</div>;
@@ -116,10 +131,23 @@ export default function ContainersAdmin() {
         .container-dashboard-table th, .container-dashboard-table td { padding: 10px; border-bottom: 1px solid #e2e8f0; text-align: left; vertical-align: top; }
         .container-dashboard-table th { background: #f8fafc; color: #475569; font-size: .74rem; text-transform: uppercase; letter-spacing: .04em; }
         .container-dashboard-table tr:last-child td { border-bottom: 0; }
+        .container-customer-button { border: 0; padding: 0; background: transparent; color: #0f4c81; font: inherit; font-weight: 800; text-align: left; text-decoration: underline; cursor: pointer; }
         .container-dashboard-state { padding: 32px; text-align: center; color: #64748b; }
         .container-dashboard-error { color: #b91c1c; background: #fef2f2; border-radius: 12px; }
+        .container-invoice-backdrop { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; padding: 18px; background: rgba(15, 23, 42, .58); }
+        .container-invoice-modal { width: min(900px, 100%); max-height: 92vh; overflow: auto; border-radius: 16px; background: #fff; padding: 22px; box-shadow: 0 20px 60px rgba(15, 23, 42, .3); }
+        .container-invoice-header { display: flex; justify-content: space-between; gap: 14px; align-items: flex-start; margin-bottom: 16px; }
+        .container-invoice-header h2 { margin: 0 0 4px; color: #0f4c81; }
+        .container-invoice-muted { color: #64748b; font-size: .86rem; }
+        .container-invoice-close { border: 0; border-radius: 8px; padding: 8px 11px; background: #e2e8f0; color: #0f172a; font-weight: 800; cursor: pointer; }
+        .container-invoice-lines { width: 100%; border-collapse: collapse; font-size: .84rem; }
+        .container-invoice-lines th, .container-invoice-lines td { padding: 9px 7px; border-bottom: 1px solid #e2e8f0; text-align: left; vertical-align: top; }
+        .container-invoice-lines th { color: #475569; font-size: .72rem; text-transform: uppercase; }
+        .container-invoice-totals { margin: 16px 0 0 auto; width: min(320px, 100%); display: grid; gap: 7px; }
+        .container-invoice-total-row { display: flex; justify-content: space-between; gap: 16px; }
+        .container-invoice-total-row.final { border-top: 2px solid #0f4c81; padding-top: 8px; color: #0f4c81; font-size: 1.1rem; font-weight: 900; }
         @media (max-width: 800px) { .container-dashboard-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-        @media print { body * { visibility: hidden !important; } .container-dashboard, .container-dashboard * { visibility: visible !important; } .container-dashboard { position: static; } .container-dashboard-toolbar, .container-dashboard-metrics, .container-dashboard-locations, .container-dashboard-filter { display: none !important; } .container-dashboard-table { border: 0; } }
+        @media print { body * { visibility: hidden !important; } .container-dashboard, .container-dashboard *, .container-invoice-modal, .container-invoice-modal * { visibility: visible !important; } .container-dashboard { position: static; } .container-dashboard-toolbar, .container-dashboard-metrics, .container-dashboard-locations, .container-dashboard-filter, .container-invoice-close { display: none !important; } .container-dashboard-table { border: 0; } .container-invoice-backdrop { position: static; padding: 0; background: #fff; } .container-invoice-modal { width: 100%; max-height: none; overflow: visible; box-shadow: none; } }
       `}</style>
       <div className="container-dashboard-toolbar">
         <select value={selectedId} onChange={(event) => setSelectedId(event.target.value)} aria-label="Select container">
@@ -149,7 +177,7 @@ export default function ContainersAdmin() {
                 : "";
               return <tr key={shipment.id}>
                 {index === 0 && <td rowSpan={group.length}>{shipment.customer?.puerto || "Unassigned"}</td>}
-                {index === 0 && <td rowSpan={group.length}>{shipment.customer?.nombre || "Unknown owner"}</td>}
+                {index === 0 && <td rowSpan={group.length}><button type="button" className="container-customer-button" onClick={() => setInvoiceGroup(group)} title="View this customer's invoice for the selected container">{shipment.customer?.nombre || "Unknown owner"}</button></td>}
                 {index === 0 && <td rowSpan={group.length}>#{shipment.customer?.numero_cliente || "—"}</td>}
                 <td><strong>{shipment.tracking || "—"}</strong></td>
                 <td>{shipment.tipo_paquete || shipment.contenido || "—"}{dimensions}</td>
@@ -163,6 +191,29 @@ export default function ContainersAdmin() {
           </table>
         </div>
       </>}
+      {invoiceGroup && selected && <div className="container-invoice-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setInvoiceGroup(null); }}>
+        <section className="container-invoice-modal" role="dialog" aria-modal="true" aria-labelledby="container-invoice-title">
+          <div className="container-invoice-header">
+            <div>
+              <h2 id="container-invoice-title">Shipment invoice</h2>
+              <div className="container-invoice-muted">{selected.codigo} · {invoiceGroup.length} package{invoiceGroup.length === 1 ? "" : "s"}</div>
+              <div><strong>{invoiceGroup[0]?.customer?.nombre || "Unknown owner"}</strong> · Account #{invoiceGroup[0]?.customer?.numero_cliente || "—"}</div>
+              <div className="container-invoice-muted">{invoiceGroup[0]?.customer?.email || "No email on file"} · {invoiceGroup[0]?.customer?.puerto || "Unassigned destination"}</div>
+            </div>
+            <button type="button" className="container-invoice-close" onClick={() => setInvoiceGroup(null)}>Close</button>
+          </div>
+          <table className="container-invoice-lines"><thead><tr><th>Tracking</th><th>Package</th><th>Subtotal</th><th>Additional</th><th>Tax</th><th>Total</th></tr></thead><tbody>
+            {invoiceGroup.map((shipment) => {
+              const additional = additionalChargeTotal(shipment.checkin?.cargos_adicionales);
+              const subtotal = Number(shipment.billing_subtotal || 0);
+              const tax = Number(shipment.billing_tax || 0);
+              const total = Number(shipment.billing_total ?? (subtotal + tax)) + additional;
+              return <tr key={shipment.id}><td><strong>{shipment.tracking || "—"}</strong></td><td>{shipment.tipo_paquete || shipment.contenido || "Package"}</td><td>{money(subtotal)}</td><td>{additional ? money(additional) : "—"}</td><td>{money(tax)}</td><td><strong>{money(total)}</strong></td></tr>;
+            })}
+          </tbody></table>
+          <div className="container-invoice-totals"><div className="container-invoice-total-row"><span>Subtotal</span><strong>{money(invoiceTotals.subtotal)}</strong></div><div className="container-invoice-total-row"><span>Additional charges</span><strong>{money(invoiceTotals.additional)}</strong></div><div className="container-invoice-total-row"><span>Tax</span><strong>{money(invoiceTotals.tax)}</strong></div><div className="container-invoice-total-row final"><span>Invoice total</span><strong>{money(invoiceTotals.total)}</strong></div></div>
+        </section>
+      </div>}
     </div>
   );
 }
