@@ -184,7 +184,7 @@ export async function GET(request: Request) {
     const rawCode = url.searchParams.get("code")?.trim() || "";
     if (!rawCode) return NextResponse.json({ error: "Scan or enter a tracking number" }, { status: 400 });
 
-    let query = supabase.from("paquetes_registro").select("id, tracking, nombre_paqueteria, tipo_paquete, estado, numero_cliente_id, billing_subtotal, billing_tax, billing_total, invoice_status, approval_status, numero_cliente:numero_cliente_id (id, numero_cliente, nombre, email, telefono, puerto)");
+    let query = supabase.from("paquetes_registro").select("id, tracking, nombre_paqueteria, tipo_paquete, estado, issue_status, numero_cliente_id, billing_subtotal, billing_tax, billing_total, invoice_status, approval_status, numero_cliente:numero_cliente_id (id, numero_cliente, nombre, email, telefono, puerto)");
     const idMatch = rawCode.match(/(?:pedidos\/)?([0-9a-f]{8}-[0-9a-f-]{27})/i);
     if (idMatch) query = query.eq("id", idMatch[1]);
     else query = query.ilike("tracking", rawCode);
@@ -210,7 +210,7 @@ export async function POST(request: Request) {
     const requestedKey = String(body?.next_key || "").trim();
     if (!shipmentId || !requestedKey) return NextResponse.json({ error: "Shipment and next status are required" }, { status: 400 });
 
-    const { data: shipment, error: lookupError } = await supabase.from("paquetes_registro").select("id, tracking, nombre_paqueteria, contenido, notas, notas_imagenes, estado, tipo_paquete, billing_subtotal, billing_tax, billing_total, invoice_status, approval_status, numero_cliente_id, numero_cliente:numero_cliente_id (id, numero_cliente, nombre, email, telefono, puerto)").eq("id", shipmentId).maybeSingle();
+    const { data: shipment, error: lookupError } = await supabase.from("paquetes_registro").select("id, tracking, nombre_paqueteria, contenido, notas, notas_imagenes, estado, issue_status, tipo_paquete, billing_subtotal, billing_tax, billing_total, invoice_status, approval_status, numero_cliente_id, numero_cliente:numero_cliente_id (id, numero_cliente, nombre, email, telefono, puerto)").eq("id", shipmentId).maybeSingle();
     if (lookupError) throw lookupError;
     if (!shipment) return NextResponse.json({ error: "Shipment not found" }, { status: 404 });
 
@@ -239,6 +239,7 @@ export async function POST(request: Request) {
       payload.fecha_entregado = now.toISOString().split("T")[0];
       payload.hora_entregado = now.toTimeString().split(" ")[0];
       payload.entregado_por = actor.profile?.nombre || actor.profile?.nombre_personal || actor.user.email || "Staff";
+      payload.issue_status = "RESOLVED";
     }
     let ferry: { isFerry: boolean; puerto?: string; registered?: boolean; manifestToken?: string } = { isFerry: false };
     let invoice: { sent: boolean; reason?: string } = {

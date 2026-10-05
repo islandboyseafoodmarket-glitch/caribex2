@@ -138,6 +138,7 @@ const App = () => {
     peso?: number | null;
     problema?: boolean | null;
     problema_notas?: string | null;
+    issue_status?: 'OPEN' | 'RESOLVED' | null;
     cargos_adicionales?: string | null;
     consolidacion?: boolean | null;
   };
@@ -384,7 +385,7 @@ const App = () => {
     setEditingStaff(null);
   };
 
-  const pedidosConIncidencia = useMemo(
+    const pedidosConIncidencia = useMemo(
     () =>
       pedidos.filter(
         (p) =>
@@ -719,8 +720,13 @@ const App = () => {
     ancho: pedidoForm.ancho ? Number(pedidoForm.ancho) : null,
     largo: pedidoForm.largo ? Number(pedidoForm.largo) : null,
     peso: pedidoForm.peso ? Number(pedidoForm.peso) : null,
-    problema: pedidoForm.problema,
-    problema_notas: pedidoForm.problema_notas || null,
+        problema: pedidoForm.problema,
+        problema_notas: pedidoForm.problema_notas || null,
+        issue_status: pedidoForm.problema
+          ? pedidos.find((item) => item.id === pedidoEditId)?.issue_status === "RESOLVED"
+            ? "RESOLVED"
+            : "OPEN"
+          : null,
     cargos_adicionales: pedidoForm.cargos_adicionales || null,
     consolidacion: pedidoForm.consolidacion,
     clienteNumero: null,
@@ -782,7 +788,7 @@ const App = () => {
     const { data, error } = await supabase
       .from("paquetes_registro")
       .select(
-        "id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, notas_imagenes, estado, numero_cliente:numero_cliente_id (id, numero_cliente, nombre), numero_cliente_id, registro, descargado, entregado_por, hora_fecha, fecha_descargado, hora_descargado, fecha_entregado, hora_entregado",
+        "id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, notas_imagenes, estado, issue_status, numero_cliente:numero_cliente_id (id, numero_cliente, nombre), numero_cliente_id, registro, descargado, entregado_por, hora_fecha, fecha_descargado, hora_descargado, fecha_entregado, hora_entregado",
       )
       .order("creado_en", { ascending: false });
 
@@ -806,6 +812,7 @@ const App = () => {
         contenido: row.contenido || null,
         notas: row.notas || null,
         notas_imagenes: row.notas_imagenes || null,
+        issue_status: row.issue_status || null,
         numero_cliente_id: row.numero_cliente_id || row.numero_cliente?.id || null,
         registro: row.registro || null,
         descargado: row.descargado || null,
@@ -1705,7 +1712,7 @@ const App = () => {
       <header className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1.5rem' }}>
         <div className="admin-brand">
           <div className="admin-brand-logo">
-            <Image src="/imagenes/logo-pages.png" alt="Caribex Logistics Group — Your Cargo Our Commitment" width={148} height={63} />
+            <Image src="/imagenes/logo-transparent.png" alt="Caribex Logistics Group — Your Cargo Our Commitment" width={148} height={63} />
           </div>
           <div>
           <h1>Warehouse management</h1>
@@ -1742,7 +1749,7 @@ const App = () => {
       <aside className="admin-sidebar" aria-label="Admin navigation">
         <div className="admin-sidebar-brand">
           <div>
-            <Image src="/imagenes/logo-pages.png" alt="Caribex Logistics Group — Your Cargo Our Commitment" width={218} height={93} />
+            <Image src="/imagenes/logo-transparent.png" alt="Caribex Logistics Group — Your Cargo Our Commitment" width={218} height={93} />
             <strong>Caribex Admin</strong><span>Warehouse management</span>
           </div>
         </div>
@@ -2359,7 +2366,7 @@ const App = () => {
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "1.4fr 2fr 2.6fr 1fr",
+                gridTemplateColumns: "1.4fr 2fr 2.6fr 1.1fr 1fr",
                 columnGap: "1rem",
                 padding: "0.4rem 0",
                 fontSize: "0.8rem",
@@ -2372,6 +2379,7 @@ const App = () => {
               <span style={{ minWidth: 100 }}>Tracking</span>
               <span style={{ minWidth: 140 }}>Cliente</span>
               <span style={{ minWidth: 220 }}>Descripción del problema</span>
+              <span>Estado de incidencia</span>
               <span style={{ textAlign: "right", minWidth: 120 }}>Acciones</span>
             </div>
 
@@ -2392,7 +2400,7 @@ const App = () => {
                       borderBottom: "1px solid #e2e8f0",
                       fontSize: "0.9rem",
                       display: "grid",
-                      gridTemplateColumns: "1.4fr 2fr 2.6fr 1fr",
+                      gridTemplateColumns: "1.4fr 2fr 2.6fr 1.1fr 1fr",
                       columnGap: "0.75rem",
                       alignItems: "center",
                       minWidth: 640,
@@ -2434,6 +2442,15 @@ const App = () => {
                       }}
                     >
                       {descripcion}
+                    </span>
+                    <span
+                      style={{
+                        color: p.issue_status === "RESOLVED" ? "#166534" : "#b45309",
+                        fontWeight: 700,
+                        fontSize: "0.8rem",
+                      }}
+                    >
+                      {p.issue_status === "RESOLVED" ? "Resolved" : "Open"}
                     </span>
                     <div
                       style={{

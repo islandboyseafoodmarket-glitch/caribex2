@@ -84,15 +84,33 @@ export default function ScannerWorkflowPage() {
   const startCamera = async () => {
     setMessage(null); setScanning(true);
     try {
+      if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
+        throw new Error("Camera requires the secure HTTPS site. Open the Caribex page using https:// and allow camera access in the browser.");
+      }
+      const formatsToSupport = [
+        Html5QrcodeSupportedFormats.QR_CODE,
+        Html5QrcodeSupportedFormats.CODE_128,
+        Html5QrcodeSupportedFormats.CODE_39,
+        Html5QrcodeSupportedFormats.CODE_93,
+        Html5QrcodeSupportedFormats.CODABAR,
+        Html5QrcodeSupportedFormats.ITF,
+        Html5QrcodeSupportedFormats.EAN_13,
+        Html5QrcodeSupportedFormats.EAN_8,
+        Html5QrcodeSupportedFormats.UPC_A,
+        Html5QrcodeSupportedFormats.UPC_E,
+        Html5QrcodeSupportedFormats.PDF_417,
+        Html5QrcodeSupportedFormats.DATA_MATRIX,
+      ];
       const scanner = new Html5Qrcode("workflow-qr-reader");
       scannerRef.current = scanner;
-      await scanner.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 260, height: 180 }, formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE] } as any, async (decoded) => {
+      await scanner.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 260, height: 180 }, formatsToSupport } as any, async (decoded) => {
         await stopCamera();
         await lookup(decoded);
       }, () => undefined);
-    } catch {
+    } catch (error) {
       setScanning(false); scannerRef.current = null;
-      setMessage({ tone: "error", text: "Camera access was not available. Use the scanner gun or enter the tracking number." });
+      const reason = error instanceof Error ? error.message : "The browser could not open the camera.";
+      setMessage({ tone: "error", text: `${reason} You can use the scanner gun or enter the tracking number.` });
     }
   };
 

@@ -134,6 +134,7 @@ type Package = {
   billing_total?: number | null;
   approval_status?: string | null;
   invoice_status?: string | null;
+  issue_status?: "OPEN" | "RESOLVED" | null;
 };
 
 function parseClient360Date(value: string | null | undefined) {
@@ -1998,7 +1999,7 @@ export default function GestionAlmacen() {
     const { data, error } = await supabase
       .from("paquetes_registro")
       .select(
-        "id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, notas_imagenes, registro, descargado, entregado_por, estado, hora_fecha, fecha_descargado, fecha_entregado, numero_cliente_id, billing_subtotal, billing_tax, billing_total, approval_status, invoice_status",
+        "id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, notas_imagenes, registro, descargado, entregado_por, estado, hora_fecha, fecha_descargado, fecha_entregado, numero_cliente_id, billing_subtotal, billing_tax, billing_total, approval_status, invoice_status, issue_status",
       )
       .order("creado_en", { ascending: false });
 
@@ -2147,6 +2148,7 @@ export default function GestionAlmacen() {
           billing_total: row.billing_total ?? null,
           approval_status: row.approval_status ?? null,
           invoice_status: row.invoice_status ?? null,
+          issue_status: row.issue_status ?? null,
         };
       });
 
@@ -2739,6 +2741,7 @@ export default function GestionAlmacen() {
           entregado_por: currentUserName,
           fecha_entregado: estado === "Entregado" ? nowIso : null,
           hora_entregado: estado === "Entregado" ? timeStr : null,
+          ...(estado === "Entregado" ? { issue_status: "RESOLVED" } : {}),
         })
         .eq("tracking", trackingClave);
 
@@ -2809,6 +2812,7 @@ export default function GestionAlmacen() {
           entregado_por: currentUserName,
           fecha_entregado: nowIso,
           hora_entregado: timeStr,
+          issue_status: "RESOLVED",
         })
         .eq("id", data.id);
 
@@ -3126,6 +3130,7 @@ export default function GestionAlmacen() {
       // guardar también el cliente seleccionado en paquetes_registro
       numero_cliente_id: checkInClientId || null,
       notas: checkInProblemNotes || null,
+      issue_status: checkInHasProblem ? "OPEN" : null,
     };
 
     if (checkInImageUrls.length > 0) {
@@ -3227,6 +3232,7 @@ export default function GestionAlmacen() {
             estado: "Check In",
             // los hijos heredan el mismo cliente que la caja principal
             numero_cliente_id: checkInClientId || null,
+            issue_status: childStateForId?.hasProblem ? "OPEN" : null,
             // Copiamos también la nota de problema para que se vea en la columna NOTE
             notas:
               childStateForId?.hasProblem && childStateForId?.problemNotes
@@ -3328,10 +3334,11 @@ export default function GestionAlmacen() {
           const { error: secondUpdateError } = await supabase
             .from("paquetes_registro")
             .update({
-              estado: "Check In",
-              // los hijos heredan el mismo cliente que la caja principal
-              numero_cliente_id:
-                checkInClientId || (pkg as any)?.numeroClienteId || null,
+            estado: "Check In",
+            // los hijos heredan el mismo cliente que la caja principal
+            numero_cliente_id:
+              checkInClientId || (pkg as any)?.numeroClienteId || null,
+            issue_status: (data as any)?.hasProblem ? "OPEN" : null,
             })
             .eq("tracking", pkg.tracking);
 
@@ -3587,7 +3594,7 @@ const handlePackageCreated = (pkg: Package) => {
           <div className="ga-nav-brand">
             <div className="ga-nav-logo">
               <Image
-                src="/imagenes/logo-pages.png"
+                src="/imagenes/logo-transparent.png"
                 alt="Caribex Logistics Group"
                 width={220}
                 height={94}
