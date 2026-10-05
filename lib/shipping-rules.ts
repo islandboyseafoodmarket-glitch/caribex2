@@ -37,7 +37,7 @@ export function normalizeFerryPort(value: unknown): FerryPort | null {
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "");
-  if (port.includes("ceiba")) return FERRY_PORT.LA_CEIBA;
+  if (port.includes("ceiba") || port.includes("cieba")) return FERRY_PORT.LA_CEIBA;
   if (port === FERRY_PORT.UTILA) return FERRY_PORT.UTILA;
   if (port === FERRY_PORT.GUANAJA) return FERRY_PORT.GUANAJA;
   return null;
