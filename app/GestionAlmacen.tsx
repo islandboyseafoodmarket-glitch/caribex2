@@ -11,6 +11,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { centralAmericaDateParts, formatStaffDateTime } from "../lib/staff-date-format";
 import { invoiceApprovalStatus } from "../lib/invoice-approval";
+import { detectCarrier } from "./lib/carrierDetection";
 
 import {
   Box,
@@ -789,15 +790,22 @@ export default function GestionAlmacen() {
   const unloadScannerRef = useRef<Html5Qrcode | null>(null);
 
   const handleUnloadPackage = async (rawTracking: string) => {
-    const trackingValue = rawTracking.trim().toUpperCase();
+    const rawTrackingValue = rawTracking.trim().toUpperCase();
+    const detected = detectCarrier(rawTracking);
+    const trackingValue = detected.trackingNumber || rawTrackingValue;
     if (!trackingValue) return;
 
-    const { data, error } = await supabase
+    const selectShipment = (tracking: string) => supabase
       .from("paquetes_registro")
       .select(
         "id, tracking, nombre_paqueteria, contenido, estado, notas, problema_notas, notas_imagenes, tipo_paquete, billing_subtotal, billing_tax, billing_total, approval_status, invoice_status, numero_cliente:numero_cliente_id (numero_cliente, nombre, email)",
       )
-      .eq("tracking", trackingValue);
+      .ilike("tracking", tracking);
+
+    let { data, error } = await selectShipment(trackingValue);
+    if (!data?.length && trackingValue !== rawTrackingValue) {
+      ({ data, error } = await selectShipment(rawTrackingValue));
+    }
 
     if (error) {
       setMessageModal({
@@ -999,7 +1007,7 @@ export default function GestionAlmacen() {
         billing_tax: computedTax,
         billing_total: computedTotal,
       })
-      .eq("tracking", trackingValue);
+      .eq("tracking", row.tracking);
 
     if (updateError) {
       alert(
@@ -1013,7 +1021,7 @@ export default function GestionAlmacen() {
 
     setPackages((prev) =>
       prev.map((p) =>
-        p.tracking === trackingValue
+          p.tracking === row.tracking
           ? {
               ...p,
               estado: "Descargado (Roatan)",
@@ -2242,12 +2250,17 @@ export default function GestionAlmacen() {
 
           setIsUnloadScannerOpen(false);
 
-          const trackingValue = text.toUpperCase();
-
-          const { data, error } = await supabase
+          const detected = detectCarrier(text);
+          const trackingValue = detected.trackingNumber || text.toUpperCase();
+          const selectShipment = (tracking: string) => supabase
             .from("paquetes_registro")
             .select("id, tracking, estado")
-            .eq("tracking", trackingValue);
+            .ilike("tracking", tracking);
+
+          let { data, error } = await selectShipment(trackingValue);
+          if (!data?.length && trackingValue !== text.toUpperCase()) {
+            ({ data, error } = await selectShipment(text.toUpperCase()));
+          }
 
           if (error) {
             alert(
@@ -3124,7 +3137,7 @@ export default function GestionAlmacen() {
     }
 
     const updatePayload: any = {
-      estado: "Check In",
+      estado: DATABASE_STATUS.CHECK_IN,
       // guardar también el cliente seleccionado en paquetes_registro
       numero_cliente_id: checkInClientId || null,
       notas: checkInProblemNotes || null,
@@ -3227,7 +3240,7 @@ export default function GestionAlmacen() {
 
           // Preparar payload de actualización para el paquete hijo en paquetes_registro
           const childUpdatePayload: any = {
-            estado: "Check In",
+            estado: DATABASE_STATUS.CHECK_IN,
             // los hijos heredan el mismo cliente que la caja principal
             numero_cliente_id: checkInClientId || null,
             issue_status: childStateForId?.hasProblem ? "OPEN" : null,
@@ -3332,7 +3345,7 @@ export default function GestionAlmacen() {
           const { error: secondUpdateError } = await supabase
             .from("paquetes_registro")
             .update({
-            estado: "Check In",
+            estado: DATABASE_STATUS.CHECK_IN,
             // los hijos heredan el mismo cliente que la caja principal
             numero_cliente_id:
               checkInClientId || (pkg as any)?.numeroClienteId || null,
@@ -3358,7 +3371,7 @@ export default function GestionAlmacen() {
         p.id === selectedPackage.id
           ? {
               ...p,
-              estado: "Check In",
+              estado: DATABASE_STATUS.CHECK_IN,
             }
           : p,
       ),
@@ -3376,7 +3389,7 @@ export default function GestionAlmacen() {
             childTrackings.includes(p.tracking)
               ? {
                   ...p,
-                  estado: "Check In",
+                  estado: DATABASE_STATUS.CHECK_IN,
                 }
               : p,
           ),
@@ -3600,10 +3613,7 @@ const handlePackageCreated = (pkg: Package) => {
               />
             </div>
             <div className="ga-nav-text">
-              <span className="ga-nav-title-main">Caribex</span>
-              <span className="ga-nav-title-sub">
-                {isEs ? "Grupo logístico" : "Logistics group"}
-              </span>
+              <span className="ga-nav-title-main">CARIBEX LOGISTICS GROUP</span>
             </div>
           </div>
 

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { DATABASE_STATUS } from "@/lib/shipping-rules";
 
 export const dynamic = "force-dynamic";
 
@@ -72,7 +73,7 @@ export async function POST(request: Request) {
       await saveCheckinRelationship(supabase, child.id, { parent_box_id: boxId, numero_cliente_id: inheritedCustomerId, consolidacion: true });
     }
     const ids = [boxId, ...children.map((child) => child.id)];
-    const { error: updateError } = await supabase.from("paquetes_registro").update({ estado: "Check In", numero_cliente_id: inheritedCustomerId }).in("id", ids);
+    const { error: updateError } = await supabase.from("paquetes_registro").update({ estado: DATABASE_STATUS.CHECK_IN, numero_cliente_id: inheritedCustomerId }).in("id", ids);
     if (updateError) throw updateError;
     await supabase.from("staff_action_logs").insert({ staff_user_id: actor.user.id, action: "CONSOLIDATE_SHIPMENTS", entity_type: "paquetes_registro", entity_id: boxId, details: { box_tracking: box.tracking, child_trackings: children.map((child) => child.tracking), customer_id: inheritedCustomerId } });
     return NextResponse.json({ box_tracking: box.tracking, child_trackings: children.map((child) => child.tracking), count: children.length });
