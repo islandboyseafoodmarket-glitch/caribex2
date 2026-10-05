@@ -89,16 +89,8 @@ export async function GET(request: Request) {
       if (view === "ready") return statusMatches(item.estado, DATABASE_STATUS.UNLOADED);
       return (statusFilters[view] || statusFilters.ready).some((allowed) => statusMatches(item.estado, allowed as typeof DATABASE_STATUS[keyof typeof DATABASE_STATUS]));
     });
-    // Count only the current pickup group. Historical Received, Check In,
-    // and In Transit shipments are not available for collection and must not
-    // inflate the customer's pending pickup count. Keep Picked Up rows in
-    // the group so the summary remains stable after each successful scan.
-    const pickupGroup = (allPackages || []).filter((item) =>
-      statusMatches(item.estado, DATABASE_STATUS.UNLOADED) ||
-      statusMatches(item.estado, DATABASE_STATUS.PICKED_UP),
-    );
-    const collected = pickupGroup.filter((item) => statusMatches(item.estado, DATABASE_STATUS.PICKED_UP)).length;
-    const total = pickupGroup.length;
+    const collected = (allPackages || []).filter((item) => statusMatches(item.estado, DATABASE_STATUS.PICKED_UP)).length;
+    const total = (allPackages || []).length;
     return NextResponse.json({ client, packages, view, summary: { collected, total, pending: Math.max(total - collected, 0) } });
   } catch (error) {
     return errorResponse(error);
