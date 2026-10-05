@@ -87,7 +87,7 @@ export default function ContainersAdmin() {
   const groupedShipments = useMemo(() => {
     const groups = new Map<string, Shipment[]>();
     for (const shipment of visibleShipments) {
-      const key = `${shipment.customer?.numero_cliente || "unknown"}|${shipment.customer?.puerto || "Unassigned"}`;
+      const key = `${shipment.customer?.numero_cliente || "unknown"}`;
       groups.set(key, [...(groups.get(key) || []), shipment]);
     }
     return Array.from(groups.values());
@@ -172,11 +172,12 @@ export default function ContainersAdmin() {
             <tbody>{groupedShipments.flatMap((group) => group.map((shipment, index) => {
               const additional = additionalChargeTotal(shipment.checkin?.cargos_adicionales);
               const consolidated = selected?.shipments.filter((candidate) => candidate.checkin?.parent_box_id === shipment.id).map((candidate) => candidate.tracking).filter(Boolean) || [];
+              const groupLocations = Array.from(new Set(group.map((item) => item.customer?.puerto || "Unassigned"))).join(", ");
               const dimensions = shipment.checkin && [shipment.checkin.largo, shipment.checkin.ancho, shipment.checkin.alto].some((value) => value != null)
                 ? ` ${shipment.checkin.largo || "—"}x${shipment.checkin.ancho || "—"}x${shipment.checkin.alto || "—"}`
                 : "";
               return <tr key={shipment.id}>
-                {index === 0 && <td rowSpan={group.length}>{shipment.customer?.puerto || "Unassigned"}</td>}
+                {index === 0 && <td rowSpan={group.length}>{groupLocations}</td>}
                 {index === 0 && <td rowSpan={group.length}><button type="button" className="container-customer-button" onClick={() => setInvoiceGroup(group)} title="View this customer's invoice for the selected container">{shipment.customer?.nombre || "Unknown owner"}</button></td>}
                 {index === 0 && <td rowSpan={group.length}>#{shipment.customer?.numero_cliente || "—"}</td>}
                 <td><strong>{shipment.tracking || "—"}</strong></td>
