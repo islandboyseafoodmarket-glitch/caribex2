@@ -59,7 +59,9 @@ async function getManifest(token: string) {
       });
     }
   }
-  for (const entry of grouped.values()) entry.etiqueta_cantidad = `BOX= ${entry.package_count}`;
+  Array.from(grouped.values()).forEach((entry) => {
+    entry.etiqueta_cantidad = `BOX= ${entry.package_count}`;
+  });
   return { manifest: { ...manifest, container_codigo: container?.codigo || null }, entries: Array.from(grouped.values()) };
 }
 
