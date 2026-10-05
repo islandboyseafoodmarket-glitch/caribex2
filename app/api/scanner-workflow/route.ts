@@ -1,6 +1,7 @@
 import { randomBytes } from "crypto";
 import { NextResponse } from "next/server";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { invoiceApprovalStatus } from "@/lib/invoice-approval";
 import { calculateWorkflowBilling, isBox } from "@/lib/workflow-billing";
 import { DATABASE_STATUS, normalizeFerryPort } from "@/lib/shipping-rules";
 
@@ -278,7 +279,7 @@ export async function POST(request: Request) {
         console.error("Ferry report registration failed after unload", ferryError);
         ferry = { isFerry: Boolean(ferryPortForCustomer(customer)), puerto: ferryPortForCustomer(customer) || undefined, registered: false };
       }
-      const hasProblem = Boolean(String(shipment.notas || "").trim()) || (Array.isArray(shipment.notas_imagenes) && shipment.notas_imagenes.length > 0);
+      const approvalStatus = invoiceApprovalStatus(shipment);
       let subtotal = Number(shipment.billing_subtotal);
       let tax = Number(shipment.billing_tax);
       let total = Number(shipment.billing_total);
@@ -293,8 +294,9 @@ export async function POST(request: Request) {
           if (billingError) throw billingError;
         }
       }
+      await supabase.from("paquetes_registro").update({ approval_status: approvalStatus }).eq("id", shipment.id);
       if (shipment.invoice_status === "SENT") invoice = { sent: false, reason: "Invoice was already sent." };
-      else if (hasProblem) invoice = { sent: false, reason: "Invoice requires review because the shipment has an internal note or photo." };
+      else if (approvalStatus !== "APPROVED") invoice = { sent: false, reason: "Invoice requires review because the shipment has an internal note or photo." };
       else if (!customer?.email) invoice = { sent: false, reason: "Customer has no email address." };
       else if (!Number.isFinite(total) || total <= 0) invoice = { sent: false, reason: "Shipment has no valid billing total." };
       else {

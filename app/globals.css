@@ -3063,6 +3063,7 @@ main {
 .ferry-row-locked { background: #f1f5f9; color: #64748b; }
 .ferry-row-locked td { border-bottom-color: #e2e8f0; }
 .ferry-booking-saved { display: inline-flex; align-items: center; gap: .35rem; color: #166534; font-weight: 800; white-space: nowrap; }
+.ferry-print-only { display: none; }
 .ferry-print-signature-line { display: none; }
 .ferry-status-locked { background: #f1f5f9; color: #64748b; }
 .ferry-actions { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin: 18px auto 0; padding: 16px; border-top: 1px solid #e2e8f0; }
@@ -3086,8 +3087,20 @@ main {
   .ferry-header, .ferry-hero, .ferry-meta, .ferry-instructions, .ferry-footer, .ferry-notice, .ferry-error, .ferry-actions { display: none !important; }
   .ferry-section { width: 100%; margin: 0 0 18px; padding: 0; border: 0; box-shadow: none; }
   .ferry-table { min-width: 0; font-size: 9pt; }
+  .ferry-table th { background: #123b5d; color: #fff; border-bottom-color: #08263d; }
+  .ferry-table th:nth-child(1) { background: #0f4c81; }
+  .ferry-table th:nth-child(2) { background: #14532d; }
+  .ferry-table th:nth-child(3) { background: #7c2d12; }
+  .ferry-table th:nth-child(4) { background: #5b21b6; }
+  .ferry-table th:nth-child(5) { background: #0f766e; }
+  .ferry-table th:nth-child(6) { background: #7f1d1d; }
+  .ferry-table tbody tr:nth-child(even) { background: #eef5fb; }
+  .ferry-table td { border-bottom-color: #94a3b8; }
+  .ferry-table td:nth-child(3) { font-size: 16pt; font-weight: 700; }
   .ferry-table input { border: 0; padding: 0; }
-  .ferry-print-signature-line { display: block; width: 180px; margin-top: 18px; border-bottom: 1px solid #0f172a; }
+  .ferry-print-only { display: table-cell; }
+  .ferry-print-only { border-bottom: 0 !important; }
+  .ferry-print-signature-line { display: block; width: 200px; margin-top: 8px; border-bottom: 2px solid #0f172a; }
 }
 
 /* CLIENT 360 */

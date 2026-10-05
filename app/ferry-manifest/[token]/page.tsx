@@ -18,7 +18,7 @@ type ManifestData = {
   manifest: { semana_inicio: string; semana_fin: string; estado: string; container_codigo: string | null };
   entries: Entry[];
 };
-type Draft = { booking: string; receiver: string };
+type Draft = { booking: string };
 
 function dateLabel(value: string) {
   return new Intl.DateTimeFormat("en-US", { dateStyle: "medium" }).format(new Date(value));
@@ -41,7 +41,6 @@ export default function FerryManifestPage({ params }: { params: { token: string 
       setData(body);
       setDrafts(Object.fromEntries((body.entries || []).map((entry: Entry) => [entry.id, {
         booking: entry.numero_reserva || "",
-        receiver: entry.nombre_receptor || "",
       }])));
     } catch (err: any) {
       setError(err.message || "Could not load this manifest");
@@ -59,7 +58,7 @@ export default function FerryManifestPage({ params }: { params: { token: string 
   }), [data]);
 
   const updateDraft = (id: string, field: keyof Draft, value: string) => {
-    setDrafts((current) => ({ ...current, [id]: { ...(current[id] || { booking: "", receiver: "" }), [field]: value } }));
+    setDrafts((current) => ({ ...current, [id]: { ...(current[id] || { booking: "" }), [field]: value } }));
   };
 
   const submitAll = async (event: FormEvent) => {
@@ -80,7 +79,7 @@ export default function FerryManifestPage({ params }: { params: { token: string 
         const response = await fetch(`/api/ferry-manifests/${params.token}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ entry_id: entry.id, numero_reserva: draft.booking, nombre_receptor: draft.receiver, notify: true }),
+          body: JSON.stringify({ entry_id: entry.id, numero_reserva: draft.booking, notify: true }),
         });
         const body = await response.json();
         if (!response.ok) throw new Error(body.error || `Could not submit ${entry.nombre_cliente}`);
@@ -98,9 +97,9 @@ export default function FerryManifestPage({ params }: { params: { token: string 
 
   const exportCsv = () => {
     if (!data) return;
-    const rows = [["PORT", "NO.", "ACCOUNT", "CUSTOMER NAME", "QUANTITY", "BOOKING #", "RECEIVER NAME"], ...data.entries.map((entry, index) => [
+    const rows = [["PORT", "NO.", "ACCOUNT", "CUSTOMER NAME", "QUANTITY", "BOOKING #"], ...data.entries.map((entry, index) => [
       entry.puerto === "la_ceiba" ? "La Ceiba" : entry.puerto === "guanaja" ? "Guanaja" : "Utila", String(index + 1), entry.numero_cuenta, entry.nombre_cliente,
-      entry.etiqueta_cantidad, entry.numero_reserva || "", entry.nombre_receptor || "",
+      entry.etiqueta_cantidad, entry.numero_reserva || "",
     ])];
     const csv = rows.map((row) => row.map((value) => `"${String(value).replace(/"/g, '""')}"`).join(",")).join("\n");
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
@@ -122,14 +121,14 @@ export default function FerryManifestPage({ params }: { params: { token: string 
     if (!entries.length) return null;
     return <section className="ferry-section" key={port}>
       <div className="ferry-section-heading"><h2>{title}</h2><span>{entries.length} shipment{entries.length === 1 ? "" : "s"}</span></div>
-      <div className="ferry-table-wrap"><table className="ferry-table"><thead><tr><th>No.</th><th>Acct</th><th>Customer name</th><th>Quantity</th><th>Booking #</th><th>Receiver / pickup signer</th></tr></thead><tbody>
+      <div className="ferry-table-wrap"><table className="ferry-table"><thead><tr><th>No.</th><th>Acct</th><th>Customer name</th><th>Quantity</th><th>Booking #</th><th className="ferry-print-only">Receiver / pickup signer</th></tr></thead><tbody>
         {entries.map((entry, index) => {
           const locked = Boolean(entry.enviado_en) || readOnly;
-          const draft = drafts[entry.id] || { booking: "", receiver: "" };
+          const draft = drafts[entry.id] || { booking: "" };
           return <tr className={locked ? "ferry-row-locked" : ""} key={entry.id}>
             <td>{index + 1}</td><td className={`ferry-acct ferry-acct-${entry.puerto}`}>{entry.numero_cuenta}</td><td><strong>{entry.nombre_cliente}</strong></td><td>{entry.etiqueta_cantidad}</td>
             <td>{locked ? <span className="ferry-booking-saved">{entry.numero_reserva || "—"} <CheckCircle2 size={15} /></span> : <input value={draft.booking} maxLength={100} placeholder="Booking #" onChange={(event) => updateDraft(entry.id, "booking", event.target.value)} />}</td>
-            <td>{locked ? <span>{entry.nombre_receptor || "—"}</span> : <input value={draft.receiver} maxLength={255} placeholder="Customer picking up" onChange={(event) => updateDraft(entry.id, "receiver", event.target.value)} />}<span className="ferry-print-signature-line" aria-hidden="true" /></td>
+            <td className="ferry-print-only"><span className="ferry-print-signature-line" aria-hidden="true" /></td>
           </tr>;
         })}
       </tbody></table></div>

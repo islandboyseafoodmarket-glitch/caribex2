@@ -10,6 +10,7 @@ import React, {
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { formatStaffDateTime } from "../lib/staff-date-format";
+import { invoiceApprovalStatus } from "../lib/invoice-approval";
 
 import {
   Box,
@@ -793,7 +794,7 @@ export default function GestionAlmacen() {
     const { data, error } = await supabase
       .from("paquetes_registro")
       .select(
-        "id, tracking, nombre_paqueteria, contenido, estado, notas, notas_imagenes, tipo_paquete, billing_subtotal, billing_tax, billing_total, approval_status, invoice_status, numero_cliente:numero_cliente_id (numero_cliente, nombre, email)",
+        "id, tracking, nombre_paqueteria, contenido, estado, notas, problema_notas, notas_imagenes, tipo_paquete, billing_subtotal, billing_tax, billing_total, approval_status, invoice_status, numero_cliente:numero_cliente_id (numero_cliente, nombre, email)",
       )
       .eq("tracking", trackingValue);
 
@@ -846,8 +847,7 @@ export default function GestionAlmacen() {
     const timeStr = isoNow.substring(11, 19);
 
     // Determinar si el envío tiene notas de problema para la aprobación automática
-    const hasProblemDetails = Boolean(String(row.notas || "").trim()) || (Array.isArray(row.notas_imagenes) && row.notas_imagenes.length > 0);
-    const approvalStatus = hasProblemDetails ? "PENDING" : "APPROVED";
+    const approvalStatus = invoiceApprovalStatus(row);
 
     // Determinar / calcular subtotal de facturación según tipo de paquete.
     // Si ya existe un subtotal válido, se respeta; en caso contrario, se calcula

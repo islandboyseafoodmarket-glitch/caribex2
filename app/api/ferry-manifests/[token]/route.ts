@@ -82,12 +82,19 @@ export async function PATCH(request: Request, { params }: { params: { token: str
     const body = await request.json();
     const entryId = String(body?.entry_id || "");
     const bookingNumber = String(body?.numero_reserva || "").trim();
-    const receiverName = String(body?.nombre_receptor || "").trim();
+    const adminEdit = body?.admin_edit === true;
     const sendNotification = body?.notify === true;
     if (!entryId || !bookingNumber) return NextResponse.json({ error: "A booking number is required" }, { status: 400 });
-    if (bookingNumber.length > 100 || receiverName.length > 255) return NextResponse.json({ error: "The submitted value is too long" }, { status: 400 });
+    if (bookingNumber.length > 100) return NextResponse.json({ error: "The submitted value is too long" }, { status: 400 });
 
     const supabaseAdmin = getAdminClient();
+    if (adminEdit) {
+      const bearer = request.headers.get("authorization") || "";
+      const { data: authData, error: authError } = await supabaseAdmin.auth.getUser(bearer.replace(/^Bearer\s+/i, ""));
+      if (authError || !authData.user) return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+      const { data: admin } = await supabaseAdmin.from("administradores").select("id").eq("id", authData.user.id).maybeSingle();
+      if (!admin) return NextResponse.json({ error: "Administrator access required" }, { status: 403 });
+    }
     const { data: manifest, error: manifestError } = await supabaseAdmin
       .from("ferry_manifests")
       .select("id, estado")
@@ -95,7 +102,7 @@ export async function PATCH(request: Request, { params }: { params: { token: str
       .maybeSingle();
     if (manifestError) throw manifestError;
     if (!manifest) return NextResponse.json({ error: "Manifest not found" }, { status: 404 });
-    if (manifest.estado !== "active") return NextResponse.json({ error: "This manifest is read-only" }, { status: 409 });
+    if (manifest.estado !== "active" && !adminEdit) return NextResponse.json({ error: "This manifest is read-only" }, { status: 409 });
 
     const { data: entry, error: entryLookupError } = await supabaseAdmin
       .from("ferry_manifest_entries")
@@ -116,7 +123,7 @@ export async function PATCH(request: Request, { params }: { params: { token: str
 
     const { error } = await supabaseAdmin
       .from("ferry_manifest_entries")
-      .update({ numero_reserva: bookingNumber, nombre_receptor: receiverName || null, enviado_en: new Date().toISOString() })
+      .update({ numero_reserva: bookingNumber, enviado_en: new Date().toISOString() })
       .eq("manifiesto_id", manifest.id)
       .eq("numero_cliente_id", entry.numero_cliente_id)
       .eq("puerto", entry.puerto);

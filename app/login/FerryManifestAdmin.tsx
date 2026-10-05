@@ -33,7 +33,7 @@ export default function FerryManifestAdmin() {
   const [lastToken, setLastToken] = useState<string | null>(null);
   const [entryManifest, setEntryManifest] = useState<Manifest | null>(null);
   const [adminEntries, setAdminEntries] = useState<AdminEntry[]>([]);
-  const [entryDrafts, setEntryDrafts] = useState<Record<string, { booking: string; receiver: string }>>({});
+  const [entryDrafts, setEntryDrafts] = useState<Record<string, { booking: string }>>({});
 
   const containerById = useMemo(() => new Map(containers.map((item) => [item.id, item.codigo || item.id])), [containers]);
 
@@ -120,18 +120,18 @@ export default function FerryManifestAdmin() {
       const entries = body.entries || [];
       setEntryManifest(manifest);
       setAdminEntries(entries);
-      setEntryDrafts(Object.fromEntries(entries.map((entry: AdminEntry) => [entry.id, { booking: entry.numero_reserva || "", receiver: entry.nombre_receptor || "" }])));
+      setEntryDrafts(Object.fromEntries(entries.map((entry: AdminEntry) => [entry.id, { booking: entry.numero_reserva || "" }])));
     } catch (err: any) {
       setError(err.message || "Could not load manifest entries.");
     }
   };
 
   const saveAdminEntry = async (entry: AdminEntry) => {
-    if (!entryManifest || entry.enviado_en) return;
+    if (!entryManifest) return;
     const draft = entryDrafts[entry.id];
     if (!draft?.booking.trim()) return;
     try {
-      await request(`/api/ferry-manifests/${entryManifest.token}`, { method: "PATCH", body: JSON.stringify({ entry_id: entry.id, numero_reserva: draft.booking.trim(), nombre_receptor: draft.receiver.trim(), notify: true }) });
+      await request(`/api/ferry-manifests/${entryManifest.token}`, { method: "PATCH", body: JSON.stringify({ entry_id: entry.id, numero_reserva: draft.booking.trim(), admin_edit: true, notify: true }) });
       setNotice(`Booking ${draft.booking.trim()} saved. The customer notification was sent when an email is available.`);
       await openAdminEntryForm(entryManifest);
       await load();
@@ -156,7 +156,7 @@ export default function FerryManifestAdmin() {
           <li>When the mobile app gives the triple-beep ferry alert, set that package aside for the ferry.</li>
           <li>The customer invoice is billed and sent at unload using the normal invoice rules. The ferry booking notification is sent later.</li>
           <li>Open the active manifest and use <strong>Send by WhatsApp</strong> to share the private link with Joni.</li>
-          <li>Joni enters each booking number and receiver name, then presses <strong>Submit to Caribex</strong>. Blank rows can be completed later.</li>
+          <li>Joni enters each booking number, then presses <strong>Submit to Caribex</strong>. Blank rows can be completed later. The receiver/pickup signer is completed on the printed sheet.</li>
           <li>Use <strong>Print receiver sheet</strong> from the public link for the signed handover sheet.</li>
           <li>After each submitted booking, Caribex sends that customer a confirmation email with the booking number. No email is sent for a row marked <strong>NO</strong>.</li>
         </ol>
@@ -199,7 +199,7 @@ export default function FerryManifestAdmin() {
               <span style={{ display: "inline-flex", width: "fit-content", padding: "0.25rem 0.55rem", borderRadius: "999px", background: manifest.estado === "active" ? "#dcfce7" : "#f1f5f9", color: manifest.estado === "active" ? "#166534" : "#475569", fontSize: "0.75rem", fontWeight: 700 }}>{manifest.estado}</span>
               <span>{manifest.entry_count}</span>
               <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.4rem" }}>
-                {manifest.estado === "active" && <button type="button" className="pa-primary-btn" onClick={() => void openAdminEntryForm(manifest)} style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", whiteSpace: "nowrap" }}>Enter bookings manually</button>}
+                <button type="button" className="pa-primary-btn" onClick={() => void openAdminEntryForm(manifest)} style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", whiteSpace: "nowrap" }}>{manifest.estado === "active" ? "Enter bookings manually" : "Edit booking numbers"}</button>
                 <button type="button" className="pa-secondary-btn" onClick={() => openManifest(manifest.token)} style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem" }}><ExternalLink size={14} /> Preview</button>
                 <button type="button" className="pa-secondary-btn" onClick={() => void copyToken(manifest.token)} style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem" }}><Copy size={14} /> Copy link</button>
                 <button type="button" className="pa-secondary-btn" onClick={() => shareWhatsApp(manifest.token)} style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", color: "#15803d" }}><MessageCircle size={14} /> WhatsApp</button>
@@ -208,8 +208,8 @@ export default function FerryManifestAdmin() {
             </div>
           ))}
           {entryManifest && <section style={{ marginTop: "1.25rem", padding: "1rem", border: "1px solid #bfdbfe", borderRadius: "14px", background: "#f8fbff", minWidth: "760px" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "0.75rem", marginBottom: "0.75rem" }}><div><h3 style={{ margin: 0, color: "#0f3d68" }}>Enter booking numbers manually</h3><p style={{ margin: "0.25rem 0 0", color: "#64748b", fontSize: "0.82rem" }}>Enter a booking for boxes that sailed. Enter <strong>NO</strong> only for lost or unfound boxes; leave boxes that have not sailed blank. Saved rows lock permanently; normal booking numbers send a customer confirmation when an email is available.</p></div><button type="button" className="pa-secondary-btn" onClick={() => setEntryManifest(null)}>Close</button></div>
-            {adminEntries.map((entry) => { const draft = entryDrafts[entry.id] || { booking: "", receiver: "" }; const locked = Boolean(entry.enviado_en); const accountColor = entry.puerto === "la_ceiba" ? "#2563eb" : entry.puerto === "utila" ? "#dc2626" : "#16a34a"; return <div key={entry.id} style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1.4fr 1.3fr auto", gap: "0.5rem", alignItems: "center", padding: "0.6rem 0.5rem", borderTop: "1px solid #e2e8f0", background: locked ? "#f1f5f9" : "transparent", color: locked ? "#64748b" : "inherit" }}><strong>{entry.nombre_cliente}</strong><strong style={{ color: accountColor }}>#{entry.numero_cuenta}</strong>{locked ? <><span>{entry.numero_reserva}</span><span>{entry.nombre_receptor || "-"}</span><span style={{ color: "#166534", fontWeight: 700 }}>Locked</span></> : <><input className="pa-input" value={draft.booking} placeholder="Booking # or NO" aria-label={`Booking number for ${entry.nombre_cliente}`} onChange={(event) => setEntryDrafts((current) => ({ ...current, [entry.id]: { ...draft, booking: event.target.value } }))} /><input className="pa-input" value={draft.receiver} placeholder="Receiver / signer" onChange={(event) => setEntryDrafts((current) => ({ ...current, [entry.id]: { ...draft, receiver: event.target.value } }))} /><button type="button" className="pa-primary-btn" disabled={!draft.booking.trim()} onClick={() => void saveAdminEntry(entry)}>Save</button></>}</div>; })}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "0.75rem", marginBottom: "0.75rem" }}><div><h3 style={{ margin: 0, color: "#0f3d68" }}>Enter booking numbers manually</h3><p style={{ margin: "0.25rem 0 0", color: "#64748b", fontSize: "0.82rem" }}>Enter or correct the booking number for any ferry row. The receiver/pickup signer is completed on the printed receiver sheet.</p></div><button type="button" className="pa-secondary-btn" onClick={() => setEntryManifest(null)}>Close</button></div>
+            {adminEntries.map((entry) => { const draft = entryDrafts[entry.id] || { booking: "" }; const accountColor = entry.puerto === "la_ceiba" ? "#2563eb" : entry.puerto === "utila" ? "#dc2626" : "#16a34a"; return <div key={entry.id} style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1.4fr auto", gap: "0.5rem", alignItems: "center", padding: "0.6rem 0.5rem", borderTop: "1px solid #e2e8f0" }}><strong>{entry.nombre_cliente}</strong><strong style={{ color: accountColor }}>#{entry.numero_cuenta}</strong><input className="pa-input" value={draft.booking} placeholder="Booking # or NO" aria-label={`Booking number for ${entry.nombre_cliente}`} onChange={(event) => setEntryDrafts((current) => ({ ...current, [entry.id]: { booking: event.target.value } }))} /><button type="button" className="pa-primary-btn" disabled={!draft.booking.trim()} onClick={() => void saveAdminEntry(entry)}>Save</button></div>; })}
           </section>}
         </div>
       )}
