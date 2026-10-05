@@ -6,10 +6,10 @@ export async function GET() {
   return NextResponse.json(
     {
       app: "Caribex Warehouse Management",
-      version: "1.2.6",
-      version_code: 126,
-      apk_url: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663449196187/fYolMSfhJZxlvNPH.apk",
-      filename: "Caribex-Warehouse-Management-1.2.6.apk",
+      version: "1.2.8",
+      version_code: 128,
+      apk_url: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663449196187/jAyjsMInXTqyjZbt.apk",
+      filename: "Caribex-Warehouse-Management-1.2.8.apk",
       release_notes: [
         "Web-equivalent Receiving, Check In, consolidation, and customer assignment",
         "Client Pickup now shows every shipment tracking number with the authoritative invoice status",
@@ -24,7 +24,9 @@ export async function GET() {
         "Scanned-only customer signatures, fixed Home reset, and client lookup dropdown behavior",
         "Unknown Owner can be saved without a customer but requires an internal note or photo",
         "Receiving customer lookup refreshes like Client Pickup, and Contents is optional",
-        "Customer search now resizes above the Android keyboard so the search field and results remain visible",
+        "Receiving modal now resizes above the Android keyboard so all fields remain reachable",
+        "Sync reloads the live customer list for every role and reports the number loaded",
+        "Same-version and older-version releases never show a download prompt",
         "The login screen uses lightweight text branding without bundling the large page logo image",
       ],
     },
