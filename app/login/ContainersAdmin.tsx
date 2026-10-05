@@ -31,7 +31,14 @@ type Container = { id: string; codigo: string; descripcion: string | null; cread
 function dateLabel(value: string | null) {
   if (!value) return "—";
   const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString();
+  return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString(undefined, {
+    month: "numeric",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
 }
 
 function money(value: number | null | undefined) {
