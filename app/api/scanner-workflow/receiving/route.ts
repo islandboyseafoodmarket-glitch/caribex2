@@ -46,6 +46,7 @@ async function findTrackingMatches(supabase: SupabaseClient, tracking: string, e
     .from("paquetes_registro")
     .select("id, tracking, estado")
     .ilike("tracking", tracking)
+    .neq("estado", "Archivado")
     .limit(10);
   if (excludeId) query = query.neq("id", excludeId);
   const { data, error } = await query;
