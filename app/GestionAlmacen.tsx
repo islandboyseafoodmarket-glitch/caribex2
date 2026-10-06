@@ -743,6 +743,7 @@ export default function GestionAlmacen() {
           subtotal,
           tax,
           total,
+          serviceDate: invoicePackage.containerCreatedAt ?? invoicePackage.horaFecha ?? null,
           extraCharges: invoiceExtraCharges,
           isConsolidationBox: invoiceIsConsolidationBox,
           consolidatedPackagesCount: invoicePackage.consolidationCount ?? null,
@@ -1030,27 +1031,8 @@ export default function GestionAlmacen() {
       ),
     );
 
-    // 1) Eliminar la relación de este paquete con cualquier contenedor
-    try {
-      const { data: rels, error: relError } = await supabase
-        .from("contenedor_paquetes")
-        .select("id, contenedor_id")
-        .eq("paquete_id", row.id);
-
-      if (!relError && rels && rels.length > 0) {
-        // Borrar únicamente las filas de relación; el contenedor se
-        // eliminará manualmente desde la UI cuando esté vacío.
-        await supabase
-          .from("contenedor_paquetes")
-          .delete()
-          .in(
-            "id",
-            (rels as any[]).map((r) => r.id as string | number),
-          );
-      }
-    } catch (e) {
-      console.error("Error limpiando contenedor_paquetes / contenedores al descargar", e);
-    }
+    // Keep the package-to-container relationship after unloading. The container
+    // is the source of truth for grouping one customer's items into one invoice.
 
     const unloadCustomer = Array.isArray(row.numero_cliente) ? row.numero_cliente[0] : row.numero_cliente;
     const invoiceTotal = Number(computedTotal ?? row.billing_total);
@@ -1071,6 +1053,7 @@ export default function GestionAlmacen() {
             subtotal: Number(safeSubtotal) || 0,
             tax: Number(computedTax) || 0,
             total: invoiceTotal,
+            serviceDate: row.containerCreatedAt || row.horaFecha || null,
             extraCharges: [],
             isConsolidationBox: false,
             consolidatedPackagesCount: null,
@@ -4477,6 +4460,7 @@ const handlePackageCreated = (pkg: Package) => {
                 billingSubtotal={invoicePackage.billing_subtotal ?? null}
                 billingTax={invoicePackage.billing_tax ?? null}
                 billingTotal={invoicePackage.billing_total ?? null}
+                serviceDate={invoicePackage.containerCreatedAt ?? invoicePackage.horaFecha ?? null}
               />
             </div>
 

@@ -16,7 +16,20 @@ export type InvoicePreviewProps = {
   billingSubtotal?: number | null;
   billingTax?: number | null;
   billingTotal?: number | null;
+  serviceDate?: string | null;
 };
+
+function formatServiceDate(value: string | null | undefined) {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return "-";
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Tegucigalpa",
+    month: "2-digit",
+    day: "2-digit",
+    year: "numeric",
+  }).format(date);
+}
 
 const InvoicePreview: React.FC<InvoicePreviewProps> = ({
   clientName,
@@ -32,6 +45,7 @@ const InvoicePreview: React.FC<InvoicePreviewProps> = ({
   billingSubtotal,
   billingTax,
   billingTotal,
+  serviceDate,
 }) => {
   const safeClientName = clientName && clientName.trim().length > 0 ? clientName : "-";
   const safeClientNumber =
@@ -175,8 +189,10 @@ const InvoicePreview: React.FC<InvoicePreviewProps> = ({
 
         <div>
           <div style={{ fontWeight: 600, marginBottom: 6 }}>Invoice details</div>
-          <div>Preview only</div>
+          <div>Subtotal</div>
           <div>${subtotal.toFixed(2)}</div>
+          <div style={{ marginTop: 8 }}>Date of service</div>
+          <div>{formatServiceDate(serviceDate)}</div>
         </div>
 
         <div>

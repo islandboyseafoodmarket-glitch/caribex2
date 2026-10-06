@@ -39,6 +39,7 @@ export async function POST(request: Request) {
       extraCharges,
       isConsolidationBox,
       consolidatedPackagesCount,
+      serviceDate,
     } = body as {
       to: string;
       subject: string;
@@ -53,6 +54,7 @@ export async function POST(request: Request) {
       extraCharges?: string[];
       isConsolidationBox?: boolean;
       consolidatedPackagesCount?: number | null;
+      serviceDate?: string | null;
     };
 
     if (!to || !subject || !tracking) {
@@ -69,9 +71,119 @@ export async function POST(request: Request) {
       );
     }
 
+    type InvoiceItem = { tracking: string; typeLabel: string; contents?: string | null; subtotal: number; tax: number; total: number };
+    let invoiceItems: InvoiceItem[] = [{
+      tracking,
+      typeLabel,
+      contents,
+      subtotal: Number(subtotal) || 0,
+      tax: Number(tax) || 0,
+      total: Number(total) || 0,
+    }];
+    let resolvedServiceDate = serviceDate || null;
+    let groupedShipmentIds: string[] = [];
+
+    // Invoices are grouped by customer and operational container. This keeps
+    // one customer from receiving a separate email for every item in the same
+    // shipment/container while preserving each item's tracking and charge.
+    const { data: currentShipment } = await authClient
+      .from("paquetes_registro")
+      .select("id, tracking, numero_cliente_id, estado, billing_subtotal, billing_tax, billing_total")
+      .eq("tracking", tracking)
+      .neq("estado", "Archivado")
+      .order("creado_en", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (currentShipment) {
+      const [{ data: currentLink }, { data: currentCheckin }] = await Promise.all([
+        authClient
+        .from("contenedor_paquetes")
+        .select("contenedor_id")
+        .eq("paquete_id", currentShipment.id)
+        .limit(1)
+        .maybeSingle(),
+        authClient
+          .from("paquetes_checkin")
+          .select("parent_box_id")
+          .eq("paquete_id", currentShipment.id)
+          .order("creado_en", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+      ]);
+      let containerId = currentLink?.contenedor_id || null;
+      if (!containerId && currentCheckin?.parent_box_id) {
+        const { data: parentLink } = await authClient
+          .from("contenedor_paquetes")
+          .select("contenedor_id")
+          .eq("paquete_id", currentCheckin.parent_box_id)
+          .limit(1)
+          .maybeSingle();
+        containerId = parentLink?.contenedor_id || null;
+      }
+      if (containerId) {
+        const [{ data: container }, { data: links }] = await Promise.all([
+          authClient.from("contenedores").select("creado_en").eq("id", containerId).limit(1).maybeSingle(),
+          authClient.from("contenedor_paquetes").select("paquete_id").eq("contenedor_id", containerId).limit(5000),
+        ]);
+        resolvedServiceDate = resolvedServiceDate || container?.creado_en || null;
+        const packageIds = (links || []).map((link) => link.paquete_id).filter(Boolean);
+        if (packageIds.length) {
+          const { data: directRows } = await authClient
+            .from("paquetes_registro")
+            .select("id, tracking, tipo_paquete, contenido, numero_cliente_id, estado, billing_subtotal, billing_tax, billing_total")
+            .in("id", packageIds)
+            .eq("numero_cliente_id", currentShipment.numero_cliente_id)
+            .neq("estado", "Archivado")
+            .limit(5000);
+          const direct = directRows || [];
+          const directIds = direct.map((row) => row.id);
+          const { data: childLinks } = directIds.length
+            ? await authClient.from("paquetes_checkin").select("paquete_id, parent_box_id").in("parent_box_id", directIds).limit(5000)
+            : { data: [] };
+          const childIds = Array.from(new Set((childLinks || []).map((link) => link.paquete_id).filter((id) => !directIds.includes(id))));
+          const { data: childRows } = childIds.length
+            ? await authClient
+                .from("paquetes_registro")
+                .select("id, tracking, tipo_paquete, contenido, numero_cliente_id, estado, billing_subtotal, billing_tax, billing_total")
+                .in("id", childIds)
+                .eq("numero_cliente_id", currentShipment.numero_cliente_id)
+                .neq("estado", "Archivado")
+                .limit(5000)
+            : { data: [] };
+          const rows = [...direct, ...(childRows || [])];
+          if (rows.length > 1) {
+            groupedShipmentIds = rows.map((row) => row.id);
+            invoiceItems = rows.map((row) => {
+              const isCurrent = row.id === currentShipment.id;
+              return {
+                tracking: row.tracking,
+                typeLabel: childIds.includes(row.id) ? `Consolidated ${row.tipo_paquete || "Package"}` : row.tipo_paquete || "Shipment",
+                contents: row.contenido || null,
+                subtotal: Number(isCurrent && !Number(row.billing_subtotal) ? subtotal : row.billing_subtotal) || 0,
+                tax: Number(isCurrent && !Number(row.billing_tax) ? tax : row.billing_tax) || 0,
+                total: Number(isCurrent && !Number(row.billing_total) ? total : row.billing_total) || 0,
+              };
+            });
+          }
+        }
+      }
+    }
+    const invoiceSubtotal = invoiceItems.reduce((sum, item) => sum + item.subtotal, 0);
+    const invoiceTax = invoiceItems.reduce((sum, item) => sum + item.tax, 0);
+    const invoiceTotal = invoiceItems.reduce((sum, item) => sum + item.total, 0);
+
     const safeClientName = clientName && clientName.trim().length > 0 ? clientName : "-";
     const safeClientNumber =
       typeof clientNumber === "number" ? `#${clientNumber}` : "-";
+    const parsedServiceDate = resolvedServiceDate ? new Date(resolvedServiceDate) : null;
+    const safeServiceDate = parsedServiceDate && Number.isFinite(parsedServiceDate.getTime())
+      ? new Intl.DateTimeFormat("en-US", {
+          timeZone: "America/Tegucigalpa",
+          month: "2-digit",
+          day: "2-digit",
+          year: "numeric",
+        }).format(parsedServiceDate)
+      : "-";
 
     const extrasList = Array.isArray(extraCharges) ? extraCharges : [];
 
@@ -88,18 +200,18 @@ export async function POST(request: Request) {
       return acc + (typeof v === "number" ? v : 0);
     }, 0);
 
-    let baseAmount = subtotal;
+    let baseAmount = invoiceSubtotal;
     let handlingAmount = 0;
 
-    if (subtotal > 0) {
+    if (invoiceItems.length === 1 && invoiceSubtotal > 0) {
       if (hasHandling) {
-        const rawBase = (subtotal - sumFixedExtras) / 1.15;
+        const rawBase = (invoiceSubtotal - sumFixedExtras) / 1.15;
         if (!Number.isNaN(rawBase) && rawBase > 0) {
           baseAmount = rawBase;
           handlingAmount = baseAmount * 0.15;
         }
       } else {
-        const rawBase = subtotal - sumFixedExtras;
+        const rawBase = invoiceSubtotal - sumFixedExtras;
         if (!Number.isNaN(rawBase) && rawBase > 0) {
           baseAmount = rawBase;
         }
@@ -166,8 +278,10 @@ export async function POST(request: Request) {
                     </td>
                     <td valign="top" style="padding-right:16px;">
                       <div style="font-weight:600; margin-bottom:6px;">Invoice details</div>
-                      <div>Preview only</div>
-                      <div>$${subtotal.toFixed(2)}</div>
+                      <div>Subtotal</div>
+                      <div>$${invoiceSubtotal.toFixed(2)}</div>
+                      <div style="margin-top:8px;">Date of service</div>
+                      <div>${safeServiceDate}</div>
                     </td>
                     <td valign="top" align="right">
                       <div style="font-weight:600; margin-bottom:6px;">Payment</div>
@@ -187,16 +301,11 @@ export async function POST(request: Request) {
                     </tr>
                   </thead>
                   <tbody>
-                    <tr style="border-bottom:1px solid #e5e7eb;">
-                      <td style="padding:8px 0;">
-                        <div>${typeLabel}</div>
-                        <div style="font-size:12px; color:#6b7280; font-style:italic;">${
-                          contents && contents.trim().length > 0 ? contents : tracking
-                        }</div>
-                      </td>
-                      <td align="right">$${baseAmount.toFixed(2)}</td>
-                      <td align="right">$${baseAmount.toFixed(2)}</td>
-                    </tr>
+                    ${invoiceItems.map((item) => `<tr style="border-bottom:1px solid #e5e7eb;">
+                      <td style="padding:8px 0;"><div>${item.typeLabel}</div><div style="font-size:12px; color:#6b7280; font-style:italic;">${item.contents && item.contents.trim().length > 0 ? item.contents : item.tracking}</div><div style="font-size:11px; color:#6b7280;">Tracking: ${item.tracking}</div></td>
+                      <td align="right">$${item.subtotal.toFixed(2)}</td>
+                      <td align="right">$${item.subtotal.toFixed(2)}</td>
+                    </tr>`).join("")}
                     ${extrasList
                       .map((label) => {
                         const amount = getExtraAmountForLabel(label);
@@ -223,15 +332,15 @@ export async function POST(request: Request) {
                       <table role="presentation" cellpadding="0" cellspacing="0" style="width:260px; font-size:13px;">
                         <tr>
                           <td style="padding:2px 0;">Subtotal</td>
-                          <td align="right" style="padding:2px 0;">$${subtotal.toFixed(2)}</td>
+                          <td align="right" style="padding:2px 0;">$${invoiceSubtotal.toFixed(2)}</td>
                         </tr>
                         <tr>
                           <td style="padding:2px 0 6px 0; border-bottom:1px solid #e5e7eb;">Fee</td>
-                          <td align="right" style="padding:2px 0 6px 0; border-bottom:1px solid #e5e7eb;">$${tax.toFixed(2)}</td>
+                          <td align="right" style="padding:2px 0 6px 0; border-bottom:1px solid #e5e7eb;">$${invoiceTax.toFixed(2)}</td>
                         </tr>
                         <tr>
                           <td style="padding-top:8px; font-weight:700; font-size:15px;">Total Due</td>
-                          <td align="right" style="padding-top:8px; font-weight:700; font-size:15px;">$${total.toFixed(2)}</td>
+                          <td align="right" style="padding-top:8px; font-weight:700; font-size:15px;">$${invoiceTotal.toFixed(2)}</td>
                         </tr>
                       </table>
                     </td>
@@ -280,6 +389,14 @@ export async function POST(request: Request) {
       );
     }
 
+    if (groupedShipmentIds.length) {
+      const { error: groupedStatusError } = await authClient
+        .from("paquetes_registro")
+        .update({ invoice_status: "SENT" })
+        .in("id", groupedShipmentIds);
+      if (groupedStatusError) throw groupedStatusError;
+    }
+
     const { data: actorProfile } = await authClient
       .from("personal")
       .select("nombre, nombre_personal, rol")
@@ -300,7 +417,7 @@ export async function POST(request: Request) {
       user_agent: request.headers.get("user-agent") || null,
     });
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, groupedItemCount: invoiceItems.length });
   } catch (e: any) {
     console.error("Error in /api/send-invoice:", e);
     return NextResponse.json(
