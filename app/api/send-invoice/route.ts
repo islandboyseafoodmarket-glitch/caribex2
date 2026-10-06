@@ -122,7 +122,7 @@ export async function POST(request: Request) {
         <td align="center">
           <table role="presentation" cellpadding="0" cellspacing="0" width="600" style="max-width:600px; width:100%; background-color:#020617; color:#f9fafb; border-radius:12px 12px 0 0; padding:16px 24px; font-size:13px; text-transform:uppercase; letter-spacing:0.08em;">
             <tr>
-              <td>Invoice preview</td>
+              <td>Invoice</td>
               <td align="right">Tracking ${tracking}</td>
             </tr>
           </table>
@@ -144,7 +144,7 @@ export async function POST(request: Request) {
                       </table>
                     </td>
                     <td valign="top" align="right" style="font-size:12px; color:#4b5563;">
-                      <div style="margin-bottom:4px;">Invoice preview</div>
+                      <div style="margin-bottom:4px;">Invoice</div>
                       <div>Tracking</div>
                       <div style="font-weight:600;">${tracking}</div>
                     </td>

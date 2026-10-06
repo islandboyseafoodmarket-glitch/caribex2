@@ -4415,7 +4415,7 @@ const handlePackageCreated = (pkg: Package) => {
           <div className="ga-modal ga-modal-large">
             <div className="ga-modal-header">
               <div>
-                <h4>Invoice preview</h4>
+                <h4>Invoice</h4>
               </div>
               <button
                 type="button"
