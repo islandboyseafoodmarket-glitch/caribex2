@@ -49,11 +49,20 @@ export async function POST(request: Request) {
 
     const { data: shipment, error: lookupError } = await supabase
       .from("paquetes_registro")
-      .select("id, tracking, notas, problema, problema_notas, notas_imagenes")
+      .select("id, tracking, notas, notas_imagenes, numero_cliente_id")
       .eq("id", shipmentId)
       .maybeSingle();
     if (lookupError) throw lookupError;
     if (!shipment) return NextResponse.json({ error: "Shipment not found" }, { status: 404 });
+
+    const { data: existingCheckin, error: checkinLookupError } = await supabase
+      .from("paquetes_checkin")
+      .select("id, problema, problema_notas")
+      .eq("paquete_id", shipment.id)
+      .order("creado_en", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (checkinLookupError) throw checkinLookupError;
 
     let imageUrls = Array.isArray(shipment.notas_imagenes) ? shipment.notas_imagenes.filter((value: unknown): value is string => typeof value === "string") : [];
     if (photo instanceof File && photo.size > 0) {
@@ -65,14 +74,25 @@ export async function POST(request: Request) {
       imageUrls = [...imageUrls, publicUrl.publicUrl];
     }
 
-    const update: Record<string, unknown> = {
-      notas: note || shipment.notas || null,
-      problema: problem || Boolean(shipment.problema),
-      problema_notas: problem && note ? note : shipment.problema_notas || null,
-      notas_imagenes: imageUrls,
-    };
-    const { data: savedShipment, error: updateError } = await supabase.from("paquetes_registro").update(update).eq("id", shipment.id).select("id, tracking, notas, problema, problema_notas, notas_imagenes").single();
+    const nextProblem = problem || Boolean(existingCheckin?.problema);
+    const nextProblemNote = problem && note ? note : existingCheckin?.problema_notas || null;
+    const { data: savedShipment, error: updateError } = await supabase
+      .from("paquetes_registro")
+      .update({ notas: note || shipment.notas || null, notas_imagenes: imageUrls })
+      .eq("id", shipment.id)
+      .select("id, tracking, notas, notas_imagenes")
+      .single();
     if (updateError) throw updateError;
+    const checkinPayload = {
+      paquete_id: shipment.id,
+      numero_cliente_id: shipment.numero_cliente_id || null,
+      problema: nextProblem,
+      problema_notas: nextProblemNote,
+    };
+    const checkinWrite = existingCheckin?.id
+      ? await supabase.from("paquetes_checkin").update({ problema: nextProblem, problema_notas: nextProblemNote }).eq("id", existingCheckin.id)
+      : await supabase.from("paquetes_checkin").insert(checkinPayload);
+    if (checkinWrite.error) throw checkinWrite.error;
     await supabase.from("staff_action_logs").insert({
       actor_id: actor.user.id,
       actor_name: actor.name,
@@ -86,7 +106,7 @@ export async function POST(request: Request) {
       details: { has_note: Boolean(note), problem, photo_uploaded: photo instanceof File, source: "scanner_workflow_app" },
       user_agent: request.headers.get("user-agent") || null,
     });
-    return NextResponse.json({ ok: true, tracking: savedShipment.tracking, note: savedShipment.notas, problem: savedShipment.problema, problem_note: savedShipment.problema_notas, image_urls: savedShipment.notas_imagenes || imageUrls, photo_uploaded: photo instanceof File });
+    return NextResponse.json({ ok: true, tracking: savedShipment.tracking, note: savedShipment.notas, problem: nextProblem, problem_note: nextProblemNote, image_urls: savedShipment.notas_imagenes || imageUrls, photo_uploaded: photo instanceof File });
   } catch (error) {
     return errorResponse(error);
   }

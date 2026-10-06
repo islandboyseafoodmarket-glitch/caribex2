@@ -41,6 +41,18 @@ function normalizeUspsTracking(tracking: string, carrier: string) {
   return value;
 }
 
+async function findTrackingMatches(supabase: SupabaseClient, tracking: string, excludeId?: string) {
+  let query = supabase
+    .from("paquetes_registro")
+    .select("id, tracking, estado")
+    .ilike("tracking", tracking)
+    .limit(10);
+  if (excludeId) query = query.neq("id", excludeId);
+  const { data, error } = await query;
+  if (error) throw error;
+  return data || [];
+}
+
 export async function GET(request: Request) {
   try {
     const supabase = adminClient();
@@ -82,13 +94,15 @@ export async function POST(request: Request) {
     if (ownerUnknown && !noteText && !(photo instanceof File && photo.size > 0)) return NextResponse.json({ error: "Unknown Owner requires an internal note or a photo" }, { status: 400 });
     if (photo && !(photo instanceof File)) return NextResponse.json({ error: "Invalid photo upload" }, { status: 400 });
     if (photo instanceof File && photo.size > 8 * 1024 * 1024) return NextResponse.json({ error: "Photo must be 8 MB or smaller" }, { status: 400 });
-    const { data: existing } = await supabase.from("paquetes_registro").select("id, tracking, estado").eq("tracking", tracking).maybeSingle();
-    if (existing) {
+    const existingMatches = await findTrackingMatches(supabase, tracking);
+    if (existingMatches.length) {
+      const existing = existingMatches[0];
       return NextResponse.json({
         error: "This tracking number is already registered and cannot be received a second time.",
         code: "DUPLICATE_TRACKING",
         tracking: existing.tracking,
         current_status: existing.estado,
+        matches: existingMatches.map((match) => ({ id: match.id, tracking: match.tracking, current_status: match.estado })),
       }, { status: 409 });
     }
     const customerId = value("customer_id").trim() || null;
@@ -122,6 +136,15 @@ export async function PATCH(request: Request) {
     const carrier = String(body?.carrier || "").trim();
     const update = { tracking: normalizeUspsTracking(String(body?.tracking || ""), carrier), nombre_paqueteria: carrier, tipo_paquete: body?.type === "BOX" ? "BOX" : "PACKAGE", contenido: String(body?.contents || "").trim() || null, notas: String(body?.note || "").trim() || null, numero_cliente_id: customerId };
     if (!update.tracking) return NextResponse.json({ error: "Tracking number is required" }, { status: 400 });
+    const existingMatches = await findTrackingMatches(supabase, update.tracking, id);
+    if (existingMatches.length) {
+      return NextResponse.json({
+        error: "That tracking number belongs to another shipment and cannot be reused.",
+        code: "DUPLICATE_TRACKING",
+        tracking: update.tracking,
+        matches: existingMatches.map((match) => ({ id: match.id, tracking: match.tracking, current_status: match.estado })),
+      }, { status: 409 });
+    }
     const { data, error } = await supabase.from("paquetes_registro").update(update).eq("id", id).select("id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, registro, estado, hora_fecha").single();
     if (error) throw error;
     const hasCheckinFields = [body?.alto, body?.ancho, body?.largo, body?.peso, body?.cargos_adicionales].some((value) => value !== undefined);
