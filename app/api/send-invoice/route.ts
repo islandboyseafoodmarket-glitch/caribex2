@@ -278,7 +278,7 @@ export async function POST(request: Request) {
           <table role="presentation" cellpadding="0" cellspacing="0" width="600" style="max-width:600px; width:100%; background-color:#020617; color:#f9fafb; border-radius:12px 12px 0 0; padding:16px 24px; font-size:13px; text-transform:uppercase; letter-spacing:0.08em;">
             <tr>
               <td>Invoice</td>
-              <td align="right">Tracking ${tracking}</td>
+              <td align="right">Date of Service ${safeServiceDate}</td>
             </tr>
           </table>
           <table role="presentation" cellpadding="0" cellspacing="0" width="600" style="max-width:600px; width:100%; background-color:#ffffff; color:#111827; border-radius:0 0 12px 12px; padding:24px 28px 24px 28px;">
@@ -300,8 +300,8 @@ export async function POST(request: Request) {
                     </td>
                     <td valign="top" align="right" style="font-size:12px; color:#4b5563;">
                       <div style="margin-bottom:4px;">Invoice</div>
-                      <div>Tracking</div>
-                      <div style="font-weight:600;">${tracking}</div>
+                      <div>Date of Service</div>
+                      <div style="font-weight:600;">${safeServiceDate}</div>
                     </td>
                   </tr>
                 </table>
@@ -329,7 +329,7 @@ export async function POST(request: Request) {
                     <td valign="top" align="right">
                       <div style="font-weight:600; margin-bottom:6px;">Payment</div>
                       <div>Due on delivery</div>
-                      <div>$${total.toFixed(2)}</div>
+                      <div>$${invoiceTotal.toFixed(2)}</div>
                     </td>
                   </tr>
                 </table>

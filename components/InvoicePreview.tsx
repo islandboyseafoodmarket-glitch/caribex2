@@ -149,8 +149,8 @@ const InvoicePreview: React.FC<InvoicePreviewProps> = ({
 
         <div style={{ textAlign: "right", fontSize: 12, color: "#4b5563" }}>
           <div style={{ marginBottom: 4 }}>Invoice</div>
-          <div>Tracking</div>
-          <div style={{ fontWeight: 600 }}>{tracking}</div>
+          <div>Date of service</div>
+          <div style={{ fontWeight: 600 }}>{formatServiceDate(serviceDate)}</div>
         </div>
       </header>
 

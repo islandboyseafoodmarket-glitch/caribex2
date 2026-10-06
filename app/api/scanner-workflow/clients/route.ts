@@ -66,6 +66,7 @@ export async function GET(request: Request) {
       .from("paquetes_registro")
       .select("id, tracking, nombre_paqueteria, tipo_paquete, estado, invoice_status, approval_status, billing_total, fecha_descargado, hora_descargado")
       .eq("numero_cliente_id", client.id)
+      .neq("estado", "Archivado")
       .order("registro", { ascending: false })
       .limit(100);
     if (packageError) throw packageError;
@@ -89,8 +90,11 @@ export async function GET(request: Request) {
       if (view === "ready") return statusMatches(item.estado, DATABASE_STATUS.UNLOADED);
       return (statusFilters[view] || statusFilters.ready).some((allowed) => statusMatches(item.estado, allowed as typeof DATABASE_STATUS[keyof typeof DATABASE_STATUS]));
     });
-    const collected = (allPackages || []).filter((item) => statusMatches(item.estado, DATABASE_STATUS.PICKED_UP)).length;
-    const total = (allPackages || []).length;
+    const pickupSet = (allPackages || []).filter((item) =>
+      statusMatches(item.estado, DATABASE_STATUS.UNLOADED) || statusMatches(item.estado, DATABASE_STATUS.PICKED_UP),
+    );
+    const collected = pickupSet.filter((item) => statusMatches(item.estado, DATABASE_STATUS.PICKED_UP)).length;
+    const total = pickupSet.length;
     return NextResponse.json({ client, packages, view, summary: { collected, total, pending: Math.max(total - collected, 0) } });
   } catch (error) {
     return errorResponse(error);

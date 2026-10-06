@@ -6,10 +6,10 @@ export async function GET() {
   return NextResponse.json(
     {
       app: "Caribex Warehouse Management",
-      version: "1.2.12",
-      version_code: 1212,
-      apk_url: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663449196187/ClySkYSGZkqWgZfg.apk",
-      filename: "Caribex-Warehouse-Management-1.2.12.apk",
+      version: "1.2.14",
+      version_code: 1214,
+      apk_url: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663449196187/cQcxDvVqvOXocuHK.apk",
+      filename: "Caribex-Warehouse-Management-1.2.14.apk",
       release_notes: [
         "Web-equivalent Receiving, Check In, consolidation, and customer assignment",
         "Client Pickup now shows every shipment tracking number with the authoritative invoice status",
@@ -34,6 +34,10 @@ export async function GET() {
         "Consolidation requires the main BOX before packages can be added",
         "Canonical database statuses are used consistently across the workflow",
         "Check In now moves the eligible batch to In-Transit instead of repeating Received-to-Check-In",
+        "USPS labels with both 92-series and 95-series identifiers now select the printed 92-series tracking number",
+        "Client Pickup removes picked-up shipments from the ready list and refreshes immediately after scan-out",
+        "Unloading a consolidated BOX also marks its contained packages as unloaded",
+        "Invoice email headers show Date of Service, retain item tracking numbers, and use the grouped Payment total",
       ],
     },
     { headers: { "Cache-Control": "no-store, max-age=0" } },
