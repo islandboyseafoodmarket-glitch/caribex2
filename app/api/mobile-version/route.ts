@@ -6,10 +6,10 @@ export async function GET() {
   return NextResponse.json(
     {
       app: "Caribex Warehouse Management",
-      version: "1.2.11",
-      version_code: 1211,
-      apk_url: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663449196187/gdxhmcuywLfszGjz.apk",
-      filename: "Caribex-Warehouse-Management-1.2.11.apk",
+      version: "1.2.12",
+      version_code: 1212,
+      apk_url: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663449196187/ClySkYSGZkqWgZfg.apk",
+      filename: "Caribex-Warehouse-Management-1.2.12.apk",
       release_notes: [
         "Web-equivalent Receiving, Check In, consolidation, and customer assignment",
         "Client Pickup now shows every shipment tracking number with the authoritative invoice status",
@@ -33,6 +33,7 @@ export async function GET() {
         "FedEx tracking payloads are normalized to the customer-facing 12-digit number",
         "Consolidation requires the main BOX before packages can be added",
         "Canonical database statuses are used consistently across the workflow",
+        "Check In now moves the eligible batch to In-Transit instead of repeating Received-to-Check-In",
       ],
     },
     { headers: { "Cache-Control": "no-store, max-age=0" } },
