@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import Link from "next/link";
 
 type LegalDocumentProps = {
@@ -131,29 +134,33 @@ const termsSections = [
 ];
 
 export default function LegalDocument({ kind }: LegalDocumentProps) {
+  const [language, setLanguage] = useState<"es" | "en">("es");
   const isPrivacy = kind === "privacy";
   const sections = isPrivacy ? privacySections : termsSections;
   const titleEn = isPrivacy ? "Privacy Policy" : "Terms of Service";
   const titleEs = isPrivacy ? "Política de Privacidad" : "Términos de Servicio";
+  const isEnglish = language === "en";
 
   return (
     <main className="legal-page">
       <div className="legal-shell">
-        <Link href="/" className="legal-back">← Back to Caribex</Link>
+        <Link href="/" className="legal-back">← {isEnglish ? "Back to Caribex" : "Volver a Caribex"}</Link>
         <header className="legal-header">
           <p className="legal-eyebrow">CARIBEX LOGISTICS GROUP</p>
-          <h1>{titleEs}</h1>
-          <p className="legal-english-title">{titleEn}</p>
-          <p className="legal-meta">Effective date / Fecha de vigencia: October 5, 2026</p>
-          <p className="legal-note">This page is provided for customer review and should be reviewed by qualified legal counsel before being treated as a final legal notice.</p>
+          <div className="legal-language-switcher" aria-label="Language / Idioma">
+            <button type="button" className={language === "es" ? "active" : ""} onClick={() => setLanguage("es")}>ES</button>
+            <button type="button" className={language === "en" ? "active" : ""} onClick={() => setLanguage("en")}>EN</button>
+          </div>
+          <h1>{isEnglish ? titleEn : titleEs}</h1>
+          <p className="legal-english-title">{isEnglish ? titleEs : titleEn}</p>
+          <p className="legal-meta">{isEnglish ? "Effective date: October 5, 2026" : "Fecha de vigencia: 5 de octubre de 2026"}</p>
+          <p className="legal-note">{isEnglish ? "This page is provided for customer review and should be reviewed by qualified legal counsel before being treated as a final legal notice." : "Esta página se proporciona para revisión de los clientes y debe ser revisada por un asesor legal calificado antes de considerarse un aviso legal definitivo."}</p>
         </header>
         <div className="legal-content">
           {sections.map((section) => (
             <section className="legal-section" key={section.en}>
-              <h2>{section.es}</h2>
-              <p className="legal-language-label">English — {section.en}</p>
-              <p>{section.bodyEs}</p>
-              <p>{section.bodyEn}</p>
+              <h2>{isEnglish ? section.en : section.es}</h2>
+              <p>{isEnglish ? section.bodyEn : section.bodyEs}</p>
             </section>
           ))}
         </div>
@@ -176,6 +183,9 @@ export default function LegalDocument({ kind }: LegalDocumentProps) {
         .legal-english-title { margin: 0; font-size: 1.1rem; font-weight: 800; opacity: .9; }
         .legal-meta { margin-top: 20px; font-size: .84rem; opacity: .84; }
         .legal-note { max-width: 760px; margin: 18px 0 0; padding: 12px 14px; border: 1px solid rgba(255,255,255,.28); border-radius: 12px; font-size: .85rem; line-height: 1.5; }
+        .legal-language-switcher { display: flex; gap: 6px; justify-content: flex-end; }
+        .legal-language-switcher button { border: 1px solid rgba(255,255,255,.45); border-radius: 999px; padding: 7px 13px; background: transparent; color: #fff; font-weight: 900; cursor: pointer; }
+        .legal-language-switcher button.active { background: #fff; color: #145d8c; }
         .legal-content { background: #fff; border: 1px solid #dbe8f1; border-radius: 22px; padding: 8px clamp(20px, 5vw, 60px); box-shadow: 0 12px 34px rgba(31, 71, 101, .07); }
         .legal-section { padding: 26px 0; border-bottom: 1px solid #e6eef4; }
         .legal-section:last-child { border-bottom: 0; }
@@ -185,7 +195,7 @@ export default function LegalDocument({ kind }: LegalDocumentProps) {
         .legal-footer { text-align: center; color: #60798b; font-size: .88rem; line-height: 1.65; padding-top: 28px; }
         .legal-footer a { color: #17689b; }
         .legal-footer-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 16px; margin-top: 14px; font-weight: 800; }
-        @media (max-width: 640px) { .legal-page { padding: 22px 12px 40px; } .legal-header, .legal-content { border-radius: 16px; } .legal-header { padding: 28px 22px; } }
+        @media (max-width: 640px) { .legal-page { padding: 22px 12px 40px; } .legal-header, .legal-content { border-radius: 16px; } .legal-header { padding: 28px 22px; } .legal-language-switcher { justify-content: flex-start; } }
       `}</style>
     </main>
   );
