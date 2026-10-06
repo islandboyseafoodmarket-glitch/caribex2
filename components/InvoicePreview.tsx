@@ -148,7 +148,6 @@ const InvoicePreview: React.FC<InvoicePreviewProps> = ({
         </div>
 
         <div style={{ textAlign: "right", fontSize: 12, color: "#4b5563" }}>
-          <div style={{ marginBottom: 4 }}>Invoice</div>
           <div>Date of service</div>
           <div style={{ fontWeight: 600 }}>{formatServiceDate(serviceDate)}</div>
         </div>
@@ -191,8 +190,6 @@ const InvoicePreview: React.FC<InvoicePreviewProps> = ({
           <div style={{ fontWeight: 600, marginBottom: 6 }}>Invoice details</div>
           <div>Subtotal</div>
           <div>${subtotal.toFixed(2)}</div>
-          <div style={{ marginTop: 8 }}>Date of service</div>
-          <div>{formatServiceDate(serviceDate)}</div>
         </div>
 
         <div>

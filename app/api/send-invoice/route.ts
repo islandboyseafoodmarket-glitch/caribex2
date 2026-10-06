@@ -298,11 +298,7 @@ export async function POST(request: Request) {
                         </tr>
                       </table>
                     </td>
-                    <td valign="top" align="right" style="font-size:12px; color:#4b5563;">
-                      <div style="margin-bottom:4px;">Invoice</div>
-                      <div>Date of Service</div>
-                      <div style="font-weight:600;">${safeServiceDate}</div>
-                    </td>
+                    <td valign="top" align="right" style="font-size:12px; color:#4b5563;"></td>
                   </tr>
                 </table>
 
@@ -323,8 +319,6 @@ export async function POST(request: Request) {
                       <div style="font-weight:600; margin-bottom:6px;">Invoice details</div>
                       <div>Subtotal</div>
                       <div>$${invoiceSubtotal.toFixed(2)}</div>
-                      <div style="margin-top:8px;">Date of service</div>
-                      <div>${safeServiceDate}</div>
                     </td>
                     <td valign="top" align="right">
                       <div style="font-weight:600; margin-bottom:6px;">Payment</div>

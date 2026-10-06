@@ -32,7 +32,12 @@ function errorResponse(error: unknown) {
 async function saveCheckinRelationship(
   supabase: SupabaseClient,
   paqueteId: string,
-  values: { parent_box_id?: string | null; numero_cliente_id?: string | null; consolidacion: boolean },
+  values: {
+    parent_box_id?: string | null;
+    numero_cliente_id?: string | null;
+    consolidacion: boolean;
+    cargos_adicionales?: string | null;
+  },
 ) {
   const { data: existing, error: lookupError } = await supabase
     .from("paquetes_checkin")
@@ -69,12 +74,46 @@ export async function POST(request: Request) {
 
     const inheritedCustomerId = customerId || box.numero_cliente_id || null;
     await saveCheckinRelationship(supabase, boxId, { parent_box_id: null, numero_cliente_id: inheritedCustomerId, consolidacion: true });
-    for (const child of children) {
-      await saveCheckinRelationship(supabase, child.id, { parent_box_id: boxId, numero_cliente_id: inheritedCustomerId, consolidacion: true });
+    const { data: childCheckins, error: childCheckinsError } = await supabase
+      .from("paquetes_checkin")
+      .select("paquete_id, cargos_adicionales")
+      .in("paquete_id", childIds)
+      .order("creado_en", { ascending: false })
+      .limit(5000);
+    if (childCheckinsError) throw childCheckinsError;
+    const latestChildCheckin = new Map<string, string | null>();
+    for (const checkin of childCheckins || []) {
+      if (!latestChildCheckin.has(checkin.paquete_id)) {
+        latestChildCheckin.set(checkin.paquete_id, checkin.cargos_adicionales);
+      }
     }
-    const ids = [boxId, ...children.map((child) => child.id)];
-    const { error: updateError } = await supabase.from("paquetes_registro").update({ estado: DATABASE_STATUS.CHECK_IN, numero_cliente_id: inheritedCustomerId }).in("id", ids);
+    for (const child of children) {
+      const existingCharges = String(latestChildCheckin.get(child.id) || "")
+        .split(",")
+        .map((charge) => charge.trim())
+        .filter(Boolean)
+        .filter((charge) => charge !== "Consolidation fee ($2.5)");
+      const charges = [...existingCharges, "Consolidation fee ($2.5)"].join(", ");
+      await saveCheckinRelationship(supabase, child.id, {
+        parent_box_id: boxId,
+        numero_cliente_id: inheritedCustomerId,
+        consolidacion: true,
+        cargos_adicionales: charges,
+      });
+    }
+    const { error: updateError } = await supabase.from("paquetes_registro").update({ estado: DATABASE_STATUS.CHECK_IN, numero_cliente_id: inheritedCustomerId }).eq("id", boxId);
     if (updateError) throw updateError;
+    const { error: childBillingError } = await supabase
+      .from("paquetes_registro")
+      .update({
+        estado: DATABASE_STATUS.CHECK_IN,
+        numero_cliente_id: inheritedCustomerId,
+        billing_subtotal: 2.5,
+        billing_tax: 0.375,
+        billing_total: 2.875,
+      })
+      .in("id", children.map((child) => child.id));
+    if (childBillingError) throw childBillingError;
     await supabase.from("staff_action_logs").insert({ staff_user_id: actor.user.id, action: "CONSOLIDATE_SHIPMENTS", entity_type: "paquetes_registro", entity_id: boxId, details: { box_tracking: box.tracking, child_trackings: children.map((child) => child.tracking), customer_id: inheritedCustomerId } });
     return NextResponse.json({ box_tracking: box.tracking, child_trackings: children.map((child) => child.tracking), count: children.length });
   } catch (error) {
