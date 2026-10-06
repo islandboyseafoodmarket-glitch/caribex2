@@ -302,7 +302,7 @@ export async function POST(request: Request) {
                   </thead>
                   <tbody>
                     ${invoiceItems.map((item) => `<tr style="border-bottom:1px solid #e5e7eb;">
-                      <td style="padding:8px 0;"><div>${item.typeLabel}</div><div style="font-size:12px; color:#6b7280; font-style:italic;">${item.contents && item.contents.trim().length > 0 ? item.contents : item.tracking}</div><div style="font-size:11px; color:#6b7280;">Tracking: ${item.tracking}</div></td>
+                      <td style="padding:8px 0;"><div>${item.typeLabel}</div>${item.contents && item.contents.trim().length > 0 ? `<div style="font-size:12px; color:#6b7280; font-style:italic;">${item.contents}</div>` : ""}<div style="font-size:11px; color:#6b7280;">Tracking: ${item.tracking}</div></td>
                       <td align="right">$${item.subtotal.toFixed(2)}</td>
                       <td align="right">$${item.subtotal.toFixed(2)}</td>
                     </tr>`).join("")}
