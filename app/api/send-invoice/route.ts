@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { calculateWorkflowBilling } from "@/lib/workflow-billing";
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 
@@ -88,14 +89,14 @@ export async function POST(request: Request) {
     // shipment/container while preserving each item's tracking and charge.
     const { data: currentShipment } = await authClient
       .from("paquetes_registro")
-      .select("id, tracking, numero_cliente_id, estado, billing_subtotal, billing_tax, billing_total")
+      .select("id, tracking, tipo_paquete, numero_cliente_id, estado, billing_subtotal, billing_tax, billing_total")
       .eq("tracking", tracking)
       .neq("estado", "Archivado")
       .order("creado_en", { ascending: false })
       .limit(1)
       .maybeSingle();
     if (currentShipment) {
-      const [{ data: currentLink }, { data: currentCheckin }] = await Promise.all([
+    const [{ data: currentLink }, { data: currentCheckin }] = await Promise.all([
         authClient
         .from("contenedor_paquetes")
         .select("contenedor_id")
@@ -104,12 +105,29 @@ export async function POST(request: Request) {
         .maybeSingle(),
         authClient
           .from("paquetes_checkin")
-          .select("parent_box_id")
+          .select("parent_box_id, alto, ancho, largo, cargos_adicionales")
           .eq("paquete_id", currentShipment.id)
           .order("creado_en", { ascending: false })
           .limit(1)
           .maybeSingle(),
       ]);
+      const currentStoredTotal = Number(currentShipment.billing_total);
+      if (!Number.isFinite(currentStoredTotal) || currentStoredTotal <= 0) {
+        const currentBilling = calculateWorkflowBilling({ ...currentShipment, ...currentCheckin });
+        if (currentBilling) {
+          invoiceItems[0] = {
+            ...invoiceItems[0],
+            subtotal: currentBilling.subtotal,
+            tax: currentBilling.tax,
+            total: currentBilling.total,
+          };
+          await authClient.from("paquetes_registro").update({
+            billing_subtotal: currentBilling.subtotal,
+            billing_tax: currentBilling.tax,
+            billing_total: currentBilling.total,
+          }).eq("id", currentShipment.id);
+        }
+      }
       let containerId = currentLink?.contenedor_id || null;
       if (!containerId && currentCheckin?.parent_box_id) {
         const { data: parentLink } = await authClient
@@ -153,17 +171,42 @@ export async function POST(request: Request) {
           const rows = [...direct, ...(childRows || [])];
           if (rows.length > 1) {
             groupedShipmentIds = rows.map((row) => row.id);
+            const { data: checkins } = await authClient
+              .from("paquetes_checkin")
+              .select("paquete_id, alto, ancho, largo, cargos_adicionales, creado_en")
+              .in("paquete_id", groupedShipmentIds)
+              .order("creado_en", { ascending: false })
+              .limit(5000);
+            const latestCheckin = new Map<string, any>();
+            for (const checkin of checkins || []) {
+              if (!latestCheckin.has(checkin.paquete_id)) latestCheckin.set(checkin.paquete_id, checkin);
+            }
+            const billingUpdates: Promise<unknown>[] = [];
             invoiceItems = rows.map((row) => {
               const isCurrent = row.id === currentShipment.id;
+              const storedTotal = Number(row.billing_total);
+              const calculated = (!Number.isFinite(storedTotal) || storedTotal <= 0)
+                ? calculateWorkflowBilling({ ...row, ...latestCheckin.get(row.id) })
+                : null;
+              if (calculated) {
+                billingUpdates.push(
+                  Promise.resolve(authClient.from("paquetes_registro").update({
+                    billing_subtotal: calculated.subtotal,
+                    billing_tax: calculated.tax,
+                    billing_total: calculated.total,
+                  }).eq("id", row.id)),
+                );
+              }
               return {
                 tracking: row.tracking,
                 typeLabel: childIds.includes(row.id) ? `Consolidated ${row.tipo_paquete || "Package"}` : row.tipo_paquete || "Shipment",
                 contents: row.contenido || null,
-                subtotal: Number(isCurrent && !Number(row.billing_subtotal) ? subtotal : row.billing_subtotal) || 0,
-                tax: Number(isCurrent && !Number(row.billing_tax) ? tax : row.billing_tax) || 0,
-                total: Number(isCurrent && !Number(row.billing_total) ? total : row.billing_total) || 0,
+                subtotal: calculated?.subtotal ?? (Number(isCurrent && !Number(row.billing_subtotal) ? subtotal : row.billing_subtotal) || 0),
+                tax: calculated?.tax ?? (Number(isCurrent && !Number(row.billing_tax) ? tax : row.billing_tax) || 0),
+                total: calculated?.total ?? (Number(isCurrent && !Number(row.billing_total) ? total : row.billing_total) || 0),
               };
             });
+            await Promise.all(billingUpdates);
           }
         }
       }
