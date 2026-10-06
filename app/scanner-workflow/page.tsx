@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { ArrowRight, CheckCircle2, Keyboard, LogOut, PackageCheck, Play, ScanLine, Search, Square, UserRound, XCircle } from "lucide-react";
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode";
 import { supabase } from "../../lib/supabaseClient";
+import { detectCarrier } from "../lib/carrierDetection";
 import styles from "./scanner-workflow.module.css";
 
 type WorkflowStep = { key: string; status: string; label: string; description: string };
@@ -17,11 +18,18 @@ function parseCode(raw: string) {
   if (!text) return "";
   try {
     const parsed = JSON.parse(text);
-    if (parsed?.tracking) return String(parsed.tracking).trim();
+    if (parsed?.tracking) {
+      const tracking = String(parsed.tracking).trim();
+      return detectCarrier(tracking).trackingNumber || tracking;
+    }
     if (parsed?.id) return String(parsed.id).trim();
   } catch { /* plain tracking */ }
   const urlMatch = text.match(/pedidos\/([0-9a-f-]{36})/i);
-  return urlMatch?.[1] || text.replace(/^CARIBEX:/i, "").trim();
+  if (urlMatch?.[1]) return urlMatch[1];
+
+  const plainCode = text.replace(/^CARIBEX:/i, "").trim();
+  const detected = detectCarrier(plainCode);
+  return detected.trackingNumber || plainCode;
 }
 
 export default function ScannerWorkflowPage() {
