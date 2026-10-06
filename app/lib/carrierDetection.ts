@@ -33,6 +33,19 @@ function isValidUspsCheckDigit(value: string): boolean {
   return (10 - (sum % 10)) % 10 === checkDigit;
 }
 
+function extractUspsTracking(cleanBarcode: string): string | null {
+  const candidates = [
+    ...Array.from(cleanBarcode.matchAll(/(?:92|93|94|95)\d{18}/g), (match) => match[0]),
+    ...Array.from(cleanBarcode.matchAll(/(?:92|93|94|95)\d{20}/g), (match) => match[0]),
+  ];
+  if (!candidates.length) return null;
+  return candidates.sort((a, b) => {
+    const printedDifference = Number(/^9[23]/.test(b)) - Number(/^9[23]/.test(a));
+    const validDifference = Number(isValidUspsCheckDigit(b)) - Number(isValidUspsCheckDigit(a));
+    return printedDifference || validDifference || b.length - a.length;
+  })[0];
+}
+
 function extractFedexTracking(cleanBarcode: string, rawBarcode: string): string | null {
   if (/^\d{12}$/.test(cleanBarcode)) return cleanBarcode;
 
@@ -75,17 +88,18 @@ export function detectCarrier(barcode: string): CarrierInfo {
     };
   }
 
-  // USPS labels used by Caribex include a three-digit service prefix before
-  // the customer-facing tracking number. Validate the complete encoded value
-  // first, then remove that prefix before saving/displaying the tracking.
-  const uspsMatch = cleanBarcode.match(/(?:92|93|94|95)\d{18,20}/);
-  if (uspsMatch) {
-    const encodedTrackingNumber = uspsMatch[0];
-    if (!isValidUspsCheckDigit(encodedTrackingNumber)) {
-      return { carrier: "unknown", trackingNumber: "", confidence: 0 };
-    }
-    return { carrier: "usps", trackingNumber: encodedTrackingNumber.slice(3), confidence: 99 };
+  const explicitNumericUps = rawBarcode.toUpperCase().includes("UPS")
+    ? cleanBarcode.match(/\d{24}|\d{20,22}/)
+    : null;
+  if (explicitNumericUps) {
+    return { carrier: "ups", trackingNumber: explicitNumericUps[0], confidence: 96 };
   }
+
+  // USPS labels may include routing data or secondary identifiers around the
+  // customer-facing 20/22-digit tracking number. Extract only the selected
+  // USPS sequence; never save the surrounding routing payload.
+  const uspsTracking = extractUspsTracking(cleanBarcode);
+  if (uspsTracking) return { carrier: "usps", trackingNumber: uspsTracking, confidence: isValidUspsCheckDigit(uspsTracking) ? 99 : 88 };
   if (/^[A-Z]{2}\d{9}US$/.test(cleanBarcode)) {
     return { carrier: "usps", trackingNumber: cleanBarcode, confidence: 92 };
   }
