@@ -154,7 +154,6 @@ export default function LegalDocument({ kind }: LegalDocumentProps) {
           <h1>{isEnglish ? titleEn : titleEs}</h1>
           <p className="legal-english-title">{isEnglish ? titleEs : titleEn}</p>
           <p className="legal-meta">{isEnglish ? "Effective date: October 5, 2026" : "Fecha de vigencia: 5 de octubre de 2026"}</p>
-          <p className="legal-note">{isEnglish ? "This page is provided for customer review and should be reviewed by qualified legal counsel before being treated as a final legal notice." : "Esta página se proporciona para revisión de los clientes y debe ser revisada por un asesor legal calificado antes de considerarse un aviso legal definitivo."}</p>
         </header>
         <div className="legal-content">
           {sections.map((section) => (
@@ -182,7 +181,6 @@ export default function LegalDocument({ kind }: LegalDocumentProps) {
         .legal-header h1 { margin: 10px 0 2px; font-size: clamp(2rem, 5vw, 3.5rem); line-height: 1.05; }
         .legal-english-title { margin: 0; font-size: 1.1rem; font-weight: 800; opacity: .9; }
         .legal-meta { margin-top: 20px; font-size: .84rem; opacity: .84; }
-        .legal-note { max-width: 760px; margin: 18px 0 0; padding: 12px 14px; border: 1px solid rgba(255,255,255,.28); border-radius: 12px; font-size: .85rem; line-height: 1.5; }
         .legal-language-switcher { display: flex; gap: 6px; justify-content: flex-end; }
         .legal-language-switcher button { border: 1px solid rgba(255,255,255,.45); border-radius: 999px; padding: 7px 13px; background: transparent; color: #fff; font-weight: 900; cursor: pointer; }
         .legal-language-switcher button.active { background: #fff; color: #145d8c; }
