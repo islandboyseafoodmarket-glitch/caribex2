@@ -26,18 +26,23 @@ function isValidUspsCheckDigit(value: string): boolean {
   if (!/^\d{20}$|^\d{22}$/.test(value)) return false;
   const body = value.slice(0, -1);
   const checkDigit = Number(value[value.length - 1]);
-  const weights = [3, 7, 1];
-  const sum = body.split("").reduce((total, digit, index) => {
-    return total + Number(digit) * weights[index % weights.length];
-  }, 0);
+  // USPS IMpb uses alternating 3/1 weights starting at the rightmost
+  // data digit, immediately before the check digit.
+  const sum = body
+    .split("")
+    .reverse()
+    .reduce((total, digit, index) => total + Number(digit) * (index % 2 === 0 ? 3 : 1), 0);
   return (10 - (sum % 10)) % 10 === checkDigit;
 }
 
 function extractUspsTracking(cleanBarcode: string): string | null {
-  const candidates = [
-    ...Array.from(cleanBarcode.matchAll(/(?:92|93|94|95)\d{18}/g), (match) => match[0]),
-    ...Array.from(cleanBarcode.matchAll(/(?:92|93|94|95)\d{20}/g), (match) => match[0]),
-  ];
+  // Use lookahead so adjacent/overlapping identifiers are both examined.
+  // Some USPS payloads place a 95-series secondary ID directly before the
+  // customer-facing 92/93/94-series tracking number.
+  const candidates = Array.from(
+    cleanBarcode.matchAll(/(?=((?:92|93|94|95)\d{18}(?:\d{2})?))/g),
+    (match) => match[1],
+  );
   if (!candidates.length) return null;
   return candidates.sort((a, b) => {
     const printedDifference = Number(/^9[23]/.test(b)) - Number(/^9[23]/.test(a));
@@ -93,6 +98,13 @@ export function detectCarrier(barcode: string): CarrierInfo {
     : null;
   if (explicitNumericUps) {
     return { carrier: "ups", trackingNumber: explicitNumericUps[0], confidence: 96 };
+  }
+
+  // An explicit FedEx label marker or 96-series payload must win over a
+  // USPS-looking sequence embedded in the longer carrier barcode.
+  const explicitFedex = extractFedexTracking(cleanBarcode, rawBarcode);
+  if ((rawBarcode.toUpperCase().includes("FEDEX") || /^96/.test(cleanBarcode)) && explicitFedex) {
+    return { carrier: "fedex", trackingNumber: explicitFedex, confidence: cleanBarcode.length === 12 ? 94 : 88 };
   }
 
   // USPS labels may include routing data or secondary identifiers around the
