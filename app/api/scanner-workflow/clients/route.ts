@@ -68,16 +68,18 @@ export async function GET(request: Request) {
       .eq("numero_cliente_id", client.id)
       .neq("estado", "Archivado")
       .order("registro", { ascending: false })
-      .limit(100);
+      // Client Pickup must count every shipment for the customer, not only the
+      // first 100 rows returned by Supabase.
+      .limit(5000);
     if (packageError) throw packageError;
     const packageIds = (allPackages || []).map((item) => item.id);
     const { data: containerLinks, error: linkError } = packageIds.length
-      ? await supabase.from("contenedor_paquetes").select("paquete_id, contenedor_id").in("paquete_id", packageIds).limit(500)
+      ? await supabase.from("contenedor_paquetes").select("paquete_id, contenedor_id").in("paquete_id", packageIds).limit(5000)
       : { data: [], error: null };
     if (linkError) throw linkError;
     const containerIds = Array.from(new Set((containerLinks || []).map((link) => link.contenedor_id).filter(Boolean)));
     const { data: containers, error: containerError } = containerIds.length
-      ? await supabase.from("contenedores").select("id, codigo").in("id", containerIds).limit(500)
+      ? await supabase.from("contenedores").select("id, codigo").in("id", containerIds).limit(5000)
       : { data: [], error: null };
     if (containerError) throw containerError;
     const containerById = new Map((containers || []).map((container) => [container.id, container.codigo]));
