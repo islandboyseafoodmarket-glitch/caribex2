@@ -28,7 +28,7 @@ const NUEVO_CLIENTE_INITIAL = {
 };
 
 const STAFF_PERMISSION_OPTIONS = [
-  { key: "shipment_workflow", label: "Shipment workflow" },
+  { key: "shipment_workflow", label: "Workflow App / Shipment workflow" },
   { key: "client360", label: "Client 360" },
   { key: "invoices", label: "View and send invoices" },
   { key: "invoice_edit", label: "Edit invoice add-ons" },

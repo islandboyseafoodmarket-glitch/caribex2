@@ -3,8 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { ArrowRight, CheckCircle2, Keyboard, LogOut, PackageCheck, Play, ScanLine, Search, Square, UserRound, XCircle } from "lucide-react";
-import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode";
+import { ArrowRight, CheckCircle2, Keyboard, LogOut, PackageCheck, ScanLine, Search, UserRound, XCircle } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
 import { detectCarrier } from "../lib/carrierDetection";
 import styles from "./scanner-workflow.module.css";
@@ -41,18 +40,7 @@ export default function ScannerWorkflowPage() {
   const [message, setMessage] = useState<{ tone: "success" | "error" | "info"; text: string } | null>(null);
   const [loading, setLoading] = useState(false);
   const [updating, setUpdating] = useState(false);
-  const [scanning, setScanning] = useState(false);
-  const scannerRef = useRef<Html5Qrcode | null>(null);
   const manualInputRef = useRef<HTMLInputElement | null>(null);
-
-  const stopCamera = useCallback(async () => {
-    const scanner = scannerRef.current;
-    if (!scanner) return;
-    scannerRef.current = null;
-    try { await scanner.stop(); } catch { /* already stopped */ }
-    try { scanner.clear(); } catch { /* already cleared */ }
-    setScanning(false);
-  }, []);
 
   useEffect(() => {
     let active = true;
@@ -69,16 +57,16 @@ export default function ScannerWorkflowPage() {
       setSessionReady(true);
     };
     void loadUser();
-    return () => { active = false; void stopCamera(); };
-  }, [router, stopCamera]);
+    return () => { active = false; };
+  }, [router]);
 
   useEffect(() => {
-    if (!sessionReady || scanning) return;
+    if (!sessionReady) return;
     const focusInput = () => manualInputRef.current?.focus();
     focusInput();
     const timer = window.setTimeout(focusInput, 250);
     return () => window.clearTimeout(timer);
-  }, [sessionReady, scanning, shipment]);
+  }, [sessionReady, shipment]);
 
   const lookup = useCallback(async (code: string) => {
     const parsedCode = parseCode(code);
@@ -98,46 +86,9 @@ export default function ScannerWorkflowPage() {
     } finally { setLoading(false); }
   }, []);
 
-  const startCamera = async () => {
-    setMessage(null); setScanning(true);
-    try {
-      if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
-        throw new Error("Camera requires the secure HTTPS site. Open the Caribex page using https:// and allow camera access in the browser.");
-      }
-      const formatsToSupport = [
-        Html5QrcodeSupportedFormats.QR_CODE,
-        Html5QrcodeSupportedFormats.CODE_128,
-        Html5QrcodeSupportedFormats.CODE_39,
-        Html5QrcodeSupportedFormats.CODE_93,
-        Html5QrcodeSupportedFormats.CODABAR,
-        Html5QrcodeSupportedFormats.ITF,
-        Html5QrcodeSupportedFormats.EAN_13,
-        Html5QrcodeSupportedFormats.EAN_8,
-        Html5QrcodeSupportedFormats.UPC_A,
-        Html5QrcodeSupportedFormats.UPC_E,
-        Html5QrcodeSupportedFormats.PDF_417,
-        Html5QrcodeSupportedFormats.DATA_MATRIX,
-      ];
-      const scanner = new Html5Qrcode("workflow-qr-reader");
-      scannerRef.current = scanner;
-      await scanner.start({ facingMode: "environment" }, {
-        fps: 15,
-        qrbox: (viewfinderWidth: number, viewfinderHeight: number) => ({
-          // USPS/FedEx linear barcodes are wide; keep nearly the full frame
-          // available instead of cropping the barcode to a small QR rectangle.
-          width: Math.min(Math.max(Math.floor(viewfinderWidth * 0.92), 280), 720),
-          height: Math.min(Math.max(Math.floor(viewfinderHeight * 0.32), 160), 260),
-        }),
-        formatsToSupport,
-      } as any, async (decoded) => {
-        await stopCamera();
-        await lookup(decoded);
-      }, () => undefined);
-    } catch (error) {
-      setScanning(false); scannerRef.current = null;
-      const reason = error instanceof Error ? error.message : "The browser could not open the camera.";
-      setMessage({ tone: "error", text: `${reason} You can use the scanner gun or enter the tracking number.` });
-    }
+  const activateHandheldScanner = () => {
+    setMessage({ tone: "info", text: "Scanner ready — scan the barcode now." });
+    manualInputRef.current?.focus();
   };
 
   const advance = async () => {
@@ -176,8 +127,7 @@ export default function ScannerWorkflowPage() {
       <div className={styles.workflow}>{(shipment?.workflow || [{ key: "RECEIVED", label: "Received" }, { key: "CHECK_IN", label: "Check In" }, { key: "IN_TRANSIT", label: "In Transit" }, { key: "UNLOADED", label: "Ready for Pickup" }, { key: "PICKED_UP", label: "Picked Up" }]).map((step: any, index: number) => <div className={`${styles.workflowStep} ${shipment && index <= shipment.workflow.findIndex((item) => item.key === shipment.current.key) ? styles.done : ""}`} key={step.key}><span>{index + 1}</span><small>{step.label}</small>{index < 4 && <ArrowRight size={15} />}</div>)}</div>
       <div className={styles.scanCard}>
         <div className={styles.cardTitle}><div><h2>Scan shipment</h2><p>Use the dedicated handheld scanner or type the tracking number.</p></div><ScanLine size={25} /></div>
-        {scanning && <div className={styles.cameraWrap}><div id="workflow-qr-reader" /><button type="button" className={styles.secondaryButton} onClick={() => void stopCamera()}><Square size={16} /> Stop camera</button></div>}
-        {!scanning && <div className={styles.scanActions}><button type="button" className={styles.primaryButton} onClick={() => void startCamera()}><Play size={18} /> Scan with camera</button><div className={styles.or}><span>or</span></div><form className={styles.manualForm} onSubmit={(event) => { event.preventDefault(); void lookup(manualCode); }}><Keyboard size={18} /><input ref={manualInputRef} autoFocus autoComplete="off" value={manualCode} onChange={(event) => setManualCode(event.target.value)} placeholder="Tracking number" aria-label="Tracking number" /><button type="submit" disabled={loading || !manualCode.trim()}><Search size={17} /> Find</button></form></div>}
+        <div className={styles.scanActions}><button type="button" className={styles.primaryButton} onClick={activateHandheldScanner}><ScanLine size={18} /> Activate scanner</button><div className={styles.or}><span>or</span></div><form className={styles.manualForm} onSubmit={(event) => { event.preventDefault(); void lookup(manualCode); }}><Keyboard size={18} /><input ref={manualInputRef} autoFocus autoComplete="off" value={manualCode} onChange={(event) => setManualCode(event.target.value)} placeholder="Scan or enter tracking number" aria-label="Tracking number" /><button type="submit" disabled={loading || !manualCode.trim()}><Search size={17} /> Find</button></form></div>
         {loading && <div className={styles.busy}>Looking up shipment…</div>}
         {message && <div className={`${styles.message} ${styles[message.tone]}`}>{message.tone === "success" ? <CheckCircle2 size={20} /> : message.tone === "error" ? <XCircle size={20} /> : <ScanLine size={20} />}<span>{message.text}</span></div>}
       </div>

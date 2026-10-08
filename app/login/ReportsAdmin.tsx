@@ -14,6 +14,7 @@ type ReportRow = {
   creado_en: string | null;
   numero_cliente_id: string | null;
   container_id: string | null;
+  parent_box_id: string | null;
 };
 
 type ReportFilter = "container" | "received" | "checkin" | "pickup" | "customer";
@@ -24,6 +25,11 @@ const monthLabel = (value: string) => {
 };
 
 const normalize = (value: string | null | undefined) => (value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+const isArchived = (status: string) => status.includes("archiv");
+const isReceived = (status: string) => status === "recibido" || status === "received";
+const isRegistered = (status: string) => status === "registrado" || status === "registered" || status === "check in" || status === "checkin";
+const isUnloaded = (status: string) => status.includes("descargado") || status.includes("unloaded");
+const isPickedUp = (status: string) => status.includes("entregado") || status.includes("recogido") || status.includes("picked");
 
 export default function ReportsAdmin() {
   const today = new Date();
@@ -43,7 +49,7 @@ export default function ReportsAdmin() {
         supabase.from("paquetes_registro").select("id, tracking, estado, creado_en, registro, numero_cliente_id, tipo_paquete, contenido").order("creado_en", { ascending: false }),
         supabase.from("contenedor_paquetes").select("paquete_id, contenedor_id"),
         supabase.from("numero_cliente").select("id, nombre, numero_cliente"),
-        supabase.from("paquetes_checkin").select("paquete_id, alto, ancho, largo"),
+        supabase.from("paquetes_checkin").select("paquete_id, alto, ancho, largo, parent_box_id, creado_en").order("creado_en", { ascending: false }),
       ]);
       if (packageError || linkError || customerError || checkinError) throw packageError || linkError || customerError || checkinError;
       const customerById = new Map((customers || []).map((customer: any) => [customer.id, customer]));
@@ -66,6 +72,7 @@ export default function ReportsAdmin() {
         creado_en: pkg.creado_en || pkg.registro || null,
         numero_cliente_id: pkg.numero_cliente_id || null,
         container_id: containerByPackage.get(pkg.id) || null,
+        parent_box_id: checkinByPackage.get(pkg.id)?.parent_box_id || null,
       }));
       if (mounted) { setRows(mapped); setLoading(false); }
     })().catch((err) => { if (mounted) { setError(err.message || "Could not load reports"); setLoading(false); } });
@@ -78,10 +85,11 @@ export default function ReportsAdmin() {
     const inRange = (!fromMonth || month >= fromMonth) && (!toMonth || month <= toMonth);
     if (!inRange) return false;
     const status = normalize(row.estado);
-    if (filter === "container") return !row.container_id;
-    if (filter === "received") return status.includes("recibido") || status.includes("received");
-    if (filter === "checkin") return status.includes("registro") || status.includes("check in") || status.includes("checkin");
-    if (filter === "pickup") return !(status.includes("entregado") || status.includes("recogido") || status.includes("picked"));
+    if (isArchived(status)) return false;
+    if (filter === "container") return Boolean(row.container_id) && !isUnloaded(status) && !isPickedUp(status);
+    if (filter === "received") return isReceived(status);
+    if (filter === "checkin") return isRegistered(status);
+    if (filter === "pickup") return isUnloaded(status) && !isPickedUp(status) && !row.parent_box_id;
     return !row.nombre.trim();
   }), [filter, fromMonth, rows, toMonth]);
 
