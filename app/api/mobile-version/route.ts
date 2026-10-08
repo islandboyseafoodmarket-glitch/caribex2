@@ -6,10 +6,10 @@ export async function GET() {
   return NextResponse.json(
     {
       app: "Caribex Warehouse Management",
-      version: "1.2.18",
-      version_code: 1218,
-      apk_url: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663449196187/pMOlJKcEyQNPxBzQ.apk",
-      filename: "Caribex-Warehouse-Management-1.2.18.apk",
+      version: "1.2.19",
+      version_code: 1219,
+      apk_url: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663449196187/duDnGJFOsBhxNRuA.apk",
+      filename: "Caribex-Warehouse-Management-1.2.19.apk",
       release_notes: [
         "Web-equivalent Receiving, Check In, consolidation, and customer assignment",
         "Client Pickup now shows every shipment tracking number with the authoritative invoice status",
@@ -39,6 +39,7 @@ export async function GET() {
         "Explicit FedEx payloads are recognized before USPS candidates and normalized to the customer-facing 12-digit tracking number",
         "Client Pickup removes picked-up shipments from the ready list and refreshes immediately after scan-out",
         "Client Pickup scans now complete pickup immediately, refresh the customer count, and include every non-archived shipment",
+        "APK updater uses persistent storage, cache-busting, and a retry for interrupted downloads",
         "Unloading a consolidated BOX also marks its contained packages as unloaded",
         "Invoice email headers show Date of Service, retain item tracking numbers, and use the grouped Payment total",
       ],
