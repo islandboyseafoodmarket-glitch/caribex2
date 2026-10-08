@@ -90,6 +90,12 @@ export async function POST(request: Request) {
     const carrier = value("carrier").trim();
     const tracking = normalizeUspsTracking(value("tracking"), carrier);
     const type = value("type") === "BOX" ? "BOX" : value("type") === "PACKAGE" ? "PACKAGE" : "";
+    const dimensions = {
+      alto: value("alto") === "" ? null : Number(value("alto")),
+      ancho: value("ancho") === "" ? null : Number(value("ancho")),
+      largo: value("largo") === "" ? null : Number(value("largo")),
+      peso: value("peso") === "" ? null : Number(value("peso")),
+    };
     if (!tracking) return NextResponse.json({ error: "Tracking number or barcode is required" }, { status: 400 });
     if (!type) return NextResponse.json({ error: "Select Box or Package" }, { status: 400 });
     if (ownerUnknown && !noteText && !(photo instanceof File && photo.size > 0)) return NextResponse.json({ error: "Unknown Owner requires an internal note or a photo" }, { status: 400 });
@@ -111,6 +117,10 @@ export async function POST(request: Request) {
     const { data, error } = await supabase.from("paquetes_registro").insert({ tracking, nombre_paqueteria: carrier, tipo_paquete: type, contenido: value("contents").trim() || null, notas: note, numero_cliente_id: customerId, registro: actor.name, estado: "Recibido" }).select("id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, notas_imagenes, registro, estado, hora_fecha").single();
     if (error) throw error;
     let savedPackage = data;
+    if (Object.values(dimensions).some((dimension) => dimension !== null)) {
+      const { error: checkinError } = await supabase.from("paquetes_checkin").insert({ paquete_id: data.id, numero_cliente_id: customerId, ...dimensions });
+      if (checkinError) throw checkinError;
+    }
     if (photo instanceof File && photo.size > 0) {
       const extension = (photo.name.split(".").pop() || "jpg").replace(/[^a-z0-9]/gi, "").toLowerCase() || "jpg";
       const path = `scanner/${data.id}/${Date.now()}-${crypto.randomUUID()}.${extension}`;
