@@ -73,6 +73,19 @@ export async function GET(request: Request) {
       .limit(5000);
     if (packageError) throw packageError;
     const packageIds = (allPackages || []).map((item) => item.id);
+    const { data: childLinks, error: childLinkError } = packageIds.length
+      ? await supabase.from("paquetes_checkin").select("paquete_id, parent_box_id").in("paquete_id", packageIds).limit(5000)
+      : { data: [], error: null };
+    if (childLinkError) throw childLinkError;
+    const consolidatedChildIds = new Set(
+      (childLinks || [])
+        .filter((link) => Boolean(link.parent_box_id))
+        .map((link) => link.paquete_id),
+    );
+    // A consolidated child travels inside its main BOX and must not appear as
+    // a second pickup item. It remains in the database for history and is
+    // marked Entregado automatically when the main BOX is collected.
+    const pickupPackages = (allPackages || []).filter((item) => !consolidatedChildIds.has(item.id));
     const { data: containerLinks, error: linkError } = packageIds.length
       ? await supabase.from("contenedor_paquetes").select("paquete_id, contenedor_id").in("paquete_id", packageIds).limit(5000)
       : { data: [], error: null };
@@ -88,11 +101,11 @@ export async function GET(request: Request) {
       const code = containerById.get(link.contenedor_id);
       if (code) containerByPackageId.set(link.paquete_id, code);
     }
-    const packages = (allPackages || []).map((item) => ({ ...item, container_code: containerByPackageId.get(item.id) || null })).filter((item) => {
+    const packages = pickupPackages.map((item) => ({ ...item, container_code: containerByPackageId.get(item.id) || null })).filter((item) => {
       if (view === "ready") return statusMatches(item.estado, DATABASE_STATUS.UNLOADED);
       return (statusFilters[view] || statusFilters.ready).some((allowed) => statusMatches(item.estado, allowed as typeof DATABASE_STATUS[keyof typeof DATABASE_STATUS]));
     });
-    const pickupSet = (allPackages || []).filter((item) =>
+    const pickupSet = pickupPackages.filter((item) =>
       statusMatches(item.estado, DATABASE_STATUS.UNLOADED) || statusMatches(item.estado, DATABASE_STATUS.PICKED_UP),
     );
     const collected = pickupSet.filter((item) => statusMatches(item.estado, DATABASE_STATUS.PICKED_UP)).length;

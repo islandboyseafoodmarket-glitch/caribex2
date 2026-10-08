@@ -6,10 +6,10 @@ export async function GET() {
   return NextResponse.json(
     {
       app: "Caribex Warehouse Management",
-      version: "1.2.19",
-      version_code: 1219,
-      apk_url: "https://github.com/islandboyseafoodmarket-glitch/caribex2/releases/download/mobile-v1.2.19/app-release.apk",
-      filename: "Caribex-Warehouse-Management-1.2.19.apk",
+      version: "1.2.20",
+      version_code: 1220,
+      apk_url: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663449196187/wJYSUOBxJFDhbnCX.apk",
+      filename: "Caribex-Warehouse-Management-1.2.20.apk",
       release_notes: [
         "Web-equivalent Receiving, Check In, consolidation, and customer assignment",
         "Client Pickup now shows every shipment tracking number with the authoritative invoice status",
@@ -42,6 +42,9 @@ export async function GET() {
         "APK updater uses persistent storage, cache-busting, and a retry for interrupted downloads",
         "Unloading a consolidated BOX also marks its contained packages as unloaded",
         "Invoice email headers show Date of Service, retain item tracking numbers, and use the grouped Payment total",
+        "Sync clears stale scan details while refreshing the selected customer",
+        "Consolidated child packages are hidden as duplicate pickup items and are picked up with their main BOX",
+        "Staff Workflow keeps the tracking field focused so dedicated handheld scanner input submits correctly",
       ],
     },
     { headers: { "Cache-Control": "no-store, max-age=0" } },

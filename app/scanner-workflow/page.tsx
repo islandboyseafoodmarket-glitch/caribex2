@@ -43,6 +43,7 @@ export default function ScannerWorkflowPage() {
   const [updating, setUpdating] = useState(false);
   const [scanning, setScanning] = useState(false);
   const scannerRef = useRef<Html5Qrcode | null>(null);
+  const manualInputRef = useRef<HTMLInputElement | null>(null);
 
   const stopCamera = useCallback(async () => {
     const scanner = scannerRef.current;
@@ -70,6 +71,14 @@ export default function ScannerWorkflowPage() {
     void loadUser();
     return () => { active = false; void stopCamera(); };
   }, [router, stopCamera]);
+
+  useEffect(() => {
+    if (!sessionReady || scanning) return;
+    const focusInput = () => manualInputRef.current?.focus();
+    focusInput();
+    const timer = window.setTimeout(focusInput, 250);
+    return () => window.clearTimeout(timer);
+  }, [sessionReady, scanning, shipment]);
 
   const lookup = useCallback(async (code: string) => {
     const parsedCode = parseCode(code);
@@ -111,7 +120,16 @@ export default function ScannerWorkflowPage() {
       ];
       const scanner = new Html5Qrcode("workflow-qr-reader");
       scannerRef.current = scanner;
-      await scanner.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 260, height: 180 }, formatsToSupport } as any, async (decoded) => {
+      await scanner.start({ facingMode: "environment" }, {
+        fps: 15,
+        qrbox: (viewfinderWidth: number, viewfinderHeight: number) => ({
+          // USPS/FedEx linear barcodes are wide; keep nearly the full frame
+          // available instead of cropping the barcode to a small QR rectangle.
+          width: Math.min(Math.max(Math.floor(viewfinderWidth * 0.92), 280), 720),
+          height: Math.min(Math.max(Math.floor(viewfinderHeight * 0.32), 160), 260),
+        }),
+        formatsToSupport,
+      } as any, async (decoded) => {
         await stopCamera();
         await lookup(decoded);
       }, () => undefined);
@@ -138,7 +156,12 @@ export default function ScannerWorkflowPage() {
     } finally { setUpdating(false); }
   };
 
-  const scanNext = () => { setShipment(null); setManualCode(""); setMessage(null); };
+  const scanNext = () => {
+    setShipment(null);
+    setManualCode("");
+    setMessage(null);
+    window.setTimeout(() => manualInputRef.current?.focus(), 0);
+  };
   const logout = async () => { await supabase.auth.signOut(); router.replace("/login"); };
 
   if (!sessionReady) return <main className={styles.loading}>Loading workflow app…</main>;
@@ -152,9 +175,9 @@ export default function ScannerWorkflowPage() {
       <div className={styles.hero}><div><p className={styles.eyebrow}>CARIBEX OPERATIONS</p><h1>Move a shipment through its workflow</h1><p>Scan a label, review the current status, and apply only the next allowed status.</p></div><div className={styles.heroIcon}><PackageCheck size={34} /></div></div>
       <div className={styles.workflow}>{(shipment?.workflow || [{ key: "RECEIVED", label: "Received" }, { key: "CHECK_IN", label: "Check In" }, { key: "IN_TRANSIT", label: "In Transit" }, { key: "UNLOADED", label: "Ready for Pickup" }, { key: "PICKED_UP", label: "Picked Up" }]).map((step: any, index: number) => <div className={`${styles.workflowStep} ${shipment && index <= shipment.workflow.findIndex((item) => item.key === shipment.current.key) ? styles.done : ""}`} key={step.key}><span>{index + 1}</span><small>{step.label}</small>{index < 4 && <ArrowRight size={15} />}</div>)}</div>
       <div className={styles.scanCard}>
-        <div className={styles.cardTitle}><div><h2>Scan shipment</h2><p>Use the camera, a USB scanner, or type the tracking number.</p></div><ScanLine size={25} /></div>
+        <div className={styles.cardTitle}><div><h2>Scan shipment</h2><p>Use the dedicated handheld scanner or type the tracking number.</p></div><ScanLine size={25} /></div>
         {scanning && <div className={styles.cameraWrap}><div id="workflow-qr-reader" /><button type="button" className={styles.secondaryButton} onClick={() => void stopCamera()}><Square size={16} /> Stop camera</button></div>}
-        {!scanning && <div className={styles.scanActions}><button type="button" className={styles.primaryButton} onClick={() => void startCamera()}><Play size={18} /> Scan with camera</button><div className={styles.or}><span>or</span></div><form className={styles.manualForm} onSubmit={(event) => { event.preventDefault(); void lookup(manualCode); }}><Keyboard size={18} /><input autoComplete="off" value={manualCode} onChange={(event) => setManualCode(event.target.value)} placeholder="Tracking number" aria-label="Tracking number" /><button type="submit" disabled={loading || !manualCode.trim()}><Search size={17} /> Find</button></form></div>}
+        {!scanning && <div className={styles.scanActions}><button type="button" className={styles.primaryButton} onClick={() => void startCamera()}><Play size={18} /> Scan with camera</button><div className={styles.or}><span>or</span></div><form className={styles.manualForm} onSubmit={(event) => { event.preventDefault(); void lookup(manualCode); }}><Keyboard size={18} /><input ref={manualInputRef} autoFocus autoComplete="off" value={manualCode} onChange={(event) => setManualCode(event.target.value)} placeholder="Tracking number" aria-label="Tracking number" /><button type="submit" disabled={loading || !manualCode.trim()}><Search size={17} /> Find</button></form></div>}
         {loading && <div className={styles.busy}>Looking up shipment…</div>}
         {message && <div className={`${styles.message} ${styles[message.tone]}`}>{message.tone === "success" ? <CheckCircle2 size={20} /> : message.tone === "error" ? <XCircle size={20} /> : <ScanLine size={20} />}<span>{message.text}</span></div>}
       </div>
