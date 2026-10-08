@@ -64,7 +64,7 @@ export async function GET(request: Request) {
     };
     const { data: allPackages, error: packageError } = await supabase
       .from("paquetes_registro")
-      .select("id, tracking, nombre_paqueteria, tipo_paquete, estado, invoice_status, approval_status, billing_total, fecha_descargado, hora_descargado")
+      .select("id, tracking, nombre_paqueteria, tipo_paquete, estado, invoice_status, approval_status, billing_total, fecha_descargado, hora_descargado, fecha_entregado, hora_entregado")
       .eq("numero_cliente_id", client.id)
       .neq("estado", "Archivado")
       .order("registro", { ascending: false })
@@ -101,14 +101,15 @@ export async function GET(request: Request) {
       const code = containerById.get(link.contenedor_id);
       if (code) containerByPackageId.set(link.paquete_id, code);
     }
+    const isPickedUp = (item: any) => statusMatches(item.estado, DATABASE_STATUS.PICKED_UP) || Boolean(item.fecha_entregado || item.hora_entregado);
+    const isReadyForPickup = (item: any) => statusMatches(item.estado, DATABASE_STATUS.UNLOADED) && !isPickedUp(item);
     const packages = pickupPackages.map((item) => ({ ...item, container_code: containerByPackageId.get(item.id) || null })).filter((item) => {
-      if (view === "ready") return statusMatches(item.estado, DATABASE_STATUS.UNLOADED);
+      if (view === "ready") return isReadyForPickup(item);
+      if (view === "picked") return isPickedUp(item);
       return (statusFilters[view] || statusFilters.ready).some((allowed) => statusMatches(item.estado, allowed as typeof DATABASE_STATUS[keyof typeof DATABASE_STATUS]));
     });
-    const pickupSet = pickupPackages.filter((item) =>
-      statusMatches(item.estado, DATABASE_STATUS.UNLOADED) || statusMatches(item.estado, DATABASE_STATUS.PICKED_UP),
-    );
-    const collected = pickupSet.filter((item) => statusMatches(item.estado, DATABASE_STATUS.PICKED_UP)).length;
+    const pickupSet = pickupPackages.filter((item) => isReadyForPickup(item) || isPickedUp(item));
+    const collected = pickupSet.filter((item) => isPickedUp(item)).length;
     const total = pickupSet.length;
     return NextResponse.json({ client, packages, view, summary: { collected, total, pending: Math.max(total - collected, 0) } });
   } catch (error) {
