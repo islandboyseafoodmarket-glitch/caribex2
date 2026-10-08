@@ -333,6 +333,7 @@ export async function POST(request: Request) {
 
     const customer = Array.isArray(shipment.numero_cliente) ? shipment.numero_cliente[0] : shipment.numero_cliente;
     let unloadedChildren: Array<{ id: string; tracking: string }> = [];
+    let pickedUpChildren: Array<{ id: string; tracking: string }> = [];
     if (expectedNext.key === "UNLOADED" && isBox(shipment)) {
       const { data: childLinks, error: childLinkError } = await supabase
         .from("paquetes_checkin")
@@ -356,6 +357,31 @@ export async function POST(request: Request) {
           .in("id", (children || []).map((child) => child.id));
         if (childUpdateError) throw childUpdateError;
         unloadedChildren = (children || []).map((child) => ({ id: child.id, tracking: child.tracking }));
+      }
+    }
+    if (expectedNext.key === "PICKED_UP" && isBox(shipment)) {
+      const { data: childLinks, error: childLinkError } = await supabase
+        .from("paquetes_checkin")
+        .select("paquete_id")
+        .eq("parent_box_id", shipment.id)
+        .limit(5000);
+      if (childLinkError) throw childLinkError;
+      const childIds = Array.from(new Set((childLinks || []).map((row) => row.paquete_id).filter(Boolean)));
+      if (childIds.length) {
+        const { data: children, error: childError } = await supabase
+          .from("paquetes_registro")
+          .select("id, tracking, estado")
+          .in("id", childIds)
+          .neq("estado", DATABASE_STATUS.PICKED_UP)
+          .neq("estado", "Archivado")
+          .limit(5000);
+        if (childError) throw childError;
+        const { error: childUpdateError } = await supabase
+          .from("paquetes_registro")
+          .update(payload)
+          .in("id", (children || []).map((child) => child.id));
+        if (childUpdateError) throw childUpdateError;
+        pickedUpChildren = (children || []).map((child) => ({ id: child.id, tracking: child.tracking }));
       }
     }
     if (expectedNext.key === "UNLOADED") {
@@ -435,7 +461,7 @@ export async function POST(request: Request) {
       details: { from_status: shipment.estado, to_status: expectedNext.status, invoice_sent: invoice.sent, invoice_reason: invoice.reason || null, source: "scanner_workflow_app" },
       user_agent: request.headers.get("user-agent") || null,
     });
-    return NextResponse.json({ ok: true, previous: WORKFLOW[beforeIndex], current: expectedNext, tracking: shipment.tracking, unloaded_children: unloadedChildren, invoice, ferry });
+    return NextResponse.json({ ok: true, previous: WORKFLOW[beforeIndex], current: expectedNext, tracking: shipment.tracking, unloaded_children: unloadedChildren, picked_up_children: pickedUpChildren, invoice, ferry });
   } catch (error) {
     return errorResponse(error);
   }
