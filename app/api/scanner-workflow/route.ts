@@ -4,7 +4,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { centralAmericaDateParts } from "../../../lib/staff-date-format";
 import { invoiceApprovalStatus } from "@/lib/invoice-approval";
 import { calculateWorkflowBilling, isBox } from "@/lib/workflow-billing";
-import { DATABASE_STATUS, normalizeFerryPort } from "@/lib/shipping-rules";
+import { DATABASE_STATUS, normalizeFerryPort, statusMatches } from "@/lib/shipping-rules";
 
 export const dynamic = "force-dynamic";
 
@@ -170,6 +170,65 @@ async function ensureCheckinRecord(supabase: SupabaseClient, shipment: { id: str
   return created;
 }
 
+async function getContainerInvoiceReadiness(supabase: SupabaseClient, shipment: any) {
+  const [{ data: directLink, error: directLinkError }, { data: checkin, error: checkinError }] = await Promise.all([
+    supabase.from("contenedor_paquetes").select("contenedor_id").eq("paquete_id", shipment.id).limit(1).maybeSingle(),
+    supabase.from("paquetes_checkin").select("parent_box_id").eq("paquete_id", shipment.id).order("creado_en", { ascending: false }).limit(1).maybeSingle(),
+  ]);
+  if (directLinkError) throw directLinkError;
+  if (checkinError) throw checkinError;
+
+  let containerId = directLink?.contenedor_id || null;
+  if (!containerId && checkin?.parent_box_id) {
+    const { data: parentLink, error: parentLinkError } = await supabase
+      .from("contenedor_paquetes")
+      .select("contenedor_id")
+      .eq("paquete_id", checkin.parent_box_id)
+      .limit(1)
+      .maybeSingle();
+    if (parentLinkError) throw parentLinkError;
+    containerId = parentLink?.contenedor_id || null;
+  }
+  if (!containerId) return { inContainer: false, ready: true, pending: [] as string[] };
+
+  const { data: links, error: linksError } = await supabase
+    .from("contenedor_paquetes")
+    .select("paquete_id")
+    .eq("contenedor_id", containerId)
+    .limit(5000);
+  if (linksError) throw linksError;
+  const directIds = Array.from(new Set((links || []).map((link) => link.paquete_id).filter(Boolean)));
+  if (!directIds.length) return { inContainer: true, ready: true, pending: [] as string[] };
+
+  const { data: directRows, error: directRowsError } = await supabase
+    .from("paquetes_registro")
+    .select("id, tracking, estado, numero_cliente_id")
+    .in("id", directIds)
+    .neq("estado", "Archivado")
+    .limit(5000);
+  if (directRowsError) throw directRowsError;
+
+  const customerRows = (directRows || []).filter((row) => row.numero_cliente_id === shipment.numero_cliente_id);
+  const parentIds = (directRows || []).map((row) => row.id);
+  const { data: childLinks, error: childLinksError } = parentIds.length
+    ? await supabase.from("paquetes_checkin").select("paquete_id, parent_box_id").in("parent_box_id", parentIds).limit(5000)
+    : { data: [], error: null };
+  if (childLinksError) throw childLinksError;
+  const childIds = Array.from(new Set((childLinks || []).map((link) => link.paquete_id).filter(Boolean)));
+  const { data: childRows, error: childRowsError } = childIds.length
+    ? await supabase.from("paquetes_registro").select("id, tracking, estado, numero_cliente_id").in("id", childIds).neq("estado", "Archivado").limit(5000)
+    : { data: [], error: null };
+  if (childRowsError) throw childRowsError;
+
+  const relevant = [...customerRows, ...(childRows || []).filter((row) => row.numero_cliente_id === shipment.numero_cliente_id)]
+    .filter((row, index, rows) => rows.findIndex((candidate) => candidate.id === row.id) === index);
+  const pending = relevant
+    .filter((row) => !statusMatches(row.estado, DATABASE_STATUS.UNLOADED) && !statusMatches(row.estado, DATABASE_STATUS.PICKED_UP))
+    .map((row) => row.tracking)
+    .filter(Boolean);
+  return { inContainer: true, ready: pending.length === 0, pending };
+}
+
 async function validateAndRecalculateBox(supabase: SupabaseClient, shipment: any) {
   if (!isBox(shipment)) return;
   const checkin = await getLatestCheckin(supabase, shipment.id);
@@ -322,7 +381,9 @@ export async function POST(request: Request) {
         }
       }
       await supabase.from("paquetes_registro").update({ approval_status: approvalStatus }).eq("id", shipment.id);
-      if (shipment.invoice_status === "SENT") invoice = { sent: false, reason: "Invoice was already sent." };
+      const invoiceReadiness = await getContainerInvoiceReadiness(supabase, shipment);
+      if (!invoiceReadiness.ready) invoice = { sent: false, reason: `Invoice held until all items for this customer in the container are unloaded. Pending: ${invoiceReadiness.pending.join(", ")}` };
+      else if (shipment.invoice_status === "SENT") invoice = { sent: false, reason: "Invoice was already sent." };
       else if (approvalStatus !== "APPROVED") invoice = { sent: false, reason: "Invoice requires review because the shipment has an internal note or photo." };
       else if (!customer?.email) invoice = { sent: false, reason: "Customer has no email address." };
       else if (!Number.isFinite(total) || total <= 0) invoice = { sent: false, reason: "Shipment has no valid billing total." };
