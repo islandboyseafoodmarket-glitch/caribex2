@@ -12,6 +12,16 @@ type WorkflowStep = { key: string; status: string; label: string; description: s
 type Shipment = { id: string; tracking: string; nombre_paqueteria: string | null; tipo_paquete: string | null; estado: string | null; numero_cliente?: { numero_cliente?: number; nombre?: string } | { numero_cliente?: number; nombre?: string }[] | null };
 type WorkflowResponse = { shipment: Shipment; current: WorkflowStep; next: WorkflowStep | null; workflow: WorkflowStep[] };
 
+function scannerErrorMessage(status: number, payload: any, scannedCode: string) {
+  const serverMessage = typeof payload?.error === "string" ? payload.error : "The scanner action failed.";
+  if (status === 404 || payload?.code === "NOT_FOUND") {
+    return `No shipment was found for “${scannedCode}”. Scan the shipping barcode again, or verify that this tracking number was registered in Receiving.`;
+  }
+  if (status === 401) return "Your staff session has expired. Sign in again before scanning.";
+  if (status === 400 && !payload?.error) return "The scanner sent an empty or invalid barcode. Scan the label again.";
+  return serverMessage;
+}
+
 function parseCode(raw: string) {
   const text = raw.trim();
   if (!text) return "";
@@ -78,11 +88,11 @@ export default function ScannerWorkflowPage() {
       if (!token) throw new Error("Your session has expired. Please sign in again.");
       const response = await fetch(`/api/scanner-workflow?code=${encodeURIComponent(parsedCode)}`, { headers: { Authorization: `Bearer ${token}` } });
       const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error || "Shipment not found");
+      if (!response.ok) throw new Error(scannerErrorMessage(response.status, payload, parsedCode));
       setShipment(payload as WorkflowResponse);
       setMessage({ tone: "info", text: payload.next ? `Ready for: ${payload.next.label}` : "This shipment is already complete." });
     } catch (error) {
-      setMessage({ tone: "error", text: error instanceof Error ? error.message : "Shipment lookup failed" });
+      setMessage({ tone: "error", text: error instanceof Error ? error.message : "The scanner could not look up this shipment." });
     } finally { setLoading(false); }
   }, []);
 
@@ -129,7 +139,7 @@ export default function ScannerWorkflowPage() {
         <div className={styles.cardTitle}><div><h2>Scan shipment</h2><p>Use the dedicated handheld scanner or type the tracking number.</p></div><ScanLine size={25} /></div>
         <div className={styles.scanActions}><button type="button" className={styles.primaryButton} onClick={activateHandheldScanner}><ScanLine size={18} /> Activate scanner</button><div className={styles.or}><span>or</span></div><form className={styles.manualForm} onSubmit={(event) => { event.preventDefault(); void lookup(manualCode); }}><Keyboard size={18} /><input ref={manualInputRef} autoFocus autoComplete="off" value={manualCode} onChange={(event) => setManualCode(event.target.value)} placeholder="Scan or enter tracking number" aria-label="Tracking number" /><button type="submit" disabled={loading || !manualCode.trim()}><Search size={17} /> Find</button></form></div>
         {loading && <div className={styles.busy}>Looking up shipment…</div>}
-        {message && <div className={`${styles.message} ${styles[message.tone]}`}>{message.tone === "success" ? <CheckCircle2 size={20} /> : message.tone === "error" ? <XCircle size={20} /> : <ScanLine size={20} />}<span>{message.text}</span></div>}
+        {message && <div className={`${styles.message} ${styles[message.tone]}`} role={message.tone === "error" ? "alert" : "status"} aria-live="assertive">{message.tone === "success" ? <CheckCircle2 size={20} /> : message.tone === "error" ? <XCircle size={20} /> : <ScanLine size={20} />}<div><strong>{message.tone === "error" ? "SCAN ERROR" : message.tone === "success" ? "SCAN COMPLETE" : "SCANNER READY"}</strong><span>{message.text}</span></div></div>}
       </div>
       {shipment && <section className={styles.shipmentCard}><div className={styles.shipmentTop}><div><p className={styles.eyebrow}>SHIPMENT FOUND</p><h2>{shipment.shipment.tracking}</h2><p>{shipment.shipment.nombre_paqueteria || "Carrier not recorded"} · {shipment.shipment.tipo_paquete || "Package"}</p></div><span className={styles.currentBadge}>{shipment.current.label}</span></div><div className={styles.details}><div><small>Customer</small><strong>{Array.isArray(shipment.shipment.numero_cliente) ? shipment.shipment.numero_cliente[0]?.nombre : shipment.shipment.numero_cliente?.nombre || "Unassigned"}</strong></div><div><small>Account</small><strong>{Array.isArray(shipment.shipment.numero_cliente) ? shipment.shipment.numero_cliente[0]?.numero_cliente || "—" : shipment.shipment.numero_cliente?.numero_cliente || "—"}</strong></div><div><small>Current database status</small><strong>{shipment.shipment.estado || "—"}</strong></div></div><div className={styles.nextAction}>{shipment.next ? <><div><small>NEXT ALLOWED ACTION</small><h3>{shipment.next.label}</h3><p>{shipment.next.description}</p></div><button type="button" className={styles.advanceButton} onClick={() => void advance()} disabled={updating}><CheckCircle2 size={19} /> {updating ? "Updating…" : `Move to ${shipment.next.label}`}</button></> : <div className={styles.complete}><CheckCircle2 size={23} /><div><h3>Workflow complete</h3><p>This shipment is already marked picked up.</p></div></div>}</div><button type="button" className={styles.scanNextButton} onClick={scanNext}><ScanLine size={18} /> Scan next shipment</button></section>}
     </section>
