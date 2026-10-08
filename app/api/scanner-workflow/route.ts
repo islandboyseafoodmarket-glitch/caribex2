@@ -45,8 +45,10 @@ function normalize(value: unknown) {
   return String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
 }
 
-function currentIndex(status: unknown) {
+function currentIndex(status: unknown, deliveredAt?: unknown, unloadedAt?: unknown) {
   const value = normalize(status);
+  if (deliveredAt) return 4;
+  if (unloadedAt && !value.includes("entregado") && !value.includes("recogido") && !value.includes("picked")) return 3;
   if (value.includes("entregado") || value.includes("recogido") || value.includes("picked")) return 4;
   if (value.includes("descargado") || value.includes("unloaded") || value.includes("ready")) return 3;
   if (value.includes("transito") || value.includes("transit")) return 2;
@@ -264,14 +266,14 @@ export async function GET(request: Request) {
     const rawCode = url.searchParams.get("code")?.trim() || "";
     if (!rawCode) return NextResponse.json({ error: "Scan or enter a tracking number" }, { status: 400 });
 
-    let query = supabase.from("paquetes_registro").select("id, tracking, nombre_paqueteria, tipo_paquete, estado, issue_status, numero_cliente_id, billing_subtotal, billing_tax, billing_total, invoice_status, approval_status, numero_cliente:numero_cliente_id (id, numero_cliente, nombre, email, telefono, puerto)");
+    let query = supabase.from("paquetes_registro").select("id, tracking, nombre_paqueteria, tipo_paquete, estado, issue_status, numero_cliente_id, billing_subtotal, billing_tax, billing_total, invoice_status, approval_status, fecha_descargado, hora_descargado, fecha_entregado, hora_entregado, numero_cliente:numero_cliente_id (id, numero_cliente, nombre, email, telefono, puerto)");
     const idMatch = rawCode.match(/(?:pedidos\/)?([0-9a-f]{8}-[0-9a-f-]{27})/i);
     if (idMatch) query = query.eq("id", idMatch[1]);
     else query = query.ilike("tracking", rawCode).neq("estado", "Archivado").order("creado_en", { ascending: false });
     const { data, error } = await query.maybeSingle();
     if (error) throw error;
     if (!data) return NextResponse.json({ error: "Shipment not found", code: "NOT_FOUND" }, { status: 404 });
-    const index = currentIndex(data.estado);
+    const index = currentIndex(data.estado, data.fecha_entregado || data.hora_entregado, data.fecha_descargado || data.hora_descargado);
     const next = index < WORKFLOW.length - 1 ? WORKFLOW[index + 1] : null;
     const customer = Array.isArray(data.numero_cliente) ? data.numero_cliente[0] : data.numero_cliente;
     const puerto = ferryPortForCustomer(customer);
@@ -290,11 +292,11 @@ export async function POST(request: Request) {
     const requestedKey = String(body?.next_key || "").trim();
     if (!shipmentId || !requestedKey) return NextResponse.json({ error: "Shipment and next status are required" }, { status: 400 });
 
-    const { data: shipment, error: lookupError } = await supabase.from("paquetes_registro").select("id, tracking, nombre_paqueteria, contenido, notas, notas_imagenes, estado, issue_status, tipo_paquete, billing_subtotal, billing_tax, billing_total, invoice_status, approval_status, numero_cliente_id, numero_cliente:numero_cliente_id (id, numero_cliente, nombre, email, telefono, puerto)").eq("id", shipmentId).maybeSingle();
+    const { data: shipment, error: lookupError } = await supabase.from("paquetes_registro").select("id, tracking, nombre_paqueteria, contenido, notas, notas_imagenes, estado, issue_status, tipo_paquete, billing_subtotal, billing_tax, billing_total, invoice_status, approval_status, fecha_descargado, hora_descargado, fecha_entregado, hora_entregado, numero_cliente_id, numero_cliente:numero_cliente_id (id, numero_cliente, nombre, email, telefono, puerto)").eq("id", shipmentId).maybeSingle();
     if (lookupError) throw lookupError;
     if (!shipment) return NextResponse.json({ error: "Shipment not found" }, { status: 404 });
 
-    const beforeIndex = currentIndex(shipment.estado);
+    const beforeIndex = currentIndex(shipment.estado, shipment.fecha_entregado || shipment.hora_entregado, shipment.fecha_descargado || shipment.hora_descargado);
     const expectedNext = WORKFLOW[beforeIndex + 1];
     if (!expectedNext || expectedNext.key !== requestedKey) {
       return NextResponse.json({ error: "Only the next workflow status can be applied", current: WORKFLOW[beforeIndex], next: expectedNext || null }, { status: 409 });
