@@ -8,7 +8,7 @@ export async function GET() {
       app: "Caribex Warehouse Management",
       version: "1.2.19",
       version_code: 1219,
-      apk_url: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663449196187/duDnGJFOsBhxNRuA.apk",
+      apk_url: "https://github.com/islandboyseafoodmarket-glitch/caribex2/releases/download/mobile-v1.2.19/app-release.apk",
       filename: "Caribex-Warehouse-Management-1.2.19.apk",
       release_notes: [
         "Web-equivalent Receiving, Check In, consolidation, and customer assignment",
