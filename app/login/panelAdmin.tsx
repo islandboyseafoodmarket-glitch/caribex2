@@ -359,6 +359,7 @@ const App = () => {
 
   const [incidenciaImagenes, setIncidenciaImagenes] = useState<string[] | null>(null);
   const [incidenciaTitulo, setIncidenciaTitulo] = useState<string>("");
+  const [incidenciaImagenesFallidas, setIncidenciaImagenesFallidas] = useState<string[]>([]);
 
   const cargarPersonal = useCallback(async () => {
     const { data, error } = await supabase
@@ -2517,6 +2518,7 @@ const App = () => {
                         disabled={urls.length === 0}
                         onClick={() => {
                           setIncidenciaTitulo(`#${p.tracking}`);
+                          setIncidenciaImagenesFallidas([]);
                           setIncidenciaImagenes(urls);
                         }}
                       >
@@ -2815,6 +2817,7 @@ const App = () => {
           onClick={() => {
             setIncidenciaImagenes(null);
             setIncidenciaTitulo("");
+            setIncidenciaImagenesFallidas([]);
           }}
         >
           <div
@@ -2845,6 +2848,7 @@ const App = () => {
                 onClick={() => {
                   setIncidenciaImagenes(null);
                   setIncidenciaTitulo("");
+                  setIncidenciaImagenesFallidas([]);
                 }}
               >
                 ×
@@ -2871,14 +2875,47 @@ const App = () => {
                     maxHeight: "420px",
                   }}
                 >
-                  <Image
-                    src={url}
-                    alt="Incidencia"
-                    width={800}
-                    height={800}
-                    unoptimized
-                    style={{ width: "100%", height: "100%", objectFit: "contain" }}
-                  />
+                  {incidenciaImagenesFallidas.includes(url) ? (
+                    <div
+                      role="alert"
+                      style={{
+                        minWidth: "280px",
+                        minHeight: "180px",
+                        padding: "1.25rem",
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: "0.75rem",
+                        textAlign: "center",
+                        color: "#991b1b",
+                        background: "#fef2f2",
+                      }}
+                    >
+                      <strong>Photo could not be loaded</strong>
+                      <span style={{ fontSize: "0.82rem", color: "#7f1d1d" }}>
+                        The storage URL was unavailable in this browser.
+                      </span>
+                      <a
+                        href={url}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{ color: "#1d4ed8", fontWeight: 700, textDecoration: "underline" }}
+                      >
+                        Open image in new tab
+                      </a>
+                    </div>
+                  ) : (
+                    <Image
+                      src={url}
+                      alt="Incidencia"
+                      width={800}
+                      height={800}
+                      unoptimized
+                      onError={() => setIncidenciaImagenesFallidas((current) => current.includes(url) ? current : [...current, url])}
+                      style={{ width: "100%", height: "100%", objectFit: "contain" }}
+                    />
+                  )}
                 </div>
               ))}
             </div>
