@@ -3085,7 +3085,8 @@ main {
   .ferry-page { padding: 0; background: #fff; }
   .ferry-header, .ferry-hero, .ferry-meta, .ferry-instructions, .ferry-footer, .ferry-notice, .ferry-error, .ferry-actions { display: none !important; }
   .ferry-section { width: 100%; margin: 0 0 18px; padding: 0; border: 0; box-shadow: none; }
-  .ferry-table { min-width: 0; font-size: 9pt; }
+  .ferry-table { min-width: 0; font-size: 16px; color: #0f172a; }
+  .ferry-table th, .ferry-table td, .ferry-table input, .ferry-table span, .ferry-table strong, .ferry-table svg { font-size: 16px !important; font-weight: 400 !important; }
   .ferry-table th { background: #123b5d; color: #fff; border-bottom-color: #08263d; }
   .ferry-table th:nth-child(1) { background: #0f4c81; }
   .ferry-table th:nth-child(2) { background: #14532d; }
@@ -3094,8 +3095,11 @@ main {
   .ferry-table th:nth-child(5) { background: #0f766e; }
   .ferry-table th:nth-child(6) { background: #7f1d1d; }
   .ferry-table tbody tr:nth-child(even) { background: #eef5fb; }
-  .ferry-table td { border-bottom-color: #94a3b8; }
-  .ferry-table td:nth-child(3) { font-size: 16pt; font-weight: 700; }
+  .ferry-table td { border-bottom-color: #94a3b8; color: #0f172a; }
+  .ferry-table td.ferry-acct-la_ceiba { color: #2563eb; }
+  .ferry-table td.ferry-acct-utila { color: #dc2626; }
+  .ferry-table td.ferry-acct-guanaja { color: #16a34a; }
+  .ferry-table td:nth-child(3) { font-size: 16px; font-weight: 400; }
   .ferry-table input { border: 0; padding: 0; }
   .ferry-print-only { display: table-cell; }
   .ferry-print-only { border-bottom: 0 !important; }

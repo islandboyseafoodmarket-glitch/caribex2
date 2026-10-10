@@ -202,11 +202,6 @@ export function InicioSection({
             </div>
             <div className="inicio-location-info">
               <h4>Roatán</h4>
-              <p>
-                {isEn
-                  ? "Caribbean Hub With Modern Facilities"
-                  : "Centro caribeño con instalaciones modernas"}
-              </p>
             </div>
           </div>
 
@@ -216,11 +211,6 @@ export function InicioSection({
             </div>
             <div className="inicio-location-info">
               <h4>La Ceiba</h4>
-              <p>
-                {isEn
-                  ? "Key Port On The North Coast"
-                  : "Puerto importante en la costa norte"}
-              </p>
             </div>
           </div>
 
@@ -230,11 +220,6 @@ export function InicioSection({
             </div>
             <div className="inicio-location-info">
               <h4>Trujillo</h4>
-              <p>
-                {isEn
-                  ? "Historic Port With Growing Capacity"
-                  : "Puerto histórico con capacidad creciente"}
-              </p>
             </div>
           </div>
 
@@ -244,11 +229,6 @@ export function InicioSection({
             </div>
             <div className="inicio-location-info">
               <h4>San Pedro Sula</h4>
-              <p>
-                {isEn
-                  ? "The Largest Urban Logistics Center In The Interior"
-                  : "El mayor centro logístico urbano del interior"}
-              </p>
             </div>
           </div>
 
@@ -258,11 +238,6 @@ export function InicioSection({
             </div>
             <div className="inicio-location-info">
               <h4>Tegucigalpa</h4>
-              <p>
-                {isEn
-                  ? "Distribution Center For The Capital City"
-                  : "Centro de distribución de la ciudad capital"}
-              </p>
             </div>
           </div>
 
@@ -272,11 +247,6 @@ export function InicioSection({
             </div>
             <div className="inicio-location-info">
               <h4>Guanaja</h4>
-              <p>
-                {isEn
-                  ? "Island Port For Caribbean Routes"
-                  : "Puerto insular para rutas del Caribe"}
-              </p>
             </div>
           </div>
 
@@ -286,11 +256,6 @@ export function InicioSection({
             </div>
             <div className="inicio-location-info">
               <h4>Utila</h4>
-              <p>
-                {isEn
-                  ? "Secondary Gateway To The Caribbean"
-                  : "Puerta de entrada secundaria al Caribe"}
-              </p>
             </div>
           </div>
         </div>

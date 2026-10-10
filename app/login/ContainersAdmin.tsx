@@ -115,6 +115,19 @@ export default function ContainersAdmin() {
       return totals;
     }, { subtotal: 0, additional: 0, tax: 0, total: 0 });
   }, [invoiceGroup]);
+  const selectedTotals = useMemo(() => {
+    return (selected?.shipments || []).reduce((totals, shipment) => {
+      const additional = additionalChargeTotal(shipment.checkin?.cargos_adicionales);
+      const subtotal = Number(shipment.billing_subtotal || 0);
+      const tax = Number(shipment.billing_tax || 0);
+      const total = Number(shipment.billing_total ?? (subtotal + tax)) + additional;
+      totals.subtotal += subtotal;
+      totals.additional += additional;
+      totals.tax += tax;
+      totals.total += total;
+      return totals;
+    }, { subtotal: 0, additional: 0, tax: 0, total: 0 });
+  }, [selected]);
 
   if (loading) return <div className="container-dashboard-state">Loading container dashboard…</div>;
   if (error) return <div className="container-dashboard-state container-dashboard-error">{error}</div>;
@@ -133,6 +146,7 @@ export default function ContainersAdmin() {
         .container-dashboard-metric { padding: 14px; border: 1px solid #e2e8f0; border-radius: 12px; background: #f8fafc; }
         .container-dashboard-metric strong { display: block; color: #0f4c81; font-size: 1.35rem; }
         .container-dashboard-metric span { color: #64748b; font-size: .78rem; }
+        .container-dashboard-scroll { max-height: calc(100vh - 250px); min-height: 0; overflow-y: auto; padding-right: 4px; scrollbar-gutter: stable; }
         .container-dashboard-locations { display: flex; flex-wrap: wrap; gap: 8px; }
         .container-location-chip { padding: 7px 10px; border-radius: 999px; background: #dbeafe; color: #1e3a8a; font-size: .8rem; font-weight: 700; }
         .container-dashboard-table { overflow-x: auto; border: 1px solid #e2e8f0; border-radius: 12px; }
@@ -140,6 +154,12 @@ export default function ContainersAdmin() {
         .container-dashboard-table th, .container-dashboard-table td { padding: 10px; border-bottom: 1px solid #e2e8f0; text-align: left; vertical-align: top; }
         .container-dashboard-table th { background: #f8fafc; color: #475569; font-size: .74rem; text-transform: uppercase; letter-spacing: .04em; }
         .container-dashboard-table tr:last-child td { border-bottom: 0; }
+        .container-dashboard-total-card { margin: 16px 0 4px auto; width: min(420px, 100%); display: grid; gap: 8px; padding: 16px; border: 1px solid #bfdbfe; border-radius: 14px; background: #eff6ff; }
+        .container-dashboard-total-card > div { display: flex; justify-content: space-between; gap: 16px; color: #334155; }
+        .container-dashboard-total-card span { font-size: .84rem; }
+        .container-dashboard-total-card strong { color: #0f172a; }
+        .container-dashboard-grand-total { border-top: 2px solid #0f4c81; padding-top: 10px; color: #0f4c81 !important; font-size: 1.1rem; font-weight: 900; }
+        .container-dashboard-grand-total strong { color: #0f4c81; font-size: 1.2rem; }
         .container-customer-button { border: 0; padding: 0; background: transparent; color: #0f4c81; font: inherit; font-weight: 800; text-align: left; text-decoration: underline; cursor: pointer; }
         .container-dashboard-state { padding: 32px; text-align: center; color: #64748b; }
         .container-dashboard-error { color: #b91c1c; background: #fef2f2; border-radius: 12px; }
@@ -156,7 +176,7 @@ export default function ContainersAdmin() {
         .container-invoice-total-row { display: flex; justify-content: space-between; gap: 16px; }
         .container-invoice-total-row.final { border-top: 2px solid #0f4c81; padding-top: 8px; color: #0f4c81; font-size: 1.1rem; font-weight: 900; }
         @media (max-width: 800px) { .container-dashboard-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-        @media print { @page { size: landscape; margin: 9mm; } body { print-color-adjust: exact; -webkit-print-color-adjust: exact; } body * { visibility: hidden !important; } .container-dashboard, .container-dashboard *, .container-invoice-modal, .container-invoice-modal * { visibility: visible !important; } .container-dashboard { position: static; width: 100%; color: #0f172a; font-family: Arial, sans-serif; } .container-dashboard-toolbar, .container-dashboard-metrics, .container-dashboard-locations, .container-dashboard-filter, .container-invoice-close { display: none !important; } .container-dashboard-table { overflow: visible; border: 0; } .container-dashboard-table table { width: 100%; min-width: 0; table-layout: auto; font-size: 9px; } .container-dashboard-table th { background: #0f304b !important; color: #fff !important; padding: 6px 5px; white-space: nowrap; } .container-dashboard-table td { padding: 5px; border-bottom: 1px solid #94a3b8; } .container-customer-button { color: inherit; text-decoration: none; } .container-invoice-backdrop { position: static; padding: 0; background: #fff; } .container-invoice-modal { width: 100%; max-height: none; overflow: visible; box-shadow: none; } }
+        @media print { @page { size: landscape; margin: 9mm; } body { print-color-adjust: exact; -webkit-print-color-adjust: exact; } body * { visibility: hidden !important; } .container-dashboard, .container-dashboard *, .container-invoice-modal, .container-invoice-modal * { visibility: visible !important; } .container-dashboard { position: static; width: 100%; color: #0f172a; font-family: Arial, sans-serif; } .container-dashboard-toolbar, .container-dashboard-metrics, .container-dashboard-locations, .container-dashboard-filter, .container-invoice-close { display: none !important; } .container-dashboard-scroll { max-height: none; overflow: visible; padding-right: 0; } .container-dashboard-table { overflow: visible; border: 0; } .container-dashboard-table table { width: 100%; min-width: 0; table-layout: auto; font-size: 16px; } .container-dashboard-table th { background: #0f304b !important; color: #fff !important; padding: 9px 7px; white-space: normal; font-size: 16px; } .container-dashboard-table td { padding: 9px 7px; border-bottom: 1px solid #94a3b8; font-size: 16px; } .container-dashboard-total-card { width: 420px; font-size: 16px; } .container-dashboard-total-card span, .container-dashboard-total-card strong { font-size: 16px; } .container-dashboard-grand-total, .container-dashboard-grand-total strong { font-size: 18px; } .container-customer-button { color: inherit; text-decoration: none; } .container-invoice-backdrop { position: static; padding: 0; background: #fff; } .container-invoice-modal { width: 100%; max-height: none; overflow: visible; box-shadow: none; } }
       `}</style>
       <div className="container-dashboard-toolbar">
         <select value={selectedId} onChange={(event) => setSelectedId(event.target.value)} aria-label="Select container">
@@ -172,7 +192,7 @@ export default function ContainersAdmin() {
         <div className="container-dashboard-metric"><strong>{selected?.shipments.length || 0}</strong><span>Selected container shipments</span></div>
         <div className="container-dashboard-metric"><strong>{locationSummary.length}</strong><span>Locations in selected container</span></div>
       </div>
-      {selected && <>
+      {selected && <div className="container-dashboard-scroll">
         <div><strong>{selected.codigo}</strong> <span style={{ color: "#64748b" }}>created {dateLabel(selected.creado_en)}</span></div>
         <div className="container-dashboard-locations">{locationSummary.map(([location, count]) => <span className="container-location-chip" key={location}>{location}: {count}</span>)}</div>
         <div className="container-dashboard-table">
@@ -200,7 +220,13 @@ export default function ContainersAdmin() {
             }))}</tbody>
           </table>
         </div>
-      </>}
+        <div className="container-dashboard-total-card" aria-label={`Grand total for ${selected.codigo}`}>
+          <div><span>Container subtotal</span><strong>{money(selectedTotals.subtotal)}</strong></div>
+          <div><span>Additional charges</span><strong>{money(selectedTotals.additional)}</strong></div>
+          <div><span>Tax</span><strong>{money(selectedTotals.tax)}</strong></div>
+          <div className="container-dashboard-grand-total"><span>Container grand total</span><strong>{money(selectedTotals.total)}</strong></div>
+        </div>
+      </div>}
       {invoiceGroup && selected && <div className="container-invoice-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setInvoiceGroup(null); }}>
         <section className="container-invoice-modal" role="dialog" aria-modal="true" aria-labelledby="container-invoice-title">
           <div className="container-invoice-header">
