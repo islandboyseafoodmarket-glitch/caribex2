@@ -162,6 +162,7 @@ export default function ReportsAdmin() {
             <div className="caribex-report-detail-card"><strong>Carrier</strong>{detail.shipment.nombre_paqueteria || "—"}</div>
             <div className="caribex-report-detail-card"><strong>Received date</strong>{detail.shipment.hora_fecha || detail.shipment.creado_en || "—"}</div>
             <div className="caribex-report-detail-card"><strong>Check In records</strong>{detail.checkins.length}</div>
+            <div className="caribex-report-detail-card"><strong>Original intake</strong>{detail.logs.some((log: any) => log.action === "receiving_package_created" && log.details?.owner_unknown === true) ? "Received as unknown owner" : "Customer known at receipt"}</div>
           </div>
           <div className="caribex-report-detail-section"><h4>Notes</h4><p style={{ whiteSpace: "pre-wrap", margin: 0 }}>{detail.shipment.notas || "No notes recorded."}</p></div>
           <div className="caribex-report-detail-section"><h4>Photos</h4>{(Array.isArray(detail.shipment.notas_imagenes) ? detail.shipment.notas_imagenes : typeof detail.shipment.notas_imagenes === "string" ? [detail.shipment.notas_imagenes] : []).length ? <div className="caribex-report-photo-grid">{(Array.isArray(detail.shipment.notas_imagenes) ? detail.shipment.notas_imagenes : [detail.shipment.notas_imagenes]).filter(Boolean).map((url: string) => <a href={url} target="_blank" rel="noreferrer" key={url}><img src={url} alt={`Photo for ${detail.shipment.tracking || "shipment"}`} /></a>)}</div> : <p style={{ margin: 0 }}>No photos recorded.</p>}</div>
