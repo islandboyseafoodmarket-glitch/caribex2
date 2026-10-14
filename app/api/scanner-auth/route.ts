@@ -5,8 +5,11 @@ export const dynamic = "force-dynamic";
 
 const WORKFLOW_ROLES = ["Receiving", "Check In", "Container Unloading", "Client Pickup"];
 
-function approvedRoles(value: unknown, isAdmin: boolean) {
+function approvedRoles(value: unknown, permissions: unknown, isAdmin: boolean) {
   if (isAdmin) return WORKFLOW_ROLES;
+  if (permissions && typeof permissions === "object" && (permissions as { shipment_workflow?: unknown }).shipment_workflow === true) {
+    return WORKFLOW_ROLES;
+  }
   if (Array.isArray(value)) return value.filter((role): role is string => typeof role === "string" && WORKFLOW_ROLES.includes(role));
   if (typeof value === "string") {
     const roles = value.split(/[,|;]/).map((role) => role.trim()).filter(Boolean);
@@ -39,7 +42,7 @@ export async function POST(request: Request) {
     const userId = result.data.user.id;
     const [{ data: admin }, { data: staff }] = await Promise.all([
       supabase.from("administradores").select("id, rol").eq("id", userId).maybeSingle(),
-      supabase.from("personal").select("id, nombre, nombre_personal, rol").eq("id", userId).maybeSingle(),
+      supabase.from("personal").select("id, nombre, nombre_personal, rol, permissions").eq("id", userId).maybeSingle(),
     ]);
     if (!admin && !staff) return NextResponse.json({ error: "This account is not authorized for warehouse workflow access" }, { status: 403 });
 
@@ -47,7 +50,7 @@ export async function POST(request: Request) {
       session: { access_token: result.data.session.access_token, refresh_token: result.data.session.refresh_token },
       operator: staff?.nombre || staff?.nombre_personal || result.data.user.email || "Staff",
       role: admin ? "admin" : "staff",
-      approved_roles: approvedRoles(staff?.rol, Boolean(admin)),
+      approved_roles: approvedRoles(staff?.rol, staff?.permissions, Boolean(admin)),
     });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Authentication failed" }, { status: 500 });
