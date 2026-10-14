@@ -173,7 +173,7 @@ export async function PATCH(request: Request) {
         matches: existingMatches.map((match) => ({ id: match.id, tracking: match.tracking, current_status: match.estado })),
       }, { status: 409 });
     }
-    const changedFields = (Object.keys(update) as Array<keyof typeof update>).filter((field) => String(existingPackage[field] ?? "") !== String(update[field] ?? ""));
+    const changedFields: string[] = (Object.keys(update) as Array<keyof typeof update>).filter((field) => String(existingPackage[field] ?? "") !== String(update[field] ?? ""));
     const hasCheckinFields = [body?.alto, body?.ancho, body?.largo, body?.peso, body?.cargos_adicionales].some((value) => value !== undefined);
     const { data: existingCheckin } = hasCheckinFields
       ? await supabase.from("paquetes_checkin").select("id, alto, ancho, largo, peso, cargos_adicionales").eq("paquete_id", id).order("creado_en", { ascending: false }).limit(1).maybeSingle()
