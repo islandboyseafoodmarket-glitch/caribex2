@@ -83,7 +83,7 @@ export async function GET(request: Request) {
     if (checkinError) throw checkinError;
     const checkinByPackage = new Map<string, any>();
     for (const row of checkins || []) checkinByPackage.set(String(row.paquete_id), row);
-    return NextResponse.json({ stage, status_values: statuses, packages: (data || []).map((row) => ({ ...row, checkin: checkinByPackage.get(String(row.id)) || null })) });
+    return NextResponse.json({ stage, status_values: statuses, packages: (data || []).map((row) => ({ ...row, notas: removeUnknownOwnerMarker(row.notas || null, row.numero_cliente_id || null), checkin: checkinByPackage.get(String(row.id)) || null })) });
   } catch (error) { return errorResponse(error); }
 }
 

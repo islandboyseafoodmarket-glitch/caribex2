@@ -2429,7 +2429,11 @@ const App = () => {
                   p.clienteNumero != null && p.clienteNombre
                     ? `#${p.clienteNumero} - ${p.clienteNombre}`
                     : "Unknown owner / pending identification";
-                const descripcion = p.notas?.trim() || (!p.numero_cliente_id ? "Shipment has no assigned customer." : "Sin descripción");
+                const descripcion = (p.notas || "")
+                  .split(/\r?\n/)
+                  .filter((line) => !(p.numero_cliente_id && /^unknown owner\s*-\s*pending customer identification$/i.test(line.trim())))
+                  .join("\n")
+                  .trim() || (!p.numero_cliente_id ? "Shipment has no assigned customer." : "Sin descripción");
                 const urls = obtenerUrlsIncidencia(p);
 
                 return (
