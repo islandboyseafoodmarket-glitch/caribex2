@@ -463,7 +463,7 @@ export async function POST(request: Request) {
       details: { from_status: shipment.estado, to_status: expectedNext.status, invoice_sent: invoice.sent, invoice_reason: invoice.reason || null, source: "scanner_workflow_app" },
       user_agent: request.headers.get("user-agent") || null,
     });
-    return NextResponse.json({ ok: true, previous: WORKFLOW[beforeIndex], current: expectedNext, tracking: shipment.tracking, unloaded_children: unloadedChildren, picked_up_children: pickedUpChildren, invoice, ferry });
+    return NextResponse.json({ ok: true, previous: WORKFLOW[beforeIndex], current: expectedNext, next: WORKFLOW[beforeIndex + 2] || null, tracking: shipment.tracking, unloaded_children: unloadedChildren, picked_up_children: pickedUpChildren, invoice, ferry });
   } catch (error) {
     return errorResponse(error);
   }
