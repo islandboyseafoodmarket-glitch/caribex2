@@ -41,6 +41,16 @@ function normalizeUspsTracking(tracking: string, carrier: string) {
   return value;
 }
 
+function removeUnknownOwnerMarker(notes: string | null, customerId: string | null) {
+  if (!customerId || !notes) return notes;
+  const cleaned = notes
+    .split(/\r?\n/)
+    .filter((line) => !/^unknown owner\s*-\s*pending customer identification$/i.test(line.trim()))
+    .join("\n")
+    .trim();
+  return cleaned || null;
+}
+
 async function findTrackingMatches(supabase: SupabaseClient, tracking: string, excludeId?: string) {
   let query = supabase
     .from("paquetes_registro")
@@ -145,7 +155,7 @@ export async function PATCH(request: Request) {
     if (!id) return NextResponse.json({ error: "Package id is required" }, { status: 400 });
     const customerId = String(body?.customer_id || "").trim() || null;
     const carrier = String(body?.carrier || "").trim();
-    const update = { tracking: normalizeUspsTracking(String(body?.tracking || ""), carrier), nombre_paqueteria: carrier, tipo_paquete: body?.type === "BOX" ? "BOX" : "PACKAGE", contenido: String(body?.contents || "").trim() || null, notas: String(body?.note || "").trim() || null, numero_cliente_id: customerId };
+    const update = { tracking: normalizeUspsTracking(String(body?.tracking || ""), carrier), nombre_paqueteria: carrier, tipo_paquete: body?.type === "BOX" ? "BOX" : "PACKAGE", contenido: String(body?.contents || "").trim() || null, notas: removeUnknownOwnerMarker(String(body?.note || "").trim() || null, customerId), numero_cliente_id: customerId };
     if (!update.tracking) return NextResponse.json({ error: "Tracking number is required" }, { status: 400 });
     const { data: existingPackage, error: existingPackageError } = await supabase
       .from("paquetes_registro")

@@ -637,6 +637,14 @@ const App = () => {
       if (!confirmado) return;
     }
 
+    const savedNotes = pedidoForm.numero_cliente_id
+      ? pedidoForm.notas
+          .split(/\r?\n/)
+          .filter((line) => !/^unknown owner\s*-\s*pending customer identification$/i.test(line.trim()))
+          .join("\n")
+          .trim() || null
+      : pedidoForm.notas || null;
+
     const { error } = await supabase
       .from("paquetes_registro")
       .update({
@@ -644,7 +652,7 @@ const App = () => {
         nombre_paqueteria: pedidoForm.carrier || null,
         tipo_paquete: pedidoForm.tipo_paquete,
         contenido: pedidoForm.contenido || null,
-        notas: pedidoForm.notas || null,
+        notas: savedNotes,
         estado: pedidoForm.estado || null,
         numero_cliente_id: pedidoForm.numero_cliente_id || null,
         registro: pedidoForm.registro || null,
