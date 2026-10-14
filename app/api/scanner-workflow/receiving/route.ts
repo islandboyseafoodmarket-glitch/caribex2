@@ -147,6 +147,13 @@ export async function PATCH(request: Request) {
     const carrier = String(body?.carrier || "").trim();
     const update = { tracking: normalizeUspsTracking(String(body?.tracking || ""), carrier), nombre_paqueteria: carrier, tipo_paquete: body?.type === "BOX" ? "BOX" : "PACKAGE", contenido: String(body?.contents || "").trim() || null, notas: String(body?.note || "").trim() || null, numero_cliente_id: customerId };
     if (!update.tracking) return NextResponse.json({ error: "Tracking number is required" }, { status: 400 });
+    const { data: existingPackage, error: existingPackageError } = await supabase
+      .from("paquetes_registro")
+      .select("id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, numero_cliente_id")
+      .eq("id", id)
+      .maybeSingle();
+    if (existingPackageError) throw existingPackageError;
+    if (!existingPackage) return NextResponse.json({ error: "Package not found" }, { status: 404 });
     const existingMatches = await findTrackingMatches(supabase, update.tracking, id);
     if (existingMatches.length) {
       return NextResponse.json({
@@ -156,26 +163,39 @@ export async function PATCH(request: Request) {
         matches: existingMatches.map((match) => ({ id: match.id, tracking: match.tracking, current_status: match.estado })),
       }, { status: 409 });
     }
-    const { data, error } = await supabase.from("paquetes_registro").update(update).eq("id", id).select("id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, registro, estado, hora_fecha").single();
-    if (error) throw error;
+    const changedFields = (Object.keys(update) as Array<keyof typeof update>).filter((field) => String(existingPackage[field] ?? "") !== String(update[field] ?? ""));
     const hasCheckinFields = [body?.alto, body?.ancho, body?.largo, body?.peso, body?.cargos_adicionales].some((value) => value !== undefined);
+    const { data: existingCheckin } = hasCheckinFields
+      ? await supabase.from("paquetes_checkin").select("id, alto, ancho, largo, peso, cargos_adicionales").eq("paquete_id", id).order("creado_en", { ascending: false }).limit(1).maybeSingle()
+      : { data: null };
+    const checkinUpdate = hasCheckinFields ? {
+      alto: body?.alto === "" || body?.alto == null ? null : Number(body.alto),
+      ancho: body?.ancho === "" || body?.ancho == null ? null : Number(body.ancho),
+      largo: body?.largo === "" || body?.largo == null ? null : Number(body.largo),
+      peso: body?.peso === "" || body?.peso == null ? null : Number(body.peso),
+      cargos_adicionales: String(body?.cargos_adicionales || "").trim() || null,
+    } : null;
+    if (checkinUpdate) {
+      (Object.keys(checkinUpdate) as Array<keyof typeof checkinUpdate>).forEach((field) => {
+        if (String(existingCheckin?.[field] ?? "") !== String(checkinUpdate[field] ?? "")) changedFields.push(`checkin.${field}`);
+      });
+    }
+    const { data, error } = await supabase.from("paquetes_registro").update(update).eq("id", id).select("id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, registro, estado, hora_fecha, numero_cliente_id").single();
+    if (error) throw error;
     if (hasCheckinFields) {
       const checkinPayload = {
         paquete_id: id,
-        alto: body?.alto === "" || body?.alto == null ? null : Number(body.alto),
-        ancho: body?.ancho === "" || body?.ancho == null ? null : Number(body.ancho),
-        largo: body?.largo === "" || body?.largo == null ? null : Number(body.largo),
-        peso: body?.peso === "" || body?.peso == null ? null : Number(body.peso),
-        cargos_adicionales: String(body?.cargos_adicionales || "").trim() || null,
+        ...checkinUpdate,
       };
-      const { data: existingCheckin } = await supabase.from("paquetes_checkin").select("id").eq("paquete_id", id).order("creado_en", { ascending: false }).limit(1).maybeSingle();
       const checkinResult = existingCheckin?.id
         ? await supabase.from("paquetes_checkin").update(checkinPayload).eq("id", existingCheckin.id)
         : await supabase.from("paquetes_checkin").insert(checkinPayload);
       if (checkinResult.error) throw checkinResult.error;
     }
-    await supabase.from("staff_action_logs").insert({ actor_id: actor.user.id, actor_name: actor.name, actor_email: actor.user.email || null, actor_role: actor.role, action: "receiving_package_updated", entity_type: "paquetes_registro", entity_id: id, tracking: data.tracking, success: true, details: { customer_id: customerId, source: "scanner_workflow_app" } });
-    return NextResponse.json({ package: data });
+    if (changedFields.length) {
+      await supabase.from("staff_action_logs").insert({ actor_id: actor.user.id, actor_name: actor.name, actor_email: actor.user.email || null, actor_role: actor.role, action: "receiving_package_updated", entity_type: "paquetes_registro", entity_id: id, tracking: data.tracking, success: true, details: { changed_fields: changedFields, customer_id: customerId, source: "scanner_workflow_app" } });
+    }
+    return NextResponse.json({ package: data, changed: changedFields.length > 0, changed_fields: changedFields });
   } catch (error) { return errorResponse(error); }
 }
 
