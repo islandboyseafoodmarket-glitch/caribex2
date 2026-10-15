@@ -29,16 +29,24 @@ function errorResponse(error: unknown) {
   return NextResponse.json({ error: message }, { status: /authentication|token|access|required/i.test(message) ? 401 : 500 });
 }
 
-function normalizeUspsTracking(tracking: string, carrier: string) {
+function normalizeUspsTracking(tracking: string) {
   const value = tracking.trim().toUpperCase();
-  const carrierValue = carrier.trim().toUpperCase();
-  // The installed Caribex APK sends the full USPS barcode payload. For the
-  // numeric USPS labels used by Caribex, the first three digits are the
-  // service prefix and are not part of the customer-facing tracking number.
-  if (carrierValue === "USPS" && /^\d{20}$|^\d{22}$/.test(value)) {
-    return value.slice(3);
-  }
+  // The number printed under USPS TRACKING # is the customer-facing number.
+  // Preserve it exactly; routing prefixes are removed by carrier detection
+  // before this API is called, not by shortening a valid 20/22-digit number.
   return value;
+}
+
+function trackingCandidates(tracking: string, carrier = "") {
+  const value = normalizeUspsTracking(tracking);
+  const candidates = [value];
+  // Records created by the old bug may have the first three USPS digits
+  // removed. Keep them findable and prevent a duplicate while they are being
+  // corrected, but always save new records with the complete value.
+  if (carrier.trim().toUpperCase() === "USPS" && /^\d{20}$|^\d{22}$/.test(value)) {
+    candidates.push(value.slice(3));
+  }
+  return Array.from(new Set(candidates));
 }
 
 function removeUnknownOwnerMarker(notes: string | null, customerId: string | null) {
@@ -51,11 +59,11 @@ function removeUnknownOwnerMarker(notes: string | null, customerId: string | nul
   return cleaned || null;
 }
 
-async function findTrackingMatches(supabase: SupabaseClient, tracking: string, excludeId?: string) {
+async function findTrackingMatches(supabase: SupabaseClient, tracking: string, carrier = "", excludeId?: string) {
   let query = supabase
     .from("paquetes_registro")
     .select("id, tracking, estado")
-    .ilike("tracking", tracking)
+    .in("tracking", trackingCandidates(tracking, carrier))
     .neq("estado", "Archivado")
     .limit(10);
   if (excludeId) query = query.neq("id", excludeId);
@@ -98,7 +106,7 @@ export async function POST(request: Request) {
     const noteText = value("note").trim();
     const photo = isMultipart ? body.get("photo") : null;
     const carrier = value("carrier").trim();
-    const tracking = normalizeUspsTracking(value("tracking"), carrier);
+    const tracking = normalizeUspsTracking(value("tracking"));
     const type = value("type") === "BOX" ? "BOX" : value("type") === "PACKAGE" ? "PACKAGE" : "";
     const dimensions = {
       alto: value("alto") === "" ? null : Number(value("alto")),
@@ -111,7 +119,7 @@ export async function POST(request: Request) {
     if (ownerUnknown && !noteText && !(photo instanceof File && photo.size > 0)) return NextResponse.json({ error: "Unknown Owner requires an internal note or a photo" }, { status: 400 });
     if (photo && !(photo instanceof File)) return NextResponse.json({ error: "Invalid photo upload" }, { status: 400 });
     if (photo instanceof File && photo.size > 8 * 1024 * 1024) return NextResponse.json({ error: "Photo must be 8 MB or smaller" }, { status: 400 });
-    const existingMatches = await findTrackingMatches(supabase, tracking);
+    const existingMatches = await findTrackingMatches(supabase, tracking, carrier);
     if (existingMatches.length) {
       const existing = existingMatches[0];
       return NextResponse.json({
@@ -155,7 +163,7 @@ export async function PATCH(request: Request) {
     if (!id) return NextResponse.json({ error: "Package id is required" }, { status: 400 });
     const customerId = String(body?.customer_id || "").trim() || null;
     const carrier = String(body?.carrier || "").trim();
-    const update = { tracking: normalizeUspsTracking(String(body?.tracking || ""), carrier), nombre_paqueteria: carrier, tipo_paquete: body?.type === "BOX" ? "BOX" : "PACKAGE", contenido: String(body?.contents || "").trim() || null, notas: removeUnknownOwnerMarker(String(body?.note || "").trim() || null, customerId), numero_cliente_id: customerId };
+    const update = { tracking: normalizeUspsTracking(String(body?.tracking || "")), nombre_paqueteria: carrier, tipo_paquete: body?.type === "BOX" ? "BOX" : "PACKAGE", contenido: String(body?.contents || "").trim() || null, notas: removeUnknownOwnerMarker(String(body?.note || "").trim() || null, customerId), numero_cliente_id: customerId };
     if (!update.tracking) return NextResponse.json({ error: "Tracking number is required" }, { status: 400 });
     const { data: existingPackage, error: existingPackageError } = await supabase
       .from("paquetes_registro")
@@ -164,7 +172,7 @@ export async function PATCH(request: Request) {
       .maybeSingle();
     if (existingPackageError) throw existingPackageError;
     if (!existingPackage) return NextResponse.json({ error: "Package not found" }, { status: 404 });
-    const existingMatches = await findTrackingMatches(supabase, update.tracking, id);
+    const existingMatches = await findTrackingMatches(supabase, update.tracking, carrier, id);
     if (existingMatches.length) {
       return NextResponse.json({
         error: "That tracking number belongs to another shipment and cannot be reused.",

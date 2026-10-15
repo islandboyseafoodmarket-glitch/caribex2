@@ -269,7 +269,14 @@ export async function GET(request: Request) {
     let query = supabase.from("paquetes_registro").select("id, tracking, nombre_paqueteria, tipo_paquete, estado, issue_status, numero_cliente_id, billing_subtotal, billing_tax, billing_total, invoice_status, approval_status, fecha_descargado, hora_descargado, fecha_entregado, hora_entregado, numero_cliente:numero_cliente_id (id, numero_cliente, nombre, email, telefono, puerto)");
     const idMatch = rawCode.match(/(?:pedidos\/)?([0-9a-f]{8}-[0-9a-f-]{27})/i);
     if (idMatch) query = query.eq("id", idMatch[1]);
-    else query = query.ilike("tracking", rawCode).neq("estado", "Archivado").order("creado_en", { ascending: false });
+    else {
+      const trackingCandidates = [rawCode];
+      // Backward compatibility for USPS records created before the prefix
+      // truncation bug was removed from Receiving. New records use the full
+      // 20/22-digit number printed under USPS TRACKING #.
+      if (/^9[2345]\d{18}(?:\d{2})?$/.test(rawCode)) trackingCandidates.push(rawCode.slice(3));
+      query = query.in("tracking", Array.from(new Set(trackingCandidates))).neq("estado", "Archivado").order("creado_en", { ascending: false });
+    }
     const { data, error } = await query.maybeSingle();
     if (error) throw error;
     if (!data) return NextResponse.json({ error: "Shipment not found", code: "NOT_FOUND" }, { status: 404 });
