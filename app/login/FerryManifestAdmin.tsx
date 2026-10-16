@@ -17,6 +17,7 @@ type Manifest = {
   entry_count: number;
 };
 type AdminEntry = { id: string; puerto: string; numero_cuenta: string; nombre_cliente: string; numero_reserva: string | null; nombre_receptor: string | null; enviado_en: string | null };
+const CARIBEX_WHATSAPP_NUMBER = "50489467476";
 
 function dateLabel(value: string) {
   return new Intl.DateTimeFormat("en-US", { dateStyle: "medium" }).format(new Date(value));
@@ -107,7 +108,7 @@ export default function FerryManifestAdmin() {
   const shareWhatsApp = (token: string) => {
     const link = `${window.location.origin}/ferry-manifest/${token}`;
     const message = `Caribex Ferry Report — enter booking numbers here: ${link}`;
-    window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, "_blank", "noopener,noreferrer");
+    window.open(`https://wa.me/${CARIBEX_WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`, "_blank", "noopener,noreferrer");
   };
 
   const openManifest = (token: string) => {
