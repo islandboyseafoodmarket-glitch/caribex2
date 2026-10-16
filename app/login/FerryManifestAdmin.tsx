@@ -105,10 +105,12 @@ export default function FerryManifestAdmin() {
     setNotice("Manifest link copied to clipboard.");
   };
 
-  const shareWhatsApp = (token: string) => {
-    const link = `${window.location.origin}/ferry-manifest/${token}`;
+  const manifestLink = (token: string) => `${window.location.origin}/ferry-manifest/${token}`;
+
+  const whatsappUrl = (token: string) => {
+    const link = manifestLink(token);
     const message = `Caribex Ferry Report — enter booking numbers here: ${link}`;
-    window.open(`https://wa.me/${CARIBEX_WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`, "_blank", "noopener,noreferrer");
+    return `https://api.whatsapp.com/send?phone=${CARIBEX_WHATSAPP_NUMBER}&text=${encodeURIComponent(message)}`;
   };
 
   const openManifest = (token: string) => {
@@ -186,7 +188,7 @@ export default function FerryManifestAdmin() {
 
       {notice && <div style={{ padding: "0.7rem 0.85rem", marginBottom: "0.8rem", background: "#ecfdf5", color: "#166534", borderRadius: "10px", fontSize: "0.85rem" }}>{notice}</div>}
       {error && <div style={{ padding: "0.7rem 0.85rem", marginBottom: "0.8rem", background: "#fef2f2", color: "#b91c1c", borderRadius: "10px", fontSize: "0.85rem" }}>{error}</div>}
-      {lastToken && <div style={{ padding: "0.7rem 0.85rem", marginBottom: "1rem", background: "#eff6ff", color: "#1e40af", borderRadius: "10px", fontSize: "0.85rem", display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}><Clipboard size={16} /> New ferry link is ready. <button type="button" onClick={() => void copyToken(lastToken)} style={{ border: 0, background: "transparent", color: "#1d4ed8", fontWeight: 700, cursor: "pointer", display: "inline-flex", gap: "0.3rem", alignItems: "center" }}><Copy size={14} /> Copy link</button><button type="button" onClick={() => shareWhatsApp(lastToken)} style={{ border: 0, background: "transparent", color: "#15803d", fontWeight: 700, cursor: "pointer", display: "inline-flex", gap: "0.3rem", alignItems: "center" }}><MessageCircle size={14} /> Send by WhatsApp</button></div>}
+      {lastToken && <div style={{ padding: "0.7rem 0.85rem", marginBottom: "1rem", background: "#eff6ff", color: "#1e40af", borderRadius: "10px", fontSize: "0.85rem", display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}><Clipboard size={16} /> New ferry link is ready. <button type="button" onClick={() => void copyToken(lastToken)} style={{ border: 0, background: "transparent", color: "#1d4ed8", fontWeight: 700, cursor: "pointer", display: "inline-flex", gap: "0.3rem", alignItems: "center" }}><Copy size={14} /> Copy link</button><a href={whatsappUrl(lastToken)} target="_blank" rel="noopener noreferrer" style={{ border: 0, background: "transparent", color: "#15803d", fontWeight: 700, cursor: "pointer", display: "inline-flex", gap: "0.3rem", alignItems: "center", textDecoration: "none" }}><MessageCircle size={14} /> Send by WhatsApp</a></div>}
 
       {loading ? <p style={{ color: "#64748b" }}>Loading ferry manifests…</p> : manifests.length === 0 ? (
         <div style={{ padding: "2rem 1rem", textAlign: "center", color: "#64748b", border: "1px dashed #cbd5e1", borderRadius: "14px" }}><Ship size={28} style={{ marginBottom: "0.5rem", color: "#2563eb" }} /><div>No ferry manifests yet.</div><small>Choose an existing container above to generate the first manifest.</small></div>
@@ -203,7 +205,7 @@ export default function FerryManifestAdmin() {
                 <button type="button" className="pa-primary-btn" onClick={() => void openAdminEntryForm(manifest)} style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", whiteSpace: "nowrap" }}>{manifest.estado === "active" ? "Enter bookings manually" : "Edit booking numbers"}</button>
                 <button type="button" className="pa-secondary-btn" onClick={() => openManifest(manifest.token)} style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem" }}><ExternalLink size={14} /> Preview</button>
                 <button type="button" className="pa-secondary-btn" onClick={() => void copyToken(manifest.token)} style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem" }}><Copy size={14} /> Copy link</button>
-                <button type="button" className="pa-secondary-btn" onClick={() => shareWhatsApp(manifest.token)} style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", color: "#15803d" }}><MessageCircle size={14} /> WhatsApp</button>
+                <a className="pa-secondary-btn" href={whatsappUrl(manifest.token)} target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", color: "#15803d", textDecoration: "none" }}><MessageCircle size={14} /> WhatsApp</a>
                 {manifest.estado === "active" && <button type="button" onClick={() => void archiveManifest(manifest)} style={{ border: "1px solid #fed7aa", background: "#fff7ed", color: "#c2410c", borderRadius: "999px", padding: "0.45rem 0.75rem", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "0.3rem" }}><Archive size={14} /> Archive</button>}
               </div>
             </div>
