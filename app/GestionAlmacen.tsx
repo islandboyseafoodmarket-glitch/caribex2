@@ -10,6 +10,7 @@ import React, {
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { centralAmericaDateParts, formatStaffDateTime } from "../lib/staff-date-format";
+import { formatPortName } from "../lib/port-format";
 import { invoiceApprovalStatus } from "../lib/invoice-approval";
 import { detectCarrier } from "./lib/carrierDetection";
 
@@ -1554,7 +1555,7 @@ export default function GestionAlmacen() {
       const id = client.id || `number:${client.numero_cliente}`;
       const existing = grouped.get(id);
       if (existing) {
-        existing.location = client.puerto || "-";
+        existing.location = formatPortName(client.puerto, "-");
         if (existing.email === "-") existing.email = client.email || "-";
       } else {
         grouped.set(id, {
@@ -1562,7 +1563,7 @@ export default function GestionAlmacen() {
           name: client.nombre,
           number: client.numero_cliente,
           email: "-",
-          location: client.puerto || "-",
+          location: formatPortName(client.puerto, "-"),
           packages: [],
         });
       }
@@ -3387,7 +3388,8 @@ const handleConfirmTransit = async () => {
   if (!selectedPackage) return;
 
   const now = new Date();
-  const codigoContenedor = `CONT-${now.toISOString().slice(0, 10)}-${String(Date.now()).slice(-6)}`;
+  const { date: containerDate } = centralAmericaDateParts(now);
+  const codigoContenedor = `CONT-${containerDate}`;
   const { data: contData, error: contError } = await supabase
     .from("contenedores")
     .insert({ codigo: codigoContenedor })

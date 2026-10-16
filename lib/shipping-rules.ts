@@ -44,4 +44,8 @@ export function normalizeFerryPort(value: unknown): FerryPort | null {
 }
 
 export const RECEIVING_STAGE_QUERY = [DATABASE_STATUS.RECEIVED] as const;
-export const CHECK_IN_STAGE_QUERY = [DATABASE_STATUS.CHECK_IN, "Check In", "Check-in"] as const;
+// A newly received shipment remains `Recibido` until staff completes the
+// individual Check In action. Keep legacy Check In spellings readable too.
+export const CHECK_IN_STAGE_QUERY = [DATABASE_STATUS.RECEIVED, DATABASE_STATUS.CHECK_IN, "Check In", "Check-in"] as const;
+// Never let the bulk In-Transit action skip the individual Check In step.
+export const IN_TRANSIT_STAGE_QUERY = [DATABASE_STATUS.CHECK_IN, "Check In", "Check-in"] as const;

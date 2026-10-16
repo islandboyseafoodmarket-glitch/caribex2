@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { calculateWorkflowBilling, isBox } from "@/lib/workflow-billing";
-import { CHECK_IN_STAGE_QUERY, DATABASE_STATUS, RECEIVING_STAGE_QUERY } from "@/lib/shipping-rules";
+import { CHECK_IN_STAGE_QUERY, DATABASE_STATUS, IN_TRANSIT_STAGE_QUERY, RECEIVING_STAGE_QUERY } from "@/lib/shipping-rules";
+import { centralAmericaDateParts } from "@/lib/staff-date-format";
 
 export const dynamic = "force-dynamic";
 
@@ -80,7 +81,7 @@ export async function POST(request: Request) {
     const { data: rows, error: listError } = await supabase
       .from("paquetes_registro")
       .select("id, tracking, tipo_paquete, billing_subtotal, billing_tax, billing_total, invoice_status")
-      .in("estado", CHECK_IN_STAGE_QUERY)
+      .in("estado", IN_TRANSIT_STAGE_QUERY)
       .limit(500);
     if (listError) throw listError;
     const candidates = rows || [];
@@ -125,7 +126,10 @@ export async function POST(request: Request) {
       if (error) throw error;
     }
     const now = new Date();
-    const containerCode = `CONT-${now.toISOString().slice(0, 10)}-${String(Date.now()).slice(-6)}`;
+    // Match the Admin display format. The container UUID remains the unique
+    // identifier, so multiple operational containers may share this daily code.
+    const { date: containerDate } = centralAmericaDateParts(now);
+    const containerCode = `CONT-${containerDate}`;
     const { data: container, error: containerError } = await supabase
       .from("contenedores")
       .insert({ codigo: containerCode })

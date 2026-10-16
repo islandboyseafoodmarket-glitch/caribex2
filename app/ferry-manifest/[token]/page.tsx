@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { CheckCircle2, ClipboardList, Download, Loader2, Printer, Send, Ship, XCircle } from "lucide-react";
+import { formatPortName } from "../../../lib/port-format";
 
 type Entry = {
   id: string;
@@ -98,7 +99,7 @@ export default function FerryManifestPage({ params }: { params: { token: string 
   const exportCsv = () => {
     if (!data) return;
     const rows = [["PORT", "NO.", "ACCOUNT", "CUSTOMER NAME", "QUANTITY", "BOOKING #"], ...data.entries.map((entry, index) => [
-      entry.puerto === "la_ceiba" ? "La Ceiba" : entry.puerto === "guanaja" ? "Guanaja" : "Utila", String(index + 1), entry.numero_cuenta, entry.nombre_cliente,
+      formatPortName(entry.puerto), String(index + 1), entry.numero_cuenta, entry.nombre_cliente,
       entry.etiqueta_cantidad, entry.numero_reserva || "",
     ])];
     const csv = rows.map((row) => row.map((value) => `"${String(value).replace(/"/g, '""')}"`).join(",")).join("\n");

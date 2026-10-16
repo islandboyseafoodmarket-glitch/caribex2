@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../../lib/supabaseClient";
 import { CENTRAL_AMERICA_TIME_ZONE } from "../../lib/staff-date-format";
+import { formatPortName } from "../../lib/port-format";
 
 type Shipment = {
   id: string;
@@ -87,7 +88,7 @@ export default function ContainersAdmin() {
   const locationSummary = useMemo(() => {
     const counts = new Map<string, number>();
     for (const shipment of selected?.shipments || []) {
-      const location = shipment.customer?.puerto || "Unassigned";
+      const location = formatPortName(shipment.customer?.puerto, "Unassigned");
       counts.set(location, (counts.get(location) || 0) + 1);
     }
     return Array.from(counts.entries()).sort((a, b) => b[1] - a[1]);
@@ -201,7 +202,7 @@ export default function ContainersAdmin() {
             <tbody>{groupedShipments.flatMap((group) => group.map((shipment, index) => {
               const additional = additionalChargeTotal(shipment.checkin?.cargos_adicionales);
               const consolidated = selected?.shipments.filter((candidate) => candidate.checkin?.parent_box_id === shipment.id).map((candidate) => candidate.tracking).filter(Boolean) || [];
-              const groupLocations = Array.from(new Set(group.map((item) => item.customer?.puerto || "Unassigned"))).join(", ");
+              const groupLocations = Array.from(new Set(group.map((item) => formatPortName(item.customer?.puerto, "Unassigned")))).join(", ");
               const dimensions = shipment.checkin && [shipment.checkin.largo, shipment.checkin.ancho, shipment.checkin.alto].some((value) => value != null)
                 ? ` ${shipment.checkin.largo || "—"}x${shipment.checkin.ancho || "—"}x${shipment.checkin.alto || "—"}`
                 : "";
@@ -234,7 +235,7 @@ export default function ContainersAdmin() {
               <h2 id="container-invoice-title">Shipment invoice</h2>
               <div className="container-invoice-muted">{selected.codigo} · {invoiceGroup.length} package{invoiceGroup.length === 1 ? "" : "s"}</div>
               <div><strong>{invoiceGroup[0]?.customer?.nombre || "Unknown owner"}</strong> · Account #{invoiceGroup[0]?.customer?.numero_cliente || "—"}</div>
-              <div className="container-invoice-muted">{invoiceGroup[0]?.customer?.email || "No email on file"} · {invoiceGroup[0]?.customer?.puerto || "Unassigned destination"}</div>
+              <div className="container-invoice-muted">{invoiceGroup[0]?.customer?.email || "No email on file"} · {formatPortName(invoiceGroup[0]?.customer?.puerto, "Unassigned destination")}</div>
             </div>
             <button type="button" className="container-invoice-close" onClick={() => setInvoiceGroup(null)}>Close</button>
           </div>
