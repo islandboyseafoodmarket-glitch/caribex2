@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { CHECK_IN_STAGE_QUERY, RECEIVING_STAGE_QUERY } from "@/lib/shipping-rules";
+import { calculateWorkflowBilling } from "@/lib/workflow-billing";
 
 export const dynamic = "force-dynamic";
 
@@ -91,7 +92,20 @@ export async function GET(request: Request) {
     if (checkinError) throw checkinError;
     const checkinByPackage = new Map<string, any>();
     for (const row of checkins || []) checkinByPackage.set(String(row.paquete_id), row);
-    return NextResponse.json({ stage, status_values: statuses, packages: (data || []).map((row) => ({ ...row, notas: removeUnknownOwnerMarker(row.notas || null, row.numero_cliente_id || null), checkin: checkinByPackage.get(String(row.id)) || null })) });
+    let packages = data || [];
+    if (search) {
+      const normalized = search.toLowerCase();
+      const customerIds = new Set<string>();
+      const accountFilter = /^\d+$/.test(search) ? `,numero_cliente.eq.${search}` : "";
+      const { data: matchingCustomers } = await supabase
+        .from("numero_cliente")
+        .select("id, numero_cliente, nombre")
+        .or(`nombre.ilike.%${search}%${accountFilter}`)
+        .limit(100);
+      for (const customer of matchingCustomers || []) customerIds.add(String(customer.id));
+      packages = packages.filter((row) => `${row.tracking || ""} ${row.nombre_paqueteria || ""} ${row.contenido || ""}`.toLowerCase().includes(normalized) || (row.numero_cliente_id && customerIds.has(String(row.numero_cliente_id))));
+    }
+    return NextResponse.json({ stage, status_values: statuses, packages: packages.map((row) => ({ ...row, notas: removeUnknownOwnerMarker(row.notas || null, row.numero_cliente_id || null), checkin: checkinByPackage.get(String(row.id)) || null })) });
   } catch (error) { return errorResponse(error); }
 }
 
@@ -114,6 +128,7 @@ export async function POST(request: Request) {
       largo: value("largo") === "" ? null : Number(value("largo")),
       peso: value("peso") === "" ? null : Number(value("peso")),
     };
+    const billing = calculateWorkflowBilling({ tipo_paquete: type, ...dimensions, cargos_adicionales: value("cargos_adicionales") });
     if (!tracking) return NextResponse.json({ error: "Tracking number or barcode is required" }, { status: 400 });
     if (!type) return NextResponse.json({ error: "Select Box or Package" }, { status: 400 });
     if (ownerUnknown && !noteText && !(photo instanceof File && photo.size > 0)) return NextResponse.json({ error: "Unknown Owner requires an internal note or a photo" }, { status: 400 });
@@ -132,7 +147,7 @@ export async function POST(request: Request) {
     }
     const customerId = value("customer_id").trim() || null;
     const note = [ownerUnknown ? "UNKNOWN OWNER - pending customer identification" : "", noteText].filter(Boolean).join("\n") || null;
-    const { data, error } = await supabase.from("paquetes_registro").insert({ tracking, nombre_paqueteria: carrier, tipo_paquete: type, contenido: value("contents").trim() || null, notas: note, numero_cliente_id: customerId, registro: actor.name, estado: "Recibido" }).select("id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, notas_imagenes, registro, estado, hora_fecha").single();
+    const { data, error } = await supabase.from("paquetes_registro").insert({ tracking, nombre_paqueteria: carrier, tipo_paquete: type, contenido: value("contents").trim() || null, notas: note, numero_cliente_id: customerId, registro: actor.name, estado: "Recibido", ...(billing ? { billing_subtotal: billing.subtotal, billing_tax: billing.tax, billing_total: billing.total } : {}) }).select("id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, notas_imagenes, registro, estado, hora_fecha, billing_subtotal, billing_tax, billing_total").single();
     if (error) throw error;
     let savedPackage = data;
     if (Object.values(dimensions).some((dimension) => dimension !== null)) {
@@ -145,7 +160,7 @@ export async function POST(request: Request) {
       const upload = await supabase.storage.from("notas-imagenes").upload(path, photo, { contentType: photo.type || "image/jpeg", upsert: false });
       if (upload.error) throw upload.error;
       const { data: publicUrl } = supabase.storage.from("notas-imagenes").getPublicUrl(path);
-      const { data: updated, error: imageError } = await supabase.from("paquetes_registro").update({ notas_imagenes: [publicUrl.publicUrl] }).eq("id", data.id).select("id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, notas_imagenes, registro, estado, hora_fecha").single();
+      const { data: updated, error: imageError } = await supabase.from("paquetes_registro").update({ notas_imagenes: [publicUrl.publicUrl] }).eq("id", data.id).select("id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, notas_imagenes, registro, estado, hora_fecha, billing_subtotal, billing_tax, billing_total").single();
       if (imageError) throw imageError;
       savedPackage = updated;
     }
@@ -193,16 +208,19 @@ export async function PATCH(request: Request) {
       peso: body?.peso === "" || body?.peso == null ? null : Number(body.peso),
       cargos_adicionales: String(body?.cargos_adicionales || "").trim() || null,
     } : null;
+    const billing = checkinUpdate ? calculateWorkflowBilling({ tipo_paquete: update.tipo_paquete, ...checkinUpdate }) : null;
+    const billingFields = billing ? { billing_subtotal: billing.subtotal, billing_tax: billing.tax, billing_total: billing.total } : {};
     if (checkinUpdate) {
       (Object.keys(checkinUpdate) as Array<keyof typeof checkinUpdate>).forEach((field) => {
         if (String(existingCheckin?.[field] ?? "") !== String(checkinUpdate[field] ?? "")) changedFields.push(`checkin.${field}`);
       });
     }
-    const { data, error } = await supabase.from("paquetes_registro").update(update).eq("id", id).select("id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, registro, estado, hora_fecha, numero_cliente_id").single();
+    const { data, error } = await supabase.from("paquetes_registro").update({ ...update, ...billingFields }).eq("id", id).select("id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, registro, estado, hora_fecha, numero_cliente_id, billing_subtotal, billing_tax, billing_total").single();
     if (error) throw error;
     if (hasCheckinFields) {
       const checkinPayload = {
         paquete_id: id,
+        numero_cliente_id: customerId,
         ...checkinUpdate,
       };
       const checkinResult = existingCheckin?.id

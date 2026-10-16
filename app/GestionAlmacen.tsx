@@ -3508,7 +3508,7 @@ const handlePackageCreated = (pkg: Package) => {
 
     // 1) Crear un contenedor nuevo con un código autogenerado
     const now = new Date();
-    const datePart = now.toISOString().slice(0, 10); // YYYY-MM-DD
+    const { date: datePart } = centralAmericaDateParts(now);
     const codigoContenedor = `CONT-${datePart}`;
 
     const { data: contData, error: contError } = await supabase

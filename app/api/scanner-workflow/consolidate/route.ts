@@ -71,8 +71,10 @@ export async function POST(request: Request) {
     const children = (rows || []).filter((row) => childIds.includes(row.id));
     if (!box || box.tipo_paquete !== "BOX") return NextResponse.json({ error: "Select a valid BOX shipment" }, { status: 400 });
     if (children.length !== childIds.length || children.some((row) => row.tipo_paquete !== "PACKAGE")) return NextResponse.json({ error: "Every selected child must be a PACKAGE shipment" }, { status: 400 });
+    const customerIds = Array.from(new Set([box.numero_cliente_id, ...children.map((child) => child.numero_cliente_id), customerId].filter(Boolean).map(String)));
+    if (customerIds.length > 1) return NextResponse.json({ error: "Packages can only be consolidated when the BOX and every PACKAGE belong to the same customer." }, { status: 409 });
 
-    const inheritedCustomerId = customerId || box.numero_cliente_id || null;
+    const inheritedCustomerId = customerId || box.numero_cliente_id || children.find((child) => child.numero_cliente_id)?.numero_cliente_id || null;
     await saveCheckinRelationship(supabase, boxId, { parent_box_id: null, numero_cliente_id: inheritedCustomerId, consolidacion: true });
     const { data: childCheckins, error: childCheckinsError } = await supabase
       .from("paquetes_checkin")

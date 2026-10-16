@@ -6,10 +6,10 @@ export async function GET() {
   return NextResponse.json(
     {
       app: "Caribex Warehouse Management",
-      version: "1.2.25",
-      version_code: 1225,
-      apk_url: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663449196187/vsKodiBGcJZWBKTH.apk",
-      filename: "Caribex-Warehouse-Management-1.2.25.apk",
+      version: "1.2.26",
+      version_code: 1226,
+      apk_url: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663449196187/tgeYRMRNMTdVMqOA.apk",
+      filename: "Caribex-Warehouse-Management-1.2.26.apk",
       release_notes: [
         "Web-equivalent Receiving, Check In, consolidation, and customer assignment",
         "Client Pickup now shows every shipment tracking number with the authoritative invoice status",
@@ -48,6 +48,7 @@ export async function GET() {
         "Scanned shipment details show the existing customer account number and registered port/location",
         "Customer signature drawing is protected against touch-data crashes, and Skip Signature remains available",
         "Network errors now explain how to reconnect and retry from the scanner phone",
+        "Unknown unload scans open Check In, same-customer consolidation is enforced, Receiving billing recalculates, and container codes use CONT-YYYY-MM-DD",
         "Issue-photo upload errors now explain when a selected photo must be chosen again",
       ],
     },
