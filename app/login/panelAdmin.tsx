@@ -2678,17 +2678,17 @@ const App = () => {
             <div
               style={{
                 display: 'grid',
-                gridTemplateColumns: '1.5fr 2fr 1fr 1.2fr',
+                gridTemplateColumns: '2fr 2fr 1.2fr 1.2fr',
                 columnGap: '0.75rem',
                 padding: '0.4rem 0',
                 fontSize: '0.8rem',
                 color: '#64748b',
                 borderBottom: '1px solid #e2e8f0',
                 fontWeight: 600,
-                minWidth: 560,
+                minWidth: 760,
               }}
             >
-              <span style={{ minWidth: 100 }}>Tracking</span>
+              <span style={{ minWidth: 200 }}>Tracking</span>
               <span style={{ minWidth: 140 }}>Cliente</span>
               <span style={{ minWidth: 120 }}>Estado</span>
               <span style={{ textAlign: 'right', minWidth: 80 }}>Acciones</span>
@@ -2719,20 +2719,17 @@ const App = () => {
                       borderBottom: '1px solid #e2e8f0',
                       fontSize: '0.9rem',
                       display: 'grid',
-                      gridTemplateColumns: '1.5fr 2fr 1fr 1.2fr',
+                      gridTemplateColumns: '2fr 2fr 1.2fr 1.2fr',
                       columnGap: '0.75rem',
                       alignItems: 'center',
-                      minWidth: 560,
+                      minWidth: 760,
                     }}
                   >
                     <span
                       style={{
                         fontWeight: 600,
-                        minWidth: 100,
-                        maxWidth: 140,
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
+                        minWidth: 200,
+                        overflowWrap: 'anywhere',
                       }}
                     >
                       #{p.tracking}
