@@ -2142,20 +2142,19 @@ const App = () => {
             <div
               style={{
                 display: 'grid',
-                gridTemplateColumns: '1.2fr 2.2fr 1.4fr 1fr 1fr 1.4fr 1.4fr 1.4fr',
+                gridTemplateColumns: '2fr 2.2fr 1.4fr 1fr 1.4fr 1.4fr 1.5fr',
                 columnGap: '0.75rem',
                 padding: '0.4rem 0',
                 fontSize: '0.8rem',
                 color: '#64748b',
                 borderBottom: '1px solid #e2e8f0',
                 fontWeight: 600,
-                minWidth: 840,
+                minWidth: 1080,
               }}
             >
-              <span style={{ minWidth: 100 }}>Tracking</span>
-              <span style={{ minWidth: 160 }}>Cliente</span>
+              <span style={{ minWidth: 180 }}>Tracking</span>
+              <span style={{ minWidth: 180 }}>Cliente / cuenta</span>
               <span style={{ minWidth: 140 }}>Carrier</span>
-              <span style={{ minWidth: 90 }}>Subtotal</span>
               <span style={{ minWidth: 90 }}>Total</span>
               <span style={{ minWidth: 150 }}>Aprobación</span>
               <span style={{ minWidth: 150 }}>Estado factura</span>
@@ -2164,10 +2163,6 @@ const App = () => {
 
             <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
               {facturasFiltradas.map((f) => {
-                const clienteLabel =
-                  f.clienteNumero != null && f.clienteNombre
-                    ? `#${f.clienteNumero} - ${f.clienteNombre}`
-                    : '-';
 
                 const approval = (f.approval_status || '').toUpperCase();
                 const invoice = (f.invoice_status || '').toUpperCase();
@@ -2206,20 +2201,17 @@ const App = () => {
                       borderBottom: '1px solid #e2e8f0',
                       fontSize: '0.9rem',
                       display: 'grid',
-                      gridTemplateColumns: '1.2fr 2.2fr 1.4fr 1fr 1fr 1.4fr 1.4fr 1.4fr',
+                      gridTemplateColumns: '2fr 2.2fr 1.4fr 1fr 1.4fr 1.4fr 1.5fr',
                       columnGap: '0.75rem',
                       alignItems: 'center',
-                      minWidth: 840,
+                      minWidth: 1080,
                     }}
                   >
                     <span
                       style={{
                         fontWeight: 600,
-                        minWidth: 100,
-                        maxWidth: 140,
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
+                        minWidth: 180,
+                        overflowWrap: 'anywhere',
                       }}
                     >
                       <button type="button" className="ga-client360-tracking" onClick={() => void abrirDetallePedido(f.id)} title="Open invoice details">
@@ -2229,14 +2221,13 @@ const App = () => {
                     <span
                       style={{
                         color: '#0f172a',
-                        minWidth: 160,
-                        maxWidth: 220,
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
+                        minWidth: 180,
                       }}
                     >
-                      {clienteLabel}
+                      <span style={{ display: 'block', fontWeight: 600 }}>{f.clienteNombre || '-'}</span>
+                      <span style={{ display: 'block', marginTop: '0.2rem', color: '#64748b', fontSize: '0.8rem' }}>
+                        Cuenta: {f.clienteNumero != null ? `#${f.clienteNumero}` : '-'}
+                      </span>
                     </span>
                     <span
                       style={{
@@ -2249,9 +2240,6 @@ const App = () => {
                       }}
                     >
                       {f.carrier || '-'}
-                    </span>
-                    <span style={{ fontFeatureSettings: '"tnum" on', minWidth: 90 }}>
-                      {formatMoney(f.subtotal)}
                     </span>
                     <span style={{ fontFeatureSettings: '"tnum" on', minWidth: 90 }}>
                       {formatMoney(f.total)}
