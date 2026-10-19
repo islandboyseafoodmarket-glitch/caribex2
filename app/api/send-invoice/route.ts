@@ -89,7 +89,7 @@ export async function POST(request: Request) {
     // shipment/container while preserving each item's tracking and charge.
     const { data: currentShipment } = await authClient
       .from("paquetes_registro")
-      .select("id, tracking, tipo_paquete, numero_cliente_id, estado, billing_subtotal, billing_tax, billing_total")
+      .select("id, tracking, tipo_paquete, contenido, numero_cliente_id, estado, billing_subtotal, billing_tax, billing_total")
       .eq("tracking", tracking)
       .neq("estado", "Archivado")
       .order("creado_en", { ascending: false })
@@ -112,6 +112,9 @@ export async function POST(request: Request) {
           .maybeSingle(),
       ]);
       const currentStoredTotal = Number(currentShipment.billing_total);
+      // Customer-facing invoice content comes from package contents. Never
+      // allow the internal notas/staff-notes field to be rendered here.
+      invoiceItems[0] = { ...invoiceItems[0], contents: currentShipment.contenido || null };
       if (!Number.isFinite(currentStoredTotal) || currentStoredTotal <= 0) {
         const currentBilling = calculateWorkflowBilling({ ...currentShipment, ...currentCheckin });
         if (currentBilling) {

@@ -25,7 +25,9 @@ export async function GET(
   const { data, error } = await supabase
     .from("paquetes_registro")
     .select(
-      "tracking, nombre_paqueteria, tipo_paquete, contenido, notas, estado, numero_cliente_id, fecha_descargado, hora_descargado, fecha_entregado, hora_entregado",
+      // This endpoint is used by the QR/warehouse lookup. Never expose the
+      // internal notes column in a general shipment lookup response.
+      "tracking, nombre_paqueteria, tipo_paquete, contenido, estado, numero_cliente_id, fecha_descargado, hora_descargado, fecha_entregado, hora_entregado",
     )
     .eq("id", id)
     .maybeSingle();

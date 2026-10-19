@@ -87,6 +87,7 @@ const App = () => {
   const [activeTab, setActiveTab] = useState<
     'personal' | 'clientes' | 'client360' | 'pedidos' | 'incidencias' | 'facturas' | 'leads' | 'portal' | 'ferry' | 'containers' | 'labels' | 'reports' | 'activityLogs'
   >('personal');
+  const [incidenciaFiltro, setIncidenciaFiltro] = useState('');
   const [expandedNavGroups, setExpandedNavGroups] = useState<Record<string, boolean>>({
     operations: true,
     customers: true,
@@ -151,6 +152,7 @@ const App = () => {
     clienteEmail: string | null;
     carrier: string | null;
     tipo_paquete: string | null;
+    contenido: string | null;
     subtotal: number | null;
     tax: number | null;
     total: number | null;
@@ -237,11 +239,25 @@ const App = () => {
   const [invoiceContainerFilter, setInvoiceContainerFilter] = useState("ALL");
 
   const facturasFiltradas = useMemo(() => {
+    const normalizeSearch = (value: unknown) =>
+      String(value ?? '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/\s+/g, ' ')
+        .trim();
     return facturas.filter((f) => {
       const approval = (f.approval_status || '').toUpperCase();
       const invoice = (f.invoice_status || '').toUpperCase();
-      const searchTerm = invoiceSearch.trim().toLowerCase();
-      const matchesSearch = !searchTerm || [f.clienteNombre, f.clienteNumero, f.clienteEmail, f.tracking].some((value) => String(value ?? "").toLowerCase().includes(searchTerm));
+      const searchTerm = normalizeSearch(invoiceSearch);
+      const customerName = normalizeSearch(f.clienteNombre);
+      const customerNameMatches = searchTerm.length > 0 && customerName.includes(searchTerm);
+      const anyCustomerNameMatches = searchTerm.length > 0 && facturas.some((invoice) => normalizeSearch(invoice.clienteNombre).includes(searchTerm));
+      const matchesSearch =
+        !searchTerm ||
+        (anyCustomerNameMatches
+          ? customerNameMatches
+          : [f.clienteNumero, f.clienteEmail, f.tracking].some((value) => normalizeSearch(value).includes(searchTerm)));
       const matchesContainer = invoiceContainerFilter === "ALL" || f.containerIds.includes(invoiceContainerFilter);
 
       if (activeInvoiceTab === 'sinAprobar') {
@@ -412,7 +428,7 @@ const App = () => {
     setAdminNotice("Admin password changed successfully.");
   };
 
-    const pedidosConIncidencia = useMemo(
+  const pedidosConIncidencia = useMemo(
     () =>
       pedidos.filter(
         (p) =>
@@ -424,6 +440,15 @@ const App = () => {
       ),
     [pedidos],
   );
+  const incidenciasFiltradas = useMemo(() => {
+    const term = incidenciaFiltro.trim().toLowerCase();
+    if (!term) return pedidosConIncidencia;
+    return pedidosConIncidencia.filter((p) =>
+      [p.tracking, p.clienteNombre, p.clienteNumero != null ? String(p.clienteNumero) : '']
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(term)),
+    );
+  }, [incidenciaFiltro, pedidosConIncidencia]);
 
   const obtenerUrlsIncidencia = (p: Pedido): string[] => {
     const raw = p.notas_imagenes;
@@ -867,7 +892,7 @@ const App = () => {
     const { data, error } = await supabase
       .from("paquetes_registro")
       .select(
-        "id, tracking, nombre_paqueteria, tipo_paquete, notas, notas_imagenes, billing_subtotal, billing_tax, billing_total, approval_status, invoice_status, payment_method, payment_notes, numero_cliente:numero_cliente_id (id, numero_cliente, nombre, email)",
+        "id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, notas_imagenes, billing_subtotal, billing_tax, billing_total, approval_status, invoice_status, payment_method, payment_notes, numero_cliente:numero_cliente_id (id, numero_cliente, nombre, email)",
       )
       .or("estado.ilike.%descargado%,estado.ilike.%entregado%")
       .order("creado_en", { ascending: false });
@@ -901,6 +926,7 @@ const App = () => {
         clienteEmail: row.numero_cliente?.email ?? null,
         carrier: (row.nombre_paqueteria as string) || null,
         tipo_paquete: (row.tipo_paquete as string) || null,
+        contenido: (row.contenido as string) || null,
         subtotal: (row.billing_subtotal as number | null) ?? null,
         tax: (row.billing_tax as number | null) ?? null,
         total: (row.billing_total as number | null) ?? null,
@@ -1067,7 +1093,7 @@ const App = () => {
     const { data: checkin } = await supabase.from("paquetes_checkin").select("cargos_adicionales, consolidacion").eq("paquete_id", factura.id).order("creado_en", { ascending: false }).limit(1).maybeSingle();
     const extraCharges = String(checkin?.cargos_adicionales || "").split(",").map((item) => item.trim()).filter(Boolean);
     const { data: sessionData } = await supabase.auth.getSession();
-    const response = await fetch("/api/send-invoice", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${sessionData.session?.access_token || ""}` }, body: JSON.stringify({ to: factura.clienteEmail, subject: `Invoice for ${factura.clienteNombre || factura.tracking}`, clientName: factura.clienteNombre, clientNumber: factura.clienteNumero, tracking: factura.tracking, typeLabel: factura.tipo_paquete || "Shipment", contents: factura.notas, subtotal: factura.subtotal || 0, tax: factura.tax || 0, total: factura.total || 0, extraCharges, isConsolidationBox: Boolean(checkin?.consolidacion) }) });
+    const response = await fetch("/api/send-invoice", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${sessionData.session?.access_token || ""}` }, body: JSON.stringify({ to: factura.clienteEmail, subject: `Invoice for ${factura.clienteNombre || factura.tracking}`, clientName: factura.clienteNombre, clientNumber: factura.clienteNumero, tracking: factura.tracking, typeLabel: factura.tipo_paquete || "Shipment", contents: factura.contenido, subtotal: factura.subtotal || 0, tax: factura.tax || 0, total: factura.total || 0, extraCharges, isConsolidationBox: Boolean(checkin?.consolidacion) }) });
     const body = await response.json().catch(() => ({}));
     if (!response.ok) { alert(body.error || "Could not send invoice"); return; }
     await handleAdminChangeInvoiceStatus(factura, "SENT");
@@ -2138,6 +2164,7 @@ const App = () => {
               </button>
             </div>
 
+            <div style={{ maxHeight: '65vh', overflowY: 'auto', overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '0.5rem' }}>
             {/* Encabezados de la tabla de facturas */}
             <div
               style={{
@@ -2386,11 +2413,25 @@ const App = () => {
                 );
               })}
             </ul>
+            </div>
           </div>
         )}
 
         {activeTab === 'incidencias' && pedidosConIncidencia.length > 0 && (
           <div style={{ width: "100%", overflowX: "auto" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.75rem", flexWrap: "wrap", marginBottom: "0.85rem" }}>
+              <input
+                type="search"
+                value={incidenciaFiltro}
+                onChange={(event) => setIncidenciaFiltro(event.target.value)}
+                placeholder="Search tracking number, customer name, or account number..."
+                aria-label="Search issues by tracking number, customer name, or account number"
+                style={{ width: "100%", maxWidth: 460, padding: "0.55rem 0.8rem", borderRadius: "999px", border: "1px solid #cbd5e1", fontSize: "0.88rem", outline: "none", background: "#fff" }}
+              />
+              <span style={{ color: "#64748b", fontSize: "0.82rem" }}>
+                {incidenciasFiltradas.length} of {pedidosConIncidencia.length} issues
+              </span>
+            </div>
             <div
               style={{
                 display: "grid",
@@ -2412,7 +2453,7 @@ const App = () => {
             </div>
 
             <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-              {pedidosConIncidencia.map((p) => {
+              {incidenciasFiltradas.map((p) => {
                 const clienteLabel =
                   p.clienteNumero != null && p.clienteNombre
                     ? `#${p.clienteNumero} - ${p.clienteNombre}`
@@ -2529,6 +2570,11 @@ const App = () => {
                 );
               })}
             </ul>
+            {incidenciasFiltradas.length === 0 && (
+              <div style={{ padding: "1.5rem 0", color: "#64748b" }}>
+                No issues match that tracking number, customer name, or account number.
+              </div>
+            )}
           </div>
         )}
 
