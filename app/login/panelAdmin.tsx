@@ -5,7 +5,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { supabase } from "../../lib/supabaseClient";
 import { BrowserMultiFormatReader } from "@zxing/browser";
-import { Pencil, Trash2, Unlock, LogOut, Image as ImageIcon, Check, AlertCircle, Send, DollarSign, ChevronDown, Package, AlertTriangle, QrCode, BarChart3, UserPlus, Bell, Receipt, Ship, Container, UserCog } from "lucide-react";
+import { Pencil, Trash2, Unlock, LogOut, Image as ImageIcon, Check, AlertCircle, Send, DollarSign, ChevronDown, Package, ScanLine, AlertTriangle, QrCode, BarChart3, UserPlus, Bell, Receipt, Ship, Container, UserCog } from "lucide-react";
 import FerryManifestAdmin from "./FerryManifestAdmin";
 import Client360Admin from "./Client360Admin";
 import CaribexBatchLabelPrint, { BatchBoxLabel } from "../../components/CaribexBatchLabelPrint";
@@ -85,7 +85,7 @@ const SHIPMENT_STAGE_OPTIONS = [
 const App = () => {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<
-    'personal' | 'clientes' | 'client360' | 'pedidos' | 'incidencias' | 'facturas' | 'leads' | 'portal' | 'ferry' | 'containers' | 'labels' | 'reports' | 'activityLogs'
+    'personal' | 'clientes' | 'client360' | 'pedidos' | 'track' | 'incidencias' | 'facturas' | 'leads' | 'portal' | 'ferry' | 'containers' | 'labels' | 'reports' | 'activityLogs'
   >('personal');
   const [incidenciaFiltro, setIncidenciaFiltro] = useState('');
   const [expandedNavGroups, setExpandedNavGroups] = useState<Record<string, boolean>>({
@@ -481,7 +481,7 @@ const App = () => {
     setPedidoDetalleLoading(true);
 
     try {
-      const [{ data, error }, { data: checkins, error: checkinError }] = await Promise.all([
+      const [{ data, error }, { data: checkins, error: checkinError }, { data: links, error: linkError }, { data: logs, error: logError }] = await Promise.all([
         supabase
           .from("paquetes_registro")
           .select("*, numero_cliente:numero_cliente_id (*)")
@@ -491,15 +491,50 @@ const App = () => {
           .from("paquetes_checkin")
           .select("*")
           .eq("paquete_id", id),
+        supabase
+          .from("contenedor_paquetes")
+          .select("contenedor_id, contenedores:contenedor_id (id, codigo, creado_en)")
+          .eq("paquete_id", id),
+        supabase
+          .from("staff_action_logs")
+          .select("id, actor_name, actor_email, actor_role, action, success, error_message, details, created_at")
+          .eq("entity_id", id)
+          .order("created_at", { ascending: true })
+          .limit(500),
       ]);
 
       if (error) throw error;
       if (checkinError) throw checkinError;
+      if (linkError) throw linkError;
+      if (logError) throw logError;
 
       if (!data) {
         setPedidoDetalleError("No se encontró información detallada para este pedido.");
       } else {
-        setPedidoDetalle({ ...data, paquetes_checkin: checkins || [] });
+        const latestCheckin = (checkins || []).slice().sort((a: any, b: any) => String(b.creado_en || '').localeCompare(String(a.creado_en || '')))[0] || null;
+        const { data: children, error: childrenError } = await supabase
+          .from("paquetes_checkin")
+          .select("paquete_id, creado_en, paquetes_registro:paquete_id (id, tracking, tipo_paquete, estado, numero_cliente_id)")
+          .eq("parent_box_id", id)
+          .order("creado_en", { ascending: true });
+        if (childrenError) throw childrenError;
+        const { data: parentLink } = await supabase
+          .from("paquetes_checkin")
+          .select("parent_box_id")
+          .eq("paquete_id", id)
+          .not("parent_box_id", "is", null)
+          .order("creado_en", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        setPedidoDetalle({
+          ...data,
+          paquetes_checkin: checkins || [],
+          detalleCheckin: latestCheckin,
+          contenedores: (links || []).map((link: any) => link.contenedores).filter(Boolean),
+          consolidates: (children || []).map((child: any) => child.paquetes_registro).filter(Boolean),
+          parent_box_id: parentLink?.parent_box_id || null,
+          activity: logs || [],
+        });
       }
     } catch (err: any) {
       console.error("Error cargando detalle de pedido", err);
@@ -1823,6 +1858,7 @@ const App = () => {
           <button type="button" className="admin-sidebar-group-title" onClick={() => toggleNavGroup('operations')}>Operations <ChevronDown size={14} className={expandedNavGroups.operations ? 'nav-chevron is-open' : 'nav-chevron'} /></button>
           {expandedNavGroups.operations && <div className="admin-sidebar-items">
             <button className={`admin-sidebar-item ${activeTab === 'pedidos' ? 'active' : ''}`} onClick={() => setActiveTab('pedidos')}><Package /> Shipments <span className="count-badge">{pedidos.length}</span></button>
+            <button className={`admin-sidebar-item ${activeTab === 'track' ? 'active' : ''}`} onClick={() => setActiveTab('track')}><ScanLine /> Track Package <span className="count-badge">{pedidos.length}</span></button>
             <button className={`admin-sidebar-item ${activeTab === 'client360' ? 'active' : ''}`} onClick={() => setActiveTab('client360')}><IconUsers /> Client 360</button>
             <button className={`admin-sidebar-item ${activeTab === 'incidencias' ? 'active' : ''}`} onClick={() => setActiveTab('incidencias')}><AlertTriangle /> Issues <span className="count-badge">{pedidosConIncidencia.length}</span></button>
             <button className={`admin-sidebar-item ${activeTab === 'labels' ? 'active' : ''}`} onClick={() => setActiveTab('labels')}><QrCode /> Caribex labels</button>
@@ -1870,6 +1906,8 @@ const App = () => {
                     ? 'Client 360'
                   : activeTab === 'pedidos'
                     ? 'Listado de Pedidos'
+                  : activeTab === 'track'
+                    ? 'Track Package'
                   : activeTab === 'incidencias'
                     ? 'Paquetes con problemas'
                     : activeTab === 'facturas'
@@ -1897,6 +1935,8 @@ const App = () => {
                     ? 'Complete customer profile and operational history'
                   : activeTab === 'pedidos'
                     ? `${pedidos.length} registro${pedidos.length === 1 ? '' : 's'} en esta categoría`
+                  : activeTab === 'track'
+                    ? `${pedidos.length} shipments with complete history`
                   : activeTab === 'incidencias'
                     ? `${pedidosConIncidencia.length} registro${pedidosConIncidencia.length === 1 ? '' : 's'} en esta categoría`
                     : activeTab === 'facturas'
@@ -2691,7 +2731,7 @@ const App = () => {
           </div>
         )}
 
-        {activeTab === 'pedidos' && pedidos.length > 0 && (
+        {(activeTab === 'pedidos' || activeTab === 'track') && pedidos.length > 0 && (
           <div style={{ width: '100%', overflowX: 'auto' }}>
             {/* Filtro por tracking, número de cuenta o nombre de cliente */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
@@ -2771,15 +2811,20 @@ const App = () => {
                       minWidth: 760,
                     }}
                   >
-                    <span
-                      style={{
-                        fontWeight: 600,
-                        minWidth: 200,
-                        overflowWrap: 'anywhere',
-                      }}
-                    >
-                      #{p.tracking}
-                    </span>
+                    {activeTab === 'track' ? (
+                      <button
+                        type="button"
+                        onClick={() => void abrirDetallePedido(p.id)}
+                        style={{ border: 0, background: 'transparent', color: '#1d4ed8', fontWeight: 700, minWidth: 200, overflowWrap: 'anywhere', textAlign: 'left', padding: 0, cursor: 'pointer', textDecoration: 'underline' }}
+                        title="Open complete shipment history"
+                      >
+                        #{p.tracking}
+                      </button>
+                    ) : (
+                      <span style={{ fontWeight: 600, minWidth: 200, overflowWrap: 'anywhere' }}>
+                        #{p.tracking}
+                      </span>
+                    )}
                     <span
                       style={{
                         color: '#0f172a',
@@ -3090,7 +3135,62 @@ const App = () => {
         </div>
       )}
 
-      {isPedidoDetalleOpen && (
+      {isPedidoDetalleOpen && pedidoDetalle?.activity !== undefined && (
+        <div className="pa-modal-overlay" onClick={() => setIsPedidoDetalleOpen(false)}>
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Shipment tracking details"
+            onClick={(event) => event.stopPropagation()}
+            style={{ width: "min(760px, 96vw)", maxHeight: "90vh", overflowY: "auto", borderRadius: "1.2rem", background: "#fff", boxShadow: "0 25px 80px rgba(15,23,42,.28)", padding: "1rem 1.35rem 1.25rem" }}
+          >
+            {(() => {
+              const customer = pedidoDetalle.numero_cliente || {};
+              const checkin = pedidoDetalle.detalleCheckin || {};
+              const status = String(pedidoDetalle.estado || "Pending");
+              const payment = String(pedidoDetalle.invoice_status || "").toUpperCase();
+              const invoiceApproval = String(pedidoDetalle.approval_status || "").toUpperCase();
+              const activity = Array.isArray(pedidoDetalle.activity) ? pedidoDetalle.activity : [];
+              const children = Array.isArray(pedidoDetalle.consolidates) ? pedidoDetalle.consolidates : [];
+              const containers = Array.isArray(pedidoDetalle.contenedores) ? pedidoDetalle.contenedores : [];
+              const stageColor = shipmentStage(status) === "PICKED_UP" ? "#8b5cf6" : shipmentStage(status) === "UNLOADED" ? "#2563eb" : shipmentStage(status) === "IN_TRANSIT" ? "#0f766e" : "#64748b";
+              const detailRow = (label: string, value: React.ReactNode, key: string) => <div key={key} style={{ display: "grid", gridTemplateColumns: "145px minmax(0,1fr)", gap: "0.75rem", padding: "0.34rem 0", alignItems: "baseline" }}><span style={{ color: "#64748b", fontSize: "0.88rem" }}>{label}</span><span style={{ color: "#1e293b", fontWeight: 600, minWidth: 0, overflowWrap: "anywhere" }}>{value || "—"}</span></div>;
+              return <>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.65rem", borderBottom: "1px solid #e2e8f0", padding: "0.1rem 0 0.8rem" }}>
+                  <span style={{ color: "#64748b", fontSize: "1.1rem" }}>▧</span>
+                  <strong style={{ flex: 1, fontSize: "1.08rem", letterSpacing: "0.01em", overflowWrap: "anywhere" }}>{pedidoDetalle.tracking || "Shipment"}</strong>
+                  <span style={{ background: "#fbbf24", color: "#78350f", borderRadius: "0.35rem", padding: "0.45rem 0.7rem", fontWeight: 800 }}>{pedidoDetalle.tipo_paquete || "Package"} {pedidoDetalle.invoice_id ? pedidoDetalle.invoice_id : ""}</span>
+                  <span style={{ color: stageColor, fontWeight: 800, whiteSpace: "nowrap" }}>{status}</span>
+                  <button type="button" onClick={() => setIsPedidoDetalleOpen(false)} aria-label="Close shipment details" style={{ border: 0, background: "transparent", color: "#64748b", fontSize: "1.5rem", lineHeight: 1, cursor: "pointer" }}>×</button>
+                </div>
+                <div style={{ padding: "0.65rem 0 0.35rem" }}>
+                  {detailRow("Client", customer.nombre ? <span style={{ color: "#2563eb", textDecoration: "underline" }}>{customer.nombre} (#{customer.numero_cliente ?? "—"})</span> : "Unassigned", "client")}
+                  {detailRow("Carrier", pedidoDetalle.nombre_paqueteria || "—", "carrier")}
+                  {detailRow("Note", <span style={{ color: pedidoDetalle.notas ? "#334155" : "#94a3b8", fontWeight: 500 }}>{pedidoDetalle.notas || "No note"} <small style={{ color: "#94a3b8", marginLeft: "0.4rem" }}>(staff/admin only)</small></span>, "note")}
+                  {detailRow("Item", `${pedidoDetalle.tipo_paquete || "Shipment"}${pedidoDetalle.billing_subtotal != null ? ` ($${Number(pedidoDetalle.billing_subtotal).toFixed(2)})` : ""}`, "item")}
+                  {detailRow("Charges", checkin.cargos_adicionales || "—", "charges")}
+                  {detailRow("Container", containers.map((container: any) => container.codigo || container.id).join(", ") || "Not assigned", "container")}
+                  {detailRow("Invoice", <span>Invoice <strong style={{ color: invoiceApproval === "APPROVED" ? "#166534" : "#64748b" }}>{invoiceApproval || "PENDING"}</strong> <span style={{ marginLeft: "0.7rem" }}>Payment: <strong style={{ color: payment === "PAID" ? "#166534" : "#b45309" }}>{payment || "UNPAID"}</strong></span></span>, "invoice")}
+                  {detailRow("Received", formatStaffDateTime(pedidoDetalle.hora_fecha || pedidoDetalle.creado_en), "received")}
+                  {detailRow("Last scanned", formatStaffDateTime(activity[activity.length - 1]?.created_at || pedidoDetalle.updated_at || pedidoDetalle.hora_fecha), "scanned")}
+                </div>
+                {status.toLowerCase().includes("entregado") && <div style={{ display: "inline-flex", alignItems: "center", gap: "0.45rem", border: "1px solid #94a3b8", borderRadius: "999px", padding: "0.45rem 0.75rem", color: "#475569", fontWeight: 700, margin: "0.35rem 0 0.9rem" }}>♟ Customer already has it <span style={{ fontWeight: 500 }}>(collected on an earlier visit)</span></div>}
+                <section style={{ borderTop: "1px solid #e2e8f0", paddingTop: "0.75rem" }}>
+                  <h4 style={{ margin: 0, fontSize: "1rem", color: "#1e293b" }}>Consolidates {children.length ? `${children.length} package(s)` : ""}:</h4>
+                  {children.length ? <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem", padding: "0.45rem 0 0.75rem 1rem" }}>{children.map((child: any) => <button key={child.id} type="button" onClick={() => void abrirDetallePedido(child.id)} style={{ border: 0, background: "transparent", color: "#2563eb", textAlign: "left", cursor: "pointer", fontSize: "0.9rem" }}>{child.tracking}</button>)}</div> : <p style={{ color: "#94a3b8", margin: "0.45rem 0 0.75rem" }}>None</p>}
+                </section>
+                <section style={{ borderTop: "1px solid #e2e8f0", paddingTop: "0.75rem" }}>
+                  <h4 style={{ margin: 0, fontSize: "1rem", color: "#1e293b" }}>↗ History - every touch ({activity.length}) <span style={{ color: "#b91c1c", fontSize: "0.82rem", marginLeft: "0.35rem" }}>⚑ {activity.filter((event: any) => !event.success || String(event.action).toLowerCase().includes("problem")).length || ""} flagged</span></h4>
+                  {activity.length ? <div style={{ marginTop: "0.55rem", display: "flex", flexDirection: "column", gap: "0.5rem" }}>{activity.map((event: any) => <div key={event.id} style={{ display: "grid", gridTemplateColumns: "115px 1fr", gap: "0.7rem", fontSize: "0.82rem" }}><time style={{ color: "#64748b" }}>{formatStaffDateTime(event.created_at)}</time><div style={{ borderLeft: `3px solid ${event.success === false ? "#dc2626" : "#2563eb"}`, paddingLeft: "0.65rem" }}><strong style={{ color: event.success === false ? "#991b1b" : "#334155" }}>{String(event.action || "Activity").replaceAll("_", " ")}</strong>{event.actor_name && <span style={{ color: "#64748b" }}> by {event.actor_name}</span>}{event.error_message && <div style={{ color: "#991b1b" }}>{event.error_message}</div>}{event.details?.source === "database_trigger" && <div style={{ color: "#64748b" }}>Database record change</div>}</div></div>)}</div> : <p style={{ color: "#94a3b8", margin: "0.5rem 0" }}>No activity history has been recorded.</p>}
+                </section>
+                <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem", marginTop: "1rem", paddingTop: "0.75rem", borderTop: "1px solid #e2e8f0" }}><button type="button" className="pa-secondary-btn" onClick={() => setIsPedidoDetalleOpen(false)}>Close</button></div>
+              </>;
+            })()}
+          </div>
+        </div>
+      )}
+
+      {isPedidoDetalleOpen && !pedidoDetalle?.activity && (
         <div className="pa-modal-overlay">
           <div
             className="pa-modal"
