@@ -1329,7 +1329,7 @@ const App = () => {
   );
 
   return (
-    <div className="dashboard-root">
+    <div className={`dashboard-root ${activeTab === 'facturas' ? 'dashboard-root--invoices' : ''}`}>
       <style suppressHydrationWarning>{`
         :root {
           --bg-main: #8fc5e6;
@@ -1356,6 +1356,10 @@ const App = () => {
           padding: 32px clamp(18px, 4vw, 56px) 56px 310px;
           max-width: 1480px;
           margin: 0 auto;
+        }
+
+        .dashboard-root--invoices {
+          max-width: 1900px;
         }
 
         .admin-sidebar {
@@ -1722,6 +1726,10 @@ const App = () => {
           border: 1px solid rgba(0,0,0,0.02);
         }
 
+        .data-card--invoices {
+          padding: 24px;
+        }
+
         .card-header-inner {
           display: flex;
           flex-direction: column;
@@ -1965,7 +1973,7 @@ const App = () => {
       </aside>
 
       {/* Card de Visualización de Datos */}
-      <div className="data-card">
+      <div className={`data-card ${activeTab === 'facturas' ? 'data-card--invoices' : ''}`}>
         <div className="card-header-inner" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
           <div>
             <h3>
