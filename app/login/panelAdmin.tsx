@@ -12,6 +12,7 @@ import CaribexBatchLabelPrint, { BatchBoxLabel } from "../../components/CaribexB
 import ContainersAdmin from "./ContainersAdmin";
 import ReportsAdmin from "./ReportsAdmin";
 import { formatStaffDateTime } from "../../lib/staff-date-format";
+import InvoicePreview, { type InvoicePreviewProps } from "../../components/InvoicePreview";
 
 /**
  * DASHBOARD OPERATIVO - VERSIÓN VISUAL PURA
@@ -307,6 +308,7 @@ const App = () => {
   const [financeCustomer, setFinanceCustomer] = useState("");
   const [financePort, setFinancePort] = useState("ALL");
   const [financeContainer, setFinanceContainer] = useState("ALL");
+  const [financeStatusFilter, setFinanceStatusFilter] = useState<"ALL" | "PAID" | "OUTSTANDING">("ALL");
   const financeRows = useMemo(() => facturas.filter((invoice) => {
     const date = invoice.creado_en ? invoice.creado_en.slice(0, 10) : "";
     const search = financeCustomer.trim().toLowerCase();
@@ -318,6 +320,10 @@ const App = () => {
     paid: financeRows.filter((invoice) => invoice.invoice_status === "PAID").reduce((sum, invoice) => sum + Number(invoice.total || 0), 0),
     outstanding: financeRows.filter((invoice) => invoice.invoice_status !== "PAID").reduce((sum, invoice) => sum + Number(invoice.total || 0), 0),
   }), [financeRows]);
+  const financeDisplayedRows = useMemo(
+    () => financeRows.filter((invoice) => financeStatusFilter === "ALL" || (financeStatusFilter === "PAID" ? invoice.invoice_status === "PAID" : invoice.invoice_status !== "PAID")),
+    [financeRows, financeStatusFilter],
+  );
   const financePorts = useMemo(() => Array.from(new Set(facturas.map((invoice) => invoice.puerto || "Unknown"))).sort(), [facturas]);
 
   const [pedidoFiltro, setPedidoFiltro] = useState("");
@@ -408,6 +414,8 @@ const App = () => {
     consolidacion: false,
   });
   const [pedidoQrUrl, setPedidoQrUrl] = useState<string | null>(null);
+  const [invoicePrintData, setInvoicePrintData] = useState<InvoicePreviewProps | null>(null);
+  const invoicePrintWindowRef = useRef<Window | null>(null);
   const [clients, setClients] = useState<
     { id: string; nombre: string; numero_cliente: number }[]
   >([]);
@@ -1188,12 +1196,48 @@ const App = () => {
     await handleAdminChangeInvoiceStatus(factura, "SENT");
     alert("Invoice emailed successfully.");
   };
-  const printInvoice = (factura: Factura) => {
-    const printWindow = window.open("", "_blank", "width=900,height=700");
-    if (!printWindow) { alert("Please allow pop-ups to print the invoice."); return; }
-    const note = factura.customer_invoice_note ? `<div class="note"><strong>Note</strong><br>${factura.customer_invoice_note}</div>` : "";
-    printWindow.document.write(`<!doctype html><html><head><title>Invoice ${factura.tracking}</title><style>body{font-family:Arial,sans-serif;color:#172033;padding:36px;max-width:760px;margin:auto}h1{color:#0f4c81;border-bottom:3px solid #f97316;padding-bottom:12px}.row{display:flex;justify-content:space-between;border-bottom:1px solid #e5e7eb;padding:10px 0}.total{font-size:20px;font-weight:800}.note{margin:20px 0;padding:14px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px}</style></head><body><h1>Caribex Logistics Group</h1><h2>Invoice</h2><div class="row"><span>Tracking</span><strong>${factura.tracking}</strong></div><div class="row"><span>Customer</span><strong>${factura.clienteNombre || "-"} (#${factura.clienteNumero ?? "-"})</strong></div><div class="row"><span>Item</span><strong>${factura.tipo_paquete || "Shipment"}</strong></div><div class="row"><span>Subtotal</span><strong>$${Number(factura.subtotal || 0).toFixed(2)}</strong></div><div class="row"><span>Tax</span><strong>$${Number(factura.tax || 0).toFixed(2)}</strong></div><div class="row total"><span>Total</span><strong>$${Number(factura.total || 0).toFixed(2)}</strong></div>${note}<script>window.onload=()=>window.print()</script></body></html>`);
+  useEffect(() => {
+    if (!invoicePrintData || !invoicePrintWindowRef.current) return;
+    const printWindow = invoicePrintWindowRef.current;
+    const template = document.getElementById("admin-invoice-print-template");
+    if (!template) return;
+    printWindow.document.open();
+    printWindow.document.write(`<!doctype html><html><head><title>Caribex Invoice ${invoicePrintData.tracking}</title><style>@page{size:auto;margin:14mm}body{font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#111827;margin:0;background:#fff}#invoice{max-width:820px;margin:0 auto;padding:12px}img{max-width:100%}table{width:100%;border-collapse:collapse}th,td{padding:6px 0}button{display:none}</style></head><body><main id="invoice">${template.innerHTML}</main><script>window.onload=function(){window.focus();window.print();}</script></body></html>`);
     printWindow.document.close();
+    invoicePrintWindowRef.current = null;
+    setInvoicePrintData(null);
+  }, [invoicePrintData]);
+
+  const printInvoice = async (factura: Factura) => {
+    const printWindow = window.open("", "_blank", "width=900,height=900");
+    if (!printWindow) { alert("Please allow pop-ups to print the invoice."); return; }
+    printWindow.document.write("<p style='font-family:system-ui;padding:32px'>Preparing invoice…</p>");
+    const { data: checkin } = await supabase
+      .from("paquetes_checkin")
+      .select("cargos_adicionales, consolidacion")
+      .eq("paquete_id", factura.id)
+      .order("creado_en", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const { data: consolidated } = checkin?.consolidacion
+      ? await supabase.from("paquetes_checkin").select("paquete_id").eq("parent_box_id", factura.id)
+      : { data: [] as { paquete_id: string }[] };
+    invoicePrintWindowRef.current = printWindow;
+    setInvoicePrintData({
+      clientName: factura.clienteNombre,
+      clientNumber: factura.clienteNumero,
+      tracking: factura.tracking,
+      carrier: factura.carrier,
+      typeLabel: factura.tipo_paquete || "Shipment",
+      contents: factura.contenido,
+      extraCharges: String(checkin?.cargos_adicionales || "").split(",").map((item) => item.trim()).filter(Boolean),
+      isConsolidationBox: Boolean(checkin?.consolidacion),
+      consolidatedPackagesCount: consolidated?.length || 0,
+      billingSubtotal: factura.subtotal,
+      billingTax: factura.tax,
+      billingTotal: factura.total,
+      serviceDate: factura.creado_en,
+    });
   };
 
   const openConfirmPayInvoice = (factura: Factura) => {
@@ -2026,7 +2070,7 @@ const App = () => {
                       : activeTab === 'facturas'
                         ? `${facturasFiltradas.length} registro${facturasFiltradas.length === 1 ? '' : 's'} en esta categoría`
                       : activeTab === 'finanzas'
-                        ? `${financeRows.length} revenue records across all ports`
+                        ? `${financeDisplayedRows.length} ${financeStatusFilter === 'ALL' ? 'revenue records' : financeStatusFilter === 'PAID' ? 'paid invoices' : 'outstanding invoices'} across all ports`
                       : activeTab === 'leads'
                         ? `${leads.length} leads received from the website`
                       : activeTab === 'portal'
@@ -2121,9 +2165,9 @@ const App = () => {
             <select value={financeContainer} onChange={(event) => setFinanceContainer(event.target.value)} aria-label="Revenue by container" style={{ padding: '0.55rem', border: '1px solid #cbd5e1', borderRadius: '0.55rem', background: '#fff' }}><option value="ALL">All containers</option>{invoiceContainerOptions.map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: '0.75rem', marginBottom: '1rem' }}>
-            {[['Invoiced', financeTotals.invoiced, '#1d4ed8'], ['Paid', financeTotals.paid, '#166534'], ['Outstanding', financeTotals.outstanding, '#b45309']].map(([label, value, color]) => <div key={String(label)} style={{ border: '1px solid #e2e8f0', borderRadius: '0.8rem', padding: '0.9rem', background: '#f8fafc' }}><span style={{ color: '#64748b', fontSize: '0.82rem' }}>{label}</span><strong style={{ display: 'block', color: String(color), fontSize: '1.35rem', marginTop: '0.2rem' }}>${Number(value).toFixed(2)}</strong></div>)}
+            {([['Invoiced', financeTotals.invoiced, '#1d4ed8', 'ALL'], ['Paid', financeTotals.paid, '#166534', 'PAID'], ['Outstanding', financeTotals.outstanding, '#b45309', 'OUTSTANDING']] as const).map(([label, value, color, filter]) => <button key={label} type="button" onClick={() => setFinanceStatusFilter(filter)} aria-pressed={financeStatusFilter === filter} style={{ textAlign: 'left', border: financeStatusFilter === filter ? `2px solid ${color}` : '1px solid #e2e8f0', borderRadius: '0.8rem', padding: '0.9rem', background: financeStatusFilter === filter ? '#ffffff' : '#f8fafc', cursor: 'pointer' }}><span style={{ color: '#64748b', fontSize: '0.82rem' }}>{label}</span><strong style={{ display: 'block', color, fontSize: '1.35rem', marginTop: '0.2rem' }}>${Number(value).toFixed(2)}</strong><small style={{ color: '#64748b' }}>Show {label.toLowerCase()}</small></button>)}
           </div>
-          <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '0.7rem' }}><table className="admin-table" style={{ minWidth: 980, width: '100%' }}><thead><tr><th>Date</th><th>Port</th><th>Customer</th><th>Tracking</th><th>Container</th><th>Total</th><th>Payment</th></tr></thead><tbody>{financeRows.map((invoice) => <tr key={invoice.id}><td>{invoice.creado_en ? formatStaffDateTime(invoice.creado_en) : '-'}</td><td>{invoice.puerto || 'Unknown'}</td><td>{invoice.clienteNombre || '-'}<br /><small>#{invoice.clienteNumero ?? '-'}</small></td><td><button type="button" className="ga-client360-tracking" onClick={() => void abrirDetallePedido(invoice.id)}>{invoice.tracking}</button></td><td>{invoice.containerLabels.join(', ') || '-'}</td><td>${Number(invoice.total || 0).toFixed(2)}</td><td style={{ color: invoice.invoice_status === 'PAID' ? '#166534' : '#b45309', fontWeight: 700 }}>{invoice.invoice_status === 'PAID' ? 'Paid' : 'Unpaid'}</td></tr>)}</tbody></table>{financeRows.length === 0 && <p style={{ padding: '1rem', color: '#64748b' }}>No revenue records match these filters.</p>}</div>
+          <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '0.7rem' }}><table className="admin-table" style={{ minWidth: 980, width: '100%' }}><thead><tr><th>Date</th><th>Port</th><th>Customer</th><th>Tracking</th><th>Container</th><th>Total</th><th>Payment</th></tr></thead><tbody>{financeDisplayedRows.map((invoice) => <tr key={invoice.id}><td>{invoice.creado_en ? formatStaffDateTime(invoice.creado_en) : '-'}</td><td>{invoice.puerto || 'Unknown'}</td><td>{invoice.clienteNombre || '-'}<br /><small>#{invoice.clienteNumero ?? '-'}</small></td><td><button type="button" className="ga-client360-tracking" onClick={() => void abrirDetallePedido(invoice.id)}>{invoice.tracking}</button></td><td>{invoice.containerLabels.join(', ') || '-'}</td><td>${Number(invoice.total || 0).toFixed(2)}</td><td style={{ color: invoice.invoice_status === 'PAID' ? '#166534' : '#b45309', fontWeight: 700 }}>{invoice.invoice_status === 'PAID' ? 'Paid' : 'Unpaid'}</td></tr>)}</tbody></table>{financeDisplayedRows.length === 0 && <p style={{ padding: '1rem', color: '#64748b' }}>No revenue records match these filters.</p>}</div>
         </div>}
 
         {activeTab === 'activityLogs' && <div style={{ width: '100%' }}>
@@ -2529,7 +2573,7 @@ const App = () => {
                       >
                         <Send size={14} /> <span style={{ fontSize: '0.72rem' }}>{isSent ? 'Resend' : 'Send'}</span>
                       </button>
-                      <button type="button" title="PDF / Print invoice" className="pa-secondary-btn" style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', whiteSpace: 'nowrap' }} onClick={() => printInvoice(f)}>PDF / Print</button>
+                      <button type="button" title="PDF / Print invoice" className="pa-secondary-btn" style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', whiteSpace: 'nowrap' }} onClick={() => void printInvoice(f)}>PDF / Print</button>
                       <button
                         type="button"
                         title="Marcar como pagada"
@@ -3533,6 +3577,12 @@ const App = () => {
             setBatchNewBoxLabels(null);
           }}
         />
+      )}
+
+      {invoicePrintData && (
+        <div id="admin-invoice-print-template" style={{ position: "absolute", left: "-100000px", top: 0, width: 820, background: "#fff", padding: 12 }} aria-hidden="true">
+          <InvoicePreview {...invoicePrintData} />
+        </div>
       )}
 
       {isPedidoEditOpen && (
