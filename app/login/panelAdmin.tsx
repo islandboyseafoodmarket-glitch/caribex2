@@ -86,7 +86,7 @@ const TRACK_STAGE_STYLES: Record<string, { color: string; background: string; bo
   RECEIVED: { color: '#475569', background: '#f1f5f9', border: '#cbd5e1' },
   REGISTERED: { color: '#15803d', background: '#f0fdf4', border: '#86efac' },
   IN_TRANSIT: { color: '#0f766e', background: '#f0fdfa', border: '#5eead4' },
-  UNLOADED: { color: '#c2410c', background: '#fff7ed', border: '#fdba74' },
+  UNLOADED: { color: '#15803d', background: '#f0fdf4', border: '#86efac' },
   PICKED_UP: { color: '#7e22ce', background: '#faf5ff', border: '#d8b4fe' },
 };
 
@@ -966,7 +966,7 @@ const App = () => {
     const { data, error } = await supabase
       .from("paquetes_registro")
       .select(
-        "id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, notas_imagenes, problema, problema_notas, issue_status, billing_subtotal, billing_tax, billing_total, approval_status, invoice_status, payment_method, payment_notes, payment_reference, payment_date, customer_invoice_note, creado_en, numero_cliente:numero_cliente_id (id, numero_cliente, nombre, email, puerto)",
+        "id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, notas_imagenes, issue_status, billing_subtotal, billing_tax, billing_total, approval_status, invoice_status, payment_method, payment_notes, payment_reference, payment_date, customer_invoice_note, creado_en, numero_cliente:numero_cliente_id (id, numero_cliente, nombre, email, puerto)",
       )
       .or("estado.ilike.%descargado%,estado.ilike.%entregado%")
       .order("creado_en", { ascending: false });
@@ -978,12 +978,13 @@ const App = () => {
 
     if (data) {
       const packageIds = (data as any[]).map((row) => row.id).filter(Boolean);
-      const [{ data: links }, { data: containers }] = packageIds.length
+      const [{ data: links }, { data: containers }, { data: checkins }] = packageIds.length
         ? await Promise.all([
             supabase.from("contenedor_paquetes").select("paquete_id, contenedor_id").in("paquete_id", packageIds),
             supabase.from("contenedores").select("id, codigo"),
+            supabase.from("paquetes_checkin").select("paquete_id, problema, problema_notas, creado_en").in("paquete_id", packageIds).order("creado_en", { ascending: false }),
           ])
-        : [{ data: [] }, { data: [] }];
+        : [{ data: [] }, { data: [] }, { data: [] }];
       const containerById = new Map((containers || []).map((container: any) => [container.id, container.codigo]));
       const containersByPackage = new Map<string, { ids: string[]; labels: string[] }>();
       (links || []).forEach((link: any) => {
@@ -991,6 +992,12 @@ const App = () => {
         current.ids.push(link.contenedor_id);
         current.labels.push(containerById.get(link.contenedor_id) || link.contenedor_id);
         containersByPackage.set(link.paquete_id, current);
+      });
+      const checkinByPackage = new Map<string, { problema?: boolean | null; problema_notas?: string | null }>();
+      (checkins || []).forEach((checkin: any) => {
+        if (!checkinByPackage.has(checkin.paquete_id)) {
+          checkinByPackage.set(checkin.paquete_id, checkin);
+        }
       });
       const mapped = (data as any[]).map((row) => ({
         id: row.id as string,
@@ -1009,8 +1016,8 @@ const App = () => {
         approval_status: (row.approval_status as string | null) ?? null,
         invoice_status: (row.invoice_status as string | null) ?? null,
         notas: (row.notas as string | null) ?? null,
-        problema: Boolean(row.problema),
-        problema_notas: (row.problema_notas as string | null) ?? null,
+        problema: Boolean(checkinByPackage.get(row.id)?.problema),
+        problema_notas: (checkinByPackage.get(row.id)?.problema_notas as string | null) ?? null,
         issue_status: (row.issue_status as string | null) ?? null,
         payment_method: (row.payment_method as string | null) ?? null,
         payment_notes: (row.payment_notes as string | null) ?? null,
