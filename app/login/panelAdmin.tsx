@@ -85,7 +85,7 @@ const SHIPMENT_STAGE_OPTIONS = [
 const App = () => {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<
-    'personal' | 'clientes' | 'client360' | 'pedidos' | 'track' | 'incidencias' | 'facturas' | 'leads' | 'portal' | 'ferry' | 'containers' | 'labels' | 'reports' | 'activityLogs'
+    'personal' | 'clientes' | 'client360' | 'pedidos' | 'track' | 'incidencias' | 'facturas' | 'finanzas' | 'leads' | 'portal' | 'ferry' | 'containers' | 'labels' | 'reports' | 'activityLogs'
   >('personal');
   const [incidenciaFiltro, setIncidenciaFiltro] = useState('');
   const [expandedNavGroups, setExpandedNavGroups] = useState<Record<string, boolean>>({
@@ -153,6 +153,8 @@ const App = () => {
     carrier: string | null;
     tipo_paquete: string | null;
     contenido: string | null;
+    puerto: string | null;
+    creado_en: string | null;
     subtotal: number | null;
     tax: number | null;
     total: number | null;
@@ -161,6 +163,9 @@ const App = () => {
     notas: string | null;
     payment_method: string | null;
     payment_notes: string | null;
+    payment_reference: string | null;
+    payment_date: string | null;
+    customer_invoice_note: string | null;
     containerIds: string[];
     containerLabels: string[];
   };
@@ -225,13 +230,16 @@ const App = () => {
     setLeads([...newer, ...legacy].filter((lead) => { const key = `${lead.email}|${lead.mensaje}`; if (seen.has(key)) return false; seen.add(key); return true; }));
   }, []);
 
-  type InvoiceTab = 'sinAprobar' | 'aprobadas' | 'enviadas' | 'pagadas';
+  type InvoiceTab = 'sinAprobar' | 'aprobadas' | 'todas' | 'problemas' | 'enviadas' | 'pagadas';
   const [activeInvoiceTab, setActiveInvoiceTab] = useState<InvoiceTab>('sinAprobar');
 
   // Modal de confirmación para marcar factura como pagada
   const [pendingPayInvoice, setPendingPayInvoice] = useState<Factura | null>(null);
   const [paymentMethod, setPaymentMethod] = useState("");
   const [paymentNotes, setPaymentNotes] = useState("");
+  const [paymentReference, setPaymentReference] = useState("");
+  const [paymentDate, setPaymentDate] = useState("");
+  const [customerInvoiceNote, setCustomerInvoiceNote] = useState("");
   const [editingInvoiceAddOns, setEditingInvoiceAddOns] = useState<Factura | null>(null);
   const [invoiceAddOnType, setInvoiceAddOnType] = useState("");
   const [invoiceAddOnAmount, setInvoiceAddOnAmount] = useState("");
@@ -272,6 +280,9 @@ const App = () => {
       if (activeInvoiceTab === 'pagadas') {
         return invoice === 'PAID' && matchesSearch && matchesContainer;
       }
+      if (activeInvoiceTab === 'problemas') {
+        return (approval === 'REJECTED' || invoice === 'OVERDUE' || Boolean(f.notas)) && matchesSearch && matchesContainer;
+      }
       return matchesSearch && matchesContainer;
     });
   }, [facturas, activeInvoiceTab, invoiceSearch, invoiceContainerFilter]);
@@ -280,6 +291,23 @@ const App = () => {
     facturas.forEach((factura) => factura.containerIds.forEach((id, index) => options.set(id, factura.containerLabels[index] || id)));
     return Array.from(options.entries()).sort((a, b) => a[1].localeCompare(b[1]));
   }, [facturas]);
+  const [financeDateFrom, setFinanceDateFrom] = useState("");
+  const [financeDateTo, setFinanceDateTo] = useState("");
+  const [financeCustomer, setFinanceCustomer] = useState("");
+  const [financePort, setFinancePort] = useState("ALL");
+  const [financeContainer, setFinanceContainer] = useState("ALL");
+  const financeRows = useMemo(() => facturas.filter((invoice) => {
+    const date = invoice.creado_en ? invoice.creado_en.slice(0, 10) : "";
+    const search = financeCustomer.trim().toLowerCase();
+    const customerMatches = !search || [invoice.clienteNombre, invoice.clienteEmail, invoice.clienteNumero, invoice.tracking].some((value) => String(value ?? "").toLowerCase().includes(search));
+    return customerMatches && (financePort === "ALL" || (invoice.puerto || "Unknown") === financePort) && (financeContainer === "ALL" || invoice.containerIds.includes(financeContainer)) && (!financeDateFrom || date >= financeDateFrom) && (!financeDateTo || date <= financeDateTo);
+  }), [facturas, financeCustomer, financePort, financeContainer, financeDateFrom, financeDateTo]);
+  const financeTotals = useMemo(() => ({
+    invoiced: financeRows.reduce((sum, invoice) => sum + Number(invoice.total || 0), 0),
+    paid: financeRows.filter((invoice) => invoice.invoice_status === "PAID").reduce((sum, invoice) => sum + Number(invoice.total || 0), 0),
+    outstanding: financeRows.filter((invoice) => invoice.invoice_status !== "PAID").reduce((sum, invoice) => sum + Number(invoice.total || 0), 0),
+  }), [financeRows]);
+  const financePorts = useMemo(() => Array.from(new Set(facturas.map((invoice) => invoice.puerto || "Unknown"))).sort(), [facturas]);
 
   const [pedidoFiltro, setPedidoFiltro] = useState("");
   const [pedidoEtapa, setPedidoEtapa] = useState("ALL");
@@ -927,7 +955,7 @@ const App = () => {
     const { data, error } = await supabase
       .from("paquetes_registro")
       .select(
-        "id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, notas_imagenes, billing_subtotal, billing_tax, billing_total, approval_status, invoice_status, payment_method, payment_notes, numero_cliente:numero_cliente_id (id, numero_cliente, nombre, email)",
+        "id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, notas_imagenes, billing_subtotal, billing_tax, billing_total, approval_status, invoice_status, payment_method, payment_notes, payment_reference, payment_date, customer_invoice_note, creado_en, numero_cliente:numero_cliente_id (id, numero_cliente, nombre, email, puerto)",
       )
       .or("estado.ilike.%descargado%,estado.ilike.%entregado%")
       .order("creado_en", { ascending: false });
@@ -959,6 +987,8 @@ const App = () => {
         clienteNumero: row.numero_cliente?.numero_cliente ?? null,
         clienteNombre: row.numero_cliente?.nombre ?? null,
         clienteEmail: row.numero_cliente?.email ?? null,
+        puerto: row.numero_cliente?.puerto ?? null,
+        creado_en: row.creado_en ?? null,
         carrier: (row.nombre_paqueteria as string) || null,
         tipo_paquete: (row.tipo_paquete as string) || null,
         contenido: (row.contenido as string) || null,
@@ -970,6 +1000,9 @@ const App = () => {
         notas: (row.notas as string | null) ?? null,
         payment_method: (row.payment_method as string | null) ?? null,
         payment_notes: (row.payment_notes as string | null) ?? null,
+        payment_reference: (row.payment_reference as string | null) ?? null,
+        payment_date: (row.payment_date as string | null) ?? null,
+        customer_invoice_note: (row.customer_invoice_note as string | null) ?? null,
         containerIds: containersByPackage.get(row.id)?.ids || [],
         containerLabels: containersByPackage.get(row.id)?.labels || [],
       }));
@@ -1128,7 +1161,7 @@ const App = () => {
     const { data: checkin } = await supabase.from("paquetes_checkin").select("cargos_adicionales, consolidacion").eq("paquete_id", factura.id).order("creado_en", { ascending: false }).limit(1).maybeSingle();
     const extraCharges = String(checkin?.cargos_adicionales || "").split(",").map((item) => item.trim()).filter(Boolean);
     const { data: sessionData } = await supabase.auth.getSession();
-    const response = await fetch("/api/send-invoice", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${sessionData.session?.access_token || ""}` }, body: JSON.stringify({ to: factura.clienteEmail, subject: `Invoice for ${factura.clienteNombre || factura.tracking}`, clientName: factura.clienteNombre, clientNumber: factura.clienteNumero, tracking: factura.tracking, typeLabel: factura.tipo_paquete || "Shipment", contents: factura.contenido, subtotal: factura.subtotal || 0, tax: factura.tax || 0, total: factura.total || 0, extraCharges, isConsolidationBox: Boolean(checkin?.consolidacion) }) });
+    const response = await fetch("/api/send-invoice", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${sessionData.session?.access_token || ""}` }, body: JSON.stringify({ to: factura.clienteEmail, subject: `Invoice for ${factura.clienteNombre || factura.tracking}`, clientName: factura.clienteNombre, clientNumber: factura.clienteNumero, tracking: factura.tracking, typeLabel: factura.tipo_paquete || "Shipment", contents: factura.contenido, customerInvoiceNote: factura.customer_invoice_note, subtotal: factura.subtotal || 0, tax: factura.tax || 0, total: factura.total || 0, extraCharges, isConsolidationBox: Boolean(checkin?.consolidacion) }) });
     const body = await response.json().catch(() => ({}));
     if (!response.ok) { alert(body.error || "Could not send invoice"); return; }
     await handleAdminChangeInvoiceStatus(factura, "SENT");
@@ -1138,6 +1171,9 @@ const App = () => {
   const openConfirmPayInvoice = (factura: Factura) => {
     setPaymentMethod(factura.payment_method || "");
     setPaymentNotes(factura.payment_notes || "");
+    setPaymentReference(factura.payment_reference || "");
+    setPaymentDate(factura.payment_date || new Date().toISOString().slice(0, 10));
+    setCustomerInvoiceNote(factura.customer_invoice_note || "");
     setPendingPayInvoice(factura);
   };
 
@@ -1154,6 +1190,9 @@ const App = () => {
         invoice_status: "PAID",
         payment_method: paymentMethod,
         payment_notes: paymentNotes.trim() || null,
+        payment_reference: paymentReference.trim() || null,
+        payment_date: paymentDate || null,
+        customer_invoice_note: customerInvoiceNote.trim() || null,
       })
       .eq("id", target.id);
     if (error) {
@@ -1164,10 +1203,16 @@ const App = () => {
       invoice_status: "PAID",
       payment_method: paymentMethod,
       payment_notes: paymentNotes.trim() || null,
+      payment_reference: paymentReference.trim() || null,
+      payment_date: paymentDate || null,
+      customer_invoice_note: customerInvoiceNote.trim() || null,
     });
     setPendingPayInvoice(null);
     setPaymentMethod("");
     setPaymentNotes("");
+    setPaymentReference("");
+    setPaymentDate("");
+    setCustomerInvoiceNote("");
   };
 
   const handleRemoveAccess = async (id: string) => {
@@ -1877,6 +1922,7 @@ const App = () => {
           <button type="button" className="admin-sidebar-group-title" onClick={() => toggleNavGroup('billing')}>Billing & logistics <ChevronDown size={14} className={expandedNavGroups.billing ? 'nav-chevron is-open' : 'nav-chevron'} /></button>
           {expandedNavGroups.billing && <div className="admin-sidebar-items">
             <button className={`admin-sidebar-item admin-sidebar-item--billing ${activeTab === 'facturas' ? 'active' : ''}`} onClick={() => setActiveTab('facturas')}><Receipt /> Invoices <span className="count-badge">{facturasCount}</span></button>
+            <button className={`admin-sidebar-item admin-sidebar-item--billing ${activeTab === 'finanzas' ? 'active' : ''}`} onClick={() => setActiveTab('finanzas')}><DollarSign /> Finances</button>
             <button className={`admin-sidebar-item admin-sidebar-item--billing ${activeTab === 'ferry' ? 'active' : ''}`} onClick={() => setActiveTab('ferry')}><Ship /> Ferry manifests</button>
             <button className={`admin-sidebar-item admin-sidebar-item--billing ${activeTab === 'containers' ? 'active' : ''}`} onClick={() => setActiveTab('containers')}><Container /> Containers</button>
           </div>}
@@ -1910,8 +1956,10 @@ const App = () => {
                     ? 'Track Package'
                   : activeTab === 'incidencias'
                     ? 'Paquetes con problemas'
-                    : activeTab === 'facturas'
+                  : activeTab === 'facturas'
                       ? 'Panel de Facturas'
+                      : activeTab === 'finanzas'
+                        ? 'Finances'
                       : activeTab === 'leads'
                         ? 'Customer leads'
                       : activeTab === 'portal'
@@ -1939,8 +1987,10 @@ const App = () => {
                     ? `${pedidos.length} shipments with complete history`
                   : activeTab === 'incidencias'
                     ? `${pedidosConIncidencia.length} registro${pedidosConIncidencia.length === 1 ? '' : 's'} en esta categoría`
-                    : activeTab === 'facturas'
-                      ? `${facturasCount} registro${facturasCount === 1 ? '' : 's'} en esta categoría`
+                      : activeTab === 'facturas'
+                        ? `${facturasCount} registro${facturasCount === 1 ? '' : 's'} en esta categoría`
+                      : activeTab === 'finanzas'
+                        ? `${financeRows.length} revenue records across all ports`
                       : activeTab === 'leads'
                         ? `${leads.length} leads received from the website`
                       : activeTab === 'portal'
@@ -2024,6 +2074,20 @@ const App = () => {
 
         {activeTab === 'portal' && <div style={{ width: '100%', overflowX: 'auto' }}>
           {portalEvents.length === 0 ? <p style={{ padding: '1.5rem', color: '#64748b' }}>No customer portal or account events have been recorded yet.</p> : <table className="admin-table" style={{ minWidth: 980, width: '100%' }}><thead><tr><th>Date</th><th>Customer</th><th>Email</th><th>Result</th><th>Reason</th><th>Event</th></tr></thead><tbody>{portalEvents.map((event) => <tr key={event.id}><td>{formatStaffDateTime(event.created_at)}</td><td>{event.customer_name || '-'}{event.account_number != null && <><br /><small>Account #{event.account_number}</small></>}</td><td>{event.email}</td><td><span style={{ color: event.success ? '#166534' : '#b91c1c', fontWeight: 700 }}>{event.success ? (event.event_type === 'login_attempt' ? 'Successful' : 'Completed') : 'Problem'}</span></td><td>{event.reason || '-'}</td><td>{portalEventLabel(event.event_type)}</td></tr>)}</tbody></table>}
+        </div>}
+
+        {activeTab === 'finanzas' && <div style={{ width: '100%' }}>
+          <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', alignItems: 'center', marginBottom: '1rem' }}>
+            <input type="date" value={financeDateFrom} onChange={(event) => setFinanceDateFrom(event.target.value)} aria-label="Finance start date" style={{ padding: '0.55rem', border: '1px solid #cbd5e1', borderRadius: '0.55rem' }} />
+            <input type="date" value={financeDateTo} onChange={(event) => setFinanceDateTo(event.target.value)} aria-label="Finance end date" style={{ padding: '0.55rem', border: '1px solid #cbd5e1', borderRadius: '0.55rem' }} />
+            <input type="search" value={financeCustomer} onChange={(event) => setFinanceCustomer(event.target.value)} placeholder="Customer, account, email, or tracking" style={{ flex: '1 1 260px', padding: '0.55rem 0.75rem', border: '1px solid #cbd5e1', borderRadius: '0.55rem' }} />
+            <select value={financePort} onChange={(event) => setFinancePort(event.target.value)} aria-label="Revenue by port" style={{ padding: '0.55rem', border: '1px solid #cbd5e1', borderRadius: '0.55rem', background: '#fff' }}><option value="ALL">All ports</option>{financePorts.map((port) => <option key={port} value={port}>{port}</option>)}</select>
+            <select value={financeContainer} onChange={(event) => setFinanceContainer(event.target.value)} aria-label="Revenue by container" style={{ padding: '0.55rem', border: '1px solid #cbd5e1', borderRadius: '0.55rem', background: '#fff' }}><option value="ALL">All containers</option>{invoiceContainerOptions.map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: '0.75rem', marginBottom: '1rem' }}>
+            {[['Invoiced', financeTotals.invoiced, '#1d4ed8'], ['Paid', financeTotals.paid, '#166534'], ['Outstanding', financeTotals.outstanding, '#b45309']].map(([label, value, color]) => <div key={String(label)} style={{ border: '1px solid #e2e8f0', borderRadius: '0.8rem', padding: '0.9rem', background: '#f8fafc' }}><span style={{ color: '#64748b', fontSize: '0.82rem' }}>{label}</span><strong style={{ display: 'block', color: String(color), fontSize: '1.35rem', marginTop: '0.2rem' }}>${Number(value).toFixed(2)}</strong></div>)}
+          </div>
+          <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '0.7rem' }}><table className="admin-table" style={{ minWidth: 980, width: '100%' }}><thead><tr><th>Date</th><th>Port</th><th>Customer</th><th>Tracking</th><th>Container</th><th>Total</th><th>Payment</th></tr></thead><tbody>{financeRows.map((invoice) => <tr key={invoice.id}><td>{invoice.creado_en ? formatStaffDateTime(invoice.creado_en) : '-'}</td><td>{invoice.puerto || 'Unknown'}</td><td>{invoice.clienteNombre || '-'}<br /><small>#{invoice.clienteNumero ?? '-'}</small></td><td><button type="button" className="ga-client360-tracking" onClick={() => void abrirDetallePedido(invoice.id)}>{invoice.tracking}</button></td><td>{invoice.containerLabels.join(', ') || '-'}</td><td>${Number(invoice.total || 0).toFixed(2)}</td><td style={{ color: invoice.invoice_status === 'PAID' ? '#166534' : '#b45309', fontWeight: 700 }}>{invoice.invoice_status === 'PAID' ? 'Paid' : 'Unpaid'}</td></tr>)}</tbody></table>{financeRows.length === 0 && <p style={{ padding: '1rem', color: '#64748b' }}>No revenue records match these filters.</p>}</div>
         </div>}
 
         {activeTab === 'activityLogs' && <div style={{ width: '100%' }}>
@@ -2186,6 +2250,8 @@ const App = () => {
               >
                 Aprobadas
               </button>
+              <button type="button" className={`tab-pill ${activeInvoiceTab === 'todas' ? 'active' : ''}`} style={{ minWidth: 100, fontSize: '0.8rem' }} onClick={() => setActiveInvoiceTab('todas')}>All</button>
+              <button type="button" className={`tab-pill ${activeInvoiceTab === 'problemas' ? 'active' : ''}`} style={{ minWidth: 110, fontSize: '0.8rem' }} onClick={() => setActiveInvoiceTab('problemas')}>Problems</button>
               <button
                 type="button"
                 className={`tab-pill ${activeInvoiceTab === 'enviadas' ? 'active' : ''}`}
@@ -2800,6 +2866,10 @@ const App = () => {
                 return (
                   <li
                     key={p.id}
+                    onClick={activeTab === 'track' ? () => void abrirDetallePedido(p.id) : undefined}
+                    role={activeTab === 'track' ? 'button' : undefined}
+                    tabIndex={activeTab === 'track' ? 0 : undefined}
+                    onKeyDown={activeTab === 'track' ? (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); void abrirDetallePedido(p.id); } } : undefined}
                     style={{
                       padding: '0.8rem 0',
                       borderBottom: '1px solid #e2e8f0',
@@ -2809,12 +2879,13 @@ const App = () => {
                       columnGap: '0.75rem',
                       alignItems: 'center',
                       minWidth: 760,
+                      cursor: activeTab === 'track' ? 'pointer' : 'default',
                     }}
                   >
                     {activeTab === 'track' ? (
                       <button
                         type="button"
-                        onClick={() => void abrirDetallePedido(p.id)}
+                        onClick={(event) => { event.stopPropagation(); void abrirDetallePedido(p.id); }}
                         style={{ border: 0, background: 'transparent', color: '#1d4ed8', fontWeight: 700, minWidth: 200, overflowWrap: 'anywhere', textAlign: 'left', padding: 0, cursor: 'pointer', textDecoration: 'underline' }}
                         title="Open complete shipment history"
                       >
@@ -2851,7 +2922,7 @@ const App = () => {
                     >
                       {p.estado || '-'}
                     </span>
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.35rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.35rem' }} onClick={(event) => event.stopPropagation()}>
                       <button
                         type="button"
                         title="Editar pedido"
@@ -3100,8 +3171,17 @@ const App = () => {
                   <option value="Zelle">Zelle</option>
                   <option value="PayPal">PayPal</option>
                   <option value="Cash">Cash</option>
+                  <option value="Bank Transfer / Wire">Bank Transfer / Wire</option>
                   <option value="Credit granted">Credit granted</option>
                 </select>
+              </div>
+              <div className="pa-field">
+                <label htmlFor="admin-payment-reference">Bank / payment reference</label>
+                <input id="admin-payment-reference" className="pa-input" value={paymentReference} onChange={(event) => setPaymentReference(event.target.value)} placeholder="Reference number" />
+              </div>
+              <div className="pa-field">
+                <label htmlFor="admin-payment-date">Payment date</label>
+                <input id="admin-payment-date" className="pa-input" type="date" value={paymentDate} onChange={(event) => setPaymentDate(event.target.value)} />
               </div>
               <div className="pa-field">
                 <label htmlFor="admin-payment-notes">Payment details / notes</label>
@@ -3113,6 +3193,10 @@ const App = () => {
                   onChange={(event) => setPaymentNotes(event.target.value)}
                   placeholder="Reference number, payer, or other payment details"
                 />
+              </div>
+              <div className="pa-field">
+                <label htmlFor="admin-customer-invoice-note">Customer-facing invoice note (optional)</label>
+                <textarea id="admin-customer-invoice-note" className="pa-input" rows={2} value={customerInvoiceNote} onChange={(event) => setCustomerInvoiceNote(event.target.value)} placeholder="Only this note is shown to the customer." />
               </div>
             </div>
             <div className="ga-modal-actions" style={{ justifyContent: 'flex-end', gap: '0.5rem' }}>
@@ -3154,6 +3238,14 @@ const App = () => {
               const children = Array.isArray(pedidoDetalle.consolidates) ? pedidoDetalle.consolidates : [];
               const containers = Array.isArray(pedidoDetalle.contenedores) ? pedidoDetalle.contenedores : [];
               const stageColor = shipmentStage(status) === "PICKED_UP" ? "#8b5cf6" : shipmentStage(status) === "UNLOADED" ? "#2563eb" : shipmentStage(status) === "IN_TRANSIT" ? "#0f766e" : "#64748b";
+              const describeChanges = (event: any) => {
+                const details = event?.details;
+                const current = details?.new && typeof details.new === "object" ? details.new : {};
+                const previous = details?.old && typeof details.old === "object" ? details.old : {};
+                const fields = ["estado", "numero_cliente_id", "contenedor_id", "billing_subtotal", "billing_tax", "billing_total", "approval_status", "invoice_status", "payment_method", "payment_date", "payment_reference", "problema", "problema_notas", "cargos_adicionales"];
+                const labels: Record<string, string> = { estado: "status", numero_cliente_id: "customer", contenedor_id: "container", billing_subtotal: "subtotal", billing_tax: "tax", billing_total: "total", approval_status: "invoice approval", invoice_status: "invoice status", payment_method: "payment method", payment_date: "payment date", payment_reference: "payment reference", problema: "problem flag", problema_notas: "problem note", cargos_adicionales: "charges" };
+                return fields.filter((field) => JSON.stringify(current[field] ?? null) !== JSON.stringify(previous[field] ?? null) && (current[field] !== undefined || previous[field] !== undefined)).map((field) => `${labels[field] || field}: ${String(previous[field] ?? "empty")} → ${String(current[field] ?? "empty")}`);
+              };
               const detailRow = (label: string, value: React.ReactNode, key: string) => <div key={key} style={{ display: "grid", gridTemplateColumns: "145px minmax(0,1fr)", gap: "0.75rem", padding: "0.34rem 0", alignItems: "baseline" }}><span style={{ color: "#64748b", fontSize: "0.88rem" }}>{label}</span><span style={{ color: "#1e293b", fontWeight: 600, minWidth: 0, overflowWrap: "anywhere" }}>{value || "—"}</span></div>;
               return <>
                 <div style={{ display: "flex", alignItems: "center", gap: "0.65rem", borderBottom: "1px solid #e2e8f0", padding: "0.1rem 0 0.8rem" }}>
@@ -3181,7 +3273,7 @@ const App = () => {
                 </section>
                 <section style={{ borderTop: "1px solid #e2e8f0", paddingTop: "0.75rem" }}>
                   <h4 style={{ margin: 0, fontSize: "1rem", color: "#1e293b" }}>↗ History - every touch ({activity.length}) <span style={{ color: "#b91c1c", fontSize: "0.82rem", marginLeft: "0.35rem" }}>⚑ {activity.filter((event: any) => !event.success || String(event.action).toLowerCase().includes("problem")).length || ""} flagged</span></h4>
-                  {activity.length ? <div style={{ marginTop: "0.55rem", display: "flex", flexDirection: "column", gap: "0.5rem" }}>{activity.map((event: any) => <div key={event.id} style={{ display: "grid", gridTemplateColumns: "115px 1fr", gap: "0.7rem", fontSize: "0.82rem" }}><time style={{ color: "#64748b" }}>{formatStaffDateTime(event.created_at)}</time><div style={{ borderLeft: `3px solid ${event.success === false ? "#dc2626" : "#2563eb"}`, paddingLeft: "0.65rem" }}><strong style={{ color: event.success === false ? "#991b1b" : "#334155" }}>{String(event.action || "Activity").replaceAll("_", " ")}</strong>{event.actor_name && <span style={{ color: "#64748b" }}> by {event.actor_name}</span>}{event.error_message && <div style={{ color: "#991b1b" }}>{event.error_message}</div>}{event.details?.source === "database_trigger" && <div style={{ color: "#64748b" }}>Database record change</div>}</div></div>)}</div> : <p style={{ color: "#94a3b8", margin: "0.5rem 0" }}>No activity history has been recorded.</p>}
+                  {activity.length ? <div style={{ marginTop: "0.55rem", display: "flex", flexDirection: "column", gap: "0.5rem" }}>{activity.map((event: any) => { const changes = describeChanges(event); return <div key={event.id} style={{ display: "grid", gridTemplateColumns: "115px 1fr", gap: "0.7rem", fontSize: "0.82rem" }}><time style={{ color: "#64748b" }}>{formatStaffDateTime(event.created_at)}</time><div style={{ borderLeft: `3px solid ${event.success === false ? "#dc2626" : "#2563eb"}`, paddingLeft: "0.65rem" }}><strong style={{ color: event.success === false ? "#991b1b" : "#334155" }}>{String(event.action || "Activity").replaceAll("_", " ")}</strong>{event.actor_name && <span style={{ color: "#64748b" }}> by {event.actor_name}</span>}{event.error_message && <div style={{ color: "#991b1b" }}>{event.error_message}</div>}{changes.length > 0 && <div style={{ color: "#475569", marginTop: "0.18rem" }}>{changes.join(" · ")}</div>}{event.details?.source === "database_trigger" && changes.length === 0 && <div style={{ color: "#64748b" }}>No tracked field changes</div>}</div></div>; })}</div> : <p style={{ color: "#94a3b8", margin: "0.5rem 0" }}>No activity history has been recorded.</p>}
                 </section>
                 <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem", marginTop: "1rem", paddingTop: "0.75rem", borderTop: "1px solid #e2e8f0" }}><button type="button" className="pa-secondary-btn" onClick={() => setIsPedidoDetalleOpen(false)}>Close</button></div>
               </>;
@@ -3190,7 +3282,16 @@ const App = () => {
         </div>
       )}
 
-      {isPedidoDetalleOpen && !pedidoDetalle?.activity && (
+      {isPedidoDetalleOpen && pedidoDetalleLoading && (
+        <div className="pa-modal-overlay" onClick={() => setIsPedidoDetalleOpen(false)}>
+          <div role="dialog" aria-modal="true" aria-label="Loading shipment details" style={{ width: "min(760px, 96vw)", borderRadius: "1.2rem", background: "#fff", boxShadow: "0 25px 80px rgba(15,23,42,.28)", padding: "1.25rem 1.4rem" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.7rem", borderBottom: "1px solid #e2e8f0", paddingBottom: "0.8rem" }}><span style={{ color: "#64748b" }}>▧</span><strong style={{ flex: 1 }}>Track Package</strong><button type="button" onClick={() => setIsPedidoDetalleOpen(false)} style={{ border: 0, background: "transparent", color: "#64748b", fontSize: "1.4rem", cursor: "pointer" }}>×</button></div>
+            <p style={{ margin: "1.2rem 0 0", color: "#64748b" }}>Loading complete shipment history…</p>
+          </div>
+        </div>
+      )}
+
+      {isPedidoDetalleOpen && !pedidoDetalle?.activity && !pedidoDetalleLoading && pedidoDetalle && (
         <div className="pa-modal-overlay">
           <div
             className="pa-modal"

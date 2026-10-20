@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { calculateWorkflowBilling } from "@/lib/workflow-billing";
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
+const escapeHtml = (value: string) => value.replace(/[&<>'"]/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[character] || character));
 
 if (!RESEND_API_KEY) {
   console.warn("RESEND_API_KEY is not set. Email sending will fail.");
@@ -41,6 +42,7 @@ export async function POST(request: Request) {
       isConsolidationBox,
       consolidatedPackagesCount,
       serviceDate,
+      customerInvoiceNote,
     } = body as {
       to: string;
       subject: string;
@@ -56,6 +58,7 @@ export async function POST(request: Request) {
       isConsolidationBox?: boolean;
       consolidatedPackagesCount?: number | null;
       serviceDate?: string | null;
+      customerInvoiceNote?: string | null;
     };
 
     if (!to || !subject || !tracking) {
@@ -219,6 +222,7 @@ export async function POST(request: Request) {
     const invoiceTotal = invoiceItems.reduce((sum, item) => sum + item.total, 0);
 
     const safeClientName = clientName && clientName.trim().length > 0 ? clientName : "-";
+    const safeCustomerInvoiceNote = customerInvoiceNote?.trim() ? escapeHtml(customerInvoiceNote.trim()) : "";
     const safeClientNumber =
       typeof clientNumber === "number" ? `#${clientNumber}` : "-";
     const parsedServiceDate = resolvedServiceDate ? new Date(resolvedServiceDate) : null;
@@ -310,6 +314,7 @@ export async function POST(request: Request) {
                 <h1 style="font-size:20px; font-weight:700; margin:0 0 20px 0;">Invoice for ${safeClientName}${
                   safeClientNumber !== "-" ? ` (${safeClientNumber})` : ""
                 }</h1>
+                ${safeCustomerInvoiceNote ? `<div style="margin:0 0 18px 0; padding:12px 14px; border:1px solid #dbeafe; border-radius:8px; background:#eff6ff; color:#1e3a8a;"><strong>Note</strong><div style="margin-top:4px;">${safeCustomerInvoiceNote}</div></div>` : ""}
 
                 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px; font-size:13px;">
                   <tr>
