@@ -82,6 +82,14 @@ const SHIPMENT_STAGE_OPTIONS = [
   ["PICKED_UP", "Picked up"],
 ] as const;
 
+const TRACK_STAGE_STYLES: Record<string, { color: string; background: string; border: string }> = {
+  RECEIVED: { color: '#475569', background: '#f1f5f9', border: '#cbd5e1' },
+  REGISTERED: { color: '#15803d', background: '#f0fdf4', border: '#86efac' },
+  IN_TRANSIT: { color: '#0f766e', background: '#f0fdfa', border: '#5eead4' },
+  UNLOADED: { color: '#c2410c', background: '#fff7ed', border: '#fdba74' },
+  PICKED_UP: { color: '#7e22ce', background: '#faf5ff', border: '#d8b4fe' },
+};
+
 const App = () => {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<
@@ -2876,6 +2884,8 @@ const App = () => {
                   p.clienteNumero != null && p.clienteNombre
                     ? `#${p.clienteNumero} - ${p.clienteNombre}`
                     : '';
+                const trackStage = shipmentStage(p.estado);
+                const trackStageStyle = TRACK_STAGE_STYLES[trackStage] || TRACK_STAGE_STYLES.RECEIVED;
 
                 return (
                   <li
@@ -2900,7 +2910,7 @@ const App = () => {
                       <button
                         type="button"
                         onClick={(event) => { event.stopPropagation(); void abrirDetallePedido(p.id); }}
-                        style={{ border: 0, background: 'transparent', color: '#1d4ed8', fontWeight: 700, minWidth: 200, overflowWrap: 'anywhere', textAlign: 'left', padding: 0, cursor: 'pointer', textDecoration: 'underline' }}
+                        style={{ border: 0, background: 'transparent', color: trackStageStyle.color, fontWeight: 800, minWidth: 200, overflowWrap: 'anywhere', textAlign: 'left', padding: 0, cursor: 'pointer', textDecoration: 'underline' }}
                         title="Open complete shipment history"
                       >
                         #{p.tracking}
@@ -2924,14 +2934,19 @@ const App = () => {
                     </span>
                     <span
                       style={{
-                        color: p.estado === 'Check In' ? '#16a34a' : '#0f172a',
-                        fontWeight: 600,
+                        color: activeTab === 'track' ? trackStageStyle.color : (p.estado === 'Check In' ? '#16a34a' : '#0f172a'),
+                        background: activeTab === 'track' ? trackStageStyle.background : 'transparent',
+                        border: activeTab === 'track' ? `1px solid ${trackStageStyle.border}` : '0',
+                        borderRadius: activeTab === 'track' ? '999px' : '0',
+                        fontWeight: 700,
                         textTransform: 'capitalize',
                         minWidth: 120,
                         maxWidth: 160,
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
                         whiteSpace: 'nowrap',
+                        padding: activeTab === 'track' ? '0.25rem 0.6rem' : 0,
+                        display: 'inline-block',
                       }}
                     >
                       {p.estado || '-'}
@@ -3489,7 +3504,7 @@ const App = () => {
             {!pedidoDetalleLoading && pedidoDetalle && pedidoQrUrl && (
               <div style={{ textAlign: "center", marginTop: "1rem", paddingTop: "1rem", borderTop: "1px solid #e5e7eb" }}>
                 <div style={{ fontWeight: 700, color: "#374151", marginBottom: "0.5rem" }}>Shipment QR preview</div>
-                <Image src={pedidoQrUrl} alt="Shipment QR preview" width={220} height={220} unoptimized />
+                <Image src={pedidoQrUrl || ""} alt="Shipment QR preview" width={220} height={220} unoptimized />
               </div>
             )}
           </div>
