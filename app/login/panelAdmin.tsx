@@ -161,6 +161,9 @@ const App = () => {
     approval_status: string | null;
     invoice_status: string | null;
     notas: string | null;
+    problema?: boolean | null;
+    problema_notas?: string | null;
+    issue_status?: string | null;
     payment_method: string | null;
     payment_notes: string | null;
     payment_reference: string | null;
@@ -281,7 +284,7 @@ const App = () => {
         return invoice === 'PAID' && matchesSearch && matchesContainer;
       }
       if (activeInvoiceTab === 'problemas') {
-        return (approval === 'REJECTED' || invoice === 'OVERDUE' || Boolean(f.notas)) && matchesSearch && matchesContainer;
+        return (approval === 'REJECTED' || invoice === 'OVERDUE' || Boolean(f.problema) || String(f.issue_status || '').toUpperCase() === 'OPEN' || Boolean(f.problema_notas?.trim())) && matchesSearch && matchesContainer;
       }
       return matchesSearch && matchesContainer;
     });
@@ -955,7 +958,7 @@ const App = () => {
     const { data, error } = await supabase
       .from("paquetes_registro")
       .select(
-        "id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, notas_imagenes, billing_subtotal, billing_tax, billing_total, approval_status, invoice_status, payment_method, payment_notes, payment_reference, payment_date, customer_invoice_note, creado_en, numero_cliente:numero_cliente_id (id, numero_cliente, nombre, email, puerto)",
+        "id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, notas_imagenes, problema, problema_notas, issue_status, billing_subtotal, billing_tax, billing_total, approval_status, invoice_status, payment_method, payment_notes, payment_reference, payment_date, customer_invoice_note, creado_en, numero_cliente:numero_cliente_id (id, numero_cliente, nombre, email, puerto)",
       )
       .or("estado.ilike.%descargado%,estado.ilike.%entregado%")
       .order("creado_en", { ascending: false });
@@ -998,6 +1001,9 @@ const App = () => {
         approval_status: (row.approval_status as string | null) ?? null,
         invoice_status: (row.invoice_status as string | null) ?? null,
         notas: (row.notas as string | null) ?? null,
+        problema: Boolean(row.problema),
+        problema_notas: (row.problema_notas as string | null) ?? null,
+        issue_status: (row.issue_status as string | null) ?? null,
         payment_method: (row.payment_method as string | null) ?? null,
         payment_notes: (row.payment_notes as string | null) ?? null,
         payment_reference: (row.payment_reference as string | null) ?? null,
@@ -1995,7 +2001,7 @@ const App = () => {
                   : activeTab === 'incidencias'
                     ? `${pedidosConIncidencia.length} registro${pedidosConIncidencia.length === 1 ? '' : 's'} en esta categoría`
                       : activeTab === 'facturas'
-                        ? `${facturasCount} registro${facturasCount === 1 ? '' : 's'} en esta categoría`
+                        ? `${facturasFiltradas.length} registro${facturasFiltradas.length === 1 ? '' : 's'} en esta categoría`
                       : activeTab === 'finanzas'
                         ? `${financeRows.length} revenue records across all ports`
                       : activeTab === 'leads'
@@ -2282,14 +2288,14 @@ const App = () => {
             <div
               style={{
                 display: 'grid',
-                gridTemplateColumns: '2fr 2.2fr 1.4fr 1fr 1.4fr 1.4fr 1.5fr',
+                gridTemplateColumns: 'minmax(220px, 2fr) 200px 150px 100px 140px 140px 280px',
                 columnGap: '0.75rem',
                 padding: '0.4rem 0',
                 fontSize: '0.8rem',
                 color: '#64748b',
                 borderBottom: '1px solid #e2e8f0',
                 fontWeight: 600,
-                minWidth: 1080,
+                minWidth: 1280,
               }}
             >
               <span style={{ minWidth: 180 }}>Tracking</span>
@@ -2298,7 +2304,7 @@ const App = () => {
               <span style={{ minWidth: 90 }}>Total</span>
               <span style={{ minWidth: 150 }}>Aprobación</span>
               <span style={{ minWidth: 150 }}>Estado factura</span>
-              <span style={{ textAlign: 'right', minWidth: 160, position: 'sticky', right: 0, zIndex: 2, background: '#fff' }}>Acciones</span>
+              <span style={{ textAlign: 'left', minWidth: 260 }}>Acciones</span>
             </div>
 
             <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
@@ -2341,10 +2347,10 @@ const App = () => {
                       borderBottom: '1px solid #e2e8f0',
                       fontSize: '0.9rem',
                       display: 'grid',
-                      gridTemplateColumns: '2fr 2.2fr 1.4fr 1fr 1.4fr 1.4fr 1.5fr',
+                      gridTemplateColumns: 'minmax(220px, 2fr) 200px 150px 100px 140px 140px 280px',
                       columnGap: '0.75rem',
                       alignItems: 'center',
-                      minWidth: 1080,
+                      minWidth: 1280,
                     }}
                   >
                     <span
@@ -2410,13 +2416,13 @@ const App = () => {
                     <div
                       style={{
                         display: 'flex',
-                        justifyContent: 'flex-end',
+                        justifyContent: 'flex-start',
+                        flexWrap: 'wrap',
                         gap: '0.35rem',
-                        minWidth: 160,
-                        position: 'sticky',
-                        right: 0,
+                        minWidth: 260,
+                        position: 'static',
                         zIndex: 1,
-                        background: '#fff',
+                        background: 'transparent',
                         paddingLeft: '0.35rem',
                       }}
                     >
