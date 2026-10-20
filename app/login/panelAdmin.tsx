@@ -1167,6 +1167,13 @@ const App = () => {
     await handleAdminChangeInvoiceStatus(factura, "SENT");
     alert("Invoice emailed successfully.");
   };
+  const printInvoice = (factura: Factura) => {
+    const printWindow = window.open("", "_blank", "width=900,height=700");
+    if (!printWindow) { alert("Please allow pop-ups to print the invoice."); return; }
+    const note = factura.customer_invoice_note ? `<div class="note"><strong>Note</strong><br>${factura.customer_invoice_note}</div>` : "";
+    printWindow.document.write(`<!doctype html><html><head><title>Invoice ${factura.tracking}</title><style>body{font-family:Arial,sans-serif;color:#172033;padding:36px;max-width:760px;margin:auto}h1{color:#0f4c81;border-bottom:3px solid #f97316;padding-bottom:12px}.row{display:flex;justify-content:space-between;border-bottom:1px solid #e5e7eb;padding:10px 0}.total{font-size:20px;font-weight:800}.note{margin:20px 0;padding:14px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px}</style></head><body><h1>Caribex Logistics Group</h1><h2>Invoice</h2><div class="row"><span>Tracking</span><strong>${factura.tracking}</strong></div><div class="row"><span>Customer</span><strong>${factura.clienteNombre || "-"} (#${factura.clienteNumero ?? "-"})</strong></div><div class="row"><span>Item</span><strong>${factura.tipo_paquete || "Shipment"}</strong></div><div class="row"><span>Subtotal</span><strong>$${Number(factura.subtotal || 0).toFixed(2)}</strong></div><div class="row"><span>Tax</span><strong>$${Number(factura.tax || 0).toFixed(2)}</strong></div><div class="row total"><span>Total</span><strong>$${Number(factura.total || 0).toFixed(2)}</strong></div>${note}<script>window.onload=()=>window.print()</script></body></html>`);
+    printWindow.document.close();
+  };
 
   const openConfirmPayInvoice = (factura: Factura) => {
     setPaymentMethod(factura.payment_method || "");
@@ -2493,6 +2500,7 @@ const App = () => {
                       >
                         <Send size={14} /> <span style={{ fontSize: '0.72rem' }}>{isSent ? 'Resend' : 'Send'}</span>
                       </button>
+                      <button type="button" title="PDF / Print invoice" className="pa-secondary-btn" style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', whiteSpace: 'nowrap' }} onClick={() => printInvoice(f)}>PDF / Print</button>
                       <button
                         type="button"
                         title="Marcar como pagada"
@@ -3237,6 +3245,8 @@ const App = () => {
               const activity = Array.isArray(pedidoDetalle.activity) ? pedidoDetalle.activity : [];
               const children = Array.isArray(pedidoDetalle.consolidates) ? pedidoDetalle.consolidates : [];
               const containers = Array.isArray(pedidoDetalle.contenedores) ? pedidoDetalle.contenedores : [];
+              const invoiceIndex = facturasFiltradas.findIndex((invoice) => invoice.id === pedidoDetalle.id);
+              const openAdjacentInvoice = (offset: number) => { const nextInvoice = invoiceIndex >= 0 ? facturasFiltradas[invoiceIndex + offset] : null; if (nextInvoice) void abrirDetallePedido(nextInvoice.id); };
               const stageColor = shipmentStage(status) === "PICKED_UP" ? "#8b5cf6" : shipmentStage(status) === "UNLOADED" ? "#2563eb" : shipmentStage(status) === "IN_TRANSIT" ? "#0f766e" : "#64748b";
               const describeChanges = (event: any) => {
                 const details = event?.details;
@@ -3252,6 +3262,7 @@ const App = () => {
                   <span style={{ color: "#64748b", fontSize: "1.1rem" }}>▧</span>
                   <strong style={{ flex: 1, fontSize: "1.08rem", letterSpacing: "0.01em", overflowWrap: "anywhere" }}>{pedidoDetalle.tracking || "Shipment"}</strong>
                   <span style={{ background: "#fbbf24", color: "#78350f", borderRadius: "0.35rem", padding: "0.45rem 0.7rem", fontWeight: 800 }}>{pedidoDetalle.tipo_paquete || "Package"} {pedidoDetalle.invoice_id ? pedidoDetalle.invoice_id : ""}</span>
+                  {invoiceIndex >= 0 && <div style={{ display: "flex", gap: "0.3rem", alignItems: "center" }}><button type="button" className="pa-secondary-btn" disabled={invoiceIndex <= 0} onClick={() => openAdjacentInvoice(-1)} style={{ padding: "0.25rem 0.45rem", fontSize: "0.72rem" }}>‹ Previous</button><span style={{ color: "#64748b", fontSize: "0.75rem", whiteSpace: "nowrap" }}>{invoiceIndex + 1} of {facturasFiltradas.length}</span><button type="button" className="pa-secondary-btn" disabled={invoiceIndex >= facturasFiltradas.length - 1} onClick={() => openAdjacentInvoice(1)} style={{ padding: "0.25rem 0.45rem", fontSize: "0.72rem" }}>Next ›</button></div>}
                   <span style={{ color: stageColor, fontWeight: 800, whiteSpace: "nowrap" }}>{status}</span>
                   <button type="button" onClick={() => setIsPedidoDetalleOpen(false)} aria-label="Close shipment details" style={{ border: 0, background: "transparent", color: "#64748b", fontSize: "1.5rem", lineHeight: 1, cursor: "pointer" }}>×</button>
                 </div>
@@ -3266,7 +3277,6 @@ const App = () => {
                   {detailRow("Received", formatStaffDateTime(pedidoDetalle.hora_fecha || pedidoDetalle.creado_en), "received")}
                   {detailRow("Last scanned", formatStaffDateTime(activity[activity.length - 1]?.created_at || pedidoDetalle.updated_at || pedidoDetalle.hora_fecha), "scanned")}
                 </div>
-                {status.toLowerCase().includes("entregado") && <div style={{ display: "inline-flex", alignItems: "center", gap: "0.45rem", border: "1px solid #94a3b8", borderRadius: "999px", padding: "0.45rem 0.75rem", color: "#475569", fontWeight: 700, margin: "0.35rem 0 0.9rem" }}>♟ Customer already has it <span style={{ fontWeight: 500 }}>(collected on an earlier visit)</span></div>}
                 <section style={{ borderTop: "1px solid #e2e8f0", paddingTop: "0.75rem" }}>
                   <h4 style={{ margin: 0, fontSize: "1rem", color: "#1e293b" }}>Consolidates {children.length ? `${children.length} package(s)` : ""}:</h4>
                   {children.length ? <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem", padding: "0.45rem 0 0.75rem 1rem" }}>{children.map((child: any) => <button key={child.id} type="button" onClick={() => void abrirDetallePedido(child.id)} style={{ border: 0, background: "transparent", color: "#2563eb", textAlign: "left", cursor: "pointer", fontSize: "0.9rem" }}>{child.tracking}</button>)}</div> : <p style={{ color: "#94a3b8", margin: "0.45rem 0 0.75rem" }}>None</p>}
