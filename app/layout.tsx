@@ -2,6 +2,7 @@ import "./globals.css";
 import type { Metadata } from "next";
 import React from "react";
 import { I18nProvider } from "../lib/I18nProvider";
+import InactivityGuard from "../components/InactivityGuard";
 
 export const metadata: Metadata = {
   title: "Caribex",
@@ -25,7 +26,10 @@ export default function RootLayout({
         />
       </head>
       <body>
-        <I18nProvider>{children}</I18nProvider>
+        <I18nProvider>
+          <InactivityGuard />
+          {children}
+        </I18nProvider>
       </body>
     </html>
   );

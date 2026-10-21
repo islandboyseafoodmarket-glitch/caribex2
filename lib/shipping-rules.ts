@@ -2,7 +2,7 @@ export const DATABASE_STATUS = {
   RECEIVED: "Recibido",
   CHECK_IN: "Registrado",
   IN_TRANSIT: "En tránsito",
-  UNLOADED: "Descargado (Roatan)",
+  UNLOADED: "Descargado",
   PICKED_UP: "Entregado",
 } as const;
 

@@ -44,7 +44,7 @@ import UnloadedStage from "./Unloaded";
 import PickupStage from "./Pickup";
 import InvoicesStage from "./InvoicesStage";
 import InvoicePreview from "../components/InvoicePreview";
-import CaribexLabelPrint from "../components/CaribexLabelPrint";
+import CaribexLabelPrint, { type CaribexLabelSize } from "../components/CaribexLabelPrint";
 import CaribexBatchLabelPrint, { BatchBoxLabel } from "../components/CaribexBatchLabelPrint";
 import { calculateWorkflowBilling, isBox } from "../lib/workflow-billing";
 import { DATABASE_STATUS } from "../lib/shipping-rules";
@@ -252,7 +252,7 @@ const getStageLabel = (id: StageId, isEs: boolean): string => {
       case "EN_TRANSITO":
         return "En tránsito";
       case "DESCARGADO_ROATAN":
-        return "Descargado (Roatán)";
+        return "Descargado";
       case "PASTILLA":
         return "Pastilla";
       case "FACTURAS":
@@ -267,7 +267,7 @@ const getStageLabel = (id: StageId, isEs: boolean): string => {
       case "EN_TRANSITO":
         return "In-Transit";
       case "DESCARGADO_ROATAN":
-        return "Unloaded (Roatán)";
+        return "Unloaded";
       case "PASTILLA":
         return "Pickup";
       case "FACTURAS":
@@ -298,7 +298,7 @@ const STAGES: Stage[] = [
   },
   {
     id: "DESCARGADO_ROATAN",
-    label: "Descargado (Roatán)",
+    label: "Descargado",
     badge: 0,
     icon: <PackageOpen size={18} />,
   },
@@ -360,8 +360,17 @@ export default function GestionAlmacen() {
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [labelPackage, setLabelPackage] = useState<Package | null>(null);
   const [labelMode, setLabelMode] = useState<"qr-reprint" | "box">("box");
+  const [labelSize, setLabelSize] = useState<CaribexLabelSize>("4x6");
   const [newBoxLabelCount, setNewBoxLabelCount] = useState(1);
   const [batchNewBoxLabels, setBatchNewBoxLabels] = useState<BatchBoxLabel[] | null>(null);
+  const [issuedLabelHistory, setIssuedLabelHistory] = useState<BatchBoxLabel[]>([]);
+
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem("caribex-issued-label-history");
+      if (stored) setIssuedLabelHistory(JSON.parse(stored));
+    } catch { /* local history is optional */ }
+  }, []);
 
   const generateNewBoxLabels = () => {
     const count = Math.min(100, Math.max(1, Math.floor(Number(newBoxLabelCount) || 1)));
@@ -373,6 +382,11 @@ export default function GestionAlmacen() {
       return { tracking: boxCode, boxCode };
     });
     setBatchNewBoxLabels(labels);
+    setIssuedLabelHistory((previous) => {
+      const next = [...labels, ...previous].slice(0, 50);
+      try { window.localStorage.setItem("caribex-issued-label-history", JSON.stringify(next)); } catch { /* ignore storage limits */ }
+      return next;
+    });
   };
   const [viewCheckInDetails, setViewCheckInDetails] = useState<
     | {
@@ -999,7 +1013,7 @@ export default function GestionAlmacen() {
     const { error: updateError } = await supabase
       .from("paquetes_registro")
       .update({
-        estado: "Descargado (Roatan)",
+        estado: "Descargado",
         descargado: currentUserName,
         fecha_descargado: isoNow,
         hora_descargado: timeStr,
@@ -1026,7 +1040,7 @@ export default function GestionAlmacen() {
           p.tracking === row.tracking
           ? {
               ...p,
-              estado: "Descargado (Roatan)",
+              estado: "Descargado",
             }
           : p,
       ),
@@ -1961,7 +1975,7 @@ export default function GestionAlmacen() {
       const { data, error } = await supabase.auth.getUser();
       if (error || !data?.user) {
         // TEMPORAL: Permitir acceso sin autenticación
-        setCurrentUserName("Desarrollador");
+        setCurrentUserName("Staff");
         setIsAdmin(false);
         return;
       }
@@ -1977,7 +1991,7 @@ export default function GestionAlmacen() {
         .single();
 
       if (personalError || !personalRow) {
-        setCurrentUserName("Desarrollador");
+        setCurrentUserName(user.user_metadata?.full_name || user.email || (role === "admin" || role === "administrator" ? "Admin" : "Staff"));
         return;
       }
 
@@ -2292,7 +2306,7 @@ export default function GestionAlmacen() {
           const { error: updateError } = await supabase
             .from("paquetes_registro")
             .update({
-              estado: "Descargado (Roatan)",
+              estado: "Descargado",
               descargado: currentUserName,
               fecha_descargado: isoNow,
               hora_descargado: timeStr,
@@ -2314,7 +2328,7 @@ export default function GestionAlmacen() {
               p.tracking === row.tracking
                 ? {
                     ...p,
-                    estado: "Descargado (Roatan)",
+                    estado: "Descargado",
                   }
                 : p,
             ),
@@ -3704,7 +3718,21 @@ const handlePackageCreated = (pkg: Package) => {
             <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" }}>
               <label htmlFor="staff-new-box-label-count">{isEs ? "Cantidad" : "Quantity"}</label>
               <input id="staff-new-box-label-count" type="number" min={1} max={100} value={newBoxLabelCount} onChange={(event) => setNewBoxLabelCount(Math.min(100, Math.max(1, Number(event.target.value) || 1)))} className="ga-input" style={{ width: 84 }} />
+              <label htmlFor="staff-label-size">{isEs ? "Tamaño de etiqueta" : "Label size"}</label>
+              <select id="staff-label-size" value={labelSize} onChange={(event) => setLabelSize(event.target.value as CaribexLabelSize)} className="ga-input" style={{ minWidth: 260 }}>
+                <option value="1.5x2.25">Label roll 1.5 × 2.25 in (38 × 57 mm)</option>
+                <option value="40x60mm">Label roll 40 × 60 mm</option>
+                <option value="2x3">Label roll 2 × 3 in (50 × 76 mm)</option>
+                <option value="2x2">Label roll 2 × 2 in (50 × 50 mm)</option>
+                <option value="4x6">Label roll 4 × 6 in (100 × 150 mm)</option>
+                <option value="a4-12">Plain A4 paper — 12 per sheet (no label printer)</option>
+              </select>
               <button type="button" className="ga-primary-button" onClick={generateNewBoxLabels}>{isEs ? "Generar etiquetas Caribex" : "Generate Caribex labels"}</button>
+            </div>
+            <div style={{ marginTop: "1.5rem" }}>
+              <h3 style={{ marginBottom: "0.35rem" }}>{isEs ? "Últimas etiquetas emitidas" : "Recently issued labels"}</h3>
+              <p style={{ color: "#64748b", marginTop: 0 }}>{isEs ? "Se guardan en este equipo para reimprimirlas rápidamente." : "Saved on this computer for quick reprinting."}</p>
+              {issuedLabelHistory.length === 0 ? <p style={{ color: "#64748b" }}>{isEs ? "Todavía no hay etiquetas emitidas." : "No labels have been issued yet."}</p> : <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "0.45rem" }}>{issuedLabelHistory.map((label) => <button key={label.boxCode} type="button" className="ga-secondary-button" style={{ textAlign: "left" }} onClick={() => setBatchNewBoxLabels([label])}>{label.boxCode}</button>)}</div>}
             </div>
           </section>
         ) : activeWarehouseTab === "client360" ? (
@@ -4242,7 +4270,7 @@ const handlePackageCreated = (pkg: Package) => {
                           color: "#6b7280",
                         }}
                       >
-                        {isEs ? "Descargado (Roatán)" : "Unloaded (Roatán)"}
+                        {isEs ? "Descargado" : "Unloaded"}
                       </label>
                     </div>
 
@@ -4856,6 +4884,7 @@ const handlePackageCreated = (pkg: Package) => {
         <CaribexLabelPrint
           isEs={isEs}
           mode={labelMode}
+          labelSize={labelSize}
           onClose={() => setLabelPackage(null)}
           label={{
             tracking: labelPackage.tracking,
@@ -4870,6 +4899,7 @@ const handlePackageCreated = (pkg: Package) => {
       {batchNewBoxLabels && (
         <CaribexBatchLabelPrint
           labels={batchNewBoxLabels}
+          labelSize={labelSize}
           onClose={() => setBatchNewBoxLabels(null)}
         />
       )}

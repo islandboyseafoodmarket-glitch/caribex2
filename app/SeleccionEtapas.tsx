@@ -33,9 +33,9 @@ const STAGES: Stage[] = [
   },
   {
     id: "DESCARGADO_ROATAN",
-    label: "Descargado (Roatán)",
+    label: "Descargado",
     icon: <PackageOpen size={24} />,
-    description: "Paquete descargado en nuestro almacén de Roatán"
+    description: "Paquete descargado en nuestro almacén"
   },
   {
     id: "PASTILLA",

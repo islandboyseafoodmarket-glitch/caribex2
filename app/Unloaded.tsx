@@ -124,7 +124,7 @@ const UnloadedStage: React.FC<UnloadedProps> = ({
             </span>
 
             <div>
-              <h2 className="ga-state-title">{isEs ? "Descargado (Roatán)" : "Unloaded (Roatán)"}</h2>
+              <h2 className="ga-state-title">{isEs ? "Descargado" : "Unloaded"}</h2>
               <p className="ga-state-subtitle">
                 {isEs
                   ? `${filtered.length} envíos`

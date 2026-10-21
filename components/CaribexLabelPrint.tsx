@@ -13,6 +13,8 @@ export type CaribexLabelData = {
   boxCode?: string | null;
 };
 
+export type CaribexLabelSize = "1.5x2.25" | "40x60mm" | "2x3" | "2x2" | "4x6" | "a4-12";
+
 function createCaribexLabelCode() {
   if (typeof window !== "undefined" && window.crypto?.getRandomValues) {
     const values = new Uint32Array(1);
@@ -27,9 +29,10 @@ type Props = {
   onClose: () => void;
   isEs?: boolean;
   mode?: "qr-reprint" | "box";
+  labelSize?: CaribexLabelSize;
 };
 
-export default function CaribexLabelPrint({ label, onClose, isEs = false, mode = "box" }: Props) {
+export default function CaribexLabelPrint({ label, onClose, isEs = false, mode = "box", labelSize = "4x6" }: Props) {
   const [qrCode, setQrCode] = useState("");
   const [labelCode] = useState(createCaribexLabelCode);
   const isQrReprint = mode === "qr-reprint";
@@ -56,7 +59,7 @@ export default function CaribexLabelPrint({ label, onClose, isEs = false, mode =
       <style>{`
         .caribex-label-overlay { position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center; padding: 1rem; background: rgba(15, 23, 42, .55); }
         .caribex-label-sheet { width: min(420px, 100%); background: #fff; border-radius: 16px; padding: 20px; box-shadow: 0 24px 70px rgba(15,23,42,.3); }
-        .caribex-label-card { border: 2px solid #0f4c81; border-radius: 10px; padding: 18px; text-align: center; color: #111827; }
+        .caribex-label-card { --label-width: 4in; --label-height: 6in; border: 2px solid #0f4c81; border-radius: 10px; padding: 18px; text-align: center; color: #111827; width: var(--label-width); min-height: var(--label-height); box-sizing: border-box; margin: 0 auto; }
         .caribex-label-brand { color: #0f4c81; font-size: 19px; font-weight: 800; letter-spacing: .03em; }
         .caribex-label-subtitle { margin-top: 3px; color: #64748b; font-size: 11px; text-transform: uppercase; letter-spacing: .12em; }
         .caribex-label-qr { display: block; width: 260px; height: 260px; margin: 16px auto 10px; image-rendering: pixelated; }
@@ -72,13 +75,19 @@ export default function CaribexLabelPrint({ label, onClose, isEs = false, mode =
           .caribex-label-overlay, .caribex-label-overlay * { visibility: visible !important; }
           .caribex-label-overlay { position: static; padding: 0; background: #fff; }
           .caribex-label-sheet { width: 100%; padding: 0; box-shadow: none; }
-          .caribex-label-card { margin: 0 auto; width: 3.5in; min-height: 5in; }
+          .caribex-label-card { margin: 0 auto; width: var(--label-width); min-height: var(--label-height); }
           .caribex-label-qr { width: 2.75in; height: 2.75in; }
           .caribex-label-actions { display: none; }
         }
+        .caribex-label-card[data-size="1.5x2.25"] { --label-width: 1.5in; --label-height: 2.25in; }
+        .caribex-label-card[data-size="40x60mm"] { --label-width: 40mm; --label-height: 60mm; }
+        .caribex-label-card[data-size="2x3"] { --label-width: 2in; --label-height: 3in; }
+        .caribex-label-card[data-size="2x2"] { --label-width: 2in; --label-height: 2in; }
+        .caribex-label-card[data-size="4x6"] { --label-width: 4in; --label-height: 6in; }
+        .caribex-label-card[data-size="a4-12"] { --label-width: 2.48in; --label-height: 3.86in; }
       `}</style>
       <div className="caribex-label-sheet">
-        <div className="caribex-label-card">
+        <div className="caribex-label-card" data-size={labelSize}>
           <div className="caribex-label-brand">Caribex</div>
           <div className="caribex-label-subtitle">
             {isQrReprint

@@ -328,6 +328,18 @@ const App = () => {
 
   const [pedidoFiltro, setPedidoFiltro] = useState("");
   const [pedidoEtapa, setPedidoEtapa] = useState("ALL");
+  const [trackCustomerQuery, setTrackCustomerQuery] = useState("");
+  const [trackTrackingQuery, setTrackTrackingQuery] = useState("");
+  const trackResults = useMemo(() => {
+    const customerTerm = trackCustomerQuery.trim().toLowerCase();
+    const trackingTerm = trackTrackingQuery.trim().toLowerCase();
+    if (!customerTerm && !trackingTerm) return [];
+    return pedidos.filter((shipment) => {
+      const customerMatches = !customerTerm || [shipment.clienteNombre, shipment.clienteNumero, (shipment as any).clienteEmail, (shipment as any).clienteTelefono].some((value) => String(value ?? "").toLowerCase().includes(customerTerm));
+      const trackingMatches = !trackingTerm || String(shipment.tracking || "").toLowerCase().includes(trackingTerm);
+      return customerMatches && trackingMatches;
+    });
+  }, [pedidos, trackCustomerQuery, trackTrackingQuery]);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isClienteModalOpen, setIsClienteModalOpen] = useState(false);
@@ -2878,7 +2890,31 @@ const App = () => {
           </div>
         )}
 
-        {(activeTab === 'pedidos' || activeTab === 'track') && pedidos.length > 0 && (
+        {activeTab === 'track' && (
+          <div style={{ width: '100%', minHeight: 520, borderRadius: '0.85rem', background: 'linear-gradient(145deg, #2d78b7 0%, #8fc7e8 100%)', padding: '2rem clamp(1rem, 8vw, 6rem)', boxSizing: 'border-box' }}>
+            <div style={{ maxWidth: 1120, margin: '0 auto' }}>
+              <label htmlFor="track-customer-search" style={{ display: 'block', marginBottom: '0.9rem' }}>
+                <span style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>Search customer</span>
+                <input id="track-customer-search" type="search" value={trackCustomerQuery} onChange={(event) => setTrackCustomerQuery(event.target.value)} placeholder="Customer name, account number, phone or email" style={{ width: '100%', boxSizing: 'border-box', padding: '1rem 1.1rem', border: '1px solid #e2e8f0', borderRadius: '0.35rem', background: '#fff', color: '#334155', fontSize: '1.05rem', outline: 'none' }} />
+              </label>
+              <p style={{ color: '#fff', fontWeight: 700, margin: '0.3rem 0 0.45rem', fontSize: '0.95rem' }}>or find a package by its tracking number</p>
+              <label htmlFor="track-number-search" style={{ display: 'block' }}>
+                <span style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>Search tracking number</span>
+                <input id="track-number-search" type="search" value={trackTrackingQuery} onChange={(event) => setTrackTrackingQuery(event.target.value)} placeholder="Enter or scan any tracking number" style={{ width: '100%', boxSizing: 'border-box', padding: '1rem 1.1rem', border: '1px solid #e2e8f0', borderRadius: '0.35rem', background: '#fff', color: '#334155', fontSize: '1.05rem', outline: 'none' }} />
+              </label>
+              <p style={{ color: '#fff', textAlign: 'center', margin: '1.4rem 0 0', fontSize: '0.9rem' }}>Searches the customer’s complete package history without a time limit.</p>
+              {(trackCustomerQuery.trim() || trackTrackingQuery.trim()) && <div style={{ marginTop: '1.25rem', background: '#fff', borderRadius: '0.65rem', padding: '0.75rem 1rem' }}>
+                {trackResults.length ? trackResults.map((shipment) => {
+                  const stage = shipmentStage(shipment.estado);
+                  const style = TRACK_STAGE_STYLES[stage] || TRACK_STAGE_STYLES.RECEIVED;
+                  return <button key={shipment.id} type="button" onClick={() => void abrirDetallePedido(shipment.id)} style={{ width: '100%', display: 'grid', gridTemplateColumns: '2fr 1.5fr 1fr', gap: '0.75rem', alignItems: 'center', textAlign: 'left', padding: '0.75rem 0.25rem', border: 0, borderBottom: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer' }}><strong style={{ color: style.color, overflowWrap: 'anywhere' }}>{shipment.tracking}</strong><span>{shipment.clienteNombre || 'Unassigned'}{shipment.clienteNumero != null ? ` (#${shipment.clienteNumero})` : ''}</span><span style={{ justifySelf: 'start', color: style.color, background: style.background, border: `1px solid ${style.border}`, borderRadius: '999px', padding: '0.25rem 0.6rem', fontWeight: 700 }}>{shipment.estado || 'Unknown'}</span></button>;
+                }) : <p style={{ color: '#64748b', margin: '0.75rem 0' }}>No shipments found for this search.</p>}
+              </div>}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'pedidos' && pedidos.length > 0 && (
           <div style={{ width: '100%', overflowX: 'auto' }}>
             {/* Filtro por tracking, número de cuenta o nombre de cliente */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
@@ -2943,16 +2979,10 @@ const App = () => {
                   p.clienteNumero != null && p.clienteNombre
                     ? `#${p.clienteNumero} - ${p.clienteNombre}`
                     : '';
-                const trackStage = shipmentStage(p.estado);
-                const trackStageStyle = TRACK_STAGE_STYLES[trackStage] || TRACK_STAGE_STYLES.RECEIVED;
 
                 return (
                   <li
                     key={p.id}
-                    onClick={activeTab === 'track' ? () => void abrirDetallePedido(p.id) : undefined}
-                    role={activeTab === 'track' ? 'button' : undefined}
-                    tabIndex={activeTab === 'track' ? 0 : undefined}
-                    onKeyDown={activeTab === 'track' ? (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); void abrirDetallePedido(p.id); } } : undefined}
                     style={{
                       padding: '0.8rem 0',
                       borderBottom: '1px solid #e2e8f0',
@@ -2962,23 +2992,12 @@ const App = () => {
                       columnGap: '0.75rem',
                       alignItems: 'center',
                       minWidth: 760,
-                      cursor: activeTab === 'track' ? 'pointer' : 'default',
+                      cursor: 'default',
                     }}
                   >
-                    {activeTab === 'track' ? (
-                      <button
-                        type="button"
-                        onClick={(event) => { event.stopPropagation(); void abrirDetallePedido(p.id); }}
-                        style={{ border: 0, background: 'transparent', color: trackStageStyle.color, fontWeight: 800, minWidth: 200, overflowWrap: 'anywhere', textAlign: 'left', padding: 0, cursor: 'pointer', textDecoration: 'underline' }}
-                        title="Open complete shipment history"
-                      >
-                        #{p.tracking}
-                      </button>
-                    ) : (
-                      <span style={{ fontWeight: 600, minWidth: 200, overflowWrap: 'anywhere' }}>
-                        #{p.tracking}
-                      </span>
-                    )}
+                    <span style={{ fontWeight: 600, minWidth: 200, overflowWrap: 'anywhere' }}>
+                      #{p.tracking}
+                    </span>
                     <span
                       style={{
                         color: '#0f172a',
@@ -2993,10 +3012,10 @@ const App = () => {
                     </span>
                     <span
                       style={{
-                        color: activeTab === 'track' ? trackStageStyle.color : (p.estado === 'Check In' ? '#16a34a' : '#0f172a'),
-                        background: activeTab === 'track' ? trackStageStyle.background : 'transparent',
-                        border: activeTab === 'track' ? `1px solid ${trackStageStyle.border}` : '0',
-                        borderRadius: activeTab === 'track' ? '999px' : '0',
+                        color: p.estado === 'Check In' ? '#16a34a' : '#0f172a',
+                        background: 'transparent',
+                        border: '0',
+                        borderRadius: '0',
                         fontWeight: 700,
                         textTransform: 'capitalize',
                         minWidth: 120,
@@ -3004,7 +3023,7 @@ const App = () => {
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
                         whiteSpace: 'nowrap',
-                        padding: activeTab === 'track' ? '0.25rem 0.6rem' : 0,
+                        padding: 0,
                         display: 'inline-block',
                       }}
                     >
