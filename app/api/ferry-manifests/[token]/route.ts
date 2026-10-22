@@ -134,7 +134,7 @@ export async function PATCH(request: Request, { params }: { params: { token: str
     if (sendNotification && !isNotFound && RESEND_API_KEY && entry.numero_cliente_id) {
       const [{ data: customer }, { data: packageRow }] = await Promise.all([
         supabaseAdmin.from("numero_cliente").select("nombre, email, puerto").eq("id", entry.numero_cliente_id).maybeSingle(),
-        supabaseAdmin.from("paquetes_registro").select("tracking, contenido, notas").in("id", (customerEntries || []).map((item) => item.paquete_id)),
+        supabaseAdmin.from("paquetes_registro").select("tracking, contenido").in("id", (customerEntries || []).map((item) => item.paquete_id)),
       ]);
       if (customer?.email) {
         const safeName = escapeHtml(customer.nombre || entry.nombre_cliente || "Customer");

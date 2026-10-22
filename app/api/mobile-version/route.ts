@@ -6,10 +6,10 @@ export async function GET() {
   return NextResponse.json(
     {
       app: "Caribex Warehouse Management",
-      version: "1.2.28",
-      version_code: 1228,
-      apk_url: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663449196187/HqVpMGvVQVPpEfjk.apk",
-      filename: "Caribex-Warehouse-Management-1.2.28.apk",
+      version: "1.2.29",
+      version_code: 1229,
+      apk_url: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663449196187/YSYKwrcufNaeXRaO.apk",
+      filename: "Caribex-Warehouse-Management-1.2.29.apk",
       release_notes: [
         "Web-equivalent Receiving, Check In, consolidation, and customer assignment",
         "Client Pickup now shows every shipment tracking number with the authoritative invoice status",
@@ -50,9 +50,11 @@ export async function GET() {
         "Network errors now explain how to reconnect and retry from the scanner phone",
         "Network requests retry once after a transient Wi-Fi or DNS interruption",
         "Unknown-package photos are uploaded through the authenticated Receiving API and saved with the shipment",
-        "Photo capture no longer opens the confusing crop-only screen; the app now shows an explicit Save photo action",
+        "Photo capture no longer opens the confusing crop-only screen; the photo saves automatically with the normal Save shipment action",
         "Unknown unload scans open Check In, same-customer consolidation is enforced, Receiving billing recalculates, and container codes use CONT-YYYY-MM-DD",
         "Issue-photo upload errors now explain when a selected photo must be chosen again",
+        "Workflow requests fall back to the apex production hostname when warehouse DNS cannot resolve the www hostname",
+        "Expired scanner sessions are cleared and reported as Session expired instead of a misleading network error",
       ],
     },
     { headers: { "Cache-Control": "no-store, max-age=0" } },
