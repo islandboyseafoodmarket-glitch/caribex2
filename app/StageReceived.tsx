@@ -112,6 +112,7 @@ const StageReceived: React.FC<StageReceivedProps> = ({
   const [ownerUnknown, setOwnerUnknown] = useState(false);
   const [unknownNote, setUnknownNote] = useState("");
   const [unknownPhotoUrls, setUnknownPhotoUrls] = useState<string[]>([]);
+  const [unknownPhotoFiles, setUnknownPhotoFiles] = useState<File[]>([]);
   const [unknownPhotoUploading, setUnknownPhotoUploading] = useState(false);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [isCaribexScannerOpen, setIsCaribexScannerOpen] = useState(false);
@@ -136,6 +137,7 @@ const StageReceived: React.FC<StageReceivedProps> = ({
     setOwnerUnknown(false);
     setUnknownNote("");
     setUnknownPhotoUrls([]);
+    setUnknownPhotoFiles([]);
     setUnknownPhotoUploading(false);
     setIsScannerOpen(false);
     setIsCaribexScannerOpen(false);
@@ -275,19 +277,10 @@ const StageReceived: React.FC<StageReceivedProps> = ({
     const files = Array.from(event.target.files ?? []);
     if (!files.length) return;
     setUnknownPhotoUploading(true);
-    const uploaded: string[] = [];
-    for (const file of files) {
-      const extension = file.name.split(".").pop()?.toLowerCase() || file.type.split("/").pop() || "jpg";
-      const filePath = `notas-imagenes/unknown/${Date.now()}-${Math.random().toString(36).slice(2)}.${extension}`;
-      const { error } = await supabase.storage.from("notas-imagenes").upload(filePath, file, { upsert: true });
-      if (error) {
-        alert(error.message || (isEs ? "No se pudo subir la foto." : "Could not upload the photo."));
-        break;
-      }
-      const { data } = supabase.storage.from("notas-imagenes").getPublicUrl(filePath);
-      if (data?.publicUrl) uploaded.push(data.publicUrl);
-    }
-    setUnknownPhotoUrls((current) => [...current, ...uploaded]);
+    // Keep the actual files until Save Record. Direct browser uploads can be
+    // denied by Storage policies, which previously left a photo-looking URL in
+    // the form without attaching anything to the shipment row.
+    setUnknownPhotoFiles((current) => [...current, ...files]);
     setUnknownPhotoUploading(false);
     event.target.value = "";
   };
@@ -362,6 +355,48 @@ const StageReceived: React.FC<StageReceivedProps> = ({
       }
 
       // Insertar nuevo registro
+      if (ownerUnknown || unknownPhotoFiles.length > 0) {
+        const form = new FormData();
+        form.append("tracking", upperTracking);
+        form.append("carrier", carrier || "");
+        form.append("type", selectedType);
+        form.append("contents", contents || "");
+        form.append("note", unknownNote.trim());
+        form.append("owner_unknown", String(ownerUnknown));
+        form.append("customer_id", "");
+        unknownPhotoFiles.forEach((file) => form.append("photo", file, file.name));
+        const { data: sessionData } = await supabase.auth.getSession();
+        const accessToken = sessionData.session?.access_token;
+        if (!accessToken) {
+          alert(isEs ? "La sesión expiró. Inicie sesión nuevamente." : "Your session expired. Please sign in again.");
+          return;
+        }
+        const response = await fetch("/api/scanner-workflow/receiving", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${accessToken}` },
+          body: form,
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          alert(payload.error || (isEs ? "No se pudo guardar el paquete" : "Could not save the shipment"));
+          return;
+        }
+        const row: any = payload.package;
+        onPackageCreated?.({
+          id: row.id,
+          tracking: row.tracking,
+          carrier: row.nombre_paqueteria || null,
+          type: row.tipo_paquete as PackageCategoryId,
+          obs: row.notas || null,
+          registro: row.registro || null,
+          estado: row.estado || null,
+          horaFecha: row.hora_fecha || null,
+          entregadoPor: null,
+        });
+        handleCloseModal();
+        return;
+      }
+
       const { data, error } = await supabase
         .from("paquetes_registro")
         .insert({
@@ -860,7 +895,7 @@ const StageReceived: React.FC<StageReceivedProps> = ({
                   <Camera size={15} /> {unknownPhotoUploading ? (isEs ? "Subiendo foto..." : "Uploading photo...") : (isEs ? "Tomar / agregar foto" : "Take / add photo")}
                   <input type="file" accept="image/*" capture="environment" multiple hidden onChange={handleUnknownPhotoChange} disabled={unknownPhotoUploading} />
                 </label>
-                {unknownPhotoUrls.length > 0 && <small style={{ color: "#166534" }}>{unknownPhotoUrls.length} {isEs ? "foto(s) agregada(s)" : "photo(s) added"}</small>}
+                {(unknownPhotoUrls.length > 0 || unknownPhotoFiles.length > 0) && <small style={{ color: "#166534" }}>{unknownPhotoUrls.length + unknownPhotoFiles.length} {isEs ? "foto(s) agregada(s)" : "photo(s) attached"}</small>}
               </div>}
 
               <div className="ga-modal-footer">

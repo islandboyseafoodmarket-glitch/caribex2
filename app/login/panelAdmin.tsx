@@ -74,10 +74,14 @@ const shipmentStage = (status: string | null | undefined) => {
   return "RECEIVED";
 };
 
+const trackPackageStage = (shipment: { estado?: string | null; insideBox?: boolean }) =>
+  shipment.insideBox && shipmentStage(shipment.estado) !== "PICKED_UP" ? "INSIDE_BOX" : shipmentStage(shipment.estado);
+
 const SHIPMENT_STAGE_OPTIONS = [
   ["ALL", "All stages"],
   ["RECEIVED", "Received"],
   ["REGISTERED", "Registered / Check In"],
+  ["INSIDE_BOX", "Inside a box"],
   ["IN_TRANSIT", "In transit"],
   ["UNLOADED", "Unloaded / Ready for pickup"],
   ["PICKED_UP", "Picked up"],
@@ -86,6 +90,7 @@ const SHIPMENT_STAGE_OPTIONS = [
 const TRACK_STAGE_STYLES: Record<string, { color: string; background: string; border: string }> = {
   RECEIVED: { color: '#475569', background: '#f1f5f9', border: '#cbd5e1' },
   REGISTERED: { color: '#15803d', background: '#f0fdf4', border: '#86efac' },
+  INSIDE_BOX: { color: '#7c3aed', background: '#f5f3ff', border: '#c4b5fd' },
   IN_TRANSIT: { color: '#0f766e', background: '#f0fdfa', border: '#5eead4' },
   UNLOADED: { color: '#15803d', background: '#f0fdf4', border: '#86efac' },
   PICKED_UP: { color: '#7e22ce', background: '#faf5ff', border: '#d8b4fe' },
@@ -151,6 +156,8 @@ const App = () => {
     issue_status?: 'OPEN' | 'RESOLVED' | null;
     cargos_adicionales?: string | null;
     consolidacion?: boolean | null;
+    insideBox?: boolean;
+    containerLabels?: string[];
   };
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
   type Factura = {
@@ -340,6 +347,14 @@ const App = () => {
       return customerMatches && trackingMatches;
     });
   }, [pedidos, trackCustomerQuery, trackTrackingQuery]);
+  const trackStageGroups = useMemo(() => {
+    const groups: Record<string, Pedido[]> = Object.fromEntries(SHIPMENT_STAGE_OPTIONS.filter(([value]) => value !== "ALL").map(([value]) => [value, [] as Pedido[]]));
+    trackResults.forEach((shipment) => {
+      const stage = trackPackageStage(shipment);
+      (groups[stage] ||= []).push(shipment);
+    });
+    return groups;
+  }, [trackResults]);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isClienteModalOpen, setIsClienteModalOpen] = useState(false);
@@ -953,7 +968,24 @@ const App = () => {
     }
 
     if (data) {
-      const mapped = (data as any[]).map((row) => ({
+      const rows = data as any[];
+      const packageIds = rows.map((row) => row.id).filter(Boolean);
+      const [{ data: containerLinks }, { data: containers }, { data: checkins }] = packageIds.length
+        ? await Promise.all([
+            supabase.from("contenedor_paquetes").select("paquete_id, contenedor_id").in("paquete_id", packageIds),
+            supabase.from("contenedores").select("id, codigo"),
+            supabase.from("paquetes_checkin").select("paquete_id, parent_box_id, consolidacion").in("paquete_id", packageIds),
+          ])
+        : [{ data: [] }, { data: [] }, { data: [] }];
+      const containerById = new Map((containers || []).map((container: any) => [String(container.id), String(container.codigo || container.id)]));
+      const labelsByPackage = new Map<string, string[]>();
+      (containerLinks || []).forEach((link: any) => {
+        const labels = labelsByPackage.get(String(link.paquete_id)) || [];
+        labels.push(containerById.get(String(link.contenedor_id)) || String(link.contenedor_id));
+        labelsByPackage.set(String(link.paquete_id), labels);
+      });
+      const insideBoxIds = new Set((checkins || []).filter((row: any) => row.parent_box_id).map((row: any) => String(row.paquete_id)));
+      const mapped = rows.map((row) => ({
         id: row.id as string,
         tracking: (row.tracking as string) || "-",
         clienteNumero: row.numero_cliente?.numero_cliente ?? null,
@@ -976,6 +1008,8 @@ const App = () => {
         hora_descargado: row.hora_descargado || null,
         fecha_entregado: row.fecha_entregado || null,
         hora_entregado: row.hora_entregado || null,
+        insideBox: insideBoxIds.has(String(row.id)),
+        containerLabels: labelsByPackage.get(String(row.id)) || [],
       }));
 
       setPedidos(mapped);
@@ -2902,13 +2936,31 @@ const App = () => {
                 <span style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>Search tracking number</span>
                 <input id="track-number-search" type="search" value={trackTrackingQuery} onChange={(event) => setTrackTrackingQuery(event.target.value)} placeholder="Enter or scan any tracking number" style={{ width: '100%', boxSizing: 'border-box', padding: '1rem 1.1rem', border: '1px solid #e2e8f0', borderRadius: '0.35rem', background: '#fff', color: '#334155', fontSize: '1.05rem', outline: 'none' }} />
               </label>
-              <p style={{ color: '#fff', textAlign: 'center', margin: '1.4rem 0 0', fontSize: '0.9rem' }}>Searches the customer’s complete package history without a time limit.</p>
-              {(trackCustomerQuery.trim() || trackTrackingQuery.trim()) && <div style={{ marginTop: '1.25rem', background: '#fff', borderRadius: '0.65rem', padding: '0.75rem 1rem' }}>
-                {trackResults.length ? trackResults.map((shipment) => {
-                  const stage = shipmentStage(shipment.estado);
-                  const style = TRACK_STAGE_STYLES[stage] || TRACK_STAGE_STYLES.RECEIVED;
-                  return <button key={shipment.id} type="button" onClick={() => void abrirDetallePedido(shipment.id)} style={{ width: '100%', display: 'grid', gridTemplateColumns: '2fr 1.5fr 1fr', gap: '0.75rem', alignItems: 'center', textAlign: 'left', padding: '0.75rem 0.25rem', border: 0, borderBottom: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer' }}><strong style={{ color: style.color, overflowWrap: 'anywhere' }}>{shipment.tracking}</strong><span>{shipment.clienteNombre || 'Unassigned'}{shipment.clienteNumero != null ? ` (#${shipment.clienteNumero})` : ''}</span><span style={{ justifySelf: 'start', color: style.color, background: style.background, border: `1px solid ${style.border}`, borderRadius: '999px', padding: '0.25rem 0.6rem', fontWeight: 700 }}>{shipment.estado || 'Unknown'}</span></button>;
-                }) : <p style={{ color: '#64748b', margin: '0.75rem 0' }}>No shipments found for this search.</p>}
+              <p style={{ color: '#fff', textAlign: 'center', margin: '1.4rem 0 0', fontSize: '0.9rem' }}>Searches the customer’s complete package history.</p>
+              {(trackCustomerQuery.trim() || trackTrackingQuery.trim()) && <div style={{ marginTop: '1.25rem', background: '#fff', borderRadius: '0.65rem', padding: '1rem' }}>
+                {!trackResults.length ? <p style={{ color: '#64748b', margin: '0.75rem 0' }}>No shipments found for this search.</p> : <>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem', paddingBottom: '0.85rem', borderBottom: '1px solid #e2e8f0' }}>
+                    <strong style={{ fontSize: '1.15rem', color: '#0f172a' }}>{trackResults.length}</strong>
+                    <span style={{ color: '#475569' }}>total package{trackResults.length === 1 ? '' : 's'}</span>
+                  </div>
+                  {SHIPMENT_STAGE_OPTIONS.filter(([value]) => value !== 'ALL').map(([stage, label]) => {
+                    const shipments = trackStageGroups[stage] || [];
+                    const style = TRACK_STAGE_STYLES[stage] || TRACK_STAGE_STYLES.RECEIVED;
+                    const groupedByContainer = stage === 'PICKED_UP' ? shipments.reduce<Record<string, Pedido[]>>((groups, shipment) => {
+                      const key = shipment.containerLabels?.[0] || 'Collected without container';
+                      (groups[key] ||= []).push(shipment);
+                      return groups;
+                    }, {}) : null;
+                    return <section key={stage} style={{ padding: '0.9rem 0', borderBottom: '1px solid #e2e8f0' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: style.color, fontWeight: 800, fontSize: '1rem' }}>
+                        <span style={{ width: 7, height: 22, borderRadius: 3, background: style.color }} />
+                        <span>{label}</span>
+                        <span>({shipments.length})</span>
+                      </div>
+                      {!shipments.length ? <p style={{ margin: '0.4rem 0 0 1rem', color: '#64748b', fontSize: '0.86rem' }}>Nothing at this stage</p> : groupedByContainer ? Object.entries(groupedByContainer).map(([container, containerShipments]) => <details key={container} open style={{ margin: '0.55rem 0 0 1rem', border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden' }}><summary style={{ cursor: 'pointer', padding: '0.65rem 0.8rem', background: '#f8fafc', color: '#334155', fontWeight: 700 }}>{container} <span style={{ color: '#64748b', fontWeight: 500 }}>({containerShipments.length} package{containerShipments.length === 1 ? '' : 's'})</span></summary>{containerShipments.map((shipment) => <button key={shipment.id} type="button" onClick={() => void abrirDetallePedido(shipment.id)} style={{ width: '100%', display: 'flex', justifyContent: 'space-between', gap: '0.75rem', textAlign: 'left', padding: '0.65rem 0.8rem', border: 0, borderTop: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer' }}><strong style={{ color: style.color, overflowWrap: 'anywhere' }}>{shipment.tracking}</strong><span style={{ color: '#475569' }}>{shipment.clienteNombre || 'Unassigned'}{shipment.clienteNumero != null ? ` (#${shipment.clienteNumero})` : ''}</span></button>)}</details>) : shipments.map((shipment) => <button key={shipment.id} type="button" onClick={() => void abrirDetallePedido(shipment.id)} style={{ width: '100%', display: 'flex', justifyContent: 'space-between', gap: '0.75rem', textAlign: 'left', margin: '0.45rem 0 0 1rem', padding: '0.65rem 0.8rem', border: '1px solid #e2e8f0', borderRadius: 8, background: '#fff', cursor: 'pointer' }}><strong style={{ color: style.color, overflowWrap: 'anywhere' }}>{shipment.tracking}</strong><span style={{ color: '#475569' }}>{shipment.clienteNombre || 'Unassigned'}{shipment.clienteNumero != null ? ` (#${shipment.clienteNumero})` : ''}</span></button>)}
+                    </section>;
+                  })}
+                </>}
               </div>}
             </div>
           </div>

@@ -118,7 +118,9 @@ export async function POST(request: Request) {
     const value = (key: string) => isMultipart ? String(body.get(key) || "") : String(body?.[key] || "");
     const ownerUnknown = value("owner_unknown").toLowerCase() === "true";
     const noteText = value("note").trim();
-    const photo = isMultipart ? body.get("photo") : null;
+    const photos = isMultipart
+      ? body.getAll("photo").filter((value: FormDataEntryValue): value is File => value instanceof File && value.size > 0)
+      : [];
     const carrier = value("carrier").trim();
     const tracking = normalizeUspsTracking(value("tracking"));
     const type = value("type") === "BOX" ? "BOX" : value("type") === "PACKAGE" ? "PACKAGE" : "";
@@ -131,9 +133,8 @@ export async function POST(request: Request) {
     const billing = calculateWorkflowBilling({ tipo_paquete: type, ...dimensions, cargos_adicionales: value("cargos_adicionales") });
     if (!tracking) return NextResponse.json({ error: "Tracking number or barcode is required" }, { status: 400 });
     if (!type) return NextResponse.json({ error: "Select Box or Package" }, { status: 400 });
-    if (ownerUnknown && !noteText && !(photo instanceof File && photo.size > 0)) return NextResponse.json({ error: "Unknown Owner requires an internal note or a photo" }, { status: 400 });
-    if (photo && !(photo instanceof File)) return NextResponse.json({ error: "Invalid photo upload" }, { status: 400 });
-    if (photo instanceof File && photo.size > 8 * 1024 * 1024) return NextResponse.json({ error: "Photo must be 8 MB or smaller" }, { status: 400 });
+    if (ownerUnknown && !noteText && photos.length === 0) return NextResponse.json({ error: "Unknown Owner requires an internal note or a photo" }, { status: 400 });
+    if (photos.some((photo: File) => photo.size > 8 * 1024 * 1024)) return NextResponse.json({ error: "Each photo must be 8 MB or smaller" }, { status: 400 });
     const existingMatches = await findTrackingMatches(supabase, tracking, carrier);
     if (existingMatches.length) {
       const existing = existingMatches[0];
@@ -154,17 +155,21 @@ export async function POST(request: Request) {
       const { error: checkinError } = await supabase.from("paquetes_checkin").insert({ paquete_id: data.id, numero_cliente_id: customerId, ...dimensions });
       if (checkinError) throw checkinError;
     }
-    if (photo instanceof File && photo.size > 0) {
-      const extension = (photo.name.split(".").pop() || "jpg").replace(/[^a-z0-9]/gi, "").toLowerCase() || "jpg";
-      const path = `scanner/${data.id}/${Date.now()}-${crypto.randomUUID()}.${extension}`;
-      const upload = await supabase.storage.from("notas-imagenes").upload(path, photo, { contentType: photo.type || "image/jpeg", upsert: false });
-      if (upload.error) throw upload.error;
-      const { data: publicUrl } = supabase.storage.from("notas-imagenes").getPublicUrl(path);
-      const { data: updated, error: imageError } = await supabase.from("paquetes_registro").update({ notas_imagenes: [publicUrl.publicUrl] }).eq("id", data.id).select("id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, notas_imagenes, registro, estado, hora_fecha, billing_subtotal, billing_tax, billing_total").single();
+    if (photos.length > 0) {
+      const imageUrls: string[] = [];
+      for (const photo of photos) {
+        const extension = (photo.name.split(".").pop() || "jpg").replace(/[^a-z0-9]/gi, "").toLowerCase() || "jpg";
+        const path = `scanner/${data.id}/${Date.now()}-${crypto.randomUUID()}.${extension}`;
+        const upload = await supabase.storage.from("notas-imagenes").upload(path, photo, { contentType: photo.type || "image/jpeg", upsert: false });
+        if (upload.error) throw upload.error;
+        const { data: publicUrl } = supabase.storage.from("notas-imagenes").getPublicUrl(path);
+        if (publicUrl.publicUrl) imageUrls.push(publicUrl.publicUrl);
+      }
+      const { data: updated, error: imageError } = await supabase.from("paquetes_registro").update({ notas_imagenes: imageUrls }).eq("id", data.id).select("id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, notas_imagenes, registro, estado, hora_fecha, billing_subtotal, billing_tax, billing_total").single();
       if (imageError) throw imageError;
       savedPackage = updated;
     }
-    await supabase.from("staff_action_logs").insert({ actor_id: actor.user.id, actor_name: actor.name, actor_email: actor.user.email || null, actor_role: actor.role, action: "receiving_package_created", entity_type: "paquetes_registro", entity_id: data.id, tracking, success: true, details: { type, owner_unknown: ownerUnknown, customer_id: customerId, photo_uploaded: photo instanceof File, source: "scanner_workflow_app" } });
+    await supabase.from("staff_action_logs").insert({ actor_id: actor.user.id, actor_name: actor.name, actor_email: actor.user.email || null, actor_role: actor.role, action: "receiving_package_created", entity_type: "paquetes_registro", entity_id: data.id, tracking, success: true, details: { type, owner_unknown: ownerUnknown, customer_id: customerId, photo_uploaded: photos.length > 0, photo_count: photos.length, source: "scanner_workflow_app" } });
     return NextResponse.json({ package: savedPackage });
   } catch (error) { return errorResponse(error); }
 }

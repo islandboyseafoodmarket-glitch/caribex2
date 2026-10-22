@@ -24,6 +24,7 @@ export default function HomePage() {
   const [activePage, setActivePage] = useState<PageId>("inicio");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isPromoOpen, setIsPromoOpen] = useState(false);
+  const [isBuilderRateOpen, setIsBuilderRateOpen] = useState(false);
 
   const [serviceRate, setServiceRate] = useState<number>(18.5);
   const [largo, setLargo] = useState<number | "">("");
@@ -33,6 +34,8 @@ export default function HomePage() {
   const [contactState, setContactState] = useState<
     "idle" | "processing" | "sent"
   >("idle");
+  const [builderRateState, setBuilderRateState] = useState<"idle" | "processing" | "sent">("idle");
+  const [builderVolume, setBuilderVolume] = useState("");
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -68,7 +71,40 @@ export default function HomePage() {
     window.localStorage.setItem("caribex-promo-seen-v1", "true");
     setIsPromoOpen(false);
   };
-
+  const closeBuilderRate = () => setIsBuilderRateOpen(false);
+  const handleSubmitBuilderRate: React.FormEventHandler<HTMLFormElement> = async (e) => {
+    e.preventDefault();
+    if (builderRateState === "processing") return;
+    setBuilderRateState("processing");
+    const form = e.currentTarget;
+    const data = new FormData(form);
+    const name = String(data.get("builder_name") || "").trim();
+    const email = String(data.get("builder_email") || "").trim();
+    const phone = String(data.get("builder_phone") || "").trim();
+    const company = String(data.get("builder_company") || "").trim();
+    const volume = String(data.get("builder_volume") || "").trim();
+    const project = String(data.get("builder_project") || "").trim();
+    const message = [
+      "Builder / Developer special prepaid cubic-foot rate request",
+      `Company or project: ${company || "Not provided"}`,
+      `Estimated monthly volume: ${volume || "Not provided"}`,
+      `Project details: ${project || "Not provided"}`,
+    ].join("\n");
+    try {
+      const [{ error: contactError }, { error: leadError }] = await Promise.all([
+        supabase.from("contact_submissions").insert({ nombre: name, email, telefono: phone || null, mensaje: message, service_type: "PREPAID_SPECIAL_RATE" }),
+        supabase.from("customer_leads").insert({ nombre: name, email, mensaje: message, asunto: "Prepaid special rate — Builder / Developer", fuente: "landing_page_builder_rate" }),
+      ]);
+      if (contactError && leadError) throw new Error("Could not submit the request");
+      setBuilderRateState("sent");
+      form.reset();
+      setBuilderVolume("");
+      window.setTimeout(() => { setBuilderRateState("idle"); setIsBuilderRateOpen(false); }, 2600);
+    } catch {
+      setBuilderRateState("idle");
+      alert(i18n.language.startsWith("en") ? "We could not send your request. Please try again." : "No pudimos enviar su solicitud. Inténtelo de nuevo.");
+    }
+  };
   const { ft3, costo } = useMemo(() => {
     const l = typeof largo === "number" ? largo : 0;
     const h = typeof alto === "number" ? alto : 0;
@@ -172,6 +208,37 @@ export default function HomePage() {
             <Link href="/registro-cliente" className="caribex-popup__button" onClick={() => setIsPromoOpen(false)}>
               {i18n.language.startsWith("en") ? "Create Your Account" : "Cree su cuenta"}
             </Link>
+            <button type="button" className="caribex-popup__secondary-button" onClick={() => { closePromotion(); setIsBuilderRateOpen(true); }}>
+              {i18n.language.startsWith("en") ? "Builders & Developers: Request a Special Prepaid Rate" : "Constructores y desarrolladores: solicitar tarifa prepaga especial"}
+            </button>
+          </section>
+        </div>
+      )}
+      {isBuilderRateOpen && (
+        <div className="caribex-popup" role="dialog" aria-modal="true" aria-labelledby="builder-rate-title">
+          <button type="button" className="caribex-popup__overlay" aria-label="Close builder rate form" onClick={closeBuilderRate} />
+          <section className="caribex-popup__card caribex-builder-form">
+            <button type="button" className="caribex-popup__close" aria-label="Close builder rate form" onClick={closeBuilderRate}><X size={22} /></button>
+            <p className="caribex-popup__eyebrow">Caribex Logistics Group</p>
+            <h2 id="builder-rate-title">{i18n.language.startsWith("en") ? "Special Prepaid Cubic-Foot Rates" : "Tarifas especiales prepagadas por pie cúbico"}</h2>
+            <p>{i18n.language.startsWith("en") ? "Hello, and thank you for considering Caribex. Tell us about your building, development, or recurring shipping needs and our team will prepare a personalized rate review." : "Hola, gracias por considerar a Caribex. Cuéntenos sobre su proyecto de construcción, desarrollo o necesidades de envíos recurrentes y prepararemos una revisión personalizada de su tarifa."}</p>
+            <form onSubmit={handleSubmitBuilderRate} style={{ display: "grid", gap: "0.8rem", marginTop: "1.2rem" }}>
+              <label>{i18n.language.startsWith("en") ? "Full name" : "Nombre completo"}<input name="builder_name" required autoComplete="name" placeholder={i18n.language.startsWith("en") ? "Your name" : "Su nombre"} /></label>
+              <label>{i18n.language.startsWith("en") ? "Email" : "Correo electrónico"}<input name="builder_email" required type="email" autoComplete="email" placeholder="you@example.com" /></label>
+              <label>{i18n.language.startsWith("en") ? "Phone" : "Teléfono"}<input name="builder_phone" required type="tel" autoComplete="tel" placeholder="+504 ..." /></label>
+              <label>{i18n.language.startsWith("en") ? "Company or project name" : "Nombre de la empresa o proyecto"}<input name="builder_company" required placeholder={i18n.language.startsWith("en") ? "Company or project" : "Empresa o proyecto"} /></label>
+              <label>{i18n.language.startsWith("en") ? "Estimated shipment volume" : "Volumen estimado del envío"}<select name="builder_volume" required value={builderVolume} onChange={(event) => setBuilderVolume(event.target.value)}><option value="" disabled>{i18n.language.startsWith("en") ? "Select a volume" : "Seleccione un volumen"}</option><option>100–250 ft³</option><option>{i18n.language.startsWith("en") ? "Quarter container" : "Contenedor de cuarto"}</option><option>{i18n.language.startsWith("en") ? "Half container" : "Medio contenedor"}</option><option>{i18n.language.startsWith("en") ? "20 ft container" : "Contenedor de 20 pies"}</option><option>{i18n.language.startsWith("en") ? "40 ft container" : "Contenedor de 40 pies"}</option></select></label>
+              <div style={{ padding: "0.75rem 0.85rem", borderRadius: "0.65rem", background: "#eff6ff", border: "1px solid #bfdbfe", color: "#1e3a8a", fontSize: "0.82rem", lineHeight: 1.45 }}>
+                {i18n.language.startsWith("en") ? "Quarter Container and Half Container requests require all parcels to be sent to the Caribex warehouse together as one shipment." : "Las solicitudes de contenedor de cuarto y medio contenedor requieren que todos los paquetes se envíen juntos a la bodega de Caribex como un solo envío."}
+              </div>
+              {(builderVolume.includes("Quarter") || builderVolume.includes("Contenedor de cuarto") || builderVolume.includes("Half") || builderVolume.includes("Medio contenedor")) && <label style={{ display: "flex", alignItems: "flex-start", gap: ".55rem", fontWeight: 600 }}><input type="checkbox" name="builder_warehouse_ack" required style={{ width: "1rem", marginTop: ".15rem" }} />{i18n.language.startsWith("en") ? "I understand that all parcels for this Quarter or Half Container request must be sent to the Caribex warehouse together." : "Entiendo que todos los paquetes de esta solicitud de contenedor de cuarto o medio contenedor deben enviarse juntos a la bodega de Caribex."}</label>}
+              <label>{i18n.language.startsWith("en") ? "Tell us about your project" : "Cuéntenos sobre su proyecto"}<textarea name="builder_project" required rows={3} placeholder={i18n.language.startsWith("en") ? "What are you shipping and how often?" : "¿Qué enviará y con qué frecuencia?"} /></label>
+              <button type="submit" className="caribex-popup__button" disabled={builderRateState === "processing"}>
+                {builderRateState === "processing" ? (i18n.language.startsWith("en") ? "Sending request…" : "Enviando solicitud…") : builderRateState === "sent" ? (i18n.language.startsWith("en") ? "Request received" : "Solicitud recibida") : (i18n.language.startsWith("en") ? "Request My Special Rate" : "Solicitar mi tarifa especial")}
+              </button>
+            </form>
+            {builderRateState === "sent" && <p role="status" style={{ color: "#166534", fontWeight: 700 }}>{i18n.language.startsWith("en") ? "Thank you. A Caribex representative will contact you to review your project and available pricing." : "Gracias. Un representante de Caribex se comunicará con usted para revisar su proyecto y las opciones de precios disponibles."}</p>}
+            <p style={{ fontSize: "0.8rem", color: "#64748b" }}>{i18n.language.startsWith("en") ? "Your request is reviewed by Caribex. Submitting this form does not automatically promise a discount or prepaid rate." : "Caribex revisará su solicitud. Enviar este formulario no garantiza automáticamente un descuento ni una tarifa prepagada."}</p>
           </section>
         </div>
       )}
@@ -505,7 +572,7 @@ export default function HomePage() {
       {activePage === "acerca" && <AcercaSection />}
 
       {/* FCL */}
-      {activePage === "fcl" && <FCL />}
+      {activePage === "fcl" && <FCL onOpenBuilderRate={() => setIsBuilderRateOpen(true)} />}
 
       {/* LCL */}
       {activePage === "lcl" && <LCL />}

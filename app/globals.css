@@ -3003,6 +3003,13 @@ main {
 .caribex-popup__benefits { display: grid; gap: 0.55rem; margin: 1.15rem 0; padding-left: 1.25rem; }
 .caribex-popup__benefits li::marker { color: #22c55e; }
 .caribex-popup__button { display: inline-block; padding: 0.8rem 1.35rem; border-radius: 999px; background: #22c55e; color: #fff; font-weight: 800; text-align: center; text-decoration: none; }
+.caribex-popup__secondary-button { display: block; width: 100%; margin-top: .75rem; padding: .72rem 1rem; border: 1px solid #bfdbfe; border-radius: 999px; background: #eff6ff; color: #0f4c81; font: inherit; font-weight: 800; cursor: pointer; }
+.caribex-popup__secondary-button:hover { background: #dbeafe; }
+.caribex-builder-form label { display: grid; gap: .35rem; color: #334155; font-size: .82rem; font-weight: 800; }
+.caribex-builder-form input, .caribex-builder-form select, .caribex-builder-form textarea { width: 100%; box-sizing: border-box; padding: .72rem .8rem; border: 1px solid #cbd5e1; border-radius: .65rem; background: #fff; color: #0f172a; font: inherit; font-weight: 400; }
+.caribex-builder-form input:focus, .caribex-builder-form select:focus, .caribex-builder-form textarea:focus { outline: 2px solid #bfdbfe; border-color: #2563eb; }
+.caribex-builder-form .caribex-popup__button { border: 0; cursor: pointer; }
+.caribex-builder-form .caribex-popup__button:disabled { opacity: .6; cursor: wait; }
 @media (max-width: 480px) {
   .caribex-popup { padding: 0.65rem; }
   .caribex-popup__card { border-radius: 1.15rem; padding: 1.35rem; }

@@ -13,7 +13,11 @@ import {
   Package,
 } from 'lucide-react';
 
-const App = () => {
+interface FCLProps {
+  onOpenBuilderRate?: () => void;
+}
+
+const App = ({ onOpenBuilderRate }: FCLProps) => {
   const { i18n } = useTranslation();
   const isEn = i18n.language.startsWith("en");
 
@@ -24,6 +28,7 @@ const App = () => {
     company: '',
     origin: '',
     destination: '',
+    program: '',
     containerType: '',
     cargoDescription: '',
     weight: '',
@@ -72,6 +77,7 @@ Company: ${formData.company}
 
 Origin: ${formData.origin}
 Destination: ${formData.destination}
+Program: ${formData.program || 'Standard FCL quotation'}
 Container Type: ${formData.containerType}
 Cargo Description: ${formData.cargoDescription}
 Weight: ${formData.weight}
@@ -102,6 +108,7 @@ ${formData.additionalInfo}
           company: '',
           origin: '',
           destination: '',
+          program: '',
           containerType: '',
           cargoDescription: '',
           weight: '',
@@ -279,6 +286,14 @@ ${formData.additionalInfo}
         </p>
       </div>
 
+      <div style={{ maxWidth: '896px', margin: '0 auto 28px', padding: '16px 18px', borderRadius: 12, background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1e3a8a', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+        <div>
+          <strong>{isEn ? 'Builders & Developers' : 'Constructores y desarrolladores'}</strong>
+          <div style={{ marginTop: 4, lineHeight: 1.45 }}>{isEn ? 'Request a private prepaid-rate review for your project directly through the FCL service.' : 'Solicite una revisión privada de tarifa prepagada para su proyecto directamente dentro del servicio FCL.'}</div>
+        </div>
+        {onOpenBuilderRate && <button type="button" onClick={onOpenBuilderRate} style={{ border: 0, borderRadius: 999, padding: '10px 16px', background: '#0a7ea4', color: '#fff', fontWeight: 700, cursor: 'pointer' }}>{isEn ? 'Request special rate' : 'Solicitar tarifa especial'}</button>}
+      </div>
+
       <div style={styles.content}>
         <div>
           <div style={styles.section}>
@@ -439,6 +454,22 @@ ${formData.additionalInfo}
             <div style={styles.grid}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 <label style={{ fontWeight: '600', color: '#334155', fontSize: '0.9rem' }}>
+                  {isEn ? 'Shipping Program *' : 'Programa de Envío *'}
+                </label>
+                <select
+                  name="program"
+                  value={formData.program}
+                  onChange={handleChange}
+                  required
+                  style={{ padding: '10px 12px', borderRadius: 8, border: '1px solid #e2e8f0' }}
+                >
+                  <option value="">{isEn ? 'Select a program' : 'Selecciona un programa'}</option>
+                  <option value="Standard FCL quotation">{isEn ? 'Standard FCL quotation' : 'Cotización FCL estándar'}</option>
+                  <option value="Builder / Developer partnership inquiry — private rate review">{isEn ? 'Builder / Developer partnership inquiry — private rate review' : 'Consulta de alianza para constructores / desarrolladores — revisión privada de tarifa'}</option>
+                </select>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontWeight: '600', color: '#334155', fontSize: '0.9rem' }}>
                   {isEn ? 'Container Type *' : 'Tipo de Contenedor *'}
                 </label>
                 <select
@@ -476,6 +507,12 @@ ${formData.additionalInfo}
                 </select>
               </div>
             </div>
+            {formData.program.includes('Builder') && (
+              <div style={{ marginBottom: '20px', padding: '14px 16px', borderRadius: 10, background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1e3a8a', lineHeight: 1.5 }}>
+                <strong>{isEn ? 'Builder / Developer partnership inquiry' : 'Consulta de alianza para constructores / desarrolladores'}</strong>
+                <div>{isEn ? 'Special pricing is reviewed privately for approved builder partners. Quarter Container and Half Container requests require all parcels to be sent to the Caribex warehouse together as one shipment.' : 'Las tarifas especiales se revisan de forma privada para constructores aprobados. Las solicitudes de contenedor de cuarto y medio contenedor requieren que todos los paquetes se envíen juntos a la bodega de Caribex como un solo envío.'}</div>
+              </div>
+            )}
 
             <div style={styles.formGroup}>
               <label style={styles.label}>
