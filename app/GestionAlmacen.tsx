@@ -3455,7 +3455,16 @@ const handleConfirmTransit = async () => {
 };
 
 const handlePackageCreated = (pkg: Package) => {
-  setPackages((prev) => [pkg, ...prev]);
+  setPackages((prev) => {
+    // The create callback and the Supabase realtime subscription can both
+    // deliver the same row. Replace an existing record instead of prepending
+    // a second copy of the shipment.
+    const existingIndex = prev.findIndex(
+      (item) => item.id === pkg.id || (item.tracking && item.tracking === pkg.tracking),
+    );
+    if (existingIndex < 0) return [pkg, ...prev];
+    return prev.map((item, index) => (index === existingIndex ? { ...item, ...pkg } : item));
+  });
 };
   const handleBulkTransitFromCheckIn = async () => {
     const checkInPackages = packagesByStage.REGISTRO;
