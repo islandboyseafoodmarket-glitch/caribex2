@@ -3486,6 +3486,11 @@ const App = () => {
               const invoiceIndex = facturasFiltradas.findIndex((invoice) => invoice.id === pedidoDetalle.id);
               const openAdjacentInvoice = (offset: number) => { const nextInvoice = invoiceIndex >= 0 ? facturasFiltradas[invoiceIndex + offset] : null; if (nextInvoice) void abrirDetallePedido(nextInvoice.id); };
               const stageColor = shipmentStage(status) === "PICKED_UP" ? "#8b5cf6" : shipmentStage(status) === "UNLOADED" ? "#2563eb" : shipmentStage(status) === "IN_TRANSIT" ? "#0f766e" : "#64748b";
+              const problemPhotos: string[] = (Array.isArray(pedidoDetalle.notas_imagenes)
+                ? pedidoDetalle.notas_imagenes
+                : typeof pedidoDetalle.notas_imagenes === "string"
+                  ? [pedidoDetalle.notas_imagenes]
+                  : []).filter((url: unknown): url is string => typeof url === "string" && url.trim().length > 0);
               const describeChanges = (event: any) => {
                 const details = event?.details;
                 const current = details?.new && typeof details.new === "object" ? details.new : {};
@@ -3524,6 +3529,12 @@ const App = () => {
                   {detailRow("Received", formatStaffDateTime(pedidoDetalle.hora_fecha || pedidoDetalle.creado_en), "received")}
                   {detailRow("Last scanned", formatStaffDateTime(activity[activity.length - 1]?.created_at || pedidoDetalle.updated_at || pedidoDetalle.hora_fecha), "scanned")}
                 </div>
+                {problemPhotos.length > 0 && <section style={{ borderTop: "1px solid #e2e8f0", paddingTop: "0.75rem", marginTop: "0.25rem" }}>
+                  <h4 style={{ margin: 0, fontSize: "1rem", color: "#1e293b" }}>Problem photos ({problemPhotos.length})</h4>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "0.65rem", marginTop: "0.55rem" }}>
+                    {problemPhotos.map((url, index) => <img key={`${url}-${index}`} src={url} alt={`Problem photo ${index + 1}`} style={{ width: 150, height: 110, objectFit: "cover", borderRadius: 8, border: "1px solid #cbd5e1", display: "block" }} onError={(event) => { event.currentTarget.style.display = "none"; }} />)}
+                  </div>
+                </section>}
                 <section style={{ borderTop: "1px solid #e2e8f0", paddingTop: "0.75rem" }}>
                   <h4 style={{ margin: 0, fontSize: "1rem", color: "#1e293b" }}>Consolidates {children.length ? `${children.length} package(s)` : ""}:</h4>
                   {children.length ? <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem", padding: "0.45rem 0 0.75rem 1rem" }}>{children.map((child: any) => <button key={child.id} type="button" onClick={() => void abrirDetallePedido(child.id)} style={{ border: 0, background: "transparent", color: "#2563eb", textAlign: "left", cursor: "pointer", fontSize: "0.9rem" }}>{child.tracking}</button>)}</div> : <p style={{ color: "#94a3b8", margin: "0.45rem 0 0.75rem" }}>None</p>}
