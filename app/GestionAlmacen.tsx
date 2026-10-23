@@ -1995,7 +1995,7 @@ export default function GestionAlmacen() {
         return;
       }
 
-      setCurrentUserName(personalRow.nombre ?? null);
+      setCurrentUserName(personalRow.nombre || user.user_metadata?.full_name || user.email || (role === "admin" || role === "administrator" ? "Admin" : "Staff"));
       setStaffPermissions((personalRow.permissions as StaffPermissions) || {});
     };
 

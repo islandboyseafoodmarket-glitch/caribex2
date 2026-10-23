@@ -28,7 +28,18 @@ async function staff(request: Request, supabase: SupabaseClient) {
     nombre_personal?: string | null;
     rol?: string | null;
   };
-  return { user: data.user, role: admin ? "admin" : "staff", profile };
+  return {
+    user: data.user,
+    role: admin ? "admin" : "staff",
+    profile: {
+      ...profile,
+      nombre: profile.nombre ||
+        profile.nombre_personal ||
+        (data.user.user_metadata?.full_name as string | undefined) ||
+        data.user.email ||
+        (admin ? "Admin" : "Staff"),
+    },
+  };
 }
 
 export async function POST(request: Request) {

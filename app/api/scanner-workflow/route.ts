@@ -36,8 +36,20 @@ async function requireStaff(request: Request, supabase: SupabaseClient) {
   ]);
   if (!admin && !staff) throw new Error("Staff access is required");
   const profile = staff
-    ? { nombre: staff.nombre, nombre_personal: staff.nombre_personal, rol: staff.rol }
-    : { nombre: null, nombre_personal: null, rol: admin?.rol || "administrador" };
+    ? {
+        nombre: staff.nombre ||
+          staff.nombre_personal ||
+          (data.user.user_metadata?.full_name as string | undefined) ||
+          data.user.email ||
+          "Staff",
+        nombre_personal: staff.nombre_personal,
+        rol: staff.rol,
+      }
+    : {
+        nombre: (data.user.user_metadata?.full_name as string | undefined) || data.user.email || "Admin",
+        nombre_personal: null,
+        rol: admin?.rol || "administrador",
+      };
   return { user: data.user, role: admin ? "admin" : "staff", profile };
 }
 

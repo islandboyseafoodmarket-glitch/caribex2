@@ -22,7 +22,14 @@ async function requireStaff(request: Request, supabase: SupabaseClient) {
     supabase.from("personal").select("id, nombre, nombre_personal").eq("id", data.user.id).maybeSingle(),
   ]);
   if (!admin && !staff) throw new Error("Staff access is required");
-  return { user: data.user, name: staff?.nombre || staff?.nombre_personal || data.user.email || "Staff", role: admin ? "admin" : "staff" };
+  return {
+    user: data.user,
+    name: staff?.nombre || staff?.nombre_personal ||
+      (data.user.user_metadata?.full_name as string | undefined) ||
+      data.user.email ||
+      (admin ? "Admin" : "Staff"),
+    role: admin ? "admin" : "staff",
+  };
 }
 
 function errorResponse(error: unknown) {
