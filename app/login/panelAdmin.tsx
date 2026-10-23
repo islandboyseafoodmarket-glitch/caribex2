@@ -65,6 +65,58 @@ const PORTAL_EVENT_LABELS: Record<string, string> = {
 };
 const portalEventLabel = (eventType: string) => PORTAL_EVENT_LABELS[eventType] || eventType.replaceAll("_", " ");
 
+const auditActionLabel = (action: unknown) => {
+  const value = String(action || "Activity");
+  const labels: Record<string, string> = {
+    workflow_status_change: "Workflow Status Change",
+    bulk_workflow_status_change: "Bulk Workflow Status Change",
+    receiving_package_created: "Receiving Package Created",
+    receiving_package_updated: "Receiving Package Updated",
+    package_problem_noted: "Package Problem Noted",
+    package_internal_note_added: "Package Note Added",
+    package_issue_photo_uploaded: "Package Issue Photo Uploaded",
+    send_invoice: "Invoice Sent",
+    manual_invoice_created: "Manual Invoice Created",
+  };
+  return labels[value] || value.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+};
+
+const auditChangeLines = (log: any) => {
+  const details = log?.details || {};
+  const current = details.new && typeof details.new === "object" ? details.new : {};
+  const previous = details.old && typeof details.old === "object" ? details.old : {};
+  const fromStatus = details.from_status ?? previous.estado;
+  const toStatus = details.to_status ?? current.estado;
+  const lines: string[] = [];
+  if (fromStatus !== undefined && toStatus !== undefined && String(fromStatus) !== String(toStatus)) {
+    lines.push(`Stage: ${String(fromStatus || "Empty")} → ${String(toStatus || "Empty")}`);
+  }
+  const fields: Record<string, string> = {
+    numero_cliente_id: "Customer",
+    contenedor_id: "Container",
+    billing_subtotal: "Subtotal",
+    billing_tax: "Tax",
+    billing_total: "Total",
+    approval_status: "Invoice Approval",
+    invoice_status: "Invoice Status",
+    payment_method: "Payment Method",
+    payment_date: "Payment Date",
+    payment_reference: "Payment Reference",
+    problema: "Problem Flag",
+    problema_notas: "Problem Note",
+    cargos_adicionales: "Charges",
+  };
+  for (const [field, label] of Object.entries(fields)) {
+    if (JSON.stringify(current[field] ?? null) !== JSON.stringify(previous[field] ?? null) && (current[field] !== undefined || previous[field] !== undefined)) {
+      lines.push(`${label}: ${String(previous[field] ?? "Empty")} → ${String(current[field] ?? "Empty")}`);
+    }
+  }
+  if (details.invoice_reason) lines.push(`Invoice: ${String(details.invoice_reason)}`);
+  if (details.container_code) lines.push(`Container: ${String(details.container_code)}`);
+  if (details.changed_fields?.length) lines.push(`Updated fields: ${details.changed_fields.join(", ")}`);
+  return lines;
+};
+
 const shipmentStage = (status: string | null | undefined) => {
   const value = (status || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   if (value.includes("entregado") || value.includes("recogido") || value.includes("picked")) return "PICKED_UP";
@@ -2251,7 +2303,7 @@ const App = () => {
             </select>
             <button type="button" className="pa-primary-btn" onClick={() => void cargarStaffActionLogs()} disabled={staffLogsLoading}>{staffLogsLoading ? 'Loading…' : 'Refresh logs'}</button>
           </div>
-          {staffActionLogs.length === 0 ? <p style={{ padding: '1.5rem', color: '#64748b' }}>{staffLogsLoading ? 'Loading staff activity…' : 'No staff activity has been recorded yet.'}</p> : <div style={{ overflowX: 'auto' }}><table className="admin-table" style={{ minWidth: 1080, width: '100%' }}><thead><tr><th>Date</th><th>Staff member</th><th>Action</th><th>Area</th><th>Shipment / customer</th><th>Result</th><th>Details</th></tr></thead><tbody>{staffActionLogs.map((log) => <tr key={log.id}><td>{formatStaffDateTime(log.created_at)}</td><td><strong>{log.actor_name || log.actor_email || 'Unknown staff'}</strong><br /><small>{log.actor_role}</small></td><td>{log.action.replaceAll('_', ' ')}</td><td>{log.entity_type}</td><td>{log.tracking || log.customer_name || log.entity_id || '-'}</td><td><span style={{ color: log.success ? '#166534' : '#b91c1c', fontWeight: 700 }}>{log.success ? 'Success' : 'Failed'}</span>{log.error_message && <><br /><small>{log.error_message}</small></>}</td><td><code style={{ whiteSpace: 'pre-wrap', fontSize: '0.75rem' }}>{JSON.stringify(log.details || {})}</code></td></tr>)}</tbody></table></div>}
+          {staffActionLogs.length === 0 ? <p style={{ padding: '1.5rem', color: '#64748b' }}>{staffLogsLoading ? 'Loading staff activity…' : 'No staff activity has been recorded yet.'}</p> : <div style={{ overflowX: 'auto' }}><table className="admin-table" style={{ minWidth: 1180, width: '100%' }}><thead><tr><th>Date</th><th>Staff Member</th><th>Action</th><th>Area</th><th>Shipment / Customer</th><th>Result</th><th>What Changed</th></tr></thead><tbody>{staffActionLogs.map((log) => { const changes = auditChangeLines(log); const actor = log.actor_name || log.actor_email || 'Unknown Staff'; const role = log.actor_role ? String(log.actor_role).replace(/^./, (letter) => letter.toUpperCase()) : 'Unknown Role'; return <tr key={log.id}><td>{formatStaffDateTime(log.created_at)}</td><td><strong>{actor}</strong><br /><small>{role}</small>{log.actor_email && <><br /><small>{log.actor_email}</small></>}</td><td>{auditActionLabel(log.action)}</td><td>{log.entity_type}</td><td>{log.tracking || log.customer_name || log.entity_id || '-'}</td><td><span style={{ color: log.success ? '#166534' : '#b91c1c', fontWeight: 700 }}>{log.success ? 'Success' : 'Failed'}</span>{log.error_message && <><br /><small>{log.error_message}</small></>}</td><td>{changes.length ? changes.map((change) => <div key={change} style={{ whiteSpace: 'pre-wrap' }}>{change}</div>) : <span style={{ color: '#64748b' }}>No tracked field changes</span>}</td></tr>; })}</tbody></table></div>}
         </div>}
 
         {activeTab === 'ferry' && <FerryManifestAdmin />}
@@ -3425,10 +3477,19 @@ const App = () => {
                 const details = event?.details;
                 const current = details?.new && typeof details.new === "object" ? details.new : {};
                 const previous = details?.old && typeof details.old === "object" ? details.old : {};
-                const fields = ["estado", "numero_cliente_id", "contenedor_id", "billing_subtotal", "billing_tax", "billing_total", "approval_status", "invoice_status", "payment_method", "payment_date", "payment_reference", "problema", "problema_notas", "cargos_adicionales"];
-                const labels: Record<string, string> = { estado: "status", numero_cliente_id: "customer", contenedor_id: "container", billing_subtotal: "subtotal", billing_tax: "tax", billing_total: "total", approval_status: "invoice approval", invoice_status: "invoice status", payment_method: "payment method", payment_date: "payment date", payment_reference: "payment reference", problema: "problem flag", problema_notas: "problem note", cargos_adicionales: "charges" };
-                return fields.filter((field) => JSON.stringify(current[field] ?? null) !== JSON.stringify(previous[field] ?? null) && (current[field] !== undefined || previous[field] !== undefined)).map((field) => `${labels[field] || field}: ${String(previous[field] ?? "empty")} → ${String(current[field] ?? "empty")}`);
+                const fields = ["numero_cliente_id", "contenedor_id", "billing_subtotal", "billing_tax", "billing_total", "approval_status", "invoice_status", "payment_method", "payment_date", "payment_reference", "problema", "problema_notas", "cargos_adicionales"];
+                const labels: Record<string, string> = { numero_cliente_id: "customer", contenedor_id: "container", billing_subtotal: "subtotal", billing_tax: "tax", billing_total: "total", approval_status: "invoice approval", invoice_status: "invoice status", payment_method: "payment method", payment_date: "payment date", payment_reference: "payment reference", problema: "problem flag", problema_notas: "problem note", cargos_adicionales: "charges" };
+                const fromStatus = details?.from_status ?? previous.estado;
+                const toStatus = details?.to_status ?? current.estado;
+                const statusChange = fromStatus !== undefined && toStatus !== undefined && String(fromStatus) !== String(toStatus)
+                  ? [`status: ${String(fromStatus || "empty")} → ${String(toStatus || "empty")}`]
+                  : [];
+                return [...statusChange, ...fields
+                  .filter((field) => JSON.stringify(current[field] ?? null) !== JSON.stringify(previous[field] ?? null) && (current[field] !== undefined || previous[field] !== undefined))
+                  .map((field) => `${labels[field] || field}: ${String(previous[field] ?? "empty")} → ${String(current[field] ?? "empty")}`)];
               };
+              const isFlaggedEvent = (event: any) => !event.success || String(event.action).toLowerCase().includes("problem");
+              const flaggedCount = activity.filter(isFlaggedEvent).length;
               const detailRow = (label: string, value: React.ReactNode, key: string) => <div key={key} style={{ display: "grid", gridTemplateColumns: "145px minmax(0,1fr)", gap: "0.75rem", padding: "0.34rem 0", alignItems: "baseline" }}><span style={{ color: "#64748b", fontSize: "0.88rem" }}>{label}</span><span style={{ color: "#1e293b", fontWeight: 600, minWidth: 0, overflowWrap: "anywhere" }}>{value || "—"}</span></div>;
               return <>
                 <div style={{ display: "flex", alignItems: "center", gap: "0.65rem", borderBottom: "1px solid #e2e8f0", padding: "0.1rem 0 0.8rem" }}>
@@ -3455,8 +3516,8 @@ const App = () => {
                   {children.length ? <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem", padding: "0.45rem 0 0.75rem 1rem" }}>{children.map((child: any) => <button key={child.id} type="button" onClick={() => void abrirDetallePedido(child.id)} style={{ border: 0, background: "transparent", color: "#2563eb", textAlign: "left", cursor: "pointer", fontSize: "0.9rem" }}>{child.tracking}</button>)}</div> : <p style={{ color: "#94a3b8", margin: "0.45rem 0 0.75rem" }}>None</p>}
                 </section>
                 <section style={{ borderTop: "1px solid #e2e8f0", paddingTop: "0.75rem" }}>
-                  <h4 style={{ margin: 0, fontSize: "1rem", color: "#1e293b" }}>↗ History - every touch ({activity.length}) <span style={{ color: "#b91c1c", fontSize: "0.82rem", marginLeft: "0.35rem" }}>⚑ {activity.filter((event: any) => !event.success || String(event.action).toLowerCase().includes("problem")).length || ""} flagged</span></h4>
-                  {activity.length ? <div style={{ marginTop: "0.55rem", display: "flex", flexDirection: "column", gap: "0.5rem" }}>{activity.map((event: any) => { const changes = describeChanges(event); return <div key={event.id} style={{ display: "grid", gridTemplateColumns: "115px 1fr", gap: "0.7rem", fontSize: "0.82rem" }}><time style={{ color: "#64748b" }}>{formatStaffDateTime(event.created_at)}</time><div style={{ borderLeft: `3px solid ${event.success === false ? "#dc2626" : "#2563eb"}`, paddingLeft: "0.65rem" }}><strong style={{ color: event.success === false ? "#991b1b" : "#334155" }}>{String(event.action || "Activity").replaceAll("_", " ")}</strong>{event.actor_name && <span style={{ color: "#64748b" }}> by {event.actor_name}</span>}{event.error_message && <div style={{ color: "#991b1b" }}>{event.error_message}</div>}{changes.length > 0 && <div style={{ color: "#475569", marginTop: "0.18rem" }}>{changes.join(" · ")}</div>}{event.details?.source === "database_trigger" && changes.length === 0 && <div style={{ color: "#64748b" }}>No tracked field changes</div>}</div></div>; })}</div> : <p style={{ color: "#94a3b8", margin: "0.5rem 0" }}>No activity history has been recorded.</p>}
+                  <h4 style={{ margin: 0, fontSize: "1rem", color: "#1e293b" }}>↗ History - every touch ({activity.length}) <span title="A flagged event means a failed operation or a package problem was recorded. Normal updates are not flagged." style={{ color: flaggedCount ? "#b91c1c" : "#64748b", fontSize: "0.82rem", marginLeft: "0.35rem" }}>⚑ {flaggedCount ? `${flaggedCount} flagged` : "No flagged events"}</span></h4>
+                  {activity.length ? <div style={{ marginTop: "0.55rem", display: "flex", flexDirection: "column", gap: "0.5rem" }}>{activity.map((event: any) => { const changes = describeChanges(event); const actor = event.actor_name || event.actor_email || "Unknown staff"; const role = event.actor_role ? ` (${String(event.actor_role).replace(/^./, (letter) => letter.toUpperCase())})` : ""; return <div key={event.id} style={{ display: "grid", gridTemplateColumns: "115px 1fr", gap: "0.7rem", fontSize: "0.82rem" }}><time style={{ color: "#64748b" }}>{formatStaffDateTime(event.created_at)}</time><div style={{ borderLeft: `3px solid ${isFlaggedEvent(event) ? "#dc2626" : "#2563eb"}`, paddingLeft: "0.65rem" }}><strong style={{ color: isFlaggedEvent(event) ? "#991b1b" : "#334155" }}>{auditActionLabel(event.action)}</strong><span style={{ color: "#64748b" }}> by {actor}{role}</span>{event.error_message && <div style={{ color: "#991b1b" }}>{event.error_message}</div>}{changes.length > 0 && <div style={{ color: "#475569", marginTop: "0.18rem" }}>{changes.map((change: string, index: number) => <div key={`${event.id}-change-${index}`}>{change}</div>)}</div>}{event.details?.source === "database_trigger" && changes.length === 0 && <div style={{ color: "#64748b" }}>No tracked field changes</div>}</div></div>; })}</div> : <p style={{ color: "#94a3b8", margin: "0.5rem 0" }}>No activity history has been recorded.</p>}
                 </section>
                 <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem", marginTop: "1rem", paddingTop: "0.75rem", borderTop: "1px solid #e2e8f0" }}><button type="button" className="pa-secondary-btn" onClick={() => setIsPedidoDetalleOpen(false)}>Close</button></div>
               </>;

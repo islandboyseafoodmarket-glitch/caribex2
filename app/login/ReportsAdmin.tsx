@@ -31,6 +31,64 @@ const isRegistered = (status: string) => status === "registrado" || status === "
 const isUnloaded = (status: string) => status.includes("descargado") || status.includes("unloaded");
 const isPickedUp = (status: string) => status.includes("entregado") || status.includes("recogido") || status.includes("picked");
 
+const auditActionLabel = (action: unknown) => {
+  const value = String(action || "Activity");
+  const labels: Record<string, string> = {
+    workflow_status_change: "Workflow Status Change",
+    bulk_workflow_status_change: "Bulk Workflow Status Change",
+    receiving_package_created: "Receiving Package Created",
+    receiving_package_updated: "Receiving Package Updated",
+    package_problem_noted: "Package Problem Noted",
+    package_internal_note_added: "Package Note Added",
+    package_issue_photo_uploaded: "Package Issue Photo Uploaded",
+    send_invoice: "Invoice Sent",
+    manual_invoice_created: "Manual Invoice Created",
+  };
+  return labels[value] || value.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+};
+
+const auditChanges = (log: any) => {
+  const details = log?.details || {};
+  const current = details.new && typeof details.new === "object" ? details.new : {};
+  const previous = details.old && typeof details.old === "object" ? details.old : {};
+  const fromStatus = details.from_status ?? previous.estado;
+  const toStatus = details.to_status ?? current.estado;
+  const lines: string[] = [];
+  if (fromStatus !== undefined && toStatus !== undefined && String(fromStatus) !== String(toStatus)) {
+    lines.push(`Stage: ${String(fromStatus || "Empty")} → ${String(toStatus || "Empty")}`);
+  }
+  const fields: Record<string, string> = {
+    numero_cliente_id: "Customer",
+    contenedor_id: "Container",
+    billing_subtotal: "Subtotal",
+    billing_tax: "Tax",
+    billing_total: "Total",
+    approval_status: "Invoice Approval",
+    invoice_status: "Invoice Status",
+    payment_method: "Payment Method",
+    payment_date: "Payment Date",
+    payment_reference: "Payment Reference",
+    problema: "Problem Flag",
+    problema_notas: "Problem Note",
+    cargos_adicionales: "Charges",
+  };
+  for (const [field, label] of Object.entries(fields)) {
+    if (JSON.stringify(current[field] ?? null) !== JSON.stringify(previous[field] ?? null) && (current[field] !== undefined || previous[field] !== undefined)) {
+      lines.push(`${label}: ${String(previous[field] ?? "Empty")} → ${String(current[field] ?? "Empty")}`);
+    }
+  }
+  if (details.invoice_reason) lines.push(`Invoice: ${String(details.invoice_reason)}`);
+  if (details.container_code) lines.push(`Container: ${String(details.container_code)}`);
+  if (details.changed_fields?.length) lines.push(`Updated fields: ${details.changed_fields.join(", ")}`);
+  return lines;
+};
+
+const auditActorLabel = (log: any) => {
+  const name = log?.actor_name || log?.actor_email || "Unknown staff";
+  const role = log?.actor_role ? String(log.actor_role).replace(/^./, (letter: string) => letter.toUpperCase()) : "Unknown role";
+  return `${name} (${role})`;
+};
+
 export default function ReportsAdmin() {
   const today = new Date();
   const currentMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
@@ -166,7 +224,7 @@ export default function ReportsAdmin() {
           </div>
           <div className="caribex-report-detail-section"><h4>Notes</h4><p style={{ whiteSpace: "pre-wrap", margin: 0 }}>{detail.shipment.notas || "No notes recorded."}</p></div>
           <div className="caribex-report-detail-section"><h4>Photos</h4>{(Array.isArray(detail.shipment.notas_imagenes) ? detail.shipment.notas_imagenes : typeof detail.shipment.notas_imagenes === "string" ? [detail.shipment.notas_imagenes] : []).length ? <div className="caribex-report-photo-grid">{(Array.isArray(detail.shipment.notas_imagenes) ? detail.shipment.notas_imagenes : [detail.shipment.notas_imagenes]).filter(Boolean).map((url: string) => <a href={url} target="_blank" rel="noreferrer" key={url}><img src={url} alt={`Photo for ${detail.shipment.tracking || "shipment"}`} /></a>)}</div> : <p style={{ margin: 0 }}>No photos recorded.</p>}</div>
-          <div className="caribex-report-detail-section"><h4>Staff activity for this shipment</h4>{detail.logs.length ? <table className="caribex-report-detail-table"><thead><tr><th>Date</th><th>Staff member</th><th>Action</th><th>Result</th></tr></thead><tbody>{detail.logs.map((log) => <tr key={log.id}><td>{log.created_at}</td><td>{log.actor_name || log.actor_email || "Unknown"}</td><td>{String(log.action || "").replaceAll("_", " ")}</td><td>{log.success ? "Success" : log.error_message || "Failed"}</td></tr>)}</tbody></table> : <p style={{ margin: 0 }}>No staff activity log is attached to this shipment.</p>}</div>
+          <div className="caribex-report-detail-section"><h4>Staff activity for this shipment</h4>{detail.logs.length ? <table className="caribex-report-detail-table"><thead><tr><th>Date</th><th>Who</th><th>Action</th><th>What Changed</th><th>Result</th></tr></thead><tbody>{detail.logs.map((log) => { const changes = auditChanges(log); return <tr key={log.id}><td>{new Date(log.created_at).toLocaleString()}</td><td><strong>{auditActorLabel(log)}</strong><br /><small>{log.actor_email || ""}</small></td><td>{auditActionLabel(log.action)}</td><td>{changes.length ? changes.map((change) => <div key={change}>{change}</div>) : "No tracked field changes"}</td><td>{log.success ? "Success" : log.error_message || "Failed"}</td></tr>; })}</tbody></table> : <p style={{ margin: 0 }}>No staff activity log is attached to this shipment.</p>}</div>
         </>}
       </section>
     </div>}
