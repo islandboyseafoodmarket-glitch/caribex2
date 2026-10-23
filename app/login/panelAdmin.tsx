@@ -172,6 +172,9 @@ const App = () => {
     telefono: string | null;
     puerto: string | null;
     tipo_cuenta: string | null;
+    account_review_status?: string | null;
+    account_reviewed_at?: string | null;
+    account_review_notes?: string | null;
     prepaid_allowance_cubic_feet?: number | null;
     prepaid_used_cubic_feet?: number | null;
     creado_en: string | null;
@@ -208,6 +211,9 @@ const App = () => {
     peso?: number | null;
     problema?: boolean | null;
     problema_notas?: string | null;
+    cubic_feet?: number | null;
+    prepaid_review_required?: boolean | null;
+    prepaid_review_status?: string | null;
     issue_status?: 'OPEN' | 'RESOLVED' | null;
     cargos_adicionales?: string | null;
     consolidacion?: boolean | null;
@@ -975,7 +981,7 @@ const App = () => {
   const cargarClientes = useCallback(async () => {
     const { data, error } = await supabase
       .from("numero_cliente")
-      .select("id, nombre, numero_cliente, email, telefono, puerto, tipo_cuenta, prepaid_allowance_cubic_feet, prepaid_used_cubic_feet, creado_en, auth_user_id")
+      .select("id, nombre, numero_cliente, email, telefono, puerto, tipo_cuenta, account_review_status, account_reviewed_at, account_review_notes, prepaid_allowance_cubic_feet, prepaid_used_cubic_feet, creado_en, auth_user_id")
       .order("creado_en", { ascending: false });
 
     if (!error && data) {
@@ -1016,7 +1022,7 @@ const App = () => {
     const { data, error } = await supabase
       .from("paquetes_registro")
       .select(
-        "id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, notas_imagenes, estado, issue_status, numero_cliente:numero_cliente_id (id, numero_cliente, nombre), numero_cliente_id, registro, descargado, entregado_por, hora_fecha, fecha_descargado, hora_descargado, fecha_entregado, hora_entregado",
+        "id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, notas_imagenes, estado, issue_status, cubic_feet, prepaid_review_required, prepaid_review_status, numero_cliente:numero_cliente_id (id, numero_cliente, nombre), numero_cliente_id, registro, descargado, entregado_por, hora_fecha, fecha_descargado, hora_descargado, fecha_entregado, hora_entregado",
       )
       .order("creado_en", { ascending: false });
 
@@ -1058,6 +1064,9 @@ const App = () => {
         notas: row.notas || null,
         notas_imagenes: row.notas_imagenes || null,
         issue_status: row.issue_status || null,
+        cubic_feet: row.cubic_feet ?? null,
+        prepaid_review_required: Boolean(row.prepaid_review_required),
+        prepaid_review_status: row.prepaid_review_status || null,
         numero_cliente_id: row.numero_cliente_id || row.numero_cliente?.id || null,
         registro: row.registro || null,
         descargado: row.descargado || null,

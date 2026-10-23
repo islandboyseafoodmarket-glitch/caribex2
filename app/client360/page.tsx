@@ -20,8 +20,8 @@ export default function Client360Page() {
       ]);
       if (!admin && !staff) { setAllowed(false); return; }
       const [{ data: clientes, error: clientError }, { data: packages }, { data: invoices }, { data: containerLinks }, { data: containers }] = await Promise.all([
-        supabase.from("numero_cliente").select("id, nombre, numero_cliente, email, telefono, puerto, tipo_cuenta, creado_en, auth_user_id").order("creado_en", { ascending: false }),
-        supabase.from("paquetes_registro").select("id, tracking, estado, nombre_paqueteria, tipo_paquete, contenido, notas, notas_imagenes, numero_cliente_id, registro, hora_fecha, fecha_entregado, problema, problema_notas, numero_cliente:numero_cliente_id(numero_cliente, nombre)" ).order("registro", { ascending: false }),
+        supabase.from("numero_cliente").select("id, nombre, numero_cliente, email, telefono, puerto, tipo_cuenta, account_review_status, account_reviewed_at, account_review_notes, prepaid_allowance_cubic_feet, prepaid_used_cubic_feet, creado_en, auth_user_id").order("creado_en", { ascending: false }),
+        supabase.from("paquetes_registro").select("id, tracking, estado, nombre_paqueteria, tipo_paquete, contenido, notas, notas_imagenes, numero_cliente_id, registro, hora_fecha, fecha_entregado, problema, problema_notas, cubic_feet, prepaid_review_required, prepaid_review_status, numero_cliente:numero_cliente_id(numero_cliente, nombre)" ).order("registro", { ascending: false }),
         supabase.from("paquetes_registro").select("id, tracking, nombre_paqueteria, tipo_paquete, billing_subtotal, billing_tax, billing_total, approval_status, invoice_status, notas, numero_cliente:numero_cliente_id(numero_cliente, nombre)" ).not("billing_total", "is", null),
         supabase.from("contenedor_paquetes").select("paquete_id, contenedor_id"),
         supabase.from("contenedores").select("id, codigo"),

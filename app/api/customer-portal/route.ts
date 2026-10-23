@@ -19,12 +19,12 @@ export async function GET(request: Request) {
     const supabase = adminClient();
     const { data: userData, error: userError } = await supabase.auth.getUser(token);
     if (userError || !userData.user?.email) return NextResponse.json({ error: "Invalid session" }, { status: 401 });
-    const { data: client, error: clientError } = await supabase.from("numero_cliente").select("id, nombre, numero_cliente, email, telefono, puerto, tipo_cuenta, creado_en").eq("email", userData.user.email.toLowerCase()).maybeSingle();
+    const { data: client, error: clientError } = await supabase.from("numero_cliente").select("id, nombre, numero_cliente, email, telefono, puerto, tipo_cuenta, account_review_status, account_reviewed_at, account_review_notes, prepaid_allowance_cubic_feet, prepaid_used_cubic_feet, creado_en").eq("email", userData.user.email.toLowerCase()).maybeSingle();
     if (clientError) throw clientError;
     if (!client) return NextResponse.json({ error: "Customer profile not found" }, { status: 404 });
     const [{ data: packages, error: packageError }, { data: invoices, error: invoiceError }, { data: ferry, error: ferryError }] = await Promise.all([
       // Internal staff/admin notes must never leave the staff-facing surface.
-      supabase.from("paquetes_registro").select("id, tracking, nombre_paqueteria, tipo_paquete, contenido, estado, registro, hora_fecha, fecha_entregado").eq("numero_cliente_id", client.id).order("registro", { ascending: false }),
+      supabase.from("paquetes_registro").select("id, tracking, nombre_paqueteria, tipo_paquete, contenido, estado, registro, hora_fecha, fecha_entregado, cubic_feet, prepaid_review_required, prepaid_review_status").eq("numero_cliente_id", client.id).order("registro", { ascending: false }),
       supabase.from("paquetes_registro").select("id, tracking, billing_subtotal, billing_tax, billing_total, approval_status, invoice_status").eq("numero_cliente_id", client.id).not("billing_total", "is", null).order("registro", { ascending: false }),
       supabase.from("ferry_manifest_entries").select("id, puerto, numero_reserva, nombre_receptor, enviado_en, manifiesto_id").eq("numero_cliente_id", client.id).order("enviado_en", { ascending: false }),
     ]);
