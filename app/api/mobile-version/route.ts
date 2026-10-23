@@ -6,10 +6,10 @@ export async function GET() {
   return NextResponse.json(
     {
       app: "Caribex Warehouse Management",
-      version: "1.2.29",
-      version_code: 1229,
-      apk_url: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663449196187/YSYKwrcufNaeXRaO.apk",
-      filename: "Caribex-Warehouse-Management-1.2.29.apk",
+      version: "1.2.30",
+      version_code: 1230,
+      apk_url: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663449196187/juCQOTlJNLVEVUwk.apk",
+      filename: "Caribex-Warehouse-Management-1.2.30.apk",
       release_notes: [
         "Web-equivalent Receiving, Check In, consolidation, and customer assignment",
         "Client Pickup now shows every shipment tracking number with the authoritative invoice status",
@@ -55,6 +55,7 @@ export async function GET() {
         "Issue-photo upload errors now explain when a selected photo must be chosen again",
         "Workflow requests fall back to the apex production hostname when warehouse DNS cannot resolve the www hostname",
         "Expired scanner sessions are cleared and reported as Session expired instead of a misleading network error",
+        "Supabase/API gateway failures now show a database-service message instead of blaming the scanner phone internet",
       ],
     },
     { headers: { "Cache-Control": "no-store, max-age=0" } },
