@@ -245,7 +245,15 @@ export default function App() {
               <select name="tipoCuenta" value={formData.tipoCuenta} onChange={handleChange}>
                 <option value="Personal">{isEn ? "Personal" : "Personal"}</option>
                 <option value="Negocio">{isEn ? "Business" : "Negocio"}</option>
+                <option value="Developer / Builder — Prepaid">{isEn ? "Developer / Builder — Prepaid" : "Desarrollador / Constructor — Prepago"}</option>
               </select>
+              {formData.tipoCuenta === "Developer / Builder — Prepaid" && (
+                <p className="form-help-text">
+                  {isEn
+                    ? "This account requires Admin review and an assigned prepaid cubic-foot allowance before shipments can be processed."
+                    : "Esta cuenta requiere revisión administrativa y una asignación prepaga de pies cúbicos antes de procesar envíos."}
+                </p>
+              )}
             </div>
 
             <div className="form-actions full-width">

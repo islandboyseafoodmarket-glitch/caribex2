@@ -26,6 +26,7 @@ const NUEVO_CLIENTE_INITIAL = {
   telefono: "",
   puerto: "",
   tipoCuenta: "Personal",
+  prepaidAllowanceCubicFeet: "",
 };
 
 const STAFF_PERMISSION_OPTIONS = [
@@ -171,6 +172,8 @@ const App = () => {
     telefono: string | null;
     puerto: string | null;
     tipo_cuenta: string | null;
+    prepaid_allowance_cubic_feet?: number | null;
+    prepaid_used_cubic_feet?: number | null;
     creado_en: string | null;
     auth_user_id?: string | null;
   };
@@ -972,7 +975,7 @@ const App = () => {
   const cargarClientes = useCallback(async () => {
     const { data, error } = await supabase
       .from("numero_cliente")
-      .select("id, nombre, numero_cliente, email, telefono, puerto, tipo_cuenta, creado_en, auth_user_id")
+      .select("id, nombre, numero_cliente, email, telefono, puerto, tipo_cuenta, prepaid_allowance_cubic_feet, prepaid_used_cubic_feet, creado_en, auth_user_id")
       .order("creado_en", { ascending: false });
 
     if (!error && data) {
@@ -1003,6 +1006,7 @@ const App = () => {
       telefono: cliente.telefono ?? "",
       puerto: cliente.puerto ?? "",
       tipoCuenta: cliente.tipo_cuenta ?? "Personal",
+      prepaidAllowanceCubicFeet: cliente.prepaid_allowance_cubic_feet == null ? "" : String(cliente.prepaid_allowance_cubic_feet),
     });
     setClienteModalError(null);
     setIsClienteModalOpen(true);
@@ -4343,6 +4347,7 @@ const App = () => {
                         telefono: nuevoCliente.telefono || null,
                         puerto: nuevoCliente.puerto || null,
                         tipo_cuenta: nuevoCliente.tipoCuenta,
+                        prepaid_allowance_cubic_feet: nuevoCliente.prepaidAllowanceCubicFeet ? Number(nuevoCliente.prepaidAllowanceCubicFeet) : 0,
                       })
                       .eq("id", clienteEditandoId);
 
@@ -4373,6 +4378,7 @@ const App = () => {
                         telefono: nuevoCliente.telefono,
                         puerto: nuevoCliente.puerto,
                         tipo_cuenta: nuevoCliente.tipoCuenta,
+                        prepaid_allowance_cubic_feet: nuevoCliente.prepaidAllowanceCubicFeet ? Number(nuevoCliente.prepaidAllowanceCubicFeet) : 0,
                         numero_cliente: siguienteNumero,
                       });
 
@@ -4459,7 +4465,29 @@ const App = () => {
                 >
                   <option value="Personal">Personal</option>
                   <option value="Negocios">Negocios</option>
+                  <option value="Developer / Builder — Prepaid">Developer / Builder — Prepaid</option>
                 </select>
+              </div>
+
+              <div className="pa-field">
+                <label htmlFor="cliente-prepaid-allowance">Prepaid allowance (cubic ft)</label>
+                <input
+                  id="cliente-prepaid-allowance"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  className="pa-input"
+                  value={nuevoCliente.prepaidAllowanceCubicFeet}
+                  onChange={(e) =>
+                    setNuevoCliente((prev) => ({ ...prev, prepaidAllowanceCubicFeet: e.target.value }))
+                  }
+                  placeholder="0"
+                />
+                {clienteEditandoId && (
+                  <small style={{ color: '#64748b' }}>
+                    Used: {Number(clientes.find((cliente) => cliente.id === clienteEditandoId)?.prepaid_used_cubic_feet || 0).toFixed(2)} cubic ft. New allowance is added to the account record.
+                  </small>
+                )}
               </div>
 
               <div className="pa-modal-actions">
