@@ -160,12 +160,13 @@ export async function POST(request: Request) {
     }
     const customerId = value("customer_id").trim() || null;
     const { data: allowanceCustomer } = customerId
-      ? await supabase.from("numero_cliente").select("id, nombre, email, prepaid_allowance_cubic_feet, prepaid_used_cubic_feet, prepaid_notice_level").eq("id", customerId).maybeSingle()
+      ? await supabase.from("numero_cliente").select("id, nombre, email, tipo_cuenta, prepaid_allowance_cubic_feet, prepaid_used_cubic_feet, prepaid_notice_level").eq("id", customerId).maybeSingle()
       : { data: null };
     const allowance = Number(allowanceCustomer?.prepaid_allowance_cubic_feet || 0);
     const used = Number(allowanceCustomer?.prepaid_used_cubic_feet || 0);
     const projected = cubicFeet == null ? used : used + cubicFeet;
-    const reviewRequired = allowance > 0 && projected > allowance;
+    const isPrepaidDeveloper = allowanceCustomer?.tipo_cuenta === "Developer / Builder — Prepaid";
+    const reviewRequired = isPrepaidDeveloper ? allowance <= 0 || projected > allowance : allowance > 0 && projected > allowance;
     const note = [ownerUnknown ? "UNKNOWN OWNER - pending customer identification" : "", noteText].filter(Boolean).join("\n") || null;
     const { data, error } = await supabase.from("paquetes_registro").insert({ tracking, nombre_paqueteria: carrier, tipo_paquete: type, contenido: value("contents").trim() || null, notas: note, numero_cliente_id: customerId, registro: actor.name, estado: "Recibido", cubic_feet: cubicFeet, prepaid_review_required: reviewRequired, prepaid_review_status: reviewRequired ? "PENDING_ADMIN" : "NOT_REQUIRED", ...(billing ? { billing_subtotal: billing.subtotal, billing_tax: billing.tax, billing_total: billing.total } : {}) }).select("id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, notas_imagenes, registro, estado, hora_fecha, cubic_feet, prepaid_review_required, prepaid_review_status, billing_subtotal, billing_tax, billing_total").single();
     if (error) throw error;
