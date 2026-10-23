@@ -13,6 +13,7 @@ type PackageForInvoice = {
   carrier?: string | null;
   type: "BOX" | "PACKAGE";
   numeroCliente?: number | null;
+  numeroClienteId?: string | null;
   estado?: string | null;
   clienteNombre?: string | null;
   billing_subtotal?: number | null;
@@ -33,6 +34,7 @@ type InvoicesStageProps = {
     status: "PENDING" | "SENT" | "PAID" | "OVERDUE",
   ) => void | Promise<void>;
   onDeleteInvoice?: (pkg: PackageForInvoice) => void | Promise<void>;
+  onCreateManualInvoice?: (input: { customer_id: string; tracking: string; description: string; type: "BOX" | "PACKAGE"; height: string; width: string; length: string; subtotal: string; total: string }) => void | Promise<void>;
 };
 
 const getClientName = (pkg: PackageForInvoice): string => {
@@ -80,8 +82,12 @@ const InvoicesStage: React.FC<InvoicesStageProps> = ({
   onChangeApproval,
   onChangeInvoiceStatus,
   onDeleteInvoice,
+  onCreateManualInvoice,
 }) => {
   const [search, setSearch] = useState("");
+  const [manualOpen, setManualOpen] = useState(false);
+  const [manual, setManual] = useState({ customer_id: "", tracking: "", description: "", type: "BOX" as "BOX" | "PACKAGE", height: "", width: "", length: "", subtotal: "", total: "" });
+  const customerOptions = useMemo(() => Array.from(new Map(packages.filter((p) => p.numeroClienteId).map((p) => [p.numeroClienteId, { id: p.numeroClienteId as string, label: `${p.clienteNombre || "Customer"} · ${p.numeroCliente || ""}` }])).values()), [packages]);
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -152,9 +158,32 @@ const InvoicesStage: React.FC<InvoicesStageProps> = ({
                   : "Generate unloaded invoices"}
               </button>
             )}
+            {onCreateManualInvoice && (
+              <button type="button" className="ga-secondary-button" onClick={() => setManualOpen((open) => !open)}>
+                {isEs ? "Crear factura manual" : "Create manual invoice"}
+              </button>
+            )}
           </div>
         </div>
       </header>
+
+      {manualOpen && onCreateManualInvoice && (
+        <div className="ga-table-card" style={{ margin: "0 0 1rem", padding: "1rem" }}>
+          <h3 style={{ marginTop: 0 }}>{isEs ? "Factura para envío no registrado" : "Invoice for shipment not in the database"}</h3>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", gap: "0.6rem" }}>
+            <input placeholder="Tracking (optional)" value={manual.tracking} onChange={(e) => setManual({ ...manual, tracking: e.target.value })} />
+            <select value={manual.customer_id} onChange={(e) => setManual({ ...manual, customer_id: e.target.value })}><option value="">No customer selected</option>{customerOptions.map((customer) => <option key={customer.id} value={customer.id}>{customer.label}</option>)}</select>
+            <input placeholder="Description" value={manual.description} onChange={(e) => setManual({ ...manual, description: e.target.value })} />
+            <select value={manual.type} onChange={(e) => setManual({ ...manual, type: e.target.value as "BOX" | "PACKAGE" })}><option value="BOX">Box</option><option value="PACKAGE">Package</option></select>
+            <input placeholder="Height" inputMode="decimal" value={manual.height} onChange={(e) => setManual({ ...manual, height: e.target.value })} />
+            <input placeholder="Width" inputMode="decimal" value={manual.width} onChange={(e) => setManual({ ...manual, width: e.target.value })} />
+            <input placeholder="Length" inputMode="decimal" value={manual.length} onChange={(e) => setManual({ ...manual, length: e.target.value })} />
+            <input placeholder="Subtotal" inputMode="decimal" value={manual.subtotal} onChange={(e) => setManual({ ...manual, subtotal: e.target.value })} />
+            <input placeholder="Total" inputMode="decimal" value={manual.total} onChange={(e) => setManual({ ...manual, total: e.target.value })} />
+          </div>
+          <button type="button" className="ga-primary-button" style={{ marginTop: "0.8rem" }} onClick={() => void onCreateManualInvoice(manual)}>{isEs ? "Guardar factura" : "Save invoice"}</button>
+        </div>
+      )}
 
       {hasPackages ? (
         <div className="ga-table-card">

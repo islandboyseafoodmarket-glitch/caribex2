@@ -185,6 +185,9 @@ const App = () => {
     payment_reference: string | null;
     payment_date: string | null;
     customer_invoice_note: string | null;
+    cubic_feet?: number | null;
+    prepaid_review_required?: boolean | null;
+    prepaid_review_status?: string | null;
     containerIds: string[];
     containerLabels: string[];
   };
@@ -1020,7 +1023,7 @@ const App = () => {
     const { data, error } = await supabase
       .from("paquetes_registro")
       .select(
-        "id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, notas_imagenes, issue_status, billing_subtotal, billing_tax, billing_total, approval_status, invoice_status, payment_method, payment_notes, payment_reference, payment_date, customer_invoice_note, creado_en, numero_cliente:numero_cliente_id (id, numero_cliente, nombre, email, puerto)",
+        "id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, notas_imagenes, issue_status, billing_subtotal, billing_tax, billing_total, approval_status, invoice_status, payment_method, payment_notes, payment_reference, payment_date, customer_invoice_note, cubic_feet, prepaid_review_required, prepaid_review_status, creado_en, numero_cliente:numero_cliente_id (id, numero_cliente, nombre, email, puerto)",
       )
       .or("estado.ilike.%descargado%,estado.ilike.%entregado%")
       .order("creado_en", { ascending: false });
@@ -1078,6 +1081,9 @@ const App = () => {
         payment_reference: (row.payment_reference as string | null) ?? null,
         payment_date: (row.payment_date as string | null) ?? null,
         customer_invoice_note: (row.customer_invoice_note as string | null) ?? null,
+        cubic_feet: (row.cubic_feet as number | null) ?? null,
+        prepaid_review_required: Boolean(row.prepaid_review_required),
+        prepaid_review_status: (row.prepaid_review_status as string | null) ?? null,
         containerIds: containersByPackage.get(row.id)?.ids || [],
         containerLabels: containersByPackage.get(row.id)?.labels || [],
       }));
@@ -2144,6 +2150,22 @@ const App = () => {
           )}
 
           {activeTab === 'reports' && <ReportsAdmin />}
+
+          {activeTab === 'finanzas' && (
+            <div style={{ margin: '1rem 0', padding: '1rem 1.1rem', borderRadius: '0.9rem', border: '1px solid #f59e0b', background: '#fffbeb' }}>
+              <strong style={{ color: '#92400e' }}>Prepaid allowance review</strong>
+              <p style={{ margin: '0.35rem 0 0.8rem', color: '#78350f' }}>Shipments that exceed a customer’s cubic-foot allowance stay visible for Admin approval before operational completion.</p>
+              <div style={{ display: 'grid', gap: '0.5rem' }}>
+                {facturas.filter((invoice) => invoice.prepaid_review_required && invoice.prepaid_review_status !== 'APPROVED').slice(0, 12).map((invoice) => (
+                  <div key={invoice.id} style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', alignItems: 'center', padding: '0.65rem 0.75rem', borderRadius: '0.65rem', background: '#fff' }}>
+                    <span><strong>{invoice.tracking}</strong> · {invoice.clienteNombre || 'Unknown customer'} · {Number(invoice.cubic_feet || 0).toFixed(2)} ft³</span>
+                    <button type="button" className="pa-primary-btn" onClick={() => void supabase.from('paquetes_registro').update({ prepaid_review_status: 'APPROVED', prepaid_review_required: false }).eq('id', invoice.id).then(({ error }) => { if (error) alert(error.message); else updateFacturaEnEstado(invoice.id, { prepaid_review_status: 'APPROVED', prepaid_review_required: false }); })}>Approve</button>
+                  </div>
+                ))}
+                {!facturas.some((invoice) => invoice.prepaid_review_required && invoice.prepaid_review_status !== 'APPROVED') && <span style={{ color: '#92400e' }}>No shipments currently waiting for Admin review.</span>}
+              </div>
+            </div>
+          )}
 
           {activeTab === 'personal' && (
             <button

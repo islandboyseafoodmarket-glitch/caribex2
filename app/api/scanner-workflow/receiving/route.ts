@@ -140,6 +140,9 @@ export async function POST(request: Request) {
       peso: value("peso") === "" ? null : Number(value("peso")),
     };
     const billing = calculateWorkflowBilling({ tipo_paquete: type, ...dimensions, cargos_adicionales: value("cargos_adicionales") });
+    const cubicFeet = dimensions.alto && dimensions.ancho && dimensions.largo
+      ? Number(((dimensions.alto * dimensions.ancho * dimensions.largo) / 1728).toFixed(2))
+      : type === "PACKAGE" ? 1 : null;
     if (!tracking) return NextResponse.json({ error: "Tracking number or barcode is required" }, { status: 400 });
     if (!type) return NextResponse.json({ error: "Select Box or Package" }, { status: 400 });
     if (ownerUnknown && !noteText && photos.length === 0) return NextResponse.json({ error: "Unknown Owner requires an internal note or a photo" }, { status: 400 });
@@ -156,13 +159,36 @@ export async function POST(request: Request) {
       }, { status: 409 });
     }
     const customerId = value("customer_id").trim() || null;
+    const { data: allowanceCustomer } = customerId
+      ? await supabase.from("numero_cliente").select("id, nombre, email, prepaid_allowance_cubic_feet, prepaid_used_cubic_feet, prepaid_notice_level").eq("id", customerId).maybeSingle()
+      : { data: null };
+    const allowance = Number(allowanceCustomer?.prepaid_allowance_cubic_feet || 0);
+    const used = Number(allowanceCustomer?.prepaid_used_cubic_feet || 0);
+    const projected = cubicFeet == null ? used : used + cubicFeet;
+    const reviewRequired = allowance > 0 && projected > allowance;
     const note = [ownerUnknown ? "UNKNOWN OWNER - pending customer identification" : "", noteText].filter(Boolean).join("\n") || null;
-    const { data, error } = await supabase.from("paquetes_registro").insert({ tracking, nombre_paqueteria: carrier, tipo_paquete: type, contenido: value("contents").trim() || null, notas: note, numero_cliente_id: customerId, registro: actor.name, estado: "Recibido", ...(billing ? { billing_subtotal: billing.subtotal, billing_tax: billing.tax, billing_total: billing.total } : {}) }).select("id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, notas_imagenes, registro, estado, hora_fecha, billing_subtotal, billing_tax, billing_total").single();
+    const { data, error } = await supabase.from("paquetes_registro").insert({ tracking, nombre_paqueteria: carrier, tipo_paquete: type, contenido: value("contents").trim() || null, notas: note, numero_cliente_id: customerId, registro: actor.name, estado: "Recibido", cubic_feet: cubicFeet, prepaid_review_required: reviewRequired, prepaid_review_status: reviewRequired ? "PENDING_ADMIN" : "NOT_REQUIRED", ...(billing ? { billing_subtotal: billing.subtotal, billing_tax: billing.tax, billing_total: billing.total } : {}) }).select("id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, notas_imagenes, registro, estado, hora_fecha, cubic_feet, prepaid_review_required, prepaid_review_status, billing_subtotal, billing_tax, billing_total").single();
     if (error) throw error;
     let savedPackage = data;
     if (Object.values(dimensions).some((dimension) => dimension !== null)) {
       const { error: checkinError } = await supabase.from("paquetes_checkin").insert({ paquete_id: data.id, numero_cliente_id: customerId, ...dimensions });
       if (checkinError) throw checkinError;
+    }
+    if (customerId && cubicFeet != null && allowance > 0) {
+      const level = projected > allowance ? 100 : projected >= allowance * 0.9 ? 90 : projected >= allowance * 0.75 ? 75 : 0;
+      await supabase.from("numero_cliente").update({ prepaid_used_cubic_feet: projected, prepaid_notice_level: Math.max(Number(allowanceCustomer?.prepaid_notice_level || 0), level) }).eq("id", customerId);
+      if (level >= 75 && level > Number(allowanceCustomer?.prepaid_notice_level || 0)) {
+        await supabase.from("prepaid_notification_log").upsert({ numero_cliente_id: customerId, level, used_cubic_feet: projected, allowance_cubic_feet: allowance, sent_to: allowanceCustomer?.email || null }, { onConflict: "numero_cliente_id,level" });
+        if (allowanceCustomer?.email && process.env.RESEND_API_KEY) {
+          const gradient = level === 75 ? "#2563eb,#60a5fa" : level === 90 ? "#d97706,#fbbf24" : "#b91c1c,#fb7185";
+          const subject = level === 100 ? "Caribex: prepaid cubic-foot allowance exceeded" : `Caribex: ${level}% of your prepaid cubic-foot allowance used`;
+          const greeting = allowanceCustomer.nombre ? `Hello ${allowanceCustomer.nombre},` : "Hello,";
+          const html = `<div style="font-family:Arial,sans-serif;color:#17324d"><div style="padding:24px;border-radius:14px;background:linear-gradient(135deg,${gradient});color:#fff"><h2 style="margin:0">Caribex space update</h2><p style="margin-bottom:0">${level === 100 ? "Your prepaid allowance has been exceeded and the new shipment is awaiting Admin review." : `You have used approximately ${level}% of your prepaid cubic-foot allowance.`}</p></div><p>${greeting}</p><p>You have used <strong>${projected.toFixed(2)} cubic feet</strong> of your <strong>${allowance.toFixed(2)} cubic-foot</strong> allowance.</p><p>Please contact Caribex if you want to request additional space.</p></div>`;
+          try {
+            await fetch("https://api.resend.com/emails", { method: "POST", headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, "Content-Type": "application/json" }, body: JSON.stringify({ from: "info@caribexlogisticsgroup.com", to: allowanceCustomer.email, subject, html }) });
+          } catch { /* email is best effort; the notification log remains authoritative */ }
+        }
+      }
     }
     if (photos.length > 0) {
       const imageUrls: string[] = [];
@@ -174,7 +200,7 @@ export async function POST(request: Request) {
         const { data: publicUrl } = supabase.storage.from("notas-imagenes").getPublicUrl(path);
         if (publicUrl.publicUrl) imageUrls.push(publicUrl.publicUrl);
       }
-      const { data: updated, error: imageError } = await supabase.from("paquetes_registro").update({ notas_imagenes: imageUrls }).eq("id", data.id).select("id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, notas_imagenes, registro, estado, hora_fecha, billing_subtotal, billing_tax, billing_total").single();
+      const { data: updated, error: imageError } = await supabase.from("paquetes_registro").update({ notas_imagenes: imageUrls }).eq("id", data.id).select("id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, notas_imagenes, registro, estado, hora_fecha, cubic_feet, prepaid_review_required, prepaid_review_status, billing_subtotal, billing_tax, billing_total").single();
       if (imageError) throw imageError;
       savedPackage = updated;
     }

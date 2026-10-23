@@ -1340,6 +1340,19 @@ export default function GestionAlmacen() {
     );
   };
 
+  const handleCreateManualInvoice = async (input: { customer_id: string; tracking: string; description: string; type: "BOX" | "PACKAGE"; height: string; width: string; length: string; subtotal: string; total: string }) => {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const response = await fetch("/api/staff-invoices", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${sessionData.session?.access_token || ""}` },
+      body: JSON.stringify(input),
+    });
+    const payload = await response.json();
+    if (!response.ok) { alert(payload.error || (isEs ? "No se pudo crear la factura" : "Could not create the invoice")); return; }
+    alert(isEs ? "Factura manual creada correctamente." : "Manual invoice created successfully.");
+    await cargarPaquetes();
+  };
+
   // Cambiar estado de aprobación de una factura individual
   const handleChangeInvoiceApproval = async (
     pkg: Package,
@@ -3948,6 +3961,7 @@ const handlePackageCreated = (pkg: Package) => {
               onChangeApproval={handleChangeInvoiceApproval as any}
               onChangeInvoiceStatus={handleChangeInvoiceStatus as any}
               onDeleteInvoice={isAdmin ? (handleDeleteInvoice as any) : undefined}
+              onCreateManualInvoice={handleCreateManualInvoice}
             />
           ) : null}
         </section>}
