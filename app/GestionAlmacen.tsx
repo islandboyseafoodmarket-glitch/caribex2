@@ -1982,7 +1982,13 @@ export default function GestionAlmacen() {
 
       const user = data.user;
       const role = String(user.app_metadata?.role || user.user_metadata?.role || "").toLowerCase();
-      setIsAdmin(role === "admin" || role === "administrator");
+      const { data: adminRow } = await supabase
+        .from("administradores")
+        .select("id")
+        .eq("id", user.id)
+        .maybeSingle();
+      const isAdministrator = Boolean(adminRow) || role === "admin" || role === "administrator";
+      setIsAdmin(isAdministrator);
 
       const { data: personalRow, error: personalError } = await supabase
         .from("personal")
@@ -1991,11 +1997,11 @@ export default function GestionAlmacen() {
         .single();
 
       if (personalError || !personalRow) {
-        setCurrentUserName(user.user_metadata?.full_name || user.email || (role === "admin" || role === "administrator" ? "Admin" : "Staff"));
+        setCurrentUserName(isAdministrator ? "Admin" : user.user_metadata?.full_name || user.email || "Staff");
         return;
       }
 
-      setCurrentUserName(personalRow.nombre || user.user_metadata?.full_name || user.email || (role === "admin" || role === "administrator" ? "Admin" : "Staff"));
+      setCurrentUserName(isAdministrator ? "Admin" : personalRow.nombre || user.user_metadata?.full_name || user.email || "Staff");
       setStaffPermissions((personalRow.permissions as StaffPermissions) || {});
     };
 

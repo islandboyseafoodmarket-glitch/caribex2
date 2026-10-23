@@ -33,11 +33,13 @@ async function staff(request: Request, supabase: SupabaseClient) {
     role: admin ? "admin" : "staff",
     profile: {
       ...profile,
-      nombre: profile.nombre ||
-        profile.nombre_personal ||
-        (data.user.user_metadata?.full_name as string | undefined) ||
-        data.user.email ||
-        (admin ? "Admin" : "Staff"),
+      nombre: admin
+        ? "Admin"
+        : profile.nombre ||
+          profile.nombre_personal ||
+          (data.user.user_metadata?.full_name as string | undefined) ||
+          data.user.email ||
+          "Staff",
     },
   };
 }

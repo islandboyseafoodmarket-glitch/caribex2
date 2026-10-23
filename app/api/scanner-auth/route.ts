@@ -46,10 +46,12 @@ export async function POST(request: Request) {
     ]);
     if (!admin && !staff) return NextResponse.json({ error: "This account is not authorized for warehouse workflow access" }, { status: 403 });
 
-    const operatorName = staff?.nombre || staff?.nombre_personal ||
-      (result.data.user.user_metadata?.full_name as string | undefined) ||
-      result.data.user.email ||
-      (admin ? "Admin" : "Staff");
+    const operatorName = admin
+      ? "Admin"
+      : staff?.nombre || staff?.nombre_personal ||
+        (result.data.user.user_metadata?.full_name as string | undefined) ||
+        result.data.user.email ||
+        "Staff";
 
     return NextResponse.json({
       session: { access_token: result.data.session.access_token, refresh_token: result.data.session.refresh_token },

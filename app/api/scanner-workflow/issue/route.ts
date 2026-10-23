@@ -23,10 +23,12 @@ async function requireStaff(request: Request, supabase: SupabaseClient) {
   return {
     user: data.user,
     role: admin ? "admin" : "staff",
-    name: staff?.nombre || staff?.nombre_personal ||
-      (data.user.user_metadata?.full_name as string | undefined) ||
-      data.user.email ||
-      (admin ? "Admin" : "Staff"),
+    name: admin
+      ? "Admin"
+      : staff?.nombre || staff?.nombre_personal ||
+        (data.user.user_metadata?.full_name as string | undefined) ||
+        data.user.email ||
+        "Staff",
   };
 }
 

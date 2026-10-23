@@ -24,10 +24,12 @@ async function requireStaff(request: Request, supabase: SupabaseClient) {
   if (!admin && !staff) throw new Error("Staff access is required");
   return {
     user: data.user,
-    name: staff?.nombre || staff?.nombre_personal ||
-      (data.user.user_metadata?.full_name as string | undefined) ||
-      data.user.email ||
-      (admin ? "Admin" : "Staff"),
+    name: admin
+      ? "Admin"
+      : staff?.nombre || staff?.nombre_personal ||
+        (data.user.user_metadata?.full_name as string | undefined) ||
+        data.user.email ||
+        "Staff",
     role: admin ? "admin" : "staff",
   };
 }
