@@ -1082,10 +1082,16 @@ const App = () => {
     }
     setPrepaidAllowanceSaving(true);
     const nextAllowance = Number(customer.prepaid_allowance_cubic_feet || 0) + amount;
-    const { error } = await supabase.from("numero_cliente").update({ prepaid_allowance_cubic_feet: nextAllowance }).eq("id", customer.id);
+    const wasApproved = customer.account_review_status === "APPROVED";
+    const { error } = await supabase.from("numero_cliente").update({ prepaid_allowance_cubic_feet: nextAllowance, ...(wasApproved ? {} : { account_review_status: "APPROVED", account_reviewed_at: new Date().toISOString() }) }).eq("id", customer.id);
     if (error) alert(error.message);
     else {
-      setClientes((previous) => previous.map((item) => item.id === customer.id ? { ...item, prepaid_allowance_cubic_feet: nextAllowance } : item));
+      setClientes((previous) => previous.map((item) => item.id === customer.id ? { ...item, prepaid_allowance_cubic_feet: nextAllowance, ...(wasApproved ? {} : { account_review_status: "APPROVED", account_reviewed_at: new Date().toISOString() }) } : item));
+      if (!wasApproved && customer.email) {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const response = await fetch("/api/admin/prepaid-approval-email", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${sessionData.session?.access_token || ""}` }, body: JSON.stringify({ customer_id: customer.id, allowance: nextAllowance }) });
+        if (!response.ok) alert("Account approved, but the approval email could not be sent.");
+      }
       setPrepaidAllowanceToAdd("");
     }
     setPrepaidAllowanceSaving(false);
@@ -2999,7 +3005,7 @@ const App = () => {
                   <div style={{ padding: '0.45rem 0.7rem', background: '#fff', borderRadius: '0.55rem', minWidth: 105 }}><small style={{ color: '#64748b' }}>Allowance</small><strong style={{ display: 'block', color: '#1d4ed8' }}>{customer ? allowance.toFixed(2) : '—'} ft³</strong></div>
                   <div style={{ padding: '0.45rem 0.7rem', background: '#fff', borderRadius: '0.55rem', minWidth: 105 }}><small style={{ color: '#64748b' }}>Used</small><strong style={{ display: 'block', color: '#475569' }}>{customer ? used.toFixed(2) : '—'} ft³</strong></div>
                   <div style={{ padding: '0.45rem 0.7rem', background: '#fff', borderRadius: '0.55rem', minWidth: 105 }}><small style={{ color: '#64748b' }}>Remaining</small><strong style={{ display: 'block', color: remaining > 0 ? '#166534' : '#b45309' }}>{customer ? remaining.toFixed(2) : '—'} ft³</strong></div>
-                  <div style={{ padding: '0.45rem 0.7rem', background: '#fff', borderRadius: '0.55rem', minWidth: 130 }}><small style={{ color: '#64748b' }}>Review status</small><strong style={{ display: 'block', color: '#92400e', textTransform: 'capitalize' }}>{customer ? status : '—'}</strong></div>
+                  <div style={{ padding: '0.45rem 0.7rem', background: '#fff', borderRadius: '0.55rem', minWidth: 130 }}><small style={{ color: '#64748b' }}>Review status</small><strong style={{ display: 'inline-block', marginTop: '0.2rem', padding: '0.18rem 0.45rem', borderRadius: '999px', fontSize: '0.7rem', color: status === 'APPROVED' ? '#166534' : '#92400e', background: status === 'APPROVED' ? '#dcfce7' : '#fef3c7', border: `1px solid ${status === 'APPROVED' ? '#86efac' : '#fcd34d'}`, textTransform: 'capitalize' }}>{customer ? (status === 'APPROVED' ? 'Approved' : 'Pending review') : '—'}</strong></div>
                 </>; })()}
                 <label style={{ display: 'grid', gap: '0.25rem', minWidth: 155 }}><span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#475569' }}>Add cubic feet</span><input type="number" min="0.01" step="0.01" value={prepaidAllowanceToAdd} onChange={(event) => setPrepaidAllowanceToAdd(event.target.value)} placeholder="e.g. 100" style={{ padding: '0.6rem 0.7rem', border: '1px solid #cbd5e1', borderRadius: '0.55rem' }} /></label>
                 <button type="button" className="pa-primary-btn" onClick={() => void addPrepaidAllowance()} disabled={prepaidAllowanceSaving || !prepaidCustomerId}>{prepaidAllowanceSaving ? 'Saving…' : 'Add allowance'}</button>
@@ -3069,7 +3075,10 @@ const App = () => {
                     {c.telefono || '-'}
                   </span>
                   <span style={{ color: '#475569', textTransform: 'capitalize', minWidth: 110 }}>{c.puerto || '-'}</span>
-                  <span style={{ color: '#475569', minWidth: 120 }}>{c.tipo_cuenta || '-'}</span>
+                  <span style={{ color: '#475569', minWidth: 120, display: 'grid', gap: '0.25rem' }}>
+                    <span>{c.tipo_cuenta || '-'}</span>
+                    {c.tipo_cuenta === 'Developer / Builder — Prepaid' && <span style={{ display: 'inline-flex', width: 'fit-content', padding: '0.18rem 0.45rem', borderRadius: '999px', fontSize: '0.68rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.03em', color: c.account_review_status === 'APPROVED' ? '#166534' : '#92400e', background: c.account_review_status === 'APPROVED' ? '#dcfce7' : '#fef3c7', border: `1px solid ${c.account_review_status === 'APPROVED' ? '#86efac' : '#fcd34d'}` }}>{c.account_review_status === 'APPROVED' ? 'Approved' : 'Pending review'}</span>}
+                  </span>
                   <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.35rem' }}>
                     <button
                       type="button"
