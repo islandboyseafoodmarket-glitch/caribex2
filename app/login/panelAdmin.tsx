@@ -620,7 +620,7 @@ const App = () => {
     setPedidoDetalleLoading(true);
 
     try {
-      const [{ data, error }, { data: checkins, error: checkinError }, { data: links, error: linkError }, { data: logs, error: logError }] = await Promise.all([
+      const [{ data, error }, { data: checkins, error: checkinError }, { data: links, error: linkError }, { data: logs, error: logError }, { data: pickupSignatures, error: signatureError }] = await Promise.all([
         supabase
           .from("paquetes_registro")
           .select("*, numero_cliente:numero_cliente_id (*)")
@@ -640,12 +640,19 @@ const App = () => {
           .eq("entity_id", id)
           .order("created_at", { ascending: true })
           .limit(500),
+        supabase
+          .from("pickup_signatures")
+          .select("id, signed_at, shipment_ids, trackings, signature_paths, captured_by_role")
+          .contains("shipment_ids", [id])
+          .order("signed_at", { ascending: true })
+          .limit(100),
       ]);
 
       if (error) throw error;
       if (checkinError) throw checkinError;
       if (linkError) throw linkError;
       if (logError) throw logError;
+      if (signatureError) throw signatureError;
 
       if (!data) {
         setPedidoDetalleError("No se encontró información detallada para este pedido.");
@@ -665,6 +672,17 @@ const App = () => {
           .order("creado_en", { ascending: false })
           .limit(1)
           .maybeSingle();
+        let signaturesForShipment = pickupSignatures || [];
+        if (!signaturesForShipment.length && data.tracking) {
+          const { data: trackingSignatures, error: trackingSignatureError } = await supabase
+            .from("pickup_signatures")
+            .select("id, signed_at, shipment_ids, trackings, signature_paths, captured_by_role")
+            .contains("trackings", [data.tracking])
+            .order("signed_at", { ascending: true })
+            .limit(100);
+          if (trackingSignatureError) throw trackingSignatureError;
+          signaturesForShipment = trackingSignatures || [];
+        }
         setPedidoDetalle({
           ...data,
           paquetes_checkin: checkins || [],
@@ -673,6 +691,7 @@ const App = () => {
           consolidates: (children || []).map((child: any) => child.paquetes_registro).filter(Boolean),
           parent_box_id: parentLink?.parent_box_id || null,
           activity: logs || [],
+          pickupSignatures: signaturesForShipment,
         });
       }
     } catch (err: any) {
@@ -1495,7 +1514,7 @@ const App = () => {
     <div className={`dashboard-root ${activeTab === 'facturas' ? 'dashboard-root--invoices' : ''}`}>
       <style suppressHydrationWarning>{`
         :root {
-          --bg-main: #8fc5e6;
+          --bg-main: #75a9cf;
           --primary-blue: #2563eb;
           --success-green: #166534;
           --success-bg: #dcfce7;
@@ -3485,6 +3504,7 @@ const App = () => {
               const activity = Array.isArray(pedidoDetalle.activity) ? pedidoDetalle.activity : [];
               const children = Array.isArray(pedidoDetalle.consolidates) ? pedidoDetalle.consolidates : [];
               const containers = Array.isArray(pedidoDetalle.contenedores) ? pedidoDetalle.contenedores : [];
+              const pickupSignatures = Array.isArray(pedidoDetalle.pickupSignatures) ? pedidoDetalle.pickupSignatures : [];
               const invoiceIndex = facturasFiltradas.findIndex((invoice) => invoice.id === pedidoDetalle.id);
               const openAdjacentInvoice = (offset: number) => { const nextInvoice = invoiceIndex >= 0 ? facturasFiltradas[invoiceIndex + offset] : null; if (nextInvoice) void abrirDetallePedido(nextInvoice.id); };
               const stageColor = shipmentStage(status) === "PICKED_UP" ? "#8b5cf6" : shipmentStage(status) === "UNLOADED" ? "#2563eb" : shipmentStage(status) === "IN_TRANSIT" ? "#0f766e" : "#64748b";
@@ -3537,6 +3557,24 @@ const App = () => {
                     {problemPhotos.map((url, index) => <img key={`${url}-${index}`} src={url} alt={`Problem photo ${index + 1}`} style={{ width: 150, height: 110, objectFit: "cover", borderRadius: 8, border: "1px solid #cbd5e1", display: "block" }} onError={(event) => { event.currentTarget.style.display = "none"; }} />)}
                   </div>
                 </section>}
+                <section style={{ borderTop: "1px solid #e2e8f0", paddingTop: "0.75rem" }}>
+                  <h4 style={{ margin: 0, fontSize: "1rem", color: "#1e293b" }}>Pickup signature {pickupSignatures.length ? `(${pickupSignatures.length})` : ""}</h4>
+                  {pickupSignatures.length ? (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem", marginTop: "0.55rem" }}>
+                      {pickupSignatures.map((signature: any) => {
+                        const paths = Array.isArray(signature.signature_paths) ? signature.signature_paths.filter((path: unknown) => typeof path === "string") : [];
+                        const trackings = Array.isArray(signature.trackings) && signature.trackings.length ? signature.trackings : [pedidoDetalle.tracking];
+                        return <div key={signature.id} style={{ border: "1px solid #cbd5e1", borderRadius: "0.7rem", padding: "0.65rem", background: "#f8fafc", display: "grid", gridTemplateColumns: "minmax(0,1fr) 130px", gap: "0.75rem", alignItems: "center" }}>
+                          <div>
+                            <strong style={{ color: "#334155" }}>Tracking: {trackings.includes(pedidoDetalle.tracking) ? pedidoDetalle.tracking : trackings.join(", ")}</strong>
+                            <div style={{ color: "#64748b", fontSize: "0.78rem", marginTop: "0.15rem" }}>{formatStaffDateTime(signature.signed_at)} · {String(signature.captured_by_role || "staff").toUpperCase()}</div>
+                          </div>
+                          {paths.length ? <svg viewBox="0 0 340 250" role="img" aria-label={`Pickup signature for ${pedidoDetalle.tracking}`} style={{ width: "130px", height: "76px", background: "#fff", border: "1px solid #e2e8f0", borderRadius: "0.4rem" }}>{paths.map((path: string, pathIndex: number) => <path key={`${signature.id}-${pathIndex}`} d={path} stroke="#21395c" strokeWidth="3" fill="none" strokeLinecap="round" strokeLinejoin="round" />)}</svg> : <span style={{ color: "#94a3b8", fontSize: "0.8rem" }}>Signature skipped</span>}
+                        </div>;
+                      })}
+                    </div>
+                  ) : <p style={{ color: "#94a3b8", margin: "0.45rem 0 0" }}>No pickup signature has been saved for this tracking number.</p>}
+                </section>
                 <section style={{ borderTop: "1px solid #e2e8f0", paddingTop: "0.75rem" }}>
                   <h4 style={{ margin: 0, fontSize: "1rem", color: "#1e293b" }}>Consolidates {children.length ? `${children.length} package(s)` : ""}:</h4>
                   {children.length ? <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem", padding: "0.45rem 0 0.75rem 1rem" }}>{children.map((child: any) => <button key={child.id} type="button" onClick={() => void abrirDetallePedido(child.id)} style={{ border: 0, background: "transparent", color: "#2563eb", textAlign: "left", cursor: "pointer", fontSize: "0.9rem" }}>{child.tracking}</button>)}</div> : <p style={{ color: "#94a3b8", margin: "0.45rem 0 0.75rem" }}>None</p>}

@@ -92,26 +92,31 @@ export async function GET(request: Request) {
     if (linkError) throw linkError;
     const containerIds = Array.from(new Set((containerLinks || []).map((link) => link.contenedor_id).filter(Boolean)));
     const { data: containers, error: containerError } = containerIds.length
-      ? await supabase.from("contenedores").select("id, codigo").in("id", containerIds).limit(5000)
+      ? await supabase.from("contenedores").select("id, codigo, creado_en").in("id", containerIds).limit(5000)
       : { data: [], error: null };
     if (containerError) throw containerError;
-    const containerById = new Map((containers || []).map((container) => [container.id, container.codigo]));
-    const containerByPackageId = new Map<string, string>();
+    const containerById = new Map((containers || []).map((container) => [container.id, { code: container.codigo, createdAt: container.creado_en }]));
+    const containerByPackageId = new Map<string, { code: string; createdAt: string | null }>();
     for (const link of containerLinks || []) {
-      const code = containerById.get(link.contenedor_id);
-      if (code) containerByPackageId.set(link.paquete_id, code);
+      const container = containerById.get(link.contenedor_id);
+      if (container?.code) containerByPackageId.set(link.paquete_id, { code: container.code, createdAt: container.createdAt || null });
     }
     const isPickedUp = (item: any) => statusMatches(item.estado, DATABASE_STATUS.PICKED_UP) || Boolean(item.fecha_entregado || item.hora_entregado);
     const isReadyForPickup = (item: any) => statusMatches(item.estado, DATABASE_STATUS.UNLOADED) && !isPickedUp(item);
-    const packages = pickupPackages.map((item) => ({ ...item, container_code: containerByPackageId.get(item.id) || null })).filter((item) => {
+    const withContainers = pickupPackages.map((item) => ({
+      ...item,
+      container_code: containerByPackageId.get(item.id)?.code || null,
+      container_created_at: containerByPackageId.get(item.id)?.createdAt || null,
+    }));
+    const packages = withContainers.filter((item) => {
       if (view === "ready") return isReadyForPickup(item);
       if (view === "picked") return isPickedUp(item);
       return (statusFilters[view] || statusFilters.ready).some((allowed) => statusMatches(item.estado, allowed as typeof DATABASE_STATUS[keyof typeof DATABASE_STATUS]));
     });
-    const pickupSet = pickupPackages.filter((item) => isReadyForPickup(item) || isPickedUp(item));
+    const pickupSet = withContainers.filter((item) => isReadyForPickup(item) || isPickedUp(item));
     const collected = pickupSet.filter((item) => isPickedUp(item)).length;
     const total = pickupSet.length;
-    return NextResponse.json({ client, packages, view, summary: { collected, total, pending: Math.max(total - collected, 0) } });
+    return NextResponse.json({ client, packages, pickup_packages: pickupSet, view, summary: { collected, total, pending: Math.max(total - collected, 0) } });
   } catch (error) {
     return errorResponse(error);
   }
