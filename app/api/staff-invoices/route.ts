@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { calculateWorkflowBilling } from "@/lib/workflow-billing";
+import { SALES_TAX_RATE, roundMoney } from "@/lib/invoice-pricing";
 
 function adminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -35,11 +36,10 @@ export async function POST(request: Request) {
     if (customerId && !customer) return NextResponse.json({ error: "Customer not found" }, { status: 404 });
     const billing = calculateWorkflowBilling({ tipo_paquete: type, ...dimensions, cargos_adicionales: body?.additional_charges || null });
     const subtotal = Number(body?.subtotal);
-    const tax = Number(body?.tax);
-    const total = Number(body?.total);
     const finalSubtotal = Number.isFinite(subtotal) && subtotal >= 0 ? subtotal : billing?.subtotal || 0;
-    const finalTax = Number.isFinite(tax) && tax >= 0 ? tax : finalSubtotal * 0.15;
-    const finalTotal = Number.isFinite(total) && total >= 0 ? total : finalSubtotal + finalTax;
+    const taxEnabled = staff.role === "admin" && typeof body?.tax_enabled === "boolean" ? body.tax_enabled : true;
+    const finalTax = taxEnabled ? roundMoney(finalSubtotal * SALES_TAX_RATE) : 0;
+    const finalTotal = roundMoney(finalSubtotal + finalTax);
     const { data: shipment, error } = await supabase.from("paquetes_registro").insert({ tracking, tipo_paquete: type, contenido: description, notas: "MANUAL INVOICE CREATED BY STAFF", numero_cliente_id: customerId, registro: staff.name, estado: "Descargado", billing_subtotal: finalSubtotal, billing_tax: finalTax, billing_total: finalTotal, approval_status: "PENDING", invoice_status: "PENDING" }).select("id, tracking, tipo_paquete, contenido, numero_cliente_id, billing_subtotal, billing_tax, billing_total, approval_status, invoice_status").single();
     if (error) throw error;
     if (Object.values(dimensions).some(Boolean)) await supabase.from("paquetes_checkin").insert({ paquete_id: shipment.id, numero_cliente_id: customerId, ...dimensions, cargos_adicionales: body?.additional_charges || null });

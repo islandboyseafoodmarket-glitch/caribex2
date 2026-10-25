@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { parseInvoiceChargeLine } from "../lib/invoice-pricing";
 
 export type InvoicePreviewProps = {
   clientName?: string | null;
@@ -55,12 +56,12 @@ const InvoicePreview: React.FC<InvoicePreviewProps> = ({
     typeof billingSubtotal === "number" && !Number.isNaN(billingSubtotal)
       ? billingSubtotal
       : 0;
-  const fee =
+  const tax =
     typeof billingTax === "number" && !Number.isNaN(billingTax) ? billingTax : 0;
   const total =
     typeof billingTotal === "number" && !Number.isNaN(billingTotal)
       ? billingTotal
-      : subtotal + fee;
+      : subtotal + tax;
 
   // Calcular desglose de BASE y cargos extra a partir del subtotal y la lista
   // de extraCharges. Esto es solo para mostrar la factura; no modifica los
@@ -70,18 +71,14 @@ const InvoicePreview: React.FC<InvoicePreviewProps> = ({
   const itemLabel = isBoxItem ? `Box${boxSize ? ` - ${boxSize}` : ""}` : typeLabel;
   const itemDetail = contents && contents.trim().length > 0 && contents.trim() !== tracking.trim() ? contents : null;
 
-  // Montos fijos conocidos por etiqueta
-  const FIXED_EXTRA_AMOUNTS: Record<string, number> = {
-    "Consolidation fee ($2.5)": 2.5,
-    "Forklift charge ($100)": 100,
-    "Miscellaneous fee ($10)": 10,
-  };
-
-  const hasHandling = extrasList.includes("Handling fees");
+  const hasHandling = extrasList.some((label) => {
+    const parsed = parseInvoiceChargeLine(label);
+    return parsed.description === "Handling fees" && parsed.amount === 0;
+  });
 
   const sumFixedExtras = extrasList.reduce((acc, label) => {
-    const v = FIXED_EXTRA_AMOUNTS[label];
-    return acc + (typeof v === "number" ? v : 0);
+    const parsed = parseInvoiceChargeLine(label);
+    return acc + (parsed.description === "Handling fees" && parsed.amount === 0 ? 0 : parsed.amount);
   }, 0);
 
   let baseAmount = subtotal;
@@ -107,11 +104,11 @@ const InvoicePreview: React.FC<InvoicePreviewProps> = ({
 
   // Helper para obtener el monto de cada cargo extra individual
   const getExtraAmountForLabel = (label: string): number => {
-    if (label === "Handling fees") {
+    const parsed = parseInvoiceChargeLine(label);
+    if (parsed.description === "Handling fees" && parsed.amount === 0) {
       return handlingAmount > 0 ? handlingAmount : 0;
     }
-    const fixed = FIXED_EXTRA_AMOUNTS[label];
-    return typeof fixed === "number" ? fixed : 0;
+    return parsed.amount;
   };
 
   return (
@@ -244,7 +241,7 @@ const InvoicePreview: React.FC<InvoicePreviewProps> = ({
               return (
                 <tr key={`extra-${idx}`} style={{ borderBottom: "1px solid #e5e7eb" }}>
                   <td style={{ padding: "8px 0" }}>
-                    <div>{label}</div>
+                    <div>{parseInvoiceChargeLine(label).description}</div>
                   </td>
                   <td style={{ textAlign: "right" }}>
                     {hasAmount ? `$${amount.toFixed(2)}` : ""}
@@ -300,8 +297,8 @@ const InvoicePreview: React.FC<InvoicePreviewProps> = ({
               borderBottom: "1px solid #e5e7eb",
             }}
           >
-            <span>Fee</span>
-            <span>${fee.toFixed(2)}</span>
+            <span>{tax > 0 ? "Sales tax (15%)" : "Sales tax (not applied)"}</span>
+            <span>${tax.toFixed(2)}</span>
           </div>
           <div
             style={{
@@ -321,8 +318,7 @@ const InvoicePreview: React.FC<InvoicePreviewProps> = ({
       <section>
         <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>Note</div>
         <p style={{ fontSize: 12, color: "#4b5563", margin: 0 }}>
-          Fee is not a sales tax, but a configurable charge per item to cover
-          customs/duty or handling costs.
+          Sales tax is 15% when enabled by an administrator and is not charged when disabled.
         </p>
       </section>
     </div>

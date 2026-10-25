@@ -69,6 +69,84 @@ function removeUnknownOwnerMarker(notes: string | null, customerId: string | nul
   return cleaned || null;
 }
 
+function isPhotoFile(value: FormDataEntryValue): value is File {
+  return (
+    typeof value !== "string" &&
+    typeof (value as File).arrayBuffer === "function" &&
+    typeof (value as File).size === "number" &&
+    Number((value as File).size) > 0
+  );
+}
+
+function parsePhotoUrls(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.filter((url): url is string => typeof url === "string" && url.trim().length > 0);
+  }
+  if (typeof value !== "string" || !value.trim()) return [];
+  try {
+    const parsed = JSON.parse(value);
+    if (Array.isArray(parsed)) {
+      return parsed.filter((url): url is string => typeof url === "string" && url.trim().length > 0);
+    }
+  } catch {
+    // Older rows may contain a comma-separated list instead of a JSON array.
+  }
+  return value.split(",").map((url) => url.trim()).filter(Boolean);
+}
+
+async function uploadPhotoFiles(supabase: SupabaseClient, shipmentId: string, photos: File[]) {
+  const storage = supabase.storage.from("notas-imagenes");
+  const storagePaths: string[] = [];
+  const imageUrls: string[] = [];
+  const extensionsByMime: Record<string, string> = {
+    "image/jpeg": "jpg",
+    "image/jpg": "jpg",
+    "image/png": "png",
+    "image/webp": "webp",
+    "image/heic": "heic",
+    "image/heif": "heif",
+    "image/gif": "gif",
+  };
+  const supportedExtensions = new Set(Object.values(extensionsByMime));
+
+  try {
+    for (let index = 0; index < photos.length; index += 1) {
+      const photo = photos[index];
+      const name = typeof photo.name === "string" ? photo.name : "";
+      const candidateExtension = name.split(".").pop()?.toLowerCase() || "";
+      const reportedType = typeof photo.type === "string" ? photo.type.trim().toLowerCase() : "";
+      const extension = supportedExtensions.has(candidateExtension)
+        ? candidateExtension
+        : extensionsByMime[reportedType] || "jpg";
+      const contentType = reportedType.startsWith("image/")
+        ? reportedType === "image/jpg" ? "image/jpeg" : reportedType
+        : Object.entries(extensionsByMime).find(([, mapped]) => mapped === extension)?.[0] || "image/jpeg";
+      const path = `scanner/${shipmentId}/${Date.now()}-${index}-${crypto.randomUUID()}.${extension}`;
+      const { error: uploadError } = await storage.upload(path, photo, {
+        contentType,
+        upsert: false,
+      });
+      if (uploadError) throw uploadError;
+      storagePaths.push(path);
+      const publicUrl = storage.getPublicUrl(path).data.publicUrl;
+      if (!publicUrl) throw new Error("Supabase Storage did not return a public photo URL");
+      imageUrls.push(publicUrl);
+    }
+    return { imageUrls, storagePaths };
+  } catch (error) {
+    if (storagePaths.length) {
+      const { error: cleanupError } = await storage.remove(storagePaths);
+      if (cleanupError) {
+        console.error("[scanner-receiving] Partial photo cleanup failed", { message: cleanupError.message });
+      }
+    }
+    console.error("[scanner-receiving] Photo upload failed", {
+      message: error instanceof Error ? error.message : "Unexpected storage error",
+    });
+    throw error;
+  }
+}
+
 async function findTrackingMatches(supabase: SupabaseClient, tracking: string, carrier = "", excludeId?: string) {
   let query = supabase
     .from("paquetes_registro")
@@ -127,9 +205,7 @@ export async function POST(request: Request) {
     const value = (key: string) => isMultipart ? String(body.get(key) || "") : String(body?.[key] || "");
     const ownerUnknown = value("owner_unknown").toLowerCase() === "true";
     const noteText = value("note").trim();
-    const photos = isMultipart
-      ? body.getAll("photo").filter((value: FormDataEntryValue): value is File => value instanceof File && value.size > 0)
-      : [];
+    const photos = isMultipart ? body.getAll("photo").filter(isPhotoFile) : [];
     const carrier = value("carrier").trim();
     const tracking = normalizeUspsTracking(value("tracking"));
     const type = value("type") === "BOX" ? "BOX" : value("type") === "PACKAGE" ? "PACKAGE" : "";
@@ -149,6 +225,48 @@ export async function POST(request: Request) {
     if (photos.some((photo: File) => photo.size > 8 * 1024 * 1024)) return NextResponse.json({ error: "Each photo must be 8 MB or smaller" }, { status: 400 });
     const existingMatches = await findTrackingMatches(supabase, tracking, carrier);
     if (existingMatches.length) {
+      const canAttachPhoto = photos.length > 0 && existingMatches.length === 1 &&
+        normalizeUspsTracking(String(existingMatches[0].tracking || "")) === tracking &&
+        (CHECK_IN_STAGE_QUERY as readonly string[]).includes(String(existingMatches[0].estado || "").trim());
+      if (canAttachPhoto) {
+        const match = existingMatches[0];
+        const { data: existingPackage, error: readError } = await supabase
+          .from("paquetes_registro")
+          .select("id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, notas_imagenes, registro, estado, hora_fecha, cubic_feet, prepaid_review_required, prepaid_review_status, billing_subtotal, billing_tax, billing_total")
+          .eq("id", match.id)
+          .maybeSingle();
+        if (readError) throw readError;
+        if (existingPackage) {
+          const uploaded = await uploadPhotoFiles(supabase, String(existingPackage.id), photos);
+          const priorUrls = parsePhotoUrls(existingPackage.notas_imagenes);
+          const mergedUrls = [...priorUrls, ...uploaded.imageUrls.filter((url) => !priorUrls.includes(url))];
+          const { data: updated, error: updateError } = await supabase
+            .from("paquetes_registro")
+            .update({ notas_imagenes: mergedUrls })
+            .eq("id", existingPackage.id)
+            .select("id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, notas_imagenes, registro, estado, hora_fecha, cubic_feet, prepaid_review_required, prepaid_review_status, billing_subtotal, billing_tax, billing_total")
+            .single();
+          if (updateError) {
+            const { error: cleanupError } = await supabase.storage.from("notas-imagenes").remove(uploaded.storagePaths);
+            if (cleanupError) console.error("[scanner-receiving] Photo cleanup after shipment update failed", { message: cleanupError.message });
+            throw updateError;
+          }
+          const { error: logError } = await supabase.from("staff_action_logs").insert({
+            actor_id: actor.user.id,
+            actor_name: actor.name,
+            actor_email: actor.user.email || null,
+            actor_role: actor.role,
+            action: "receiving_package_photo_attached",
+            entity_type: "paquetes_registro",
+            entity_id: existingPackage.id,
+            tracking: existingPackage.tracking,
+            success: true,
+            details: { photo_count: uploaded.imageUrls.length, source: "scanner_workflow_app" },
+          });
+          if (logError) console.error("[scanner-receiving] Photo attachment audit log failed", { message: logError.message });
+          return NextResponse.json({ package: updated, photo_uploaded: true });
+        }
+      }
       const existing = existingMatches[0];
       return NextResponse.json({
         error: "This tracking number is already registered and cannot be received a second time.",
@@ -192,16 +310,8 @@ export async function POST(request: Request) {
       }
     }
     if (photos.length > 0) {
-      const imageUrls: string[] = [];
-      for (const photo of photos) {
-        const extension = (photo.name.split(".").pop() || "jpg").replace(/[^a-z0-9]/gi, "").toLowerCase() || "jpg";
-        const path = `scanner/${data.id}/${Date.now()}-${crypto.randomUUID()}.${extension}`;
-        const upload = await supabase.storage.from("notas-imagenes").upload(path, photo, { contentType: photo.type || "image/jpeg", upsert: false });
-        if (upload.error) throw upload.error;
-        const { data: publicUrl } = supabase.storage.from("notas-imagenes").getPublicUrl(path);
-        if (publicUrl.publicUrl) imageUrls.push(publicUrl.publicUrl);
-      }
-      const { data: updated, error: imageError } = await supabase.from("paquetes_registro").update({ notas_imagenes: imageUrls }).eq("id", data.id).select("id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, notas_imagenes, registro, estado, hora_fecha, cubic_feet, prepaid_review_required, prepaid_review_status, billing_subtotal, billing_tax, billing_total").single();
+      const uploaded = await uploadPhotoFiles(supabase, String(data.id), photos);
+      const { data: updated, error: imageError } = await supabase.from("paquetes_registro").update({ notas_imagenes: uploaded.imageUrls }).eq("id", data.id).select("id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, notas_imagenes, registro, estado, hora_fecha, cubic_feet, prepaid_review_required, prepaid_review_status, billing_subtotal, billing_tax, billing_total").single();
       if (imageError) throw imageError;
       savedPackage = updated;
     }

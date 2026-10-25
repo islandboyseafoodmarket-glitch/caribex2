@@ -57,6 +57,7 @@ import EscanerQRCaribex, { CaribexPayload } from "./escanerQR";
 import ConsolidacionPlayground from "./seleccion-etapas/consolidacion";
 
 import { supabase } from "../lib/supabaseClient";
+import { BILLABLE_INVOICE_ITEMS, SALES_TAX_RATE, roundMoney } from "../lib/invoice-pricing";
 
 const EXTRA_CHARGE_OPTIONS = [
   "Storage fees (daily)",
@@ -140,6 +141,22 @@ type Package = {
   invoice_status?: string | null;
   issue_status?: "OPEN" | "RESOLVED" | null;
 };
+
+function parsePackageImageUrls(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.filter((url): url is string => typeof url === "string" && url.trim().length > 0);
+  }
+  if (typeof value !== "string" || !value.trim()) return [];
+  try {
+    const parsed = JSON.parse(value);
+    if (Array.isArray(parsed)) {
+      return parsed.filter((url): url is string => typeof url === "string" && url.trim().length > 0);
+    }
+  } catch {
+    // Older rows may contain a comma-separated list instead of a JSON array.
+  }
+  return value.split(",").map((url) => url.trim()).filter(Boolean);
+}
 
 function parseClient360Date(value: string | null | undefined) {
   const raw = String(value || "").trim();
@@ -476,6 +493,10 @@ export default function GestionAlmacen() {
   const [invoiceBoxSize, setInvoiceBoxSize] = useState<string | null>(null);
   const [invoiceCustomChargeLabel, setInvoiceCustomChargeLabel] = useState("");
   const [invoiceCustomChargeAmount, setInvoiceCustomChargeAmount] = useState("");
+  const [invoiceCatalogItemId, setInvoiceCatalogItemId] = useState("");
+  const [invoiceCatalogQuantity, setInvoiceCatalogQuantity] = useState("1");
+  const [invoiceTaxEnabled, setInvoiceTaxEnabled] = useState(true);
+  const [isSavingInvoiceTax, setIsSavingInvoiceTax] = useState(false);
   const [invoiceIsConsolidationBox, setInvoiceIsConsolidationBox] = useState(false);
   const [isSendingInvoiceEmail, setIsSendingInvoiceEmail] = useState(false);
   const [isConfirmSendInvoiceOpen, setIsConfirmSendInvoiceOpen] = useState(false);
@@ -556,6 +577,9 @@ export default function GestionAlmacen() {
     setInvoicePackage(pkg);
     setInvoiceCustomChargeLabel("");
     setInvoiceCustomChargeAmount("");
+    setInvoiceCatalogItemId("");
+    setInvoiceCatalogQuantity("1");
+    setInvoiceTaxEnabled(pkg.billing_tax == null ? true : Number(pkg.billing_tax) > 0);
     setIsInvoiceModalOpen(true);
 
     try {
@@ -626,6 +650,8 @@ export default function GestionAlmacen() {
     setInvoiceBoxSize(null);
     setInvoiceCustomChargeLabel("");
     setInvoiceCustomChargeAmount("");
+    setInvoiceCatalogItemId("");
+    setInvoiceCatalogQuantity("1");
     setInvoiceIsConsolidationBox(false);
     setIsInvoiceModalOpen(false);
     setIsConfirmSendInvoiceOpen(false);
@@ -645,9 +671,10 @@ export default function GestionAlmacen() {
     }
 
     const currentSubtotal = Number(invoicePackage.billing_subtotal ?? 0) || 0;
-    const subtotal = currentSubtotal + amount;
-    const tax = subtotal * 0.15;
-    const total = subtotal + tax;
+    const subtotal = roundMoney(currentSubtotal + amount);
+    const taxEnabled = isAdmin ? invoiceTaxEnabled : invoicePackage.billing_tax == null ? true : Number(invoicePackage.billing_tax) > 0;
+    const tax = taxEnabled ? roundMoney(subtotal * SALES_TAX_RATE) : 0;
+    const total = roundMoney(subtotal + tax);
     const chargeLabel = `${invoiceCustomChargeLabel.trim()} ($${amount.toFixed(2)})`;
 
     const { error } = await supabase
@@ -690,6 +717,56 @@ export default function GestionAlmacen() {
       title: isEs ? "Factura actualizada" : "Invoice updated",
       message: isEs ? "El cargo adicional fue guardado." : "The additional charge was saved.",
     });
+  };
+
+  const handleSaveInvoiceCatalogItem = async () => {
+    if (!invoicePackage || (!isAdmin && staffPermissions.invoices === false)) return;
+    const item = BILLABLE_INVOICE_ITEMS.find((candidate) => candidate.id === invoiceCatalogItemId);
+    const quantity = Number(invoiceCatalogQuantity);
+    if (!item || !Number.isInteger(quantity) || quantity < 1 || quantity > 100) {
+      setMessageModal({ title: isEs ? "Artículo inválido" : "Invalid item", message: isEs ? "Seleccione un artículo y una cantidad entera de 1 a 100." : "Select an item and a whole-number quantity from 1 to 100." });
+      return;
+    }
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const response = await fetch("/api/invoice-catalog", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${sessionData.session?.access_token || ""}` },
+        body: JSON.stringify({ shipment_id: invoicePackage.id, item_id: item.id, quantity }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || "Could not add the item to this invoice");
+      setInvoicePackage((prev) => prev && prev.id === invoicePackage.id ? { ...prev, billing_subtotal: Number(payload.subtotal), billing_tax: Number(payload.tax), billing_total: Number(payload.total) } : prev);
+      setInvoiceExtraCharges((prev) => [...prev, String(payload.chargeLabel)]);
+      setInvoiceCatalogItemId("");
+      setInvoiceCatalogQuantity("1");
+      await cargarPaquetes();
+      setMessageModal({ title: isEs ? "Factura actualizada" : "Invoice updated", message: isEs ? "El artículo se agregó a la factura." : "The catalog item was added to the invoice." });
+    } catch (error) {
+      setMessageModal({ title: isEs ? "Error" : "Error", message: error instanceof Error ? error.message : "Could not add the item to this invoice" });
+    }
+  };
+
+  const handleInvoiceTaxToggle = async (enabled: boolean) => {
+    if (!invoicePackage || !isAdmin) return;
+    setIsSavingInvoiceTax(true);
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const response = await fetch("/api/invoice-catalog", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${sessionData.session?.access_token || ""}` },
+        body: JSON.stringify({ shipment_id: invoicePackage.id, tax_enabled: enabled }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || "Could not update sales tax");
+      setInvoiceTaxEnabled(Boolean(payload.taxEnabled));
+      setInvoicePackage((prev) => prev && prev.id === invoicePackage.id ? { ...prev, billing_subtotal: Number(payload.subtotal), billing_tax: Number(payload.tax), billing_total: Number(payload.total) } : prev);
+      await cargarPaquetes();
+    } catch (error) {
+      setMessageModal({ title: isEs ? "Error" : "Error", message: error instanceof Error ? error.message : "Could not update sales tax" });
+    } finally {
+      setIsSavingInvoiceTax(false);
+    }
   };
 
   const handleSendInvoiceEmail = async () => {
@@ -1285,8 +1362,9 @@ export default function GestionAlmacen() {
 
       if (safeSubtotal == null) continue;
 
-      const tax = safeSubtotal * 0.15;
-      const total = safeSubtotal + tax;
+      const taxEnabled = row.billing_tax == null ? true : Number(row.billing_tax) > 0;
+      const tax = taxEnabled ? roundMoney(safeSubtotal * SALES_TAX_RATE) : 0;
+      const total = roundMoney(safeSubtotal + tax);
 
       updates.push({
         id: String(row.id),
@@ -1340,7 +1418,7 @@ export default function GestionAlmacen() {
     );
   };
 
-  const handleCreateManualInvoice = async (input: { customer_id: string; tracking: string; description: string; type: "BOX" | "PACKAGE"; height: string; width: string; length: string; subtotal: string; total: string }) => {
+  const handleCreateManualInvoice = async (input: { customer_id: string; tracking: string; description: string; type: "BOX" | "PACKAGE"; height: string; width: string; length: string; subtotal: string }) => {
     const { data: sessionData } = await supabase.auth.getSession();
     const response = await fetch("/api/staff-invoices", {
       method: "POST",
@@ -2168,6 +2246,7 @@ export default function GestionAlmacen() {
           clienteEmail: effectiveEmail,
           containerCode: containerByPackageId.get(rowId)?.codigo || null,
           containerCreatedAt: containerByPackageId.get(rowId)?.creado_en || null,
+          notas_imagenes: parsePackageImageUrls(row.notas_imagenes),
           consolidatedChildrenTrackings,
           consolidatedIntoBoxTracking,
           billing_subtotal: row.billing_subtotal ?? null,
@@ -4469,11 +4548,43 @@ const handlePackageCreated = (pkg: Package) => {
             </div>
 
             <div className="ga-modal-body">
+              {isAdmin && (
+                <div className="ga-invoice-editor" style={{ marginBottom: "1rem" }}>
+                  <div>
+                    <h5>{isEs ? "Impuesto de venta del 15%" : "15% sales tax"}</h5>
+                    <p>{isEs ? "Solo un administrador puede agregar o quitar el impuesto de esta factura." : "Only an administrator can add or remove tax from this invoice."}</p>
+                  </div>
+                  <label style={{ display: "flex", alignItems: "center", gap: "0.55rem", fontWeight: 600 }}>
+                    <input type="checkbox" checked={invoiceTaxEnabled} disabled={isSavingInvoiceTax} onChange={(event) => void handleInvoiceTaxToggle(event.target.checked)} />
+                    {invoiceTaxEnabled ? (isEs ? "Impuesto aplicado" : "Sales tax applied") : (isEs ? "Impuesto no aplicado" : "Sales tax not applied")}
+                  </label>
+                </div>
+              )}
+              {(isAdmin || staffPermissions.invoices !== false) && (
+                <div className="ga-invoice-editor" style={{ marginBottom: "1rem" }}>
+                  <div>
+                    <h5>{isEs ? "Agregar artículo facturable" : "Add a billable catalog item"}</h5>
+                    <p>{isEs ? "El flete se calcula automáticamente a $18.50 por pie cúbico. Elija artículos adicionales para agregarlos a esta factura." : "Freight is calculated automatically at $18.50 per cubic foot. Select additional items to add them to this invoice."}</p>
+                  </div>
+                  <div className="ga-invoice-editor-grid" style={{ gridTemplateColumns: "minmax(220px, 1fr) 120px auto" }}>
+                    <select className="ga-input" value={invoiceCatalogItemId} onChange={(event) => setInvoiceCatalogItemId(event.target.value)}>
+                      <option value="">{isEs ? "Seleccione un artículo" : "Select a billable item"}</option>
+                      {BILLABLE_INVOICE_ITEMS.map((item) => (
+                        <option key={item.id} value={item.id}>{item.label} — ${item.unitPrice.toFixed(2)} / {item.unit}</option>
+                      ))}
+                    </select>
+                    <input className="ga-input" type="number" min="1" max="100" step="1" value={invoiceCatalogQuantity} onChange={(event) => setInvoiceCatalogQuantity(event.target.value)} aria-label={isEs ? "Cantidad" : "Quantity"} />
+                    <button type="button" className="ga-primary-button" disabled={!invoiceCatalogItemId || isSavingInvoiceTax} onClick={() => void handleSaveInvoiceCatalogItem()}>
+                      {isEs ? "Agregar artículo" : "Add item"}
+                    </button>
+                  </div>
+                </div>
+              )}
               {canEditInvoiceAddOns && (
                 <div className="ga-invoice-editor">
                   <div>
                     <h5>{isEs ? "Ajustar factura (solo administrador)" : "Adjust invoice (admin only)"}</h5>
-                    <p>{isEs ? "Agregue un cargo adicional y los totales se recalcularán con IVA del 15%." : "Add an additional charge and totals will recalculate with 15% tax."}</p>
+                    <p>{isEs ? "Los cargos personalizados conservan la configuración actual del impuesto. Solo un administrador puede cambiar el impuesto del 15%." : "Custom adjustments keep the current tax setting. Only an administrator can change the 15% tax."}</p>
                   </div>
                   <div className="ga-invoice-editor-grid">
                     <select

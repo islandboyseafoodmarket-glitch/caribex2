@@ -34,7 +34,7 @@ type InvoicesStageProps = {
     status: "PENDING" | "SENT" | "PAID" | "OVERDUE",
   ) => void | Promise<void>;
   onDeleteInvoice?: (pkg: PackageForInvoice) => void | Promise<void>;
-  onCreateManualInvoice?: (input: { customer_id: string; tracking: string; description: string; type: "BOX" | "PACKAGE"; height: string; width: string; length: string; subtotal: string; total: string }) => void | Promise<void>;
+  onCreateManualInvoice?: (input: { customer_id: string; tracking: string; description: string; type: "BOX" | "PACKAGE"; height: string; width: string; length: string; subtotal: string }) => void | Promise<void>;
 };
 
 const getClientName = (pkg: PackageForInvoice): string => {
@@ -86,7 +86,7 @@ const InvoicesStage: React.FC<InvoicesStageProps> = ({
 }) => {
   const [search, setSearch] = useState("");
   const [manualOpen, setManualOpen] = useState(false);
-  const [manual, setManual] = useState({ customer_id: "", tracking: "", description: "", type: "BOX" as "BOX" | "PACKAGE", height: "", width: "", length: "", subtotal: "", total: "" });
+  const [manual, setManual] = useState({ customer_id: "", tracking: "", description: "", type: "BOX" as "BOX" | "PACKAGE", height: "", width: "", length: "", subtotal: "" });
   const customerOptions = useMemo(() => Array.from(new Map(packages.filter((p) => p.numeroClienteId).map((p) => [p.numeroClienteId, { id: p.numeroClienteId as string, label: `${p.clienteNombre || "Customer"} · ${p.numeroCliente || ""}` }])).values()), [packages]);
 
   const filtered = useMemo(() => {
@@ -179,8 +179,8 @@ const InvoicesStage: React.FC<InvoicesStageProps> = ({
             <input placeholder="Width" inputMode="decimal" value={manual.width} onChange={(e) => setManual({ ...manual, width: e.target.value })} />
             <input placeholder="Length" inputMode="decimal" value={manual.length} onChange={(e) => setManual({ ...manual, length: e.target.value })} />
             <input placeholder="Subtotal" inputMode="decimal" value={manual.subtotal} onChange={(e) => setManual({ ...manual, subtotal: e.target.value })} />
-            <input placeholder="Total" inputMode="decimal" value={manual.total} onChange={(e) => setManual({ ...manual, total: e.target.value })} />
           </div>
+          <p style={{ margin: "0.7rem 0 0", color: "#64748b", fontSize: "0.9rem" }}>{isEs ? "Se aplica el impuesto de venta del 15% por defecto. Solo un administrador puede quitarlo desde la factura." : "15% sales tax is applied by default. Only an administrator can remove it from the invoice."}</p>
           <button type="button" className="ga-primary-button" style={{ marginTop: "0.8rem" }} onClick={() => void onCreateManualInvoice(manual)}>{isEs ? "Guardar factura" : "Save invoice"}</button>
         </div>
       )}
@@ -196,7 +196,7 @@ const InvoicesStage: React.FC<InvoicesStageProps> = ({
                 <th>{isEs ? "Paquetería" : "Carrier"}</th>
                 <th>{isEs ? "Tipo" : "Type"}</th>
                 <th>{isEs ? "Subtotal" : "Subtotal"}</th>
-                <th>IVA 15%</th>
+                <th>{isEs ? "Impuesto de venta (15%)" : "Sales tax (15%)"}</th>
                 <th>{isEs ? "Total" : "Total"}</th>
                 <th>{isEs ? "Aprobación" : "Approval"}</th>
                 <th>{isEs ? "Estado factura" : "Invoice status"}</th>

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { calculateWorkflowBilling } from "@/lib/workflow-billing";
+import { parseInvoiceChargeLine } from "@/lib/invoice-pricing";
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const escapeHtml = (value: string) => value.replace(/[&<>'"]/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[character] || character));
@@ -237,17 +238,14 @@ export async function POST(request: Request) {
 
     const extrasList = Array.isArray(extraCharges) ? extraCharges : [];
 
-    const FIXED_EXTRA_AMOUNTS: Record<string, number> = {
-      "Consolidation fee ($2.5)": 2.5,
-      "Forklift charge ($100)": 100,
-      "Miscellaneous fee ($10)": 10,
-    };
-
-    const hasHandling = extrasList.includes("Handling fees");
+    const hasHandling = extrasList.some((label) => {
+      const parsed = parseInvoiceChargeLine(label);
+      return parsed.description === "Handling fees" && parsed.amount === 0;
+    });
 
     const sumFixedExtras = extrasList.reduce((acc, label) => {
-      const v = FIXED_EXTRA_AMOUNTS[label];
-      return acc + (typeof v === "number" ? v : 0);
+      const parsed = parseInvoiceChargeLine(label);
+      return acc + (parsed.description === "Handling fees" && parsed.amount === 0 ? 0 : parsed.amount);
     }, 0);
 
     let baseAmount = invoiceSubtotal;
@@ -269,11 +267,11 @@ export async function POST(request: Request) {
     }
 
     const getExtraAmountForLabel = (label: string): number => {
-      if (label === "Handling fees") {
+      const parsed = parseInvoiceChargeLine(label);
+      if (parsed.description === "Handling fees" && parsed.amount === 0) {
         return handlingAmount > 0 ? handlingAmount : 0;
       }
-      const fixed = FIXED_EXTRA_AMOUNTS[label];
-      return typeof fixed === "number" ? fixed : 0;
+      return parsed.amount;
     };
 
     const html = `<!DOCTYPE html>
@@ -347,14 +345,14 @@ export async function POST(request: Request) {
                   </thead>
                   <tbody>
                     ${invoiceItems.map((item) => `<tr style="border-bottom:1px solid #e5e7eb;">
-                      <td style="padding:8px 0;"><div>${item.typeLabel}</div>${item.contents && item.contents.trim().length > 0 ? `<div style="font-size:12px; color:#6b7280; font-style:italic;">${item.contents}</div>` : ""}<div style="font-size:11px; color:#6b7280;">Tracking: ${item.tracking}</div></td>
+                      <td style="padding:8px 0;"><div>${escapeHtml(item.typeLabel)}</div>${item.contents && item.contents.trim().length > 0 ? `<div style="font-size:12px; color:#6b7280; font-style:italic;">${escapeHtml(item.contents)}</div>` : ""}<div style="font-size:11px; color:#6b7280;">Tracking: ${escapeHtml(item.tracking)}</div></td>
                       <td align="right">$${item.subtotal.toFixed(2)}</td>
                       <td align="right">$${item.subtotal.toFixed(2)}</td>
                     </tr>`).join("")}
                     ${extrasList
                       .map((label) => {
                         const amount = getExtraAmountForLabel(label);
-                        return `<tr style="border-bottom:1px solid #e5e7eb;"><td style="padding:8px 0;"><div>${label}</div></td><td align="right">$${amount.toFixed(
+                        return `<tr style="border-bottom:1px solid #e5e7eb;"><td style="padding:8px 0;"><div>${escapeHtml(parseInvoiceChargeLine(label).description)}</div></td><td align="right">$${amount.toFixed(
                           2,
                         )}</td><td align="right">$${amount.toFixed(2)}</td></tr>`;
                       })
@@ -380,7 +378,7 @@ export async function POST(request: Request) {
                           <td align="right" style="padding:2px 0;">$${invoiceSubtotal.toFixed(2)}</td>
                         </tr>
                         <tr>
-                          <td style="padding:2px 0 6px 0; border-bottom:1px solid #e5e7eb;">Fee</td>
+                          <td style="padding:2px 0 6px 0; border-bottom:1px solid #e5e7eb;">${invoiceTax > 0 ? "Sales tax (15%)" : "Sales tax (not applied)"}</td>
                           <td align="right" style="padding:2px 0 6px 0; border-bottom:1px solid #e5e7eb;">$${invoiceTax.toFixed(2)}</td>
                         </tr>
                         <tr>
@@ -394,7 +392,7 @@ export async function POST(request: Request) {
 
                 <div>
                   <div style="font-size:13px; font-weight:600; margin-bottom:4px;">Note</div>
-                  <p style="font-size:12px; color:#4b5563; margin:0;">Fee is not a sales tax, but a configurable charge per item to cover customs/duty or handling costs.</p>
+                  <p style="font-size:12px; color:#4b5563; margin:0;">Sales tax is 15% when enabled by an administrator and is not charged when disabled.</p>
                 </div>
 
                 <div style="margin-top:24px; padding:16px; background-color:#eff6ff; border-radius:10px; text-align:center;">

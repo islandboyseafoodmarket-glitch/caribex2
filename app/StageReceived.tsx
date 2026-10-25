@@ -39,6 +39,7 @@ type StageReceivedPackage = {
   horaFecha?: string | null;
   numeroClienteId?: string | null;
   numeroCliente?: number | null;
+  notas_imagenes?: string[] | null;
 };
 
 type StageReceivedProps = {
@@ -392,6 +393,7 @@ const StageReceived: React.FC<StageReceivedProps> = ({
           estado: row.estado || null,
           horaFecha: row.hora_fecha || null,
           entregadoPor: null,
+          notas_imagenes: Array.isArray(row.notas_imagenes) ? row.notas_imagenes : null,
         });
         handleCloseModal();
         return;
@@ -411,7 +413,7 @@ const StageReceived: React.FC<StageReceivedProps> = ({
           estado: "Recibido",
         })
         .select(
-          "id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, registro, descargado, estado, hora_fecha",
+          "id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, notas_imagenes, registro, descargado, estado, hora_fecha",
         )
         .single();
 
@@ -442,6 +444,7 @@ const StageReceived: React.FC<StageReceivedProps> = ({
         estado: row.estado || null,
         horaFecha: row.hora_fecha || null,
         entregadoPor: null,
+        notas_imagenes: Array.isArray(row.notas_imagenes) ? row.notas_imagenes : null,
       };
 
       onPackageCreated?.(newPackage);

@@ -13,6 +13,7 @@ import ContainersAdmin from "./ContainersAdmin";
 import ReportsAdmin from "./ReportsAdmin";
 import { formatStaffDateTime } from "../../lib/staff-date-format";
 import InvoicePreview, { type InvoicePreviewProps } from "../../components/InvoicePreview";
+import { SALES_TAX_RATE, roundMoney } from "../../lib/invoice-pricing";
 
 /**
  * DASHBOARD OPERATIVO - VERSIÓN VISUAL PURA
@@ -1288,9 +1289,10 @@ const App = () => {
     const { data: checkin } = await supabase.from("paquetes_checkin").select("id, cargos_adicionales").eq("paquete_id", editingInvoiceAddOns.id).order("creado_en", { ascending: false }).limit(1).maybeSingle();
     if (!checkin) { alert("No check-in record exists for this invoice yet."); return; }
     const isReduction = invoiceAddOnType === "Discount" || invoiceAddOnType === "Customer credit";
-    const subtotal = Math.max(0, Number(editingInvoiceAddOns.subtotal || 0) + (isReduction ? -amount : amount));
-    const tax = subtotal * 0.15;
-    const total = subtotal + tax;
+    const subtotal = roundMoney(Math.max(0, Number(editingInvoiceAddOns.subtotal || 0) + (isReduction ? -amount : amount)));
+    const taxEnabled = editingInvoiceAddOns.tax == null ? true : Number(editingInvoiceAddOns.tax) > 0;
+    const tax = taxEnabled ? roundMoney(subtotal * SALES_TAX_RATE) : 0;
+    const total = roundMoney(subtotal + tax);
     const prior = String(checkin.cargos_adicionales || "").split(",").map((item) => item.trim()).filter(Boolean);
     const charge = `${invoiceAddOnType} (${isReduction ? "-" : "+"}$${amount.toFixed(2)})`;
     const [invoiceUpdate, checkinUpdate] = await Promise.all([

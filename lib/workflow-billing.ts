@@ -1,3 +1,10 @@
+import {
+  CUBIC_FOOT_RATE,
+  SALES_TAX_RATE,
+  parseInvoiceChargeLine,
+  roundMoney,
+} from "./invoice-pricing";
+
 export type WorkflowBillingInput = {
   tipo_paquete?: unknown;
   alto?: unknown;
@@ -24,23 +31,30 @@ function extrasAndHandling(raw: unknown, base: number) {
     .map((value) => value.trim())
     .filter(Boolean);
   let extrasAmount = 0;
-  if (extras.includes("Consolidation fee ($2.5)")) extrasAmount += 2.5;
-  if (extras.includes("Forklift charge ($100)")) extrasAmount += 100;
-  if (extras.includes("Miscellaneous fee ($10)")) extrasAmount += 10;
-  const handlingCharge = extras.includes("Handling fees") ? base * 0.15 : 0;
+  let handlingCharge = 0;
+
+  for (const extra of extras) {
+    const parsed = parseInvoiceChargeLine(extra);
+    if (parsed.description === "Handling fees" && parsed.amount === 0) {
+      handlingCharge += base * SALES_TAX_RATE;
+      continue;
+    }
+    extrasAmount += parsed.amount;
+  }
+
   return { extrasAmount, handlingCharge };
 }
 
 export function calculateWorkflowBilling(input: WorkflowBillingInput): WorkflowBillingResult | null {
   const type = normalized(input.tipo_paquete);
-  const isBox = type.includes("BOX") || type.includes("CAJA");
+  const isBoxItem = type.includes("BOX") || type.includes("CAJA");
   const isPackage = type.includes("PACKAGE") || type.includes("PAQUETE");
-  if (!isBox && !isPackage) return null;
+  if (!isBoxItem && !isPackage) return null;
 
   let base: number;
   let volumeFt3 = 0;
   if (isPackage) {
-    base = 18.5;
+    base = CUBIC_FOOT_RATE;
   } else {
     const height = Number(input.alto);
     const width = Number(input.ancho);
@@ -48,13 +62,13 @@ export function calculateWorkflowBilling(input: WorkflowBillingInput): WorkflowB
     if (![height, width, length].every((value) => Number.isFinite(value) && value > 0)) return null;
     volumeFt3 = (length * width * height) / 1728;
     if (!Number.isFinite(volumeFt3) || volumeFt3 <= 0) return null;
-    base = volumeFt3 * 18.5;
+    base = volumeFt3 * CUBIC_FOOT_RATE;
   }
 
   const { extrasAmount, handlingCharge } = extrasAndHandling(input.cargos_adicionales, base);
-  const subtotal = base + extrasAmount + handlingCharge;
-  const tax = subtotal * 0.15;
-  const total = subtotal + tax;
+  const subtotal = roundMoney(base + extrasAmount + handlingCharge);
+  const tax = roundMoney(subtotal * SALES_TAX_RATE);
+  const total = roundMoney(subtotal + tax);
   return { subtotal, tax, total, base, volumeFt3 };
 }
 
