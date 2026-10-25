@@ -35,6 +35,7 @@ export async function POST(request: Request) {
     const customer = customerId ? (await supabase.from("numero_cliente").select("id, numero_cliente, nombre").eq("id", customerId).maybeSingle()).data : null;
     if (customerId && !customer) return NextResponse.json({ error: "Customer not found" }, { status: 404 });
     const billing = calculateWorkflowBilling({ tipo_paquete: type, ...dimensions, cargos_adicionales: body?.additional_charges || null });
+    if (!billing) return NextResponse.json({ error: type === "BOX" ? "Box invoices require positive height, width, and length values." : "Could not calculate the invoice total." }, { status: 400 });
     const subtotal = Number(body?.subtotal);
     const finalSubtotal = Number.isFinite(subtotal) && subtotal >= 0 ? subtotal : billing?.subtotal || 0;
     const taxEnabled = staff.role === "admin" && typeof body?.tax_enabled === "boolean" ? body.tax_enabled : true;

@@ -87,7 +87,7 @@ const InvoicesStage: React.FC<InvoicesStageProps> = ({
 }) => {
   const [search, setSearch] = useState("");
   const [manualOpen, setManualOpen] = useState(false);
-  const [manual, setManual] = useState({ customer_id: "", tracking: "", description: "", type: "BOX" as "BOX" | "PACKAGE", height: "", width: "", length: "", weight: "", subtotal: "", charges: [] as string[], catalogLines: [] as { itemId: string; quantity: number }[], catalogItem: "", catalogQuantity: "1", taxEnabled: true });
+  const [manual, setManual] = useState({ customer_id: "", tracking: "", description: "", type: "PACKAGE" as "BOX" | "PACKAGE", height: "", width: "", length: "", weight: "", subtotal: "", charges: [] as string[], catalogLines: [] as { itemId: string; quantity: number }[], catalogItem: "", catalogQuantity: "1", taxEnabled: true });
   const customerOptions = useMemo(() => Array.from(new Map(packages.filter((p) => p.numeroClienteId).map((p) => [p.numeroClienteId, { id: p.numeroClienteId as string, label: `${p.clienteNombre || "Customer"} · ${p.numeroCliente || ""}` }])).values()), [packages]);
   const operationalCharges = ["Handling fees", "Forklift charge ($100)", "Miscellaneous fee ($10)", "Consolidation fee ($2.5)"];
   const addCatalogLine = () => {
@@ -102,6 +102,14 @@ const InvoicesStage: React.FC<InvoicesStageProps> = ({
     });
   };
   const submitManualInvoice = () => {
+    if (!manual.description.trim()) {
+      window.alert(isEs ? "Ingrese una descripción para la factura." : "Enter a description for the invoice.");
+      return;
+    }
+    if (manual.type === "BOX" && [manual.height, manual.width, manual.length].some((value) => !value || Number(value) <= 0)) {
+      window.alert(isEs ? "Ingrese alto, ancho y largo positivos para una factura de caja." : "Enter positive height, width, and length values for a box invoice.");
+      return;
+    }
     const catalogCharges = manual.catalogLines.map((line) => {
       const item = BILLABLE_INVOICE_ITEMS.find((candidate) => candidate.id === line.itemId);
       return item ? formatCatalogCharge(item, line.quantity) : null;
@@ -131,6 +139,16 @@ const InvoicesStage: React.FC<InvoicesStageProps> = ({
 
   return (
     <>
+      <style>{`
+        .staff-invoice-modal-overlay { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 1rem; background: rgba(15, 23, 42, 0.48); }
+        .staff-invoice-modal { width: min(680px, 96vw); background: #fff; border-radius: 1rem; box-shadow: 0 25px 80px rgba(15, 23, 42, .28); padding: 1.25rem; }
+        .staff-invoice-modal-header { display: flex; align-items: center; justify-content: space-between; gap: .75rem; margin-bottom: .75rem; }
+        .staff-invoice-modal-title { margin: 0; color: #0f172a; font-size: 1.1rem; }
+        .staff-invoice-modal-field { display: grid; gap: .3rem; }
+        .staff-invoice-modal-field label { color: #475569; font-size: .82rem; font-weight: 600; }
+        .staff-invoice-modal-field input, .staff-invoice-modal-field select { width: 100%; box-sizing: border-box; padding: .6rem .7rem; border: 1px solid #cbd5e1; border-radius: .6rem; background: #fff; color: #0f172a; }
+        .staff-invoice-modal-actions { display: flex; justify-content: flex-end; gap: .75rem; margin-top: 1rem; }
+      `}</style>
       <header className="ga-state-card-header">
         <div
           className="ga-state-title-row"
@@ -188,24 +206,21 @@ const InvoicesStage: React.FC<InvoicesStageProps> = ({
       </header>
 
       {manualOpen && onCreateManualInvoice && (
-        <div className="ga-modal-backdrop" role="dialog" aria-modal="true" aria-label={isEs ? "Crear factura manual" : "Create manual invoice"}>
-          <div className="ga-modal" style={{ maxWidth: 680, maxHeight: "90vh", overflowY: "auto" }}>
-          <div className="ga-modal-header"><h3 style={{ margin: 0 }}>{isEs ? "Factura para envío no registrado" : "Invoice for shipment not in the database"}</h3><button type="button" className="ga-icon-button ga-icon-button-light" onClick={() => setManualOpen(false)} aria-label={isEs ? "Cerrar" : "Close"}>×</button></div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", gap: "0.6rem" }}>
-            <input placeholder="Tracking (optional)" value={manual.tracking} onChange={(e) => setManual({ ...manual, tracking: e.target.value })} />
-            <select value={manual.customer_id} onChange={(e) => setManual({ ...manual, customer_id: e.target.value })}><option value="">No customer selected</option>{customerOptions.map((customer) => <option key={customer.id} value={customer.id}>{customer.label}</option>)}</select>
-            <input placeholder="Description" value={manual.description} onChange={(e) => setManual({ ...manual, description: e.target.value })} />
-            <select value={manual.type} onChange={(e) => setManual({ ...manual, type: e.target.value as "BOX" | "PACKAGE" })}><option value="BOX">Box</option><option value="PACKAGE">Package</option></select>
-            <input placeholder="Height" inputMode="decimal" value={manual.height} onChange={(e) => setManual({ ...manual, height: e.target.value })} />
-            <input placeholder="Width" inputMode="decimal" value={manual.width} onChange={(e) => setManual({ ...manual, width: e.target.value })} />
-            <input placeholder="Length" inputMode="decimal" value={manual.length} onChange={(e) => setManual({ ...manual, length: e.target.value })} />
-            <input placeholder="Weight (optional)" inputMode="decimal" value={manual.weight} onChange={(e) => setManual({ ...manual, weight: e.target.value })} />
-            <input placeholder="Subtotal" inputMode="decimal" value={manual.subtotal} onChange={(e) => setManual({ ...manual, subtotal: e.target.value })} />
+        <div className="staff-invoice-modal-overlay" role="dialog" aria-modal="true" aria-label={isEs ? "Crear factura manual" : "Create manual invoice"}>
+          <div className="staff-invoice-modal" style={{ maxHeight: "90vh", overflowY: "auto" }}>
+          <div className="staff-invoice-modal-header"><h3 className="staff-invoice-modal-title">{isEs ? "Crear factura manual" : "Create manual invoice"}</h3><button type="button" className="ga-icon-button ga-icon-button-light" onClick={() => setManualOpen(false)} aria-label={isEs ? "Cerrar" : "Close"}>×</button></div>
+          <p style={{ margin: "0 0 1rem", color: "#64748b", fontSize: ".86rem" }}>{isEs ? "Crea una factura pendiente usando las mismas reglas de facturación del panel Admin." : "Create a pending invoice using the same billing rules as the Admin panel."}</p>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: ".75rem" }}>
+            <div className="staff-invoice-modal-field"><label>Customer</label><select value={manual.customer_id} onChange={(e) => setManual({ ...manual, customer_id: e.target.value })}><option value="">No customer selected</option>{customerOptions.map((customer) => <option key={customer.id} value={customer.id}>{customer.label}</option>)}</select></div>
+            <div className="staff-invoice-modal-field"><label>Tracking (optional)</label><input value={manual.tracking} onChange={(e) => setManual({ ...manual, tracking: e.target.value })} placeholder="Auto-generated if blank" /></div>
+            <div className="staff-invoice-modal-field"><label>Shipment type</label><select value={manual.type} onChange={(e) => setManual({ ...manual, type: e.target.value as "BOX" | "PACKAGE" })}><option value="PACKAGE">Package</option><option value="BOX">Box</option></select></div>
+            <div className="staff-invoice-modal-field" style={{ gridColumn: "1 / -1" }}><label>Description</label><input value={manual.description} onChange={(e) => setManual({ ...manual, description: e.target.value })} placeholder="What is being billed?" /></div>
           </div>
-          <div style={{ marginTop: "0.8rem" }}><strong>{isEs ? "Cargos operativos" : "Operational extras"}</strong><div style={{ display: "grid", gap: "0.35rem", marginTop: "0.4rem" }}>{operationalCharges.map((charge) => <label key={charge} style={{ display: "flex", gap: "0.4rem", alignItems: "center" }}><input type="checkbox" checked={manual.charges.includes(charge)} onChange={(e) => setManual({ ...manual, charges: e.target.checked ? [...manual.charges, charge] : manual.charges.filter((item) => item !== charge) })} />{charge}</label>)}</div></div>
-          <div style={{ marginTop: "0.8rem", paddingTop: "0.7rem", borderTop: "1px solid #e2e8f0" }}><strong>{isEs ? "Artículos del catálogo" : "Catalog items"}</strong><div style={{ display: "grid", gridTemplateColumns: "minmax(200px,1fr) 90px auto", gap: "0.5rem", alignItems: "end", marginTop: "0.4rem" }}><select value={manual.catalogItem} onChange={(e) => setManual({ ...manual, catalogItem: e.target.value })}><option value="">{isEs ? "Seleccionar artículo" : "Select item"}</option>{BILLABLE_INVOICE_ITEMS.map((item) => <option key={item.id} value={item.id}>{item.label} — ${item.unitPrice.toFixed(2)} / {item.unit}</option>)}</select><input type="number" min="1" step="1" value={manual.catalogQuantity} onChange={(e) => setManual({ ...manual, catalogQuantity: e.target.value })} aria-label={isEs ? "Cantidad" : "Quantity"} /><button type="button" className="ga-secondary-button" disabled={!manual.catalogItem} onClick={addCatalogLine}>{isEs ? "Agregar" : "Add"}</button></div>{manual.catalogLines.length > 0 && <div style={{ display: "grid", gap: "0.3rem", marginTop: "0.5rem" }}>{manual.catalogLines.map((line) => { const item = BILLABLE_INVOICE_ITEMS.find((candidate) => candidate.id === line.itemId); if (!item) return null; return <div key={line.itemId} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>{formatCatalogCharge(item, line.quantity)}<button type="button" className="ga-icon-button ga-icon-button-light" onClick={() => setManual({ ...manual, catalogLines: manual.catalogLines.filter((candidate) => candidate.itemId !== line.itemId) })}>×</button></div>; })}</div>}</div>
-          <label style={{ display: "flex", gap: "0.4rem", alignItems: "center", marginTop: "0.8rem" }}><input type="checkbox" checked={manual.taxEnabled} onChange={(e) => setManual({ ...manual, taxEnabled: e.target.checked })} />{isEs ? "Aplicar impuesto de venta del 15%" : "Apply 15% sales tax"}</label>
-          <div className="ga-modal-actions" style={{ justifyContent: "flex-end", gap: "0.5rem" }}><button type="button" className="ga-secondary-button" onClick={() => setManualOpen(false)}>{isEs ? "Cancelar" : "Cancel"}</button><button type="button" className="ga-primary-button" onClick={submitManualInvoice}>{isEs ? "Guardar factura" : "Save invoice"}</button></div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(130px,1fr))", gap: ".75rem", marginTop: ".75rem" }}>{([["height", "Height"], ["width", "Width"], ["length", "Length"], ["weight", "Weight (optional)"]] as const).map(([field, label]) => <div className="staff-invoice-modal-field" key={field}><label>{label}</label><input type="number" min="0" step=".01" value={manual[field]} onChange={(e) => setManual({ ...manual, [field]: e.target.value })} placeholder={field === "weight" ? "Optional" : "0.00"} /></div>)}</div>
+          <div style={{ marginTop: ".85rem" }}><strong style={{ color: "#334155", fontSize: ".85rem" }}>Operational extras</strong><div style={{ display: "grid", gap: ".35rem", marginTop: ".45rem" }}>{operationalCharges.map((charge) => <label key={charge} style={{ display: "flex", gap: ".45rem", alignItems: "center", color: "#475569", fontSize: ".84rem" }}><input type="checkbox" checked={manual.charges.includes(charge)} onChange={(e) => setManual({ ...manual, charges: e.target.checked ? [...manual.charges, charge] : manual.charges.filter((item) => item !== charge) })} />{charge}</label>)}</div></div>
+          <div style={{ marginTop: "1rem", paddingTop: ".85rem", borderTop: "1px solid #e2e8f0" }}><strong style={{ color: "#334155", fontSize: ".85rem" }}>Catalog items</strong><div style={{ display: "grid", gridTemplateColumns: "minmax(220px,1fr) 100px auto", gap: ".5rem", alignItems: "end", marginTop: ".45rem" }}><div className="staff-invoice-modal-field"><label>Catalog item</label><select value={manual.catalogItem} onChange={(e) => setManual({ ...manual, catalogItem: e.target.value })}><option value="">Select an item</option>{BILLABLE_INVOICE_ITEMS.map((item) => <option key={item.id} value={item.id}>{item.label} — ${item.unitPrice.toFixed(2)} / {item.unit}</option>)}</select></div><div className="staff-invoice-modal-field"><label>Qty</label><input type="number" min="1" step="1" value={manual.catalogQuantity} onChange={(e) => setManual({ ...manual, catalogQuantity: e.target.value })} /></div><button type="button" className="ga-secondary-button" disabled={!manual.catalogItem} onClick={addCatalogLine}>Add item</button></div>{manual.catalogLines.length > 0 && <div style={{ display: "grid", gap: ".35rem", marginTop: ".6rem" }}>{manual.catalogLines.map((line) => { const item = BILLABLE_INVOICE_ITEMS.find((candidate) => candidate.id === line.itemId); if (!item) return null; return <div key={line.itemId} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: ".45rem .6rem", borderRadius: ".5rem", background: "#f8fafc", color: "#475569", fontSize: ".82rem" }}>{formatCatalogCharge(item, line.quantity)}<button type="button" className="ga-icon-button ga-icon-button-light" onClick={() => setManual({ ...manual, catalogLines: manual.catalogLines.filter((candidate) => candidate.itemId !== line.itemId) })}>×</button></div>; })}</div>}</div>
+          <label style={{ display: "flex", gap: ".45rem", alignItems: "center", marginTop: ".9rem", color: "#475569", fontSize: ".84rem" }}><input type="checkbox" checked={manual.taxEnabled} onChange={(e) => setManual({ ...manual, taxEnabled: e.target.checked })} />Apply 15% sales tax</label>
+          <div className="staff-invoice-modal-actions"><button type="button" className="ga-secondary-button" onClick={() => setManualOpen(false)}>Cancel</button><button type="button" className="ga-primary-button" onClick={submitManualInvoice}>Create invoice</button></div>
           </div>
         </div>
       )}
