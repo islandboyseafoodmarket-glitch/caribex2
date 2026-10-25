@@ -38,6 +38,15 @@ function errorResponse(error: unknown) {
   return NextResponse.json({ error: message }, { status });
 }
 
+function isPhotoFile(value: FormDataEntryValue): value is File {
+  return (
+    typeof value !== "string" &&
+    typeof (value as File).arrayBuffer === "function" &&
+    typeof (value as File).size === "number" &&
+    Number((value as File).size) > 0
+  );
+}
+
 export async function POST(request: Request) {
   try {
     const supabase = adminClient();
@@ -48,11 +57,12 @@ export async function POST(request: Request) {
     const shipmentId = String(form.get("shipment_id") || "").trim();
     const note = String(form.get("note") || "").trim();
     const problem = String(form.get("problem") || "false").toLowerCase() === "true";
-    const photos = form.getAll("photo").filter((value): value is File => value instanceof File && value.size > 0);
+    const suppliedPhotos = form.getAll("photo");
+    const photos = suppliedPhotos.filter(isPhotoFile);
     if (!shipmentId) return NextResponse.json({ error: "Shipment is required" }, { status: 400 });
     if (note.length > 4000) return NextResponse.json({ error: "The note is too long" }, { status: 400 });
-    const suppliedPhoto = form.get("photo");
-    if (suppliedPhoto && !(suppliedPhoto instanceof File)) return NextResponse.json({ error: "Invalid photo upload" }, { status: 400 });
+    if (suppliedPhotos.some((value) => typeof value === "string")) return NextResponse.json({ error: "Invalid photo upload" }, { status: 400 });
+    if (suppliedPhotos.length > 0 && photos.length === 0) return NextResponse.json({ error: "The selected photo was empty or could not be read. Choose the photo again and retry." }, { status: 400 });
     if (photos.some((photo) => photo.size > 8 * 1024 * 1024)) return NextResponse.json({ error: "Photo must be 8 MB or smaller" }, { status: 400 });
     if (!note && !problem && photos.length === 0) return NextResponse.json({ error: "Add a note, mark a problem, or attach a photo" }, { status: 400 });
 
