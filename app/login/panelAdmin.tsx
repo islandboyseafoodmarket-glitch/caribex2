@@ -9,6 +9,7 @@ import { Pencil, Trash2, Unlock, LogOut, Image as ImageIcon, Check, AlertCircle,
 import FerryManifestAdmin from "./FerryManifestAdmin";
 import Client360Admin from "./Client360Admin";
 import CaribexBatchLabelPrint, { BatchBoxLabel } from "../../components/CaribexBatchLabelPrint";
+import type { CaribexLabelSize } from "../../components/CaribexLabelPrint";
 import ContainersAdmin from "./ContainersAdmin";
 import ReportsAdmin from "./ReportsAdmin";
 import { formatStaffDateTime } from "../../lib/staff-date-format";
@@ -153,7 +154,7 @@ const TRACK_STAGE_STYLES: Record<string, { color: string; background: string; bo
 const App = () => {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<
-    'personal' | 'clientes' | 'client360' | 'pedidos' | 'track' | 'incidencias' | 'facturas' | 'finanzas' | 'leads' | 'portal' | 'ferry' | 'containers' | 'labels' | 'reports' | 'activityLogs'
+    'personal' | 'clientes' | 'prepaid' | 'client360' | 'pedidos' | 'track' | 'incidencias' | 'facturas' | 'finanzas' | 'leads' | 'portal' | 'ferry' | 'containers' | 'labels' | 'reports' | 'activityLogs'
   >('personal');
   const [incidenciaFiltro, setIncidenciaFiltro] = useState('');
   const [expandedNavGroups, setExpandedNavGroups] = useState<Record<string, boolean>>({
@@ -442,6 +443,9 @@ const App = () => {
   const [modalError, setModalError] = useState<string | null>(null);
   const [clienteSaving, setClienteSaving] = useState(false);
   const [clienteModalError, setClienteModalError] = useState<string | null>(null);
+  const [prepaidCustomerId, setPrepaidCustomerId] = useState("");
+  const [prepaidAllowanceToAdd, setPrepaidAllowanceToAdd] = useState("");
+  const [prepaidAllowanceSaving, setPrepaidAllowanceSaving] = useState(false);
 
   // Detalle de pedido (paquetes_registro + paquetes_checkin + numero_cliente)
   const [isPedidoDetalleOpen, setIsPedidoDetalleOpen] = useState(false);
@@ -450,6 +454,15 @@ const App = () => {
   const [pedidoDetalleError, setPedidoDetalleError] = useState<string | null>(null);
   const [batchNewBoxLabels, setBatchNewBoxLabels] = useState<BatchBoxLabel[] | null>(null);
   const [newBoxLabelCount, setNewBoxLabelCount] = useState(1);
+  const [labelSize, setLabelSize] = useState<CaribexLabelSize>("4x6");
+  const [issuedLabelHistory, setIssuedLabelHistory] = useState<BatchBoxLabel[]>([]);
+
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem("caribex-issued-label-history");
+      if (stored) setIssuedLabelHistory(JSON.parse(stored));
+    } catch { /* local history is optional */ }
+  }, []);
 
   const generateNewBoxLabels = (requestedCount = newBoxLabelCount) => {
     const count = Math.min(100, Math.max(1, Math.floor(Number(requestedCount) || 1)));
@@ -461,6 +474,11 @@ const App = () => {
       return { tracking: boxCode, boxCode };
     });
     setBatchNewBoxLabels(labels);
+    setIssuedLabelHistory((previous) => {
+      const next = [...labels, ...previous].slice(0, 50);
+      try { window.localStorage.setItem("caribex-issued-label-history", JSON.stringify(next)); } catch { /* ignore storage limits */ }
+      return next;
+    });
   };
   const [isPedidoEditOpen, setIsPedidoEditOpen] = useState(false);
   const [pedidoEditId, setPedidoEditId] = useState<string | null>(null);
@@ -1010,7 +1028,7 @@ const App = () => {
     if (error && /account_review_status|prepaid_|auth_user_id|column .* does not exist|schema cache/i.test(error.message || "")) {
       const fallback = await supabase
         .from("numero_cliente")
-        .select("id, nombre, numero_cliente, email, telefono, puerto, tipo_cuenta, creado_en")
+        .select("id, nombre, numero_cliente, email, telefono, puerto, tipo_cuenta, creado_en, auth_user_id")
         .order("creado_en", { ascending: false });
       data = fallback.data as any[] | null;
       error = fallback.error;
@@ -1053,6 +1071,24 @@ const App = () => {
     });
     setClienteModalError(null);
     setIsClienteModalOpen(true);
+  };
+
+  const addPrepaidAllowance = async () => {
+    const customer = clientes.find((item) => item.id === prepaidCustomerId);
+    const amount = Number(prepaidAllowanceToAdd);
+    if (!customer || !Number.isFinite(amount) || amount <= 0) {
+      alert("Select a customer and enter a cubic-foot amount greater than zero.");
+      return;
+    }
+    setPrepaidAllowanceSaving(true);
+    const nextAllowance = Number(customer.prepaid_allowance_cubic_feet || 0) + amount;
+    const { error } = await supabase.from("numero_cliente").update({ prepaid_allowance_cubic_feet: nextAllowance }).eq("id", customer.id);
+    if (error) alert(error.message);
+    else {
+      setClientes((previous) => previous.map((item) => item.id === customer.id ? { ...item, prepaid_allowance_cubic_feet: nextAllowance } : item));
+      setPrepaidAllowanceToAdd("");
+    }
+    setPrepaidAllowanceSaving(false);
   };
 
   const cargarPedidos = useCallback(async () => {
@@ -2149,6 +2185,7 @@ const App = () => {
           <button type="button" className="admin-sidebar-group-title" onClick={() => toggleNavGroup('customers')}>Customers <ChevronDown size={14} className={expandedNavGroups.customers ? 'nav-chevron is-open' : 'nav-chevron'} /></button>
           {expandedNavGroups.customers && <div className="admin-sidebar-items">
             <button className={`admin-sidebar-item admin-sidebar-item--customers ${activeTab === 'clientes' ? 'active' : ''}`} onClick={() => setActiveTab('clientes')}><UserPlus /> Customer # <span className="count-badge">{clientes.length}</span></button>
+            <button className={`admin-sidebar-item admin-sidebar-item--customers ${activeTab === 'prepaid' ? 'active' : ''}`} onClick={() => setActiveTab('prepaid')}><DollarSign /> Prepaid accounts <span className="count-badge">{clientes.filter((customer) => customer.tipo_cuenta === 'Developer / Builder — Prepaid').length}</span></button>
             <button className={`admin-sidebar-item admin-sidebar-item--customers ${activeTab === 'leads' ? 'active' : ''}`} onClick={() => setActiveTab('leads')}><UserPlus /> Leads <span className="count-badge">{leads.filter((lead) => lead.status === 'NEW').length}</span></button>
             <button className={`admin-sidebar-item admin-sidebar-item--customers ${activeTab === 'portal' ? 'active' : ''}`} onClick={() => setActiveTab('portal')}><Bell /> Portal alerts <span className="count-badge">{portalEvents.filter((event) => !event.success).length}</span></button>
           </div>}
@@ -2183,6 +2220,8 @@ const App = () => {
                   ? 'Staff Activity Logs'
                 : activeTab === 'clientes'
                   ? 'Listado de Clientes'
+                : activeTab === 'prepaid'
+                  ? 'Prepaid Accounts'
                   : activeTab === 'client360'
                     ? 'Client 360'
                   : activeTab === 'pedidos'
@@ -2214,6 +2253,8 @@ const App = () => {
                   ? `${staffActionLogs.length} recent staff events`
                 : activeTab === 'clientes'
                   ? `${clientes.length} registro${clientes.length === 1 ? '' : 's'} en esta categoría`
+                : activeTab === 'prepaid'
+                  ? `${clientes.filter((customer) => customer.tipo_cuenta === 'Developer / Builder — Prepaid').length} prepaid customer accounts`
                   : activeTab === 'client360'
                     ? 'Complete customer profile and operational history'
                   : activeTab === 'pedidos'
@@ -2247,8 +2288,18 @@ const App = () => {
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
                 <label htmlFor="standalone-new-box-label-count" style={{ fontWeight: 600, color: '#475569' }}>Quantity</label>
                 <input id="standalone-new-box-label-count" type="number" min={1} max={100} value={newBoxLabelCount} onChange={(e) => setNewBoxLabelCount(Math.min(100, Math.max(1, Number(e.target.value) || 1)))} style={{ width: 80, padding: '0.55rem 0.65rem', border: '1px solid #cbd5e1', borderRadius: '0.6rem' }} />
+                <label htmlFor="standalone-label-size" style={{ fontWeight: 600, color: '#475569' }}>Label size</label>
+                <select id="standalone-label-size" value={labelSize} onChange={(event) => setLabelSize(event.target.value as CaribexLabelSize)} style={{ padding: '0.55rem 0.65rem', border: '1px solid #cbd5e1', borderRadius: '0.6rem', background: '#fff' }}>
+                  <option value="4x6">4 × 6 in — standard</option>
+                  <option value="2x3">2 × 3 in</option>
+                  <option value="2x2">2 × 2 in</option>
+                  <option value="1.5x2.25">1.5 × 2.25 in</option>
+                  <option value="40x60mm">40 × 60 mm</option>
+                  <option value="a4-12">A4 paper — 12 per sheet</option>
+                </select>
                 <button type="button" className="pa-primary-btn" onClick={() => generateNewBoxLabels()}>Generate Caribex labels</button>
               </div>
+              {issuedLabelHistory.length > 0 && <div style={{ marginTop: '1rem' }}><strong style={{ color: '#334155' }}>Recently issued labels</strong><div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: '0.45rem', marginTop: '0.45rem' }}>{issuedLabelHistory.map((label) => <button key={label.boxCode} type="button" className="pa-secondary-btn" style={{ textAlign: 'left' }} onClick={() => setBatchNewBoxLabels([label])}>{label.boxCode}</button>)}</div></div>}
             </div>
           )}
 
@@ -2937,8 +2988,23 @@ const App = () => {
           </div>
         )}
 
-        {activeTab === 'clientes' && clientes.length > 0 && (
+        {(activeTab === 'clientes' || activeTab === 'prepaid') && clientes.length > 0 && (
           <div style={{ width: '100%', overflowX: 'auto' }}>
+            <section style={{ marginBottom: '1.25rem', padding: '1rem 1.1rem', borderRadius: '0.9rem', border: '1px solid #bfdbfe', background: '#eff6ff' }}>
+              <h3 style={{ margin: 0, color: '#1e3a8a' }}>Developer / Builder prepaid allowance</h3>
+              <p style={{ margin: '0.35rem 0 0.8rem', color: '#475569' }}>Select a prepaid customer to review status, allowance usage, remaining cubic feet, and add more prepaid space.</p>
+              <div style={{ display: 'flex', gap: '0.65rem', flexWrap: 'wrap', alignItems: 'end' }}>
+                <label style={{ display: 'grid', gap: '0.25rem', minWidth: 280, flex: '1 1 300px' }}><span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#475569' }}>Prepaid customer</span><select value={prepaidCustomerId} onChange={(event) => setPrepaidCustomerId(event.target.value)} style={{ padding: '0.6rem 0.7rem', border: '1px solid #cbd5e1', borderRadius: '0.55rem', background: '#fff' }}><option value="">Select a customer</option>{clientes.filter((customer) => customer.tipo_cuenta === 'Developer / Builder — Prepaid').map((customer) => <option key={customer.id} value={customer.id}>#{customer.numero_cliente} — {customer.nombre}</option>)}</select></label>
+                {(() => { const customer = clientes.find((item) => item.id === prepaidCustomerId); const allowance = Number(customer?.prepaid_allowance_cubic_feet || 0); const used = Number(customer?.prepaid_used_cubic_feet || 0); const remaining = Math.max(0, allowance - used); const status = String(customer?.account_review_status || (allowance > 0 ? 'ACTIVE' : 'PENDING_REVIEW')).replaceAll('_', ' '); return <>
+                  <div style={{ padding: '0.45rem 0.7rem', background: '#fff', borderRadius: '0.55rem', minWidth: 105 }}><small style={{ color: '#64748b' }}>Allowance</small><strong style={{ display: 'block', color: '#1d4ed8' }}>{customer ? allowance.toFixed(2) : '—'} ft³</strong></div>
+                  <div style={{ padding: '0.45rem 0.7rem', background: '#fff', borderRadius: '0.55rem', minWidth: 105 }}><small style={{ color: '#64748b' }}>Used</small><strong style={{ display: 'block', color: '#475569' }}>{customer ? used.toFixed(2) : '—'} ft³</strong></div>
+                  <div style={{ padding: '0.45rem 0.7rem', background: '#fff', borderRadius: '0.55rem', minWidth: 105 }}><small style={{ color: '#64748b' }}>Remaining</small><strong style={{ display: 'block', color: remaining > 0 ? '#166534' : '#b45309' }}>{customer ? remaining.toFixed(2) : '—'} ft³</strong></div>
+                  <div style={{ padding: '0.45rem 0.7rem', background: '#fff', borderRadius: '0.55rem', minWidth: 130 }}><small style={{ color: '#64748b' }}>Review status</small><strong style={{ display: 'block', color: '#92400e', textTransform: 'capitalize' }}>{customer ? status : '—'}</strong></div>
+                </>; })()}
+                <label style={{ display: 'grid', gap: '0.25rem', minWidth: 155 }}><span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#475569' }}>Add cubic feet</span><input type="number" min="0.01" step="0.01" value={prepaidAllowanceToAdd} onChange={(event) => setPrepaidAllowanceToAdd(event.target.value)} placeholder="e.g. 100" style={{ padding: '0.6rem 0.7rem', border: '1px solid #cbd5e1', borderRadius: '0.55rem' }} /></label>
+                <button type="button" className="pa-primary-btn" onClick={() => void addPrepaidAllowance()} disabled={prepaidAllowanceSaving || !prepaidCustomerId}>{prepaidAllowanceSaving ? 'Saving…' : 'Add allowance'}</button>
+              </div>
+            </section>
             <div
               style={{
                 display: 'grid',
@@ -3809,6 +3875,7 @@ const App = () => {
       {batchNewBoxLabels && (
         <CaribexBatchLabelPrint
           labels={batchNewBoxLabels}
+          labelSize={labelSize}
           onClose={() => {
             setBatchNewBoxLabels(null);
           }}
