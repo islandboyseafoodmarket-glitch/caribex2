@@ -182,6 +182,7 @@ const App = () => {
     auth_user_id?: string | null;
   };
   const [clientes, setClientes] = useState<Cliente[]>([]);
+  const [customerLoadError, setCustomerLoadError] = useState<string | null>(null);
   type Pedido = {
     id: string;
     tracking: string;
@@ -999,14 +1000,28 @@ const App = () => {
   };
 
   const cargarClientes = useCallback(async () => {
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from("numero_cliente")
       .select("id, nombre, numero_cliente, email, telefono, puerto, tipo_cuenta, account_review_status, account_reviewed_at, account_review_notes, prepaid_allowance_cubic_feet, prepaid_used_cubic_feet, creado_en, auth_user_id")
       .order("creado_en", { ascending: false });
 
-    if (!error && data) {
-      setClientes(data as Cliente[]);
+    if (error && /account_review_status|prepaid_|auth_user_id|column .* does not exist|schema cache/i.test(error.message || "")) {
+      const fallback = await supabase
+        .from("numero_cliente")
+        .select("id, nombre, numero_cliente, email, telefono, puerto, tipo_cuenta, creado_en")
+        .order("creado_en", { ascending: false });
+      data = fallback.data;
+      error = fallback.error;
     }
+
+    if (error) {
+      console.error("Error cargarClientes", error);
+      setCustomerLoadError(error.message || "Could not load customers");
+      setClientes([]);
+      return;
+    }
+    setCustomerLoadError(null);
+    setClientes((data || []) as Cliente[]);
   }, []);
 
   const cerrarModalCliente = () => {
@@ -2299,6 +2314,7 @@ const App = () => {
         <div className="divider"></div>
 
         {adminNotice && <div style={{ margin: '0.75rem 0', padding: '0.75rem 1rem', borderRadius: '0.75rem', background: '#dcfce7', border: '1px solid #86efac', color: '#166534', display: 'flex', justifyContent: 'space-between' }}><span>{adminNotice}</span><button type="button" onClick={() => setAdminNotice(null)} style={{ border: 0, background: 'transparent', color: 'inherit', cursor: 'pointer', fontWeight: 700 }}>Dismiss</button></div>}
+        {customerLoadError && <div role="alert" style={{ margin: '0.75rem 0', padding: '0.75rem 1rem', borderRadius: '0.75rem', background: '#fef2f2', border: '1px solid #fecaca', color: '#991b1b' }}>Customers could not be loaded: {customerLoadError}</div>}
 
         {activeTab === 'client360' && <Client360Admin clientes={clientes} pedidos={pedidos} facturas={facturas} />}
 

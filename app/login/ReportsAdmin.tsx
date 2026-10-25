@@ -57,6 +57,7 @@ const auditChanges = (log: any) => {
   if (fromStatus !== undefined && toStatus !== undefined && String(fromStatus) !== String(toStatus)) {
     lines.push(`Stage: ${String(fromStatus || "Empty")} → ${String(toStatus || "Empty")}`);
   }
+  if (details.signature_id) lines.push(`Pickup Signature: Saved for ${Number(details.shipment_count || 1)} scanned shipment${Number(details.shipment_count || 1) === 1 ? "" : "s"}`);
   const fields: Record<string, string> = {
     numero_cliente_id: "Customer",
     contenedor_id: "Container",
@@ -99,7 +100,7 @@ export default function ReportsAdmin() {
   const [rows, setRows] = useState<ReportRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [detail, setDetail] = useState<{ loading: boolean; error: string; shipment: any | null; checkins: any[]; logs: any[] } | null>(null);
+  const [detail, setDetail] = useState<{ loading: boolean; error: string; shipment: any | null; checkins: any[]; logs: any[]; pickupSignatures: any[] } | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -175,18 +176,20 @@ export default function ReportsAdmin() {
   };
 
   const openTrackingDetail = async (row: ReportRow) => {
-    setDetail({ loading: true, error: "", shipment: null, checkins: [], logs: [] });
+    setDetail({ loading: true, error: "", shipment: null, checkins: [], logs: [], pickupSignatures: [] });
     try {
-      const [{ data: shipment, error: shipmentError }, { data: checkins, error: checkinError }, { data: logs, error: logsError }] = await Promise.all([
+      const [{ data: shipment, error: shipmentError }, { data: checkins, error: checkinError }, { data: logs, error: logsError }, { data: pickupSignatures, error: signatureError }] = await Promise.all([
         supabase.from("paquetes_registro").select("*").eq("id", row.id).maybeSingle(),
         supabase.from("paquetes_checkin").select("*").eq("paquete_id", row.id).order("creado_en", { ascending: false }),
         supabase.from("staff_action_logs").select("id, actor_name, actor_email, actor_role, action, success, error_message, details, created_at").eq("entity_id", row.id).order("created_at", { ascending: false }).limit(50),
+        supabase.from("pickup_signatures").select("id, numero_cliente_id, shipment_ids, trackings, signature_paths, signed_at, captured_by, captured_by_role").contains("shipment_ids", [row.id]).order("signed_at", { ascending: false }).limit(20),
       ]);
       if (shipmentError || checkinError || logsError) throw shipmentError || checkinError || logsError;
       if (!shipment) throw new Error("Shipment details could not be found.");
-      setDetail({ loading: false, error: "", shipment, checkins: checkins || [], logs: logs || [] });
+      if (signatureError) console.warn("Pickup signature history is unavailable until its migration is applied.", signatureError.message);
+      setDetail({ loading: false, error: "", shipment, checkins: checkins || [], logs: logs || [], pickupSignatures: pickupSignatures || [] });
     } catch (err: any) {
-      setDetail({ loading: false, error: err?.message || "Could not load shipment details.", shipment: null, checkins: [], logs: [] });
+      setDetail({ loading: false, error: err?.message || "Could not load shipment details.", shipment: null, checkins: [], logs: [], pickupSignatures: [] });
     }
   };
 
@@ -224,6 +227,7 @@ export default function ReportsAdmin() {
           </div>
           <div className="caribex-report-detail-section"><h4>Notes</h4><p style={{ whiteSpace: "pre-wrap", margin: 0 }}>{detail.shipment.notas || "No notes recorded."}</p></div>
           <div className="caribex-report-detail-section"><h4>Photos</h4>{(Array.isArray(detail.shipment.notas_imagenes) ? detail.shipment.notas_imagenes : typeof detail.shipment.notas_imagenes === "string" ? [detail.shipment.notas_imagenes] : []).length ? <div className="caribex-report-photo-grid">{(Array.isArray(detail.shipment.notas_imagenes) ? detail.shipment.notas_imagenes : [detail.shipment.notas_imagenes]).filter(Boolean).map((url: string) => <a href={url} target="_blank" rel="noreferrer" key={url}><img src={url} alt={`Photo for ${detail.shipment.tracking || "shipment"}`} /></a>)}</div> : <p style={{ margin: 0 }}>No photos recorded.</p>}</div>
+          <div className="caribex-report-detail-section"><h4>Pickup Signatures</h4>{detail.pickupSignatures.length ? detail.pickupSignatures.map((signature: any) => { const paths = Array.isArray(signature.signature_paths) ? signature.signature_paths.filter((path: unknown): path is string => typeof path === "string" && path.length > 0) : []; return <div key={signature.id} style={{ border: "1px solid #cbd5e1", borderRadius: 10, padding: 10, background: "#f8fafc", marginBottom: 8 }}><div><strong>Signed:</strong> {new Date(signature.signed_at).toLocaleString()} · <strong>Captured By:</strong> {String(signature.captured_by_role || "staff").replace(/^./, (letter) => letter.toUpperCase())}</div><div style={{ marginTop: 4 }}><strong>Scanned Tracking:</strong> {Array.isArray(signature.trackings) && signature.trackings.length ? signature.trackings.join(", ") : detail.shipment.tracking}</div>{paths.length ? <div className="caribex-report-photo-grid" style={{ marginTop: 8 }}>{paths.map((path: string) => <img key={path} src={path} alt="Customer pickup signature" />)}</div> : <p style={{ margin: "8px 0 0" }}>Signature record saved, but no drawing image was stored.</p>}</div>; }) : <p style={{ margin: 0 }}>No pickup signature has been saved for this shipment.</p>}</div>
           <div className="caribex-report-detail-section"><h4>Staff activity for this shipment</h4>{detail.logs.length ? <table className="caribex-report-detail-table"><thead><tr><th>Date</th><th>Who</th><th>Action</th><th>What Changed</th><th>Result</th></tr></thead><tbody>{detail.logs.map((log) => { const changes = auditChanges(log); return <tr key={log.id}><td>{new Date(log.created_at).toLocaleString()}</td><td><strong>{auditActorLabel(log)}</strong><br /><small>{log.actor_email || ""}</small></td><td>{auditActionLabel(log.action)}</td><td>{changes.length ? changes.map((change) => <div key={change}>{change}</div>) : "No tracked field changes"}</td><td>{log.success ? "Success" : log.error_message || "Failed"}</td></tr>; })}</tbody></table> : <p style={{ margin: 0 }}>No staff activity log is attached to this shipment.</p>}</div>
         </>}
       </section>

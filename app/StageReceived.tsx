@@ -382,6 +382,13 @@ const StageReceived: React.FC<StageReceivedProps> = ({
           alert(payload.error || (isEs ? "No se pudo guardar el paquete" : "Could not save the shipment"));
           return;
         }
+        if (payload.photo_upload_error) {
+          alert(
+            isEs
+              ? `El paquete se guardó, pero la foto no se pudo guardar en Supabase Storage: ${payload.photo_upload_error}`
+              : `The shipment was saved, but the photo could not be saved to Supabase Storage: ${payload.photo_upload_error}`,
+          );
+        }
         const row: any = payload.package;
         onPackageCreated?.({
           id: row.id,
