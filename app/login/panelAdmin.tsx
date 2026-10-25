@@ -1000,17 +1000,19 @@ const App = () => {
   };
 
   const cargarClientes = useCallback(async () => {
-    let { data, error } = await supabase
+    const initial = await supabase
       .from("numero_cliente")
       .select("id, nombre, numero_cliente, email, telefono, puerto, tipo_cuenta, account_review_status, account_reviewed_at, account_review_notes, prepaid_allowance_cubic_feet, prepaid_used_cubic_feet, creado_en, auth_user_id")
       .order("creado_en", { ascending: false });
+    let data: any[] | null = initial.data as any[] | null;
+    let error = initial.error;
 
     if (error && /account_review_status|prepaid_|auth_user_id|column .* does not exist|schema cache/i.test(error.message || "")) {
       const fallback = await supabase
         .from("numero_cliente")
         .select("id, nombre, numero_cliente, email, telefono, puerto, tipo_cuenta, creado_en")
         .order("creado_en", { ascending: false });
-      data = fallback.data;
+      data = fallback.data as any[] | null;
       error = fallback.error;
     }
 
