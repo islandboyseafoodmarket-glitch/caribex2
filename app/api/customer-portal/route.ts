@@ -19,7 +19,7 @@ export async function GET(request: Request) {
     const supabase = adminClient();
     const { data: userData, error: userError } = await supabase.auth.getUser(token);
     if (userError || !userData.user?.email) return NextResponse.json({ error: "Invalid session" }, { status: 401 });
-    const { data: client, error: clientError } = await supabase.from("numero_cliente").select("id, nombre, numero_cliente, email, telefono, puerto, tipo_cuenta, account_review_status, account_reviewed_at, account_review_notes, prepaid_allowance_cubic_feet, prepaid_used_cubic_feet, creado_en").eq("email", userData.user.email.toLowerCase()).maybeSingle();
+    const { data: client, error: clientError } = await supabase.from("numero_cliente").select("id, nombre, numero_cliente, email, telefono, puerto, tipo_cuenta, prepaid_allowance_cubic_feet, prepaid_used_cubic_feet, creado_en").eq("email", userData.user.email.toLowerCase()).maybeSingle();
     if (clientError) throw clientError;
     if (!client) return NextResponse.json({ error: "Customer profile not found" }, { status: 404 });
     const [{ data: packages, error: packageError }, { data: invoices, error: invoiceError }, { data: ferry, error: ferryError }] = await Promise.all([

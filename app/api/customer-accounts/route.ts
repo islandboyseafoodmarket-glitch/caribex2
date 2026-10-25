@@ -10,7 +10,6 @@ export async function POST(request: Request) {
     const phone = String(body?.telefono || "").trim();
     const port = String(body?.puerto || "").trim();
     const accountType = String(body?.tipoCuenta || "Personal");
-    const isPrepaidDeveloper = accountType === "Developer / Builder — Prepaid";
     if (!name || !email || !phone || !port) return NextResponse.json({ error: "All required customer fields must be completed" }, { status: 400 });
     const normalizedPhone = phone.replace(/\D/g, "");
     const [{ data: emailMatch }, { data: nameMatch }, { data: phoneRows }] = await Promise.all([
@@ -27,7 +26,7 @@ export async function POST(request: Request) {
     const initialPassword = `Caribex${accountNumber}`;
     const { data: authData, error: authError } = await supabase.auth.admin.createUser({ email, password: initialPassword, email_confirm: true, user_metadata: { customer_account_number: accountNumber, must_change_password: true } });
     if (authError || !authData.user) throw authError || new Error("Could not create customer login");
-    const { error: insertError } = await supabase.from("numero_cliente").insert({ nombre: name, email, telefono: phone, puerto: port, tipo_cuenta: accountType, numero_cliente: accountNumber, auth_user_id: authData.user.id, account_review_status: isPrepaidDeveloper ? "PENDING_REVIEW" : "ACTIVE" });
+    const { error: insertError } = await supabase.from("numero_cliente").insert({ nombre: name, email, telefono: phone, puerto: port, tipo_cuenta: accountType, numero_cliente: accountNumber, auth_user_id: authData.user.id });
     if (insertError) { await supabase.auth.admin.deleteUser(authData.user.id); throw insertError; }
     await supabase.from("customer_portal_login_events").insert({
       email,

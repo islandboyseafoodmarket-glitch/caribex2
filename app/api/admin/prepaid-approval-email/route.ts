@@ -32,13 +32,12 @@ export async function POST(request: Request) {
     const { customer_id, allowance } = await request.json();
     const { data: customer, error: customerError } = await supabase
       .from("numero_cliente")
-      .select("nombre, email, numero_cliente, puerto, tipo_cuenta, account_review_status, prepaid_allowance_cubic_feet")
+      .select("nombre, email, numero_cliente, puerto, tipo_cuenta, prepaid_allowance_cubic_feet")
       .eq("id", customer_id)
       .maybeSingle();
     if (customerError) throw customerError;
     if (!customer?.email) return NextResponse.json({ error: "Developer does not have an email address" }, { status: 400 });
     if (customer.tipo_cuenta !== "Developer / Builder — Prepaid") return NextResponse.json({ error: "Customer is not a Developer / Builder prepaid account" }, { status: 400 });
-    if (customer.account_review_status !== "APPROVED") return NextResponse.json({ error: "Developer account is not approved" }, { status: 400 });
     if (!RESEND_API_KEY) return NextResponse.json({ error: "Email service is not configured" }, { status: 503 });
 
     const safeName = escapeHtml(customer.nombre || "Developer / Builder");
