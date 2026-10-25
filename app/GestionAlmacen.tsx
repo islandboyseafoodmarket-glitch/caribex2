@@ -1418,7 +1418,7 @@ export default function GestionAlmacen() {
     );
   };
 
-  const handleCreateManualInvoice = async (input: { customer_id: string; tracking: string; description: string; type: "BOX" | "PACKAGE"; height: string; width: string; length: string; subtotal: string }) => {
+  const handleCreateManualInvoice = async (input: { customer_id: string; tracking: string; description: string; type: "BOX" | "PACKAGE"; height: string; width: string; length: string; weight: string; subtotal: string; additional_charges: string | null; tax_enabled: boolean }) => {
     const { data: sessionData } = await supabase.auth.getSession();
     const response = await fetch("/api/staff-invoices", {
       method: "POST",

@@ -5,7 +5,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { supabase } from "../../lib/supabaseClient";
 import { BrowserMultiFormatReader } from "@zxing/browser";
-import { Pencil, Trash2, Unlock, LogOut, Image as ImageIcon, Check, AlertCircle, Send, DollarSign, ChevronDown, Package, ScanLine, AlertTriangle, QrCode, BarChart3, UserPlus, Bell, Receipt, Ship, Container, UserCog } from "lucide-react";
+import { Pencil, Trash2, Unlock, LogOut, Image as ImageIcon, Check, AlertCircle, Send, DollarSign, ChevronDown, Package, ScanLine, AlertTriangle, QrCode, BarChart3, UserPlus, Bell, Receipt, Ship, Container, UserCog, Plus } from "lucide-react";
 import FerryManifestAdmin from "./FerryManifestAdmin";
 import Client360Admin from "./Client360Admin";
 import CaribexBatchLabelPrint, { BatchBoxLabel } from "../../components/CaribexBatchLabelPrint";
@@ -14,7 +14,7 @@ import ContainersAdmin from "./ContainersAdmin";
 import ReportsAdmin from "./ReportsAdmin";
 import { formatStaffDateTime } from "../../lib/staff-date-format";
 import InvoicePreview, { type InvoicePreviewProps } from "../../components/InvoicePreview";
-import { SALES_TAX_RATE, roundMoney } from "../../lib/invoice-pricing";
+import { BILLABLE_INVOICE_ITEMS, SALES_TAX_RATE, formatCatalogCharge, roundMoney } from "../../lib/invoice-pricing";
 
 /**
  * DASHBOARD OPERATIVO - VERSIÓN VISUAL PURA
@@ -60,6 +60,12 @@ const ADMIN_EXTRA_CHARGE_OPTIONS = [
   "Consolidation fee ($2.5)",
   "Honduran imposed duty",
 ];
+const MANUAL_INVOICE_CHARGE_OPTIONS = [
+  "Handling fees",
+  "Forklift charge ($100)",
+  "Miscellaneous fee ($10)",
+  "Consolidation fee ($2.5)",
+] as const;
 const PORTAL_EVENT_LABELS: Record<string, string> = {
   account_created: "Customer account created",
   portal_access_provisioned: "Portal access provisioned",
@@ -328,6 +334,24 @@ const App = () => {
   const [invoiceAddOnAmount, setInvoiceAddOnAmount] = useState("");
   const [invoiceSearch, setInvoiceSearch] = useState("");
   const [invoiceContainerFilter, setInvoiceContainerFilter] = useState("ALL");
+  const [isManualInvoiceOpen, setIsManualInvoiceOpen] = useState(false);
+  const [manualInvoiceSaving, setManualInvoiceSaving] = useState(false);
+  const [manualInvoiceError, setManualInvoiceError] = useState<string | null>(null);
+  const [manualInvoiceForm, setManualInvoiceForm] = useState({
+    customerId: "",
+    tracking: "",
+    type: "PACKAGE" as "PACKAGE" | "BOX",
+    description: "",
+    height: "",
+    width: "",
+    length: "",
+    weight: "",
+    charges: [] as string[],
+    taxEnabled: true,
+  });
+  const [manualInvoiceCatalogItem, setManualInvoiceCatalogItem] = useState("");
+  const [manualInvoiceCatalogQuantity, setManualInvoiceCatalogQuantity] = useState("1");
+  const [manualInvoiceCatalogLines, setManualInvoiceCatalogLines] = useState<{ itemId: string; quantity: number }[]>([]);
 
   const facturasFiltradas = useMemo(() => {
     const normalizeSearch = (value: unknown) =>
@@ -1234,6 +1258,70 @@ const App = () => {
       setFacturas(mapped);
     }
   }, []);
+  const closeManualInvoice = () => {
+    setIsManualInvoiceOpen(false);
+    setManualInvoiceError(null);
+    setManualInvoiceSaving(false);
+    setManualInvoiceForm({ customerId: "", tracking: "", type: "PACKAGE", description: "", height: "", width: "", length: "", weight: "", charges: [], taxEnabled: true });
+    setManualInvoiceCatalogItem("");
+    setManualInvoiceCatalogQuantity("1");
+    setManualInvoiceCatalogLines([]);
+  };
+  const addManualInvoiceCatalogLine = () => {
+    const quantity = Math.floor(Number(manualInvoiceCatalogQuantity));
+    if (!manualInvoiceCatalogItem || !Number.isFinite(quantity) || quantity < 1) return;
+    setManualInvoiceCatalogLines((previous) => {
+      const existing = previous.find((line) => line.itemId === manualInvoiceCatalogItem);
+      if (existing) return previous.map((line) => line.itemId === manualInvoiceCatalogItem ? { ...line, quantity: line.quantity + quantity } : line);
+      return [...previous, { itemId: manualInvoiceCatalogItem, quantity }];
+    });
+    setManualInvoiceCatalogItem("");
+    setManualInvoiceCatalogQuantity("1");
+  };
+  const createManualInvoice = async () => {
+    if (!manualInvoiceForm.description.trim()) {
+      setManualInvoiceError("Enter a description for the invoice.");
+      return;
+    }
+    if (manualInvoiceForm.type === "BOX" && [manualInvoiceForm.height, manualInvoiceForm.width, manualInvoiceForm.length].some((value) => !value || Number(value) <= 0)) {
+      setManualInvoiceError("Enter positive height, width, and length values for a box invoice.");
+      return;
+    }
+    setManualInvoiceSaving(true);
+    setManualInvoiceError(null);
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+      if (!token) throw new Error("Your admin session has expired. Please sign in again.");
+      const response = await fetch("/api/staff-invoices", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          customer_id: manualInvoiceForm.customerId || null,
+          tracking: manualInvoiceForm.tracking.trim() || undefined,
+          type: manualInvoiceForm.type,
+          description: manualInvoiceForm.description.trim(),
+          height: manualInvoiceForm.height || undefined,
+          width: manualInvoiceForm.width || undefined,
+          length: manualInvoiceForm.length || undefined,
+          weight: manualInvoiceForm.weight || undefined,
+          additional_charges: [...manualInvoiceForm.charges, ...manualInvoiceCatalogLines.map((line) => {
+            const item = BILLABLE_INVOICE_ITEMS.find((candidate) => candidate.id === line.itemId);
+            return item ? formatCatalogCharge(item, line.quantity) : null;
+          }).filter((charge): charge is string => Boolean(charge))].join(", ") || null,
+          tax_enabled: manualInvoiceForm.taxEnabled,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || "Could not create invoice.");
+      await cargarFacturas();
+      setActiveInvoiceTab("sinAprobar");
+      closeManualInvoice();
+    } catch (error) {
+      setManualInvoiceError(error instanceof Error ? error.message : "Could not create invoice.");
+      setManualInvoiceSaving(false);
+    }
+  };
 
   const updateFacturaEnEstado = (id: string, partial: Partial<Factura>) => {
     setFacturas((prev) =>
@@ -2283,6 +2371,11 @@ const App = () => {
                       : 'Create, share, and archive weekly ferry manifests'}
             </span>
           </div>
+          {activeTab === 'facturas' && (
+            <button type="button" className="pa-primary-btn" onClick={() => { setManualInvoiceError(null); setIsManualInvoiceOpen(true); }} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', whiteSpace: 'nowrap' }}>
+              <Plus size={16} /> Create invoice
+            </button>
+          )}
 
           {activeTab === 'labels' && (
             <div style={{ width: '100%', maxWidth: 760, margin: '0 auto', padding: '1.5rem', border: '1px solid #e2e8f0', borderRadius: '1rem', background: '#f8fafc' }}>
@@ -3458,6 +3551,85 @@ const App = () => {
             <div className="pa-modal-actions">
               <button type="button" className="pa-secondary-btn" onClick={() => setEditingInvoiceAddOns(null)}>Cancel</button>
               <button type="button" className="pa-primary-btn" disabled={!invoiceAddOnType || !invoiceAddOnAmount} onClick={() => void saveAdminInvoiceAddOn()}>Save adjustment</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isManualInvoiceOpen && (
+        <div className="pa-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="manual-invoice-title">
+          <div className="pa-modal" style={{ maxWidth: 680, maxHeight: '90vh', overflowY: 'auto' }}>
+            <div className="pa-modal-header">
+              <h4 id="manual-invoice-title" className="pa-modal-title">Create manual invoice</h4>
+              <button type="button" className="pa-close-btn" onClick={closeManualInvoice} aria-label="Close">×</button>
+            </div>
+            <p style={{ margin: '0 0 1rem', color: '#64748b', fontSize: '0.86rem' }}>
+              This creates a shipment with a pending invoice using the existing billing rules. You can approve, send, print, or mark it paid from this tab afterward.
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.75rem' }}>
+              <div className="pa-field">
+                <label htmlFor="manual-invoice-customer">Customer</label>
+                <select id="manual-invoice-customer" className="pa-input" value={manualInvoiceForm.customerId} onChange={(event) => setManualInvoiceForm((previous) => ({ ...previous, customerId: event.target.value }))}>
+                  <option value="">No customer / internal invoice</option>
+                  {clientes.map((customer) => <option key={customer.id} value={customer.id}>#{customer.numero_cliente} — {customer.nombre}</option>)}
+                </select>
+              </div>
+              <div className="pa-field">
+                <label htmlFor="manual-invoice-tracking">Tracking (optional)</label>
+                <input id="manual-invoice-tracking" className="pa-input" value={manualInvoiceForm.tracking} onChange={(event) => setManualInvoiceForm((previous) => ({ ...previous, tracking: event.target.value }))} placeholder="Auto-generated if blank" />
+              </div>
+              <div className="pa-field">
+                <label htmlFor="manual-invoice-type">Shipment type</label>
+                <select id="manual-invoice-type" className="pa-input" value={manualInvoiceForm.type} onChange={(event) => setManualInvoiceForm((previous) => ({ ...previous, type: event.target.value as "PACKAGE" | "BOX" }))}>
+                  <option value="PACKAGE">Package — $18.50 base</option>
+                  <option value="BOX">Box — $18.50 per cubic foot</option>
+                </select>
+              </div>
+              <div className="pa-field" style={{ gridColumn: '1 / -1' }}>
+                <label htmlFor="manual-invoice-description">Description</label>
+                <input id="manual-invoice-description" className="pa-input" value={manualInvoiceForm.description} onChange={(event) => setManualInvoiceForm((previous) => ({ ...previous, description: event.target.value }))} placeholder="What is being billed?" required />
+              </div>
+            </div>
+            {manualInvoiceForm.type === "BOX" && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.75rem', marginTop: '0.75rem' }}>
+                {([['height', 'Height'], ['width', 'Width'], ['length', 'Length'], ['weight', 'Weight (optional)']] as const).map(([field, label]) => (
+                  <div className="pa-field" key={field}>
+                    <label htmlFor={`manual-invoice-${field}`}>{label}</label>
+                    <input id={`manual-invoice-${field}`} className="pa-input" type="number" min="0" step="0.01" value={manualInvoiceForm[field]} onChange={(event) => setManualInvoiceForm((previous) => ({ ...previous, [field]: event.target.value }))} placeholder={field === 'weight' ? 'Optional' : '0.00'} />
+                  </div>
+                ))}
+                <p style={{ gridColumn: '1 / -1', margin: 0, color: '#64748b', fontSize: '0.78rem' }}>Dimensions use the existing cubic-foot calculation. Weight is stored for reference and does not change the current billing formula.</p>
+              </div>
+            )}
+            <div style={{ marginTop: '0.85rem' }}>
+              <div style={{ fontWeight: 700, color: '#334155', fontSize: '0.85rem', marginBottom: '0.45rem' }}>Additional charges</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.4rem 0.75rem' }}>
+                {MANUAL_INVOICE_CHARGE_OPTIONS.map((charge) => <label key={charge} style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', color: '#475569', fontSize: '0.84rem' }}><input type="checkbox" checked={manualInvoiceForm.charges.includes(charge)} onChange={(event) => setManualInvoiceForm((previous) => ({ ...previous, charges: event.target.checked ? [...previous.charges, charge] : previous.charges.filter((item) => item !== charge) }))} /> {charge}</label>)}
+              </div>
+            </div>
+            <div style={{ marginTop: '1rem', paddingTop: '0.85rem', borderTop: '1px solid #e2e8f0' }}>
+              <div style={{ fontWeight: 700, color: '#334155', fontSize: '0.85rem', marginBottom: '0.45rem' }}>Catalog items</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1fr) 100px auto', gap: '0.5rem', alignItems: 'end' }}>
+                <div className="pa-field">
+                  <label htmlFor="manual-invoice-catalog-item">Catalog item</label>
+                  <select id="manual-invoice-catalog-item" className="pa-input" value={manualInvoiceCatalogItem} onChange={(event) => setManualInvoiceCatalogItem(event.target.value)}>
+                    <option value="">Select an item</option>
+                    {BILLABLE_INVOICE_ITEMS.map((item) => <option key={item.id} value={item.id}>{item.label} — ${item.unitPrice.toFixed(2)} / {item.unit}</option>)}
+                  </select>
+                </div>
+                <div className="pa-field">
+                  <label htmlFor="manual-invoice-catalog-quantity">Qty</label>
+                  <input id="manual-invoice-catalog-quantity" className="pa-input" type="number" min="1" step="1" value={manualInvoiceCatalogQuantity} onChange={(event) => setManualInvoiceCatalogQuantity(event.target.value)} />
+                </div>
+                <button type="button" className="pa-secondary-btn" onClick={addManualInvoiceCatalogLine} disabled={!manualInvoiceCatalogItem}>Add item</button>
+              </div>
+              {manualInvoiceCatalogLines.length > 0 && <div style={{ display: 'grid', gap: '0.35rem', marginTop: '0.6rem' }}>{manualInvoiceCatalogLines.map((line) => { const item = BILLABLE_INVOICE_ITEMS.find((candidate) => candidate.id === line.itemId); if (!item) return null; return <div key={line.itemId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', padding: '0.45rem 0.6rem', borderRadius: '0.5rem', background: '#f8fafc', color: '#475569', fontSize: '0.82rem' }}><span>{formatCatalogCharge(item, line.quantity)}</span><button type="button" className="pa-close-btn" style={{ fontSize: '1rem' }} onClick={() => setManualInvoiceCatalogLines((previous) => previous.filter((candidate) => candidate.itemId !== line.itemId))} aria-label={`Remove ${item.label}`}>×</button></div>; })}</div>}
+            </div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginTop: '0.9rem', color: '#475569', fontSize: '0.84rem' }}><input type="checkbox" checked={manualInvoiceForm.taxEnabled} onChange={(event) => setManualInvoiceForm((previous) => ({ ...previous, taxEnabled: event.target.checked }))} /> Apply 15% sales tax</label>
+            {manualInvoiceError && <p role="alert" style={{ margin: '0.9rem 0 0', color: '#b91c1c', fontSize: '0.84rem' }}>{manualInvoiceError}</p>}
+            <div className="pa-modal-actions" style={{ marginTop: '1.1rem' }}>
+              <button type="button" className="pa-secondary-btn" onClick={closeManualInvoice} disabled={manualInvoiceSaving}>Cancel</button>
+              <button type="button" className="pa-primary-btn" onClick={() => void createManualInvoice()} disabled={manualInvoiceSaving}>{manualInvoiceSaving ? 'Creating…' : 'Create invoice'}</button>
             </div>
           </div>
         </div>
