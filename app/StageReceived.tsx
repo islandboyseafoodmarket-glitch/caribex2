@@ -346,7 +346,7 @@ const StageReceived: React.FC<StageReceivedProps> = ({
         .eq("tracking", upperTracking)
         .maybeSingle();
 
-      if (!checkError && existing) {
+      if (!checkError && existing && unknownPhotoFiles.length === 0) {
         alert(
           isEs
             ? "Ya existe un envío registrado con este número de tracking."
