@@ -14,7 +14,6 @@ type InvoiceActor = {
   user: { id: string; email?: string };
   name: string;
   role: "admin" | "staff";
-  canUseInvoices: boolean;
 };
 
 async function actor(request: Request, supabase: SupabaseClient): Promise<InvoiceActor> {
@@ -24,15 +23,13 @@ async function actor(request: Request, supabase: SupabaseClient): Promise<Invoic
   if (error || !data.user) throw new Error("Invalid authentication token");
   const [{ data: admin }, { data: staff }] = await Promise.all([
     supabase.from("administradores").select("id").eq("id", data.user.id).maybeSingle(),
-    supabase.from("personal").select("id, nombre, nombre_personal, permissions").eq("id", data.user.id).maybeSingle(),
+    supabase.from("personal").select("id, nombre, nombre_personal").eq("id", data.user.id).maybeSingle(),
   ]);
   if (!admin && !staff) throw new Error("Staff access is required");
-  const permissions = staff?.permissions as Record<string, unknown> | null | undefined;
   return {
     user: { id: data.user.id, email: data.user.email },
     name: admin ? "Admin" : staff?.nombre || staff?.nombre_personal || data.user.email || "Staff",
     role: admin ? "admin" : "staff",
-    canUseInvoices: Boolean(admin) || permissions?.invoices !== false,
   };
 }
 
@@ -48,7 +45,6 @@ export async function POST(request: Request) {
   try {
     const supabase = adminClient();
     const staff = await actor(request, supabase);
-    if (!staff.canUseInvoices) return NextResponse.json({ error: "Invoice access is required" }, { status: 403 });
 
     const body = await request.json();
     const shipmentId = String(body?.shipment_id || "").trim();

@@ -4560,26 +4560,24 @@ const handlePackageCreated = (pkg: Package) => {
                   </label>
                 </div>
               )}
-              {(isAdmin || staffPermissions.invoices !== false) && (
-                <div className="ga-invoice-editor" style={{ marginBottom: "1rem" }}>
-                  <div>
-                    <h5>{isEs ? "Agregar artículo facturable" : "Add a billable catalog item"}</h5>
-                    <p>{isEs ? "El flete se calcula automáticamente a $18.50 por pie cúbico. Elija artículos adicionales para agregarlos a esta factura." : "Freight is calculated automatically at $18.50 per cubic foot. Select additional items to add them to this invoice."}</p>
-                  </div>
-                  <div className="ga-invoice-editor-grid" style={{ gridTemplateColumns: "minmax(220px, 1fr) 120px auto" }}>
-                    <select className="ga-input" value={invoiceCatalogItemId} onChange={(event) => setInvoiceCatalogItemId(event.target.value)}>
-                      <option value="">{isEs ? "Seleccione un artículo" : "Select a billable item"}</option>
-                      {BILLABLE_INVOICE_ITEMS.map((item) => (
-                        <option key={item.id} value={item.id}>{item.label} — ${item.unitPrice.toFixed(2)} / {item.unit}</option>
-                      ))}
-                    </select>
-                    <input className="ga-input" type="number" min="1" max="100" step="1" value={invoiceCatalogQuantity} onChange={(event) => setInvoiceCatalogQuantity(event.target.value)} aria-label={isEs ? "Cantidad" : "Quantity"} />
-                    <button type="button" className="ga-primary-button" disabled={!invoiceCatalogItemId || isSavingInvoiceTax} onClick={() => void handleSaveInvoiceCatalogItem()}>
-                      {isEs ? "Agregar artículo" : "Add item"}
-                    </button>
-                  </div>
+              <div className="ga-invoice-editor" style={{ marginBottom: "1rem" }}>
+                <div>
+                  <h5>{isEs ? "Agregar artículo facturable" : "Add a billable catalog item"}</h5>
+                  <p>{isEs ? "El flete se calcula automáticamente a $18.50 por pie cúbico. Elija artículos adicionales para agregarlos a esta factura." : "Freight is calculated automatically at $18.50 per cubic foot. Select additional items to add them to this invoice."}</p>
                 </div>
-              )}
+                <div className="ga-invoice-editor-grid" style={{ gridTemplateColumns: "minmax(220px, 1fr) 120px auto" }}>
+                  <select className="ga-input" value={invoiceCatalogItemId} onChange={(event) => setInvoiceCatalogItemId(event.target.value)}>
+                    <option value="">{isEs ? "Seleccione un artículo" : "Select a billable item"}</option>
+                    {BILLABLE_INVOICE_ITEMS.map((item) => (
+                      <option key={item.id} value={item.id}>{item.label} — ${item.unitPrice.toFixed(2)} / {item.unit}</option>
+                    ))}
+                  </select>
+                  <input className="ga-input" type="number" min="1" max="100" step="1" value={invoiceCatalogQuantity} onChange={(event) => setInvoiceCatalogQuantity(event.target.value)} aria-label={isEs ? "Cantidad" : "Quantity"} />
+                  <button type="button" className="ga-primary-button" disabled={!invoiceCatalogItemId || isSavingInvoiceTax} onClick={() => void handleSaveInvoiceCatalogItem()}>
+                    {isEs ? "Agregar artículo" : "Add item"}
+                  </button>
+                </div>
+              </div>
               {canEditInvoiceAddOns && (
                 <div className="ga-invoice-editor">
                   <div>
