@@ -111,7 +111,7 @@ type Package = {
   remitente?: string | null;
   destinatario?: string | null;
   carrier?: string | null;
-  type: PackageCategoryId;
+  type: PackageCategoryId | null;
   weight: number;
   dims: string;
   obs: string;
@@ -238,7 +238,8 @@ const CHILD_FIELD_LABELS: Record<
   weight: { es: "Peso real (lb)", en: "Real weight (lb)" },
 };
 
-const getCategoryLabel = (id: PackageCategoryId, isEs: boolean): string => {
+const getCategoryLabel = (id: PackageCategoryId | null | undefined, isEs: boolean): string => {
+  if (!id) return isEs ? "Tipo desconocido" : "Unknown type";
   if (isEs) {
     switch (id) {
       case "BOX":
@@ -1474,6 +1475,10 @@ export default function GestionAlmacen() {
     pkg: Package,
     status: "PENDING" | "SENT" | "PAID" | "OVERDUE",
   ) => {
+    if (status === "PAID") {
+      alert(isEs ? "Registra pagos desde Admin → Payments." : "Record payments from Admin → Payments.");
+      return;
+    }
     const { error } = await supabase
       .from("paquetes_registro")
       .update({ invoice_status: status })
@@ -2061,14 +2066,12 @@ export default function GestionAlmacen() {
   }, []);
 
   // Cargar usuario autenticado y su nombre desde la tabla "personal"
-  // TEMPORAL: Deshabilitado para permitir acceso directo sin autenticación
   useEffect(() => {
     const cargarUsuario = async () => {
       const { data, error } = await supabase.auth.getUser();
       if (error || !data?.user) {
-        // TEMPORAL: Permitir acceso sin autenticación
-        setCurrentUserName("Staff");
         setIsAdmin(false);
+        router.replace("/login");
         return;
       }
 
@@ -2223,7 +2226,7 @@ export default function GestionAlmacen() {
           id: rowId,
           tracking: row.tracking,
           carrier: row.nombre_paqueteria || null,
-          type: row.tipo_paquete as PackageCategoryId,
+          type: row.tipo_paquete === "BOX" || row.tipo_paquete === "PACKAGE" ? row.tipo_paquete : null,
           weight: 0,
           dims: row.contenido || "-",
           obs: row.notas || "",
@@ -3710,7 +3713,7 @@ const handlePackageCreated = (pkg: Package) => {
       <header className="ga-nav">
         <div className="ga-nav-inner">
           <div className="ga-compact-brand">
-            <Image src="/imagenes/logo-pages.png" alt="Caribex Logistics Group" width={156} height={68} sizes="156px" />
+            <Image src="/imagenes/logo-header.png" alt="Caribex Logistics Group" width={320} height={80} sizes="320px" />
           </div>
           <div className="ga-account-actions" aria-label={isEs ? "Opciones de cuenta" : "Account controls"}>
             <button

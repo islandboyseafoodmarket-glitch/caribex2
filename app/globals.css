@@ -1,3 +1,4 @@
+@import "./admin-navigation.css";
 @import "./invoice-workspace.css";
 
 * {
@@ -2071,7 +2072,7 @@ main {
   padding: 0.2rem 0 0.45rem;
 }
 .ga-compact-brand { display: inline-flex; flex: 0 0 auto; align-items: center; }
-.ga-compact-brand img { width: 156px; height: 68px; object-fit: contain; }
+.ga-compact-brand img { width: 320px; height: 80px; max-width: calc(100vw - 48px); object-fit: contain; }
 .ga-account-actions {
   display: flex;
   flex-wrap: wrap;

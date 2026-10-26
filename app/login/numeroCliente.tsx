@@ -1,9 +1,14 @@
 "use client";
-import React, { useState, useRef } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useRouter } from "next/navigation";
 
 import { useTranslation } from "react-i18next";
 import { supabase } from "../../lib/supabaseClient";
+import {
+  REFERRAL_SOURCE_LABELS,
+  REFERRAL_SOURCE_VALUES,
+  referralSourceNeedsDetails,
+} from "../../lib/referral-source";
 
 /**
  * App Component
@@ -15,6 +20,7 @@ export default function App() {
   const { i18n } = useTranslation();
   const isEn = i18n.language.startsWith("en");
   const [showModal, setShowModal] = useState(false);
+  const [referralAvailable, setReferralAvailable] = useState(false);
   // Ya no usamos el modal ni la tarjeta de n\u00famero de cliente; ahora se env\u00eda por correo.
   const [showDuplicateModal, setShowDuplicateModal] = useState(false);
   const [duplicateEmail, setDuplicateEmail] = useState<string | null>(null);
@@ -25,8 +31,26 @@ export default function App() {
     telefono: '',
     puerto: '',
     aceptaTerminos: false,
-    tipoCuenta: 'Personal'
+    tipoCuenta: 'Personal',
+    heardAboutUs: '',
+    heardAboutUsDetails: '',
   });
+
+  useEffect(() => {
+    let active = true;
+    fetch("/api/customer-accounts", { method: "GET", cache: "no-store" })
+      .then((response) => (response.ok ? response.json() : { referral_available: false }))
+      .then((result: { referral_available?: boolean }) => {
+        if (active) setReferralAvailable(result.referral_available === true);
+      })
+      .catch(() => {
+        if (active) setReferralAvailable(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const target = e.target as HTMLInputElement | HTMLSelectElement;
@@ -121,6 +145,8 @@ export default function App() {
       puerto: "",
       aceptaTerminos: false,
       tipoCuenta: "Personal",
+      heardAboutUs: "",
+      heardAboutUsDetails: "",
     });
   };
 
@@ -148,8 +174,8 @@ export default function App() {
             <h2>{isEn ? "Quick registration" : "Registro rápido"}</h2>
             <p>
               {isEn
-                ? "Only 5 fields to get started"
-                : "Solo 5 campos para empezar"}
+                ? "Only the required fields to get started"
+                : "Solo los campos requeridos para empezar"}
             </p>
           </section>
 
@@ -255,6 +281,50 @@ export default function App() {
                 </p>
               )}
             </div>
+
+            {referralAvailable && (
+              <>
+                <div className="form-group full-width">
+                  <label htmlFor="heard-about-us">
+                    {isEn ? "How did you hear about us?" : "¿Cómo se enteró de nosotros?"}
+                  </label>
+                  <select
+                    id="heard-about-us"
+                    name="heardAboutUs"
+                    value={formData.heardAboutUs}
+                    onChange={handleChange}
+                  >
+                    <option value="">
+                      {isEn ? "Select an option (optional)" : "Seleccione una opción (opcional)"}
+                    </option>
+                    {REFERRAL_SOURCE_VALUES.map((source) => (
+                      <option key={source} value={source}>
+                        {REFERRAL_SOURCE_LABELS[source][isEn ? "en" : "es"]}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {referralSourceNeedsDetails(formData.heardAboutUs) && (
+                  <div className="form-group full-width">
+                    <label htmlFor="heard-about-us-details">
+                      {isEn
+                        ? "Referral name or other detail (optional)"
+                        : "Nombre de referencia u otro detalle (opcional)"}
+                    </label>
+                    <input
+                      id="heard-about-us-details"
+                      type="text"
+                      name="heardAboutUsDetails"
+                      value={formData.heardAboutUsDetails}
+                      onChange={handleChange}
+                      maxLength={180}
+                      placeholder={isEn ? "Optional — up to 180 characters" : "Opcional — hasta 180 caracteres"}
+                    />
+                  </div>
+                )}
+              </>
+            )}
 
             <div className="form-actions full-width">
               <button type="submit" className="submit-btn">

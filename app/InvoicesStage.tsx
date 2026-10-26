@@ -3,7 +3,7 @@
 import React, { useMemo, useState } from "react";
 import { FileText, Plus, Trash2 } from "lucide-react";
 import { BILLABLE_INVOICE_ITEMS, formatCatalogCharge } from "../lib/invoice-pricing";
-import { INVOICE_FILTER_COLORS, tabColorStyle } from "../lib/shipment-colors";
+import InvoiceStatusTabs from "../components/InvoiceStatusTabs";
 
 // Este tipo refleja el tipo Package definido en GestionAlmacen,
 // pero solo con los campos que necesitamos para facturas.
@@ -13,7 +13,7 @@ type PackageForInvoice = {
   remitente?: string | null;
   destinatario?: string | null;
   carrier?: string | null;
-  type: "BOX" | "PACKAGE";
+  type: "BOX" | "PACKAGE" | null;
   numeroCliente?: number | null;
   numeroClienteId?: string | null;
   estado?: string | null;
@@ -149,14 +149,6 @@ const InvoicesStage: React.FC<InvoicesStageProps> = ({
     });
   }, [invoiceReady, search, containerFilter, activeFilter]);
 
-  const invoiceTabs = [
-    { id: "pending", label: isEs ? "Por aprobar" : "Pending approval" },
-    { id: "approved", label: isEs ? "Aprobadas" : "Approved" },
-    { id: "all", label: isEs ? "Todas" : "All" },
-    { id: "problems", label: isEs ? "Problemas" : "Problems" },
-    { id: "sent", label: isEs ? "Enviadas" : "Sent" },
-    { id: "paid", label: isEs ? "Pagadas" : "Paid" },
-  ] as const;
 
   const hasPackages = filtered.length > 0;
 
@@ -177,20 +169,9 @@ const InvoicesStage: React.FC<InvoicesStageProps> = ({
         @media (max-width: 600px) { .staff-invoice-catalog-grid { grid-template-columns: 1fr; align-items: stretch; } .staff-invoice-catalog-grid .ga-secondary-button { width: 100%; } }
       `}</style>
       <header className="invoice-panel-header">
-        <div className="invoice-panel-heading">
-          <span className="ga-state-header-icon" aria-hidden="true">
-            <FileText size={18} />
-          </span>
-          <div>
-            <h2>
-              {isEs ? "Facturas" : "Invoices"}
-            </h2>
-            <p>
-              {isEs
-                ? `${filtered.length} de ${invoiceReady.length} facturas`
-                : `${filtered.length} of ${invoiceReady.length} invoices`}
-            </p>
-          </div>
+        <div>
+          <h3 className="invoice-panel-heading"><FileText size={20} />{isEs ? "Facturas" : "Invoices"}</h3>
+          <p className="invoice-panel-count">{isEs ? `${filtered.length} de ${invoiceReady.length} facturas` : `${filtered.length} of ${invoiceReady.length} invoices`}</p>
         </div>
         <div className="invoice-panel-actions">
           {onBulkGenerate && (
@@ -236,20 +217,7 @@ const InvoicesStage: React.FC<InvoicesStageProps> = ({
             {(search || containerFilter !== "ALL") && <button type="button" className="ga-secondary-button" onClick={() => { setSearch(""); setContainerFilter("ALL"); }}>{isEs ? "Limpiar filtros" : "Clear filters"}</button>}
           </div>
 
-          <div style={{ display: "flex", gap: "0.5rem", marginBottom: "0.75rem", overflowX: "auto", paddingBottom: "0.25rem" }}>
-            {invoiceTabs.map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                className={`tab-pill ${activeFilter === tab.id ? "active" : ""}`}
-                style={{ ...tabColorStyle(INVOICE_FILTER_COLORS[tab.id]), minWidth: tab.id === "pending" || tab.id === "approved" || tab.id === "sent" || tab.id === "paid" ? 120 : tab.id === "problems" ? 110 : 100, fontSize: "0.8rem" }}
-                onClick={() => setActiveFilter(tab.id)}
-                aria-pressed={activeFilter === tab.id}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
+          <InvoiceStatusTabs value={activeFilter} onChange={setActiveFilter} isEs={isEs} />
         </>
       )}
 

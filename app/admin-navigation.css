@@ -1,0 +1,215 @@
+/*
+ * Caribex Admin grouped right navigation restoration
+ *
+ * Historical reference: a3f2604^ used a light grouped sidebar with compact
+ * horizontal rows (.admin-sidebar / .admin-sidebar-item), before the compact
+ * icon-toolbar rewrite. This override maps that treatment onto the current
+ * right-side DOM without changing the project files, markup, logo, page
+ * background, staff view, or the current inline --tab-* color variables.
+ *
+ * Cascade issue addressed:
+ * the later generic .admin-nav-buttons rule in panelAdmin.tsx adds
+ * grid-template-columns: repeat(auto-fit, minmax(78px, 1fr)), and the later
+ * generic .admin-nav-group rule adds right borders. Both selectors are scoped
+ * below so each current group remains a single vertical list.
+ */
+
+/* Keep the explicit Admin navigation on the right, with enough width for labels. */
+.dashboard-root .admin-workspace-layout {
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 260px);
+}
+
+.dashboard-root .admin-right-navigation {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  max-width: 260px;
+  max-height: calc(100vh - 24px);
+  margin: 0;
+  padding: 12px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-auto-rows: max-content;
+  align-content: start;
+  gap: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow: 8px 0 24px rgba(15, 23, 42, 0.06);
+}
+
+/* Natural grouped sections: no second column, no dark separator treatment. */
+.dashboard-root .admin-right-navigation .admin-nav-group {
+  min-width: 0;
+  width: 100%;
+  padding: 0 0 12px;
+  margin: 0 0 12px;
+  border: 0;
+  border-bottom: 1px solid #eef2f6;
+}
+
+.dashboard-root .admin-right-navigation .admin-nav-group:last-child {
+  padding-bottom: 0;
+  margin-bottom: 0;
+  border-bottom: 0;
+}
+
+.dashboard-root .admin-right-navigation .admin-nav-label {
+  display: block;
+  width: 100%;
+  min-height: 0;
+  margin: 0 0 7px;
+  padding: 0 4px;
+  color: #64748b;
+  font-size: 0.64rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  line-height: 1.25;
+  text-align: left;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+}
+
+/* Explicit single-column rule fixes the compact cascade's clipped two-column state. */
+.dashboard-root .admin-right-navigation .admin-nav-buttons {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-auto-flow: row;
+  gap: 4px;
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  overflow: visible;
+}
+
+/* Small tab rows, not bulky tiles. */
+.dashboard-root .admin-right-navigation .admin-horizontal-tab {
+  position: relative;
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  min-height: 36px;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 9px;
+  padding: 7px 9px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: #475569;
+  font-size: 0.8rem;
+  font-weight: 600;
+  line-height: 1.25;
+  text-align: left;
+  white-space: normal;
+  overflow: visible;
+  cursor: pointer;
+  transition: background 150ms ease, color 150ms ease, border-color 150ms ease;
+}
+
+.dashboard-root .admin-right-navigation .admin-horizontal-tab > svg {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  color: currentColor;
+}
+
+.dashboard-root .admin-right-navigation .admin-horizontal-tab > span:not(.count-badge) {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: visible;
+  overflow-wrap: anywhere;
+  word-break: normal;
+  white-space: normal;
+}
+
+.dashboard-root .admin-right-navigation .admin-horizontal-tab:hover {
+  background: #f8fafc;
+  color: #0f172a;
+}
+
+.dashboard-root .admin-right-navigation .admin-horizontal-tab:focus-visible {
+  outline: 2px solid #93c5fd;
+  outline-offset: 1px;
+}
+
+/* selectedNavStyle() supplies these canonical sharedlib variables inline. */
+.dashboard-root .admin-right-navigation .admin-horizontal-tab.active {
+  background: var(--tab-tint, #f1f5f9);
+  border-color: var(--tab-border, #cbd5e1);
+  color: var(--tab-color, #475569);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
+}
+
+.dashboard-root .admin-right-navigation .admin-horizontal-tab.active::after {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 5px;
+  bottom: 5px;
+  width: 2px;
+  border-radius: 2px;
+  background: currentColor;
+}
+
+.dashboard-root .admin-right-navigation .admin-horizontal-tab.active > svg {
+  color: var(--tab-color, #475569);
+}
+
+.dashboard-root .admin-right-navigation .admin-horizontal-tab .count-badge {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.15rem;
+  max-width: 4.5rem;
+  margin-left: auto;
+  padding: 2px 5px;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1.15;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: clip;
+}
+
+.dashboard-root .admin-right-navigation .admin-horizontal-tab.active .count-badge {
+  background: var(--tab-border, #cbd5e1);
+  border-color: var(--tab-border, #cbd5e1);
+  color: var(--tab-color, #475569);
+}
+
+/* Preserve the existing responsive stack, while still preventing horizontal scroll. */
+@media (max-width: 899px) {
+  .dashboard-root .admin-workspace-layout {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .dashboard-root .admin-right-navigation {
+    order: 1;
+    width: 100%;
+    max-width: none;
+    max-height: none;
+    position: static;
+    overflow-x: hidden;
+    overflow-y: visible;
+  }
+
+  .dashboard-root .admin-right-navigation .admin-nav-buttons {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .dashboard-root .admin-workspace-layout > .data-card {
+    order: 2;
+    width: 100%;
+  }
+}

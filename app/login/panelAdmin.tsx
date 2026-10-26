@@ -8,6 +8,11 @@ import { BrowserMultiFormatReader } from "@zxing/browser";
 import { Pencil, Trash2, Unlock, LogOut, Image as ImageIcon, Check, AlertCircle, Send, DollarSign, Package, ScanLine, AlertTriangle, QrCode, BarChart3, UserPlus, Bell, Receipt, Ship, Container, UserCog, Plus } from "lucide-react";
 import FerryManifestAdmin from "./FerryManifestAdmin";
 import Client360Admin from "./Client360Admin";
+import PaymentsAdmin, { type PaymentBalance } from "./PaymentsAdmin";
+import InvoiceStatusTabs from "../../components/InvoiceStatusTabs";
+import PaymentLedgerDialog from "../../components/PaymentLedgerDialog";
+import type { PaymentSummary } from "../../lib/payment-ledger";
+import { isReferralSource, REFERRAL_SOURCE_LABELS } from "../../lib/referral-source";
 import CaribexBatchLabelPrint, { BatchBoxLabel } from "../../components/CaribexBatchLabelPrint";
 import type { CaribexLabelSize } from "../../components/CaribexLabelPrint";
 import ContainersAdmin from "./ContainersAdmin";
@@ -198,6 +203,8 @@ const App = () => {
     prepaid_used_cubic_feet?: number | null;
     creado_en: string | null;
     auth_user_id?: string | null;
+    heard_about_us?: string | null;
+    heard_about_us_details?: string | null;
   };
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [customerLoadError, setCustomerLoadError] = useState<string | null>(null);
@@ -338,13 +345,8 @@ const App = () => {
   type InvoiceTab = 'sinAprobar' | 'aprobadas' | 'todas' | 'problemas' | 'enviadas' | 'pagadas';
   const [activeInvoiceTab, setActiveInvoiceTab] = useState<InvoiceTab>('sinAprobar');
 
-  // Modal de confirmación para marcar factura como pagada
-  const [pendingPayInvoice, setPendingPayInvoice] = useState<Factura | null>(null);
-  const [paymentMethod, setPaymentMethod] = useState("");
-  const [paymentNotes, setPaymentNotes] = useState("");
-  const [paymentReference, setPaymentReference] = useState("");
-  const [paymentDate, setPaymentDate] = useState("");
-  const [customerInvoiceNote, setCustomerInvoiceNote] = useState("");
+  const [paymentDialogInvoice, setPaymentDialogInvoice] = useState<Factura | null>(null);
+  const [paymentDialogMode, setPaymentDialogMode] = useState<"record" | "history">("record");
   const [editingInvoiceAddOns, setEditingInvoiceAddOns] = useState<Factura | null>(null);
   const [invoiceAddOnType, setInvoiceAddOnType] = useState("");
   const [invoiceAddOnAmount, setInvoiceAddOnAmount] = useState("");
@@ -424,21 +426,49 @@ const App = () => {
   const [financeContainer, setFinanceContainer] = useState("ALL");
   const [financeStatusFilter, setFinanceStatusFilter] = useState<"ALL" | "PAID" | "OUTSTANDING">("ALL");
   const financeRows = useMemo(() => facturas.filter((invoice) => {
-    const date = invoice.creado_en ? invoice.creado_en.slice(0, 10) : "";
+    const date = invoice.payment_date ? invoice.payment_date.slice(0, 10) : "";
     const search = financeCustomer.trim().toLowerCase();
     const customerMatches = !search || [invoice.clienteNombre, invoice.clienteEmail, invoice.clienteNumero, invoice.tracking].some((value) => String(value ?? "").toLowerCase().includes(search));
-    return customerMatches && (financePort === "ALL" || (invoice.puerto || "Unknown") === financePort) && (financeContainer === "ALL" || invoice.containerIds.includes(financeContainer)) && (!financeDateFrom || date >= financeDateFrom) && (!financeDateTo || date <= financeDateTo);
+    return customerMatches && (financePort === "ALL" || (invoice.puerto || "Unknown") === financePort) && (financeContainer === "ALL" || invoice.containerIds.includes(financeContainer)) && (!financeDateFrom || (date !== "" && date >= financeDateFrom)) && (!financeDateTo || (date !== "" && date <= financeDateTo));
   }), [facturas, financeCustomer, financePort, financeContainer, financeDateFrom, financeDateTo]);
+  const [paymentBalances, setPaymentBalances] = useState<Record<string, PaymentBalance>>({});
+  const [paymentsReady, setPaymentsReady] = useState(false);
+  const [paymentsLoading, setPaymentsLoading] = useState(false);
+  const [paymentsError, setPaymentsError] = useState<string | null>(null);
+  const [paymentReload, setPaymentReload] = useState(0);
   const financeTotals = useMemo(() => ({
-    invoiced: financeRows.reduce((sum, invoice) => sum + Number(invoice.total || 0), 0),
-    paid: financeRows.filter((invoice) => invoice.invoice_status === "PAID").reduce((sum, invoice) => sum + Number(invoice.total || 0), 0),
-    outstanding: financeRows.filter((invoice) => invoice.invoice_status !== "PAID").reduce((sum, invoice) => sum + Number(invoice.total || 0), 0),
-  }), [financeRows]);
-  const financeDisplayedRows = useMemo(
-    () => financeRows.filter((invoice) => financeStatusFilter === "ALL" || (financeStatusFilter === "PAID" ? invoice.invoice_status === "PAID" : invoice.invoice_status !== "PAID")),
-    [financeRows, financeStatusFilter],
-  );
+    invoiced: roundMoney(financeRows.reduce((sum, invoice) => sum + Number(invoice.total || 0), 0)),
+    paid: roundMoney(financeRows.reduce((sum, invoice) => sum + (paymentBalances[invoice.id]?.paid ?? 0), 0)),
+    outstanding: roundMoney(financeRows.reduce((sum, invoice) => sum + (paymentBalances[invoice.id]?.balance ?? 0), 0)),
+  }), [financeRows, paymentBalances]);
   const financePorts = useMemo(() => Array.from(new Set(facturas.map((invoice) => invoice.puerto || "Unknown"))).sort(), [facturas]);
+  const paymentRows = useMemo(() => financeRows.map((invoice) => ({ ...invoice, contenido: pedidos.find((shipment) => shipment.id === invoice.id)?.contenido || null })), [financeRows, pedidos]);
+
+  useEffect(() => {
+    if (activeTab !== "finanzas") return;
+    const controller = new AbortController();
+    setPaymentsReady(false);
+    setPaymentsError(null);
+    if (financeRows.length === 0) { setPaymentsLoading(false); return () => controller.abort(); }
+    setPaymentsLoading(true);
+    const load = async () => {
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token;
+      if (!token) throw new Error("Your Admin session has expired. Please sign in again.");
+      const next: Record<string, PaymentBalance> = {};
+      for (let offset = 0; offset < financeRows.length; offset += 200) {
+        const ids = financeRows.slice(offset, offset + 200).map((invoice) => invoice.id);
+        const response = await fetch(`/api/admin/payments?invoice_ids=${encodeURIComponent(ids.join(","))}`, { headers: { Authorization: `Bearer ${token}` }, signal: controller.signal, cache: "no-store" });
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error || "Could not load payment balances.");
+        Object.entries(payload.summaries || {}).forEach(([id, raw]) => { const summary = raw as PaymentSummary; next[id] = { paid: Number(summary.paid), balance: Number(summary.balance) }; });
+      }
+      if (financeRows.some((invoice) => !next[invoice.id] || !Number.isFinite(next[invoice.id].paid) || !Number.isFinite(next[invoice.id].balance))) throw new Error("Some invoice balances could not be verified.");
+      if (!controller.signal.aborted) { setPaymentBalances(next); setPaymentsReady(true); }
+    };
+    void load().catch((failure) => { if (!controller.signal.aborted) setPaymentsError(failure instanceof Error ? failure.message : "Could not load payment balances."); }).finally(() => { if (!controller.signal.aborted) setPaymentsLoading(false); });
+    return () => controller.abort();
+  }, [activeTab, financeRows, paymentReload]);
 
   const [pedidoFiltro, setPedidoFiltro] = useState("");
   const [pedidoEtapa, setPedidoEtapa] = useState("ALL");
@@ -1060,7 +1090,7 @@ const App = () => {
   const cargarClientes = useCallback(async () => {
     const initial = await supabase
       .from("numero_cliente")
-      .select("id, nombre, numero_cliente, email, telefono, puerto, tipo_cuenta, prepaid_allowance_cubic_feet, prepaid_used_cubic_feet, creado_en, auth_user_id")
+      .select("id, nombre, numero_cliente, email, telefono, puerto, tipo_cuenta, prepaid_allowance_cubic_feet, prepaid_used_cubic_feet, creado_en, auth_user_id, heard_about_us, heard_about_us_details")
       .order("creado_en", { ascending: false });
     let data: any[] | null = initial.data as any[] | null;
     let error = initial.error;
@@ -1478,6 +1508,10 @@ const App = () => {
     factura: Factura,
     status: 'PENDING' | 'SENT' | 'PAID' | 'OVERDUE',
   ) => {
+    if (status === 'PAID') {
+      alert('Record payments from Admin → Payments.');
+      return;
+    }
     const { error } = await supabase
       .from('paquetes_registro')
       .update({ invoice_status: status })
@@ -1615,50 +1649,15 @@ const App = () => {
   };
 
   const openConfirmPayInvoice = (factura: Factura) => {
-    setPaymentMethod(factura.payment_method || "");
-    setPaymentNotes(factura.payment_notes || "");
-    setPaymentReference(factura.payment_reference || "");
-    setPaymentDate(factura.payment_date || new Date().toISOString().slice(0, 10));
-    setCustomerInvoiceNote(factura.customer_invoice_note || "");
-    setPendingPayInvoice(factura);
+    setPaymentDialogMode("record");
+    setPaymentDialogInvoice(factura);
   };
 
-  const handleConfirmPayInvoice = async () => {
-    if (!pendingPayInvoice) return;
-    if (!paymentMethod) {
-      alert("Select a payment method.");
-      return;
-    }
-    const target = pendingPayInvoice;
-    const { error } = await supabase
-      .from("paquetes_registro")
-      .update({
-        invoice_status: "PAID",
-        payment_method: paymentMethod,
-        payment_notes: paymentNotes.trim() || null,
-        payment_reference: paymentReference.trim() || null,
-        payment_date: paymentDate || null,
-        customer_invoice_note: customerInvoiceNote.trim() || null,
-      })
-      .eq("id", target.id);
-    if (error) {
-      alert(error.message || "Could not record payment details.");
-      return;
-    }
-    updateFacturaEnEstado(target.id, {
-      invoice_status: "PAID",
-      payment_method: paymentMethod,
-      payment_notes: paymentNotes.trim() || null,
-      payment_reference: paymentReference.trim() || null,
-      payment_date: paymentDate || null,
-      customer_invoice_note: customerInvoiceNote.trim() || null,
-    });
-    setPendingPayInvoice(null);
-    setPaymentMethod("");
-    setPaymentNotes("");
-    setPaymentReference("");
-    setPaymentDate("");
-    setCustomerInvoiceNote("");
+  const handlePaymentChanged = (summary: PaymentSummary) => {
+    setPaymentBalances((current) => ({ ...current, [summary.invoice_id]: { paid: Number(summary.paid), balance: Number(summary.balance) } }));
+    updateFacturaEnEstado(summary.invoice_id, { invoice_status: summary.invoice_status });
+    setPaymentReload((current) => current + 1);
+    void cargarFacturas();
   };
 
   const handleRemoveAccess = async (id: string) => {
@@ -1907,7 +1906,7 @@ const App = () => {
         }
 
         .admin-compact-brand { display: inline-flex; flex: 0 0 auto; align-items: center; }
-        .admin-compact-brand img { width: 156px; height: 68px; object-fit: contain; }
+        .admin-compact-brand img { width: 320px; height: 80px; max-width: calc(100vw - 48px); object-fit: contain; }
         .admin-account-controls { display: flex; justify-content: flex-end; align-items: center; gap: 0.35rem; margin-left: auto; }
         .admin-account-controls .pa-secondary-btn,
         .admin-account-controls .admin-sign-out { padding: 0.3rem 0.55rem; font-size: 0.75rem; }
@@ -2229,7 +2228,7 @@ const App = () => {
       {/* Small Caribex brand above the tabs, with compact account controls. */}
       <header className="page-header">
         <div className="admin-compact-brand">
-          <Image src="/imagenes/logo-pages.png" alt="Caribex Logistics Group" width={156} height={68} sizes="156px" />
+          <Image src="/imagenes/logo-header.png" alt="Caribex Logistics Group" width={320} height={80} sizes="320px" />
         </div>
         <div className="admin-account-controls">
           <button type="button" className="pa-secondary-btn" onClick={() => setIsPasswordModalOpen(true)} title="Change Admin password">
@@ -2315,7 +2314,7 @@ const App = () => {
                   : activeTab === 'facturas'
                       ? 'Panel de Facturas'
                       : activeTab === 'finanzas'
-                        ? 'Finances'
+                        ? 'Payments'
                       : activeTab === 'leads'
                         ? 'Customer leads'
                       : activeTab === 'portal'
@@ -2348,7 +2347,7 @@ const App = () => {
                       : activeTab === 'facturas'
                         ? `${facturasFiltradas.length} registro${facturasFiltradas.length === 1 ? '' : 's'} en esta categoría`
                       : activeTab === 'finanzas'
-                        ? `${financeDisplayedRows.length} ${financeStatusFilter === 'ALL' ? 'revenue records' : financeStatusFilter === 'PAID' ? 'paid invoices' : 'outstanding invoices'} across all ports`
+                        ? `${financeRows.length} invoices across all ports — switch Owing only to show outstanding bills`
                       : activeTab === 'leads'
                         ? `${leads.length} leads received from the website`
                       : activeTab === 'portal'
@@ -2392,7 +2391,7 @@ const App = () => {
 
           {activeTab === 'reports' && <ReportsAdmin />}
 
-          {activeTab === 'finanzas' && (
+          {activeTab === 'prepaid' && facturas.some((invoice) => invoice.prepaid_review_required && invoice.prepaid_review_status !== 'APPROVED') && (
             <div style={{ margin: '1rem 0', padding: '1rem 1.1rem', borderRadius: '0.9rem', border: '1px solid #f59e0b', background: '#fffbeb' }}>
               <strong style={{ color: '#92400e' }}>Prepaid allowance review</strong>
               <p style={{ margin: '0.35rem 0 0.8rem', color: '#78350f' }}>Shipments that exceed a customer’s cubic-foot allowance stay visible for Admin approval before operational completion.</p>
@@ -2467,17 +2466,23 @@ const App = () => {
         </div>}
 
         {activeTab === 'finanzas' && <div style={{ width: '100%' }}>
-          <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', alignItems: 'center', marginBottom: '1rem' }}>
-            <input type="date" value={financeDateFrom} onChange={(event) => setFinanceDateFrom(event.target.value)} aria-label="Finance start date" style={{ padding: '0.55rem', border: '1px solid #cbd5e1', borderRadius: '0.55rem' }} />
-            <input type="date" value={financeDateTo} onChange={(event) => setFinanceDateTo(event.target.value)} aria-label="Finance end date" style={{ padding: '0.55rem', border: '1px solid #cbd5e1', borderRadius: '0.55rem' }} />
-            <input type="search" value={financeCustomer} onChange={(event) => setFinanceCustomer(event.target.value)} placeholder="Customer, account, email, or tracking" style={{ flex: '1 1 260px', padding: '0.55rem 0.75rem', border: '1px solid #cbd5e1', borderRadius: '0.55rem' }} />
-            <select value={financePort} onChange={(event) => setFinancePort(event.target.value)} aria-label="Revenue by port" style={{ padding: '0.55rem', border: '1px solid #cbd5e1', borderRadius: '0.55rem', background: '#fff' }}><option value="ALL">All ports</option>{financePorts.map((port) => <option key={port} value={port}>{port}</option>)}</select>
-            <select value={financeContainer} onChange={(event) => setFinanceContainer(event.target.value)} aria-label="Revenue by container" style={{ padding: '0.55rem', border: '1px solid #cbd5e1', borderRadius: '0.55rem', background: '#fff' }}><option value="ALL">All containers</option>{invoiceContainerOptions.map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: '0.75rem', marginBottom: '1rem' }}>
-            {([['Invoiced', financeTotals.invoiced, '#1d4ed8', 'ALL'], ['Paid', financeTotals.paid, '#166534', 'PAID'], ['Outstanding', financeTotals.outstanding, '#b45309', 'OUTSTANDING']] as const).map(([label, value, color, filter]) => <button key={label} type="button" onClick={() => setFinanceStatusFilter(filter)} aria-pressed={financeStatusFilter === filter} style={{ textAlign: 'left', border: financeStatusFilter === filter ? `2px solid ${color}` : '1px solid #e2e8f0', borderRadius: '0.8rem', padding: '0.9rem', background: financeStatusFilter === filter ? '#ffffff' : '#f8fafc', cursor: 'pointer' }}><span style={{ color: '#64748b', fontSize: '0.82rem' }}>{label}</span><strong style={{ display: 'block', color, fontSize: '1.35rem', marginTop: '0.2rem' }}>${Number(value).toFixed(2)}</strong><small style={{ color: '#64748b' }}>Show {label.toLowerCase()}</small></button>)}
-          </div>
-          <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '0.7rem' }}><table className="admin-table" style={{ minWidth: 980, width: '100%' }}><thead><tr><th>Date</th><th>Port</th><th>Customer</th><th>Tracking</th><th>Container</th><th>Total</th><th>Payment</th></tr></thead><tbody>{financeDisplayedRows.map((invoice) => <tr key={invoice.id}><td>{invoice.creado_en ? formatStaffDateTime(invoice.creado_en) : '-'}</td><td>{invoice.puerto || 'Unknown'}</td><td>{invoice.clienteNombre || '-'}<br /><small>#{invoice.clienteNumero ?? '-'}</small></td><td><button type="button" className="ga-client360-tracking" onClick={() => void abrirDetallePedido(invoice.id)}>{invoice.tracking}</button></td><td>{invoice.containerLabels.join(', ') || '-'}</td><td>${Number(invoice.total || 0).toFixed(2)}</td><td style={{ color: invoice.invoice_status === 'PAID' ? '#166534' : '#b45309', fontWeight: 700 }}>{invoice.invoice_status === 'PAID' ? 'Paid' : 'Unpaid'}</td></tr>)}</tbody></table>{financeDisplayedRows.length === 0 && <p style={{ padding: '1rem', color: '#64748b' }}>No revenue records match these filters.</p>}</div>
+          {paymentsLoading && <p role="status" style={{ color: '#64748b' }}>Loading recorded payments and balances…</p>}
+          {paymentsError && <div role="alert" style={{ padding: '.8rem', marginBottom: '1rem', border: '1px solid #fcd34d', background: '#fffbeb', color: '#92400e', borderRadius: '.7rem' }}>{paymentsError} Payment recording is disabled until balances can be verified. <button type="button" className="pa-secondary-btn" onClick={() => setPaymentReload((current) => current + 1)}>Retry</button></div>}
+          <PaymentsAdmin
+            invoices={paymentRows}
+            totals={financeTotals}
+            balances={paymentBalances}
+            recordingEnabled={paymentsReady && !paymentsLoading}
+            balancesReady={paymentsReady}
+            filters={{ dateFrom: financeDateFrom, dateTo: financeDateTo, customer: financeCustomer, port: financePort, container: financeContainer }}
+            onFiltersChange={(patch) => { if (patch.dateFrom !== undefined) setFinanceDateFrom(patch.dateFrom); if (patch.dateTo !== undefined) setFinanceDateTo(patch.dateTo); if (patch.customer !== undefined) setFinanceCustomer(patch.customer); if (patch.port !== undefined) setFinancePort(patch.port); if (patch.container !== undefined) setFinanceContainer(patch.container); }}
+            statusFilter={financeStatusFilter}
+            onStatusFilterChange={setFinanceStatusFilter}
+            ports={financePorts}
+            containers={invoiceContainerOptions}
+            onRecordPayment={openConfirmPayInvoice}
+            onViewPaymentHistory={(invoice) => { setPaymentDialogMode("history"); setPaymentDialogInvoice(invoice); }}
+          />
         </div>}
 
         {activeTab === 'activityLogs' && <div style={{ width: '100%' }}>
@@ -2614,51 +2619,11 @@ const App = () => {
               </select>
               {(invoiceSearch || invoiceContainerFilter !== 'ALL') && <button type="button" className="pa-secondary-btn" onClick={() => { setInvoiceSearch(''); setInvoiceContainerFilter('ALL'); }}>Clear filters</button>}
             </div>
-            {/* Sub-pestañas internas para facturas (carrusel horizontal) */}
-            <div
-              style={{
-                display: 'flex',
-                gap: '0.5rem',
-                marginBottom: '0.75rem',
-                overflowX: 'auto',
-                paddingBottom: '0.25rem',
-              }}
-            >
-              <button
-                type="button"
-                className={`tab-pill ${activeInvoiceTab === 'sinAprobar' ? 'active' : ''}`}
-                style={{ ...tabColorStyle(INVOICE_FILTER_COLORS.pending), minWidth: 120, fontSize: '0.8rem' }}
-                onClick={() => setActiveInvoiceTab('sinAprobar')}
-              >
-                Sin aprobar
-              </button>
-              <button
-                type="button"
-                className={`tab-pill ${activeInvoiceTab === 'aprobadas' ? 'active' : ''}`}
-                style={{ ...tabColorStyle(INVOICE_FILTER_COLORS.approved), minWidth: 120, fontSize: '0.8rem' }}
-                onClick={() => setActiveInvoiceTab('aprobadas')}
-              >
-                Aprobadas
-              </button>
-              <button type="button" className={`tab-pill ${activeInvoiceTab === 'todas' ? 'active' : ''}`} style={{ ...tabColorStyle(INVOICE_FILTER_COLORS.all), minWidth: 100, fontSize: '0.8rem' }} onClick={() => setActiveInvoiceTab('todas')}>All</button>
-              <button type="button" className={`tab-pill ${activeInvoiceTab === 'problemas' ? 'active' : ''}`} style={{ ...tabColorStyle(INVOICE_FILTER_COLORS.problems), minWidth: 110, fontSize: '0.8rem' }} onClick={() => setActiveInvoiceTab('problemas')}>Problems</button>
-              <button
-                type="button"
-                className={`tab-pill ${activeInvoiceTab === 'enviadas' ? 'active' : ''}`}
-                style={{ ...tabColorStyle(INVOICE_FILTER_COLORS.sent), minWidth: 120, fontSize: '0.8rem' }}
-                onClick={() => setActiveInvoiceTab('enviadas')}
-              >
-                Enviadas
-              </button>
-              <button
-                type="button"
-                className={`tab-pill ${activeInvoiceTab === 'pagadas' ? 'active' : ''}`}
-                style={{ ...tabColorStyle(INVOICE_FILTER_COLORS.paid), minWidth: 120, fontSize: '0.8rem' }}
-                onClick={() => setActiveInvoiceTab('pagadas')}
-              >
-                Pagadas
-              </button>
-            </div>
+            <InvoiceStatusTabs
+              isEs
+              value={({ sinAprobar: 'pending', aprobadas: 'approved', todas: 'all', problemas: 'problems', enviadas: 'sent', pagadas: 'paid' } as const)[activeInvoiceTab]}
+              onChange={(value) => setActiveInvoiceTab(({ pending: 'sinAprobar', approved: 'aprobadas', all: 'todas', problems: 'problemas', sent: 'enviadas', paid: 'pagadas' } as const)[value])}
+            />
 
             <div className="invoice-table-scroll" style={{ maxHeight: '65vh', overflowY: 'auto', overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '0.5rem' }}>
             {/* Encabezados de la tabla de facturas */}
@@ -3706,88 +3671,7 @@ const App = () => {
         </div>
       )}
 
-      {pendingPayInvoice && (
-        <div className="ga-modal-backdrop" role="dialog" aria-modal="true">
-          <div className="ga-modal" style={{ maxWidth: 420 }}>
-            <div className="ga-modal-header">
-              <h4>Confirmar pago</h4>
-              <button
-                type="button"
-                className="ga-icon-button ga-icon-button-light"
-                onClick={() => setPendingPayInvoice(null)}
-                aria-label="Cerrar"
-              >
-                <span style={{ lineHeight: 1 }}>×</span>
-              </button>
-            </div>
-            <div className="ga-modal-body">
-              <p style={{ marginBottom: '0.5rem', fontSize: '0.9rem' }}>
-                {`¿Marcar como PAGADA la factura del tracking ${pendingPayInvoice.tracking}?`}
-              </p>
-              {pendingPayInvoice.clienteNombre && (
-                <p style={{ margin: 0, fontSize: '0.85rem', color: '#6b7280' }}>
-                  Cliente: #{pendingPayInvoice.clienteNumero ?? '-'} - {pendingPayInvoice.clienteNombre}
-                </p>
-              )}
-              <div className="pa-field" style={{ marginTop: '1rem' }}>
-                <label htmlFor="admin-payment-method">Payment method</label>
-                <select
-                  id="admin-payment-method"
-                  className="pa-input"
-                  value={paymentMethod}
-                  onChange={(event) => setPaymentMethod(event.target.value)}
-                >
-                  <option value="">Select a payment method</option>
-                  <option value="Zelle">Zelle</option>
-                  <option value="PayPal">PayPal</option>
-                  <option value="Cash">Cash</option>
-                  <option value="Bank Transfer / Wire">Bank Transfer / Wire</option>
-                  <option value="Credit granted">Credit granted</option>
-                </select>
-              </div>
-              <div className="pa-field">
-                <label htmlFor="admin-payment-reference">Bank / payment reference</label>
-                <input id="admin-payment-reference" className="pa-input" value={paymentReference} onChange={(event) => setPaymentReference(event.target.value)} placeholder="Reference number" />
-              </div>
-              <div className="pa-field">
-                <label htmlFor="admin-payment-date">Payment date</label>
-                <input id="admin-payment-date" className="pa-input" type="date" value={paymentDate} onChange={(event) => setPaymentDate(event.target.value)} />
-              </div>
-              <div className="pa-field">
-                <label htmlFor="admin-payment-notes">Payment details / notes</label>
-                <textarea
-                  id="admin-payment-notes"
-                  className="pa-input"
-                  rows={3}
-                  value={paymentNotes}
-                  onChange={(event) => setPaymentNotes(event.target.value)}
-                  placeholder="Reference number, payer, or other payment details"
-                />
-              </div>
-              <div className="pa-field">
-                <label htmlFor="admin-customer-invoice-note">Customer-facing invoice note (optional)</label>
-                <textarea id="admin-customer-invoice-note" className="pa-input" rows={2} value={customerInvoiceNote} onChange={(event) => setCustomerInvoiceNote(event.target.value)} placeholder="Only this note is shown to the customer." />
-              </div>
-            </div>
-            <div className="ga-modal-actions" style={{ justifyContent: 'flex-end', gap: '0.5rem' }}>
-              <button
-                type="button"
-                className="ga-secondary-button"
-                onClick={() => setPendingPayInvoice(null)}
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                className="ga-primary-button"
-                onClick={handleConfirmPayInvoice}
-              >
-                Confirmar pago
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {paymentDialogInvoice && <PaymentLedgerDialog key={paymentDialogInvoice.id} invoice={paymentDialogInvoice} mode={paymentDialogMode} onClose={() => setPaymentDialogInvoice(null)} onChanged={handlePaymentChanged} />}
 
       {isPedidoDetalleOpen && pedidoDetalle?.activity !== undefined && (
         <div className="pa-modal-overlay" onClick={() => setIsPedidoDetalleOpen(false)}>
@@ -4832,6 +4716,12 @@ const App = () => {
                   <option value="Developer / Builder — Prepaid">Developer / Builder — Prepaid</option>
                 </select>
               </div>
+
+              {clienteEditandoId && (() => {
+                const customer = clientes.find((item) => item.id === clienteEditandoId);
+                const source = customer?.heard_about_us;
+                return <div className="pa-field" style={{ padding: '.85rem', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '.65rem' }}><strong>How did you hear about us?</strong><span>{source ? (isReferralSource(source) ? REFERRAL_SOURCE_LABELS[source].en : source) : 'Not provided'}</span>{customer?.heard_about_us_details && <small style={{ color: '#475569' }}>{customer.heard_about_us_details}</small>}<small style={{ color: '#64748b' }}>Source recorded when the customer signed up.</small></div>;
+              })()}
 
               <div className="pa-field">
                 <label htmlFor="cliente-prepaid-allowance">Prepaid allowance (cubic ft)</label>

@@ -41,7 +41,7 @@ test('Warehouse has a shared flat navigation with stage permissions and counters
   assert.match(warehouse, /staffPermissions\.invoices !== false/);
   assert.match(warehouse, /stageCounts\[stage\.id\]/);
   assert.match(warehouse, /ga-compact-brand/);
-  assert.match(warehouse, /width=\{156\} height=\{68\}/);
+  assert.match(warehouse, /width=\{320\} height=\{80\}/);
   assert.doesNotMatch(warehouse, /ga-nav-brand|ga-nav-logo|ga-nav-title-main/);
   assert.doesNotMatch(css, /#f2a51a/);
 });
@@ -89,17 +89,17 @@ function loadTypeScript(relativeFile) {
   };
   const result = ts.transpileModule(fs.readFileSync(filename, 'utf8'), {
     fileName: filename,
-    compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.React, esModuleInterop: true },
+    compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true },
   });
   compiled._compile(result.outputText, filename);
   return compiled.exports;
 }
 
-test('Page backgrounds stay blue and both top tab strips use the requested darker blue', () => {
+test('Page stays blue; Staff retains dark tabs while Admin restores the earlier light grouped sidebar', () => {
   assert.match(css, /\.ga-page-wrapper\s*\{[^}]*background: #2f6f9d;/);
   assert.match(css, /\.ga-compact-navigation\s*\{[^}]*background: #173f64;/);
   assert.match(admin, /--bg-main: #2f6f9d;/);
-  assert.match(admin, /\.admin-horizontal-nav\s*\{[^}]*background: #173f64;/);
+  assert.match(read('app/admin-navigation.css'), /\.dashboard-root \.admin-right-navigation\s*\{[^}]*background: #ffffff;/);
 });
 
 test('Enabled and disabled invoice previews say handling fee and retain the 15% amount', () => {
@@ -140,8 +140,8 @@ test('Invoice forms, email templates, summaries and reports use handling-fee ter
 test('Moderately enlarged Caribex headers precede the tab rows on Admin and Staff', () => {
   assert.ok(admin.indexOf('<div className="admin-compact-brand">') < admin.indexOf('<nav className="admin-horizontal-nav'));
   assert.ok(warehouse.indexOf('<div className="ga-compact-brand">') < warehouse.indexOf('<nav className="ga-compact-navigation"'));
-  assert.match(admin, /width=\{156\} height=\{68\} sizes="156px"/);
-  assert.match(css, /\.ga-compact-brand img \{ width: 156px; height: 68px;/);
+  assert.match(admin, /width=\{320\} height=\{80\} sizes="320px"/);
+  assert.match(css, /\.ga-compact-brand img \{ width: 320px; height: 80px;/);
 });
 
 test('Shipment tracking numbers are accessible buttons opening the existing detail modal', () => {
@@ -175,7 +175,7 @@ test('Admin and Staff invoice panels share one layout stylesheet and table geome
   assert.match(staff, /className="invoice-table-row"/);
   assert.match(shared, /--invoice-columns: minmax\(220px, 2fr\) 200px 150px 100px 140px 140px 280px;/);
   assert.match(shared, /min-width: 1280px;/);
-  assert.match(shared, /\.invoice-workspace \.tab-pill \{/);
+  assert.match(shared, /\.invoice-workspace \.invoice-status-tabs \.tab-pill \{/);
   assert.match(shared, /\.invoice-workspace \.ga-primary-button/);
 });
 
@@ -200,11 +200,9 @@ test('Staff invoice panel renders the common header, filters and table for an ex
 });
 
 test('Admin and Staff selected invoice filters use the same shared palette', () => {
-  assert.match(admin, /tabColorStyle\(INVOICE_FILTER_COLORS\.pending\)/);
-  assert.match(admin, /tabColorStyle\(INVOICE_FILTER_COLORS\.approved\)/);
-  assert.match(admin, /tabColorStyle\(INVOICE_FILTER_COLORS\.sent\)/);
-  assert.match(admin, /tabColorStyle\(INVOICE_FILTER_COLORS\.paid\)/);
-  assert.match(staff, /tabColorStyle\(INVOICE_FILTER_COLORS\[tab\.id\]\)/);
+  assert.match(admin, /<InvoiceStatusTabs/);
+  assert.match(staff, /<InvoiceStatusTabs/);
+  assert.match(read('components/InvoiceStatusTabs.tsx'), /tabColorStyle\(INVOICE_FILTER_COLORS\[tab\.id\]\)/);
   const colors = loadTypeScript('lib/shipment-colors.ts');
   assert.deepEqual(colors.INVOICE_FILTER_COLORS.sent, colors.SHIPMENT_STAGE_COLORS.IN_TRANSIT);
   assert.deepEqual(colors.INVOICE_FILTER_COLORS.approved, colors.SHIPMENT_STAGE_COLORS.REGISTERED);
@@ -252,4 +250,129 @@ test('Admin navigation restores the four functional groups in the right-side wor
   }
   assert.match(admin, /\.admin-workspace-layout\s*\{[^}]*grid-template-columns:/);
   assert.match(admin, /\.admin-right-navigation\s*\{[^}]*grid-column:\s*2/);
+});
+
+
+test('Payments Owing-only switch includes paid invoices when off and uses ledger balances when on', () => {
+  const React = require('react');
+  const { renderToStaticMarkup } = require('react-dom/server');
+  const Payments = loadTypeScript('app/login/PaymentsAdmin.tsx').default;
+  const invoices = [
+    { id: 'test-paid', tracking: 'PAID-REFERENCE', clienteNombre: 'Paid customer', clienteNumero: 1, carrier: null, tipo_paquete: 'PACKAGE', contenido: null, creado_en: null, subtotal: 100, tax: 0, total: 100, invoice_status: 'PAID' },
+    { id: 'test-owing', tracking: 'OWING-REFERENCE', clienteNombre: 'Owing customer', clienteNumero: 2, carrier: null, tipo_paquete: 'PACKAGE', contenido: null, creado_en: null, subtotal: 100, tax: 0, total: 100, invoice_status: 'PENDING' },
+  ];
+  const common = { invoices, totals: { invoiced: 200, paid: 125, outstanding: 75 }, filters: { dateFrom: '', dateTo: '', customer: '', port: 'ALL', container: 'ALL' }, onFiltersChange() {}, onStatusFilterChange() {}, ports: [], containers: [], onRecordPayment() {}, onViewPaymentHistory() {}, balances: { 'test-paid': { paid: 100, balance: 0 }, 'test-owing': { paid: 25, balance: 75 } } };
+  const all = renderToStaticMarkup(React.createElement(Payments, { ...common, statusFilter: 'ALL' }));
+  const owing = renderToStaticMarkup(React.createElement(Payments, { ...common, statusFilter: 'OUTSTANDING' }));
+  assert.match(all, /PAID-REFERENCE/);
+  assert.match(all, /OWING-REFERENCE/);
+  assert.doesNotMatch(owing, /PAID-REFERENCE/);
+  assert.match(owing, /OWING-REFERENCE/);
+  assert.match(owing, /\$25\.00/);
+  assert.match(owing, /\$75\.00/);
+  for (const label of ['Client ID', 'Invoice', 'Container', 'Total', 'Paid', 'Balance', 'Status', 'Record payment', 'History']) assert.ok(all.includes(label));
+  assert.match(read('app/login/PaymentsAdmin.tsx'), /event\.target\.checked \? "OUTSTANDING" : "ALL"/);
+});
+
+test('Payment amounts and dates reject invalid or imprecise financial inputs', () => {
+  const ledger = loadTypeScript('lib/payment-ledger.ts');
+  assert.equal(ledger.parseAmountCents('12.34'), 1234);
+  for (const amount of ['0', '-1', '1.001', 'NaN', '1e3']) assert.throws(() => ledger.parseAmountCents(amount));
+  assert.equal(ledger.parsePaymentDate('2026-10-26'), '2026-10-26');
+  assert.throws(() => ledger.parsePaymentDate('2026-02-30'));
+});
+
+test('Payments use append-only RPCs and explicit reversals, not direct mark-paid writes', () => {
+  const api = read('app/api/admin/payments/route.ts');
+  const sql = read('supabase/migrations/20261026100000_add_immutable_invoice_payments.sql');
+  const dialog = read('components/PaymentLedgerDialog.tsx');
+  assert.match(api, /requireAdmin/);
+  assert.match(api, /rpc\("record_invoice_payment"/);
+  assert.match(api, /rpc\("reverse_invoice_payment"/);
+  assert.doesNotMatch(api, /export async function (PUT|PATCH|DELETE)/);
+  assert.match(sql, /tg_op in \('UPDATE', 'DELETE', 'TRUNCATE'\)/);
+  assert.match(sql, /invoice_payment_summary_guard/);
+  assert.match(dialog, /idempotency_key: paymentKey/);
+  assert.match(dialog, /action: "reverse"/);
+  assert.match(dialog, /original entry stays in history/);
+  assert.doesNotMatch(admin, /handleConfirmPayInvoice/);
+});
+
+test('Signup referral answers are optional, guarded by schema availability, and visible to Admin', () => {
+  const signup = read('app/login/numeroCliente.tsx');
+  const api = read('app/api/customer-accounts/route.ts');
+  const client360 = read('app/login/Client360Admin.tsx');
+  assert.match(signup, /referral_available/);
+  assert.match(signup, /heardAboutUsDetails/);
+  assert.match(api, /Referral detail requires a referral source/);
+  assert.match(api, /customerInsert\.heard_about_us = heardAboutUs/);
+  assert.match(api, /referral_available: !error/);
+  assert.match(admin, /heard_about_us, heard_about_us_details/);
+  assert.match(admin, /How did you hear about us\?/);
+  assert.match(client360, /selected\.heard_about_us/);
+});
+
+test('Empty prepaid shipment-review notice is not displayed in Payments', () => {
+  assert.match(admin, /activeTab === 'prepaid' && facturas\.some/);
+  assert.doesNotMatch(admin, /activeTab === 'finanzas' && \(\s*<div[^>]*#[fF]59e0b/);
+});
+
+
+test('Unavailable balances never render guessed paid amounts or balance-derived status', () => {
+  const React = require('react');
+  const { renderToStaticMarkup } = require('react-dom/server');
+  const Payments = loadTypeScript('app/login/PaymentsAdmin.tsx').default;
+  const html = renderToStaticMarkup(React.createElement(Payments, {
+    invoices: [{ id: 'unknown', tracking: 'UNKNOWN-BALANCE', clienteNombre: 'TEST ONLY', clienteNumero: 1, carrier: null, tipo_paquete: null, creado_en: null, subtotal: 100, tax: 0, total: 100, invoice_status: 'PAID' }],
+    totals: { invoiced: 100, paid: 7777.77, outstanding: 8888.88 },
+    filters: { dateFrom: '', dateTo: '', customer: '', port: 'ALL', container: 'ALL' },
+    statusFilter: 'ALL', ports: [], containers: [], balancesReady: false, recordingEnabled: false,
+    onFiltersChange() {}, onStatusFilterChange() {}, onRecordPayment() {},
+  }));
+  assert.match(html, /Verified payment balances are unavailable/);
+  assert.doesNotMatch(html, /7,?777\.77|8,?888\.88|Recorded — no edits/);
+  assert.doesNotMatch(admin.match(/const financeTotals = useMemo\([\s\S]*?\}\), \[financeRows, paymentBalances\]\);/)[0], /invoice_status === "PAID"/);
+});
+
+test('Calendar payment dates do not move to the prior day in UTC-minus time zones', () => {
+  const React = require('react');
+  const { renderToStaticMarkup } = require('react-dom/server');
+  const Payments = loadTypeScript('app/login/PaymentsAdmin.tsx').default;
+  const previous = process.env.TZ;
+  process.env.TZ = 'America/Los_Angeles';
+  try {
+    const html = renderToStaticMarkup(React.createElement(Payments, {
+      invoices: [{ id: 'date-test', tracking: 'DATE-TEST', clienteNombre: 'TEST ONLY', clienteNumero: 1, carrier: null, tipo_paquete: null, creado_en: null, subtotal: 100, tax: 0, total: 100, invoice_status: 'PAID', payment_date: '2026-10-26' }],
+      totals: { invoiced: 100, paid: 100, outstanding: 0 }, balances: { 'date-test': { paid: 100, balance: 0 } },
+      filters: { dateFrom: '', dateTo: '', customer: '', port: 'ALL', container: 'ALL' },
+      statusFilter: 'ALL', ports: [], containers: [], onFiltersChange() {}, onStatusFilterChange() {}, onRecordPayment() {},
+    }));
+    assert.match(html, /10\/26\/2026/);
+    assert.doesNotMatch(html, /10\/25\/2026/);
+  } finally { if (previous === undefined) delete process.env.TZ; else process.env.TZ = previous; }
+  assert.match(admin, /const date = invoice\.payment_date \? invoice\.payment_date\.slice/);
+});
+
+test('Staff rejects anonymous sessions, unknown package types are safe, and legacy PAID shortcuts are blocked', () => {
+  assert.doesNotMatch(warehouse, /Permitir acceso sin autenticación|setCurrentUserName\("Staff"\)/);
+  assert.match(warehouse, /if \(error \|\| !data\?\.user\) \{[\s\S]*?router\.replace\("\/login"\)/);
+  assert.match(warehouse, /type: PackageCategoryId \| null;/);
+  assert.match(warehouse, /if \(!id\) return isEs \? "Tipo desconocido" : "Unknown type"/);
+  assert.match(warehouse, /if \(status === "PAID"\) \{/);
+  assert.match(admin, /if \(status === 'PAID'\) \{/);
+});
+
+
+test('Admin and Staff use identical shared invoice tab markup and heading treatment', () => {
+  const React = require('react');
+  const { renderToStaticMarkup } = require('react-dom/server');
+  const Tabs = loadTypeScript('components/InvoiceStatusTabs.tsx').default;
+  const html = renderToStaticMarkup(React.createElement(Tabs, { value: 'pending', onChange() {} }));
+  assert.equal((html.match(/<button /g) || []).length, 6);
+  for (const label of ['Pending approval', 'Approved', 'All', 'Problems', 'Sent', 'Paid']) assert.ok(html.includes(label));
+  assert.match(admin, /<InvoiceStatusTabs/);
+  assert.match(staff, /<InvoiceStatusTabs value=\{activeFilter\}/);
+  assert.match(staff, /<h3 className="invoice-panel-heading"/);
+  assert.doesNotMatch(staff, /ga-state-header-icon|invoiceTabs\.map/);
+  assert.match(read('app/invoice-workspace.css'), /\.invoice-workspace \.invoice-status-tabs \.tab-pill/);
 });
