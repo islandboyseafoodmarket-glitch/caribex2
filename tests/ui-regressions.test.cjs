@@ -27,6 +27,7 @@ test('Admin preserves all 16 navigation destinations and compact account control
   assert.match(admin, /admin-account-controls/);
   assert.match(admin, /Change password/);
   assert.match(admin, /Sign out/);
+  assert.match(admin, /admin-compact-brand/);
   assert.doesNotMatch(admin, /<div className="admin-brand-logo"/);
   assert.doesNotMatch(admin, /#f2a51a/);
   for (const category of ['operations', 'customers', 'billing', 'admin']) {
@@ -39,6 +40,8 @@ test('Warehouse has a shared flat navigation with stage permissions and counters
   assert.match(warehouse, /data-stage=\{stage\.id\}/);
   assert.match(warehouse, /staffPermissions\.invoices !== false/);
   assert.match(warehouse, /stageCounts\[stage\.id\]/);
+  assert.match(warehouse, /ga-compact-brand/);
+  assert.match(warehouse, /width=\{112\} height=\{48\}/);
   assert.doesNotMatch(warehouse, /ga-nav-brand|ga-nav-logo|ga-nav-title-main/);
   assert.doesNotMatch(css, /#f2a51a/);
 });
@@ -134,4 +137,30 @@ test('Invoice forms, email templates, summaries and reports use handling-fee ter
     assert.doesNotMatch(content, /sales tax|sales-tax settings|>Tax</i, file);
     assert.match(content, /handling fee|handling-fee/i, file);
   }
+});
+
+test('Small Caribex headers precede the tab rows on Admin and Staff', () => {
+  assert.ok(admin.indexOf('<div className="admin-compact-brand">') < admin.indexOf('<nav className="admin-horizontal-nav"'));
+  assert.ok(warehouse.indexOf('<div className="ga-compact-brand">') < warehouse.indexOf('<nav className="ga-compact-navigation"'));
+  assert.match(admin, /width=\{112\} height=\{48\} sizes="112px"/);
+  assert.match(css, /\.ga-compact-brand img \{ width: 112px; height: 48px;/);
+});
+
+test('Shipment tracking numbers are accessible buttons opening the existing detail modal', () => {
+  assert.ok(admin.includes('aria-label={`Open shipment details for tracking ${p.tracking}`}'));
+  assert.ok(admin.includes('onClick={() => void abrirDetallePedido(p.id)}'));
+  assert.match(admin, /onClick=\{\(\) => void abrirDetallePedido\(p\.id\)\}[\s\S]{0,500}#\{p\.tracking\}[\s\S]{0,50}<\/button>/);
+});
+
+test('Each Track Package stage has a distinct accent color', () => {
+  const styles = admin.match(/const TRACK_STAGE_STYLES[\s\S]*?=\s*\{([\s\S]*?)\n\};/);
+  assert.ok(styles);
+  const entries = [...styles[1].matchAll(/(RECEIVED|REGISTERED|IN_TRANSIT|UNLOADED|PICKED_UP):\s*\{\s*color:\s*['"]([^'"]+)['"]/g)];
+  assert.equal(entries.length, 5);
+  assert.equal(new Set(entries.map((entry) => entry[2])).size, 5);
+});
+
+test('Track Package pickup history has no three-month limit or older-package counter', () => {
+  assert.doesNotMatch(admin, /last 3 months|collected before|collectionPeriod|trackPickupMonths/);
+  assert.match(admin, /Picked up, by container/);
 });

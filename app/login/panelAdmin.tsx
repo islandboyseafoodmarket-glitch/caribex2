@@ -160,8 +160,24 @@ const TRACK_STAGE_STYLES: Record<string, { color: string; background: string; bo
   RECEIVED: { color: '#475569', background: '#f1f5f9', border: '#cbd5e1' },
   REGISTERED: { color: '#15803d', background: '#f0fdf4', border: '#86efac' },
   IN_TRANSIT: { color: '#0f766e', background: '#f0fdfa', border: '#5eead4' },
-  UNLOADED: { color: '#15803d', background: '#f0fdf4', border: '#86efac' },
+  UNLOADED: { color: '#b45309', background: '#fffbeb', border: '#fcd34d' },
   PICKED_UP: { color: '#7e22ce', background: '#faf5ff', border: '#d8b4fe' },
+};
+
+const formatPickupDate = (value: unknown) => {
+  const raw = String(value ?? '').trim();
+  if (!raw) return 'Date unavailable';
+  const dateOnly = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (dateOnly) return `${dateOnly[2]}/${dateOnly[3]}/${dateOnly[1]}`;
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return 'Date unavailable';
+  return `${String(parsed.getMonth() + 1).padStart(2, '0')}/${String(parsed.getDate()).padStart(2, '0')}/${parsed.getFullYear()}`;
+};
+
+const formatPickupContainerLabel = (value: string) => {
+  const raw = value.trim();
+  const dateCode = raw.match(/^CONT-(\d{4})-(\d{2})-(\d{2})$/i);
+  return dateCode ? `Container - ${dateCode[2]}/${dateCode[3]}/${dateCode[1]}` : raw;
 };
 
 const App = () => {
@@ -1831,6 +1847,11 @@ const App = () => {
 
         /* Header Style */
         .page-header {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          justify-content: space-between;
+          gap: 0.25rem 0.75rem;
           margin-bottom: 8px;
           padding: 0 0 8px;
           background: transparent;
@@ -1845,7 +1866,9 @@ const App = () => {
           min-width: 0;
         }
 
-        .admin-account-controls { display: flex; justify-content: flex-end; align-items: center; gap: 0.35rem; }
+        .admin-compact-brand { display: inline-flex; flex: 0 0 auto; align-items: center; }
+        .admin-compact-brand img { width: 112px; height: 48px; object-fit: contain; }
+        .admin-account-controls { display: flex; justify-content: flex-end; align-items: center; gap: 0.35rem; margin-left: auto; }
         .admin-account-controls .pa-secondary-btn,
         .admin-account-controls .admin-sign-out { padding: 0.3rem 0.55rem; font-size: 0.75rem; }
         .admin-sign-out { display: inline-flex; align-items: center; justify-content: center; gap: 0.3rem; border: 1px solid #fecaca; border-radius: 999px; background: #fff1f2; color: #b91c1c; font-weight: 600; cursor: pointer; }
@@ -2163,8 +2186,11 @@ const App = () => {
         }
       `}</style>
 
-      {/* Compact account controls */}
+      {/* Small Caribex brand above the tabs, with compact account controls. */}
       <header className="page-header">
+        <div className="admin-compact-brand">
+          <Image src="/imagenes/logo-pages.png" alt="Caribex Logistics Group" width={112} height={48} sizes="112px" />
+        </div>
         <div className="admin-account-controls">
           <button type="button" className="pa-secondary-btn" onClick={() => setIsPasswordModalOpen(true)} title="Change Admin password">
             <Unlock size={16} /> Change password
@@ -3140,15 +3166,16 @@ const App = () => {
                     const shipments = trackStageGroups[stage] || [];
                     const style = TRACK_STAGE_STYLES[stage] || TRACK_STAGE_STYLES.RECEIVED;
                     const groupedByContainer = stage === 'PICKED_UP' ? shipments.reduce<Record<string, Pedido[]>>((groups, shipment) => {
-                      const key = shipment.containerLabels?.[0] || 'Collected without container';
+                      const key = shipment.containerLabels?.[0]?.trim() || 'Collected without container';
                       (groups[key] ||= []).push(shipment);
                       return groups;
                     }, {}) : null;
+                    const stageCount = groupedByContainer ? Object.keys(groupedByContainer).length : shipments.length;
                     return <section key={stage} style={{ padding: '0.9rem 0', borderBottom: '1px solid #e2e8f0' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', color: style.color, fontWeight: 800, fontSize: '1rem' }}>
                         <span style={{ width: 7, height: 22, borderRadius: 3, background: style.color }} />
-                        <span>{stage === 'PICKED_UP' ? 'Picked up, by container' : label}</span>
-                        <span style={{ marginLeft: 'auto', minWidth: 30, padding: '0.2rem 0.55rem', borderRadius: 999, background: style.background, color: style.color, textAlign: 'center', fontSize: '0.82rem', fontWeight: 800 }}>{shipments.length}</span>
+                        <span>{stage === 'PICKED_UP' ? `Picked up, by container (${stageCount})` : label}</span>
+                        {stage !== 'PICKED_UP' && <span style={{ marginLeft: 'auto', minWidth: 30, padding: '0.2rem 0.55rem', borderRadius: 999, background: style.background, color: style.color, textAlign: 'center', fontSize: '0.82rem', fontWeight: 800 }}>{stageCount}</span>}
                       </div>
                       {!shipments.length ? <p style={{ margin: '0.4rem 0 0 1rem', color: '#64748b', fontSize: '0.86rem' }}>Nothing at this stage</p> : groupedByContainer ? (
                         Object.entries(groupedByContainer).map(([container, containerShipments]) => (
@@ -3159,27 +3186,25 @@ const App = () => {
                           >
                             <summary style={{ cursor: 'pointer', padding: '0.8rem 0.9rem', background: '#f8fafc', color: '#334155', fontWeight: 700 }}>
                               <span style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', marginLeft: '0.25rem' }}>
-                                <span>{container}</span>
+                                <span>{formatPickupContainerLabel(container)}</span>
                                 <small style={{ color: '#64748b', fontWeight: 500 }}>{containerShipments.length} package{containerShipments.length === 1 ? '' : 's'}</small>
                               </span>
                             </summary>
-                            <div style={{ overflowX: 'auto' }}>
+                            <div>
                               {containerShipments.map((shipment) => {
                                 const firstReceived = shipment.hora_fecha || shipment.registro;
-                                const lastScan = shipment.last_scanned_at || shipment.updated_at || firstReceived;
-                                const containerLabel = shipment.containerLabels?.join(', ') || container;
-                                const cellLabelStyle: React.CSSProperties = { display: 'block', marginBottom: '0.2rem', color: '#64748b', fontSize: '0.72rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.03em' };
+                                const lastScan = shipment.last_scanned_at;
+                                const containerLabel = shipment.containerLabels?.map(formatPickupContainerLabel).join(', ') || formatPickupContainerLabel(container);
+                                const packageType = shipment.tipo_paquete ? shipment.tipo_paquete.toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase()) : 'Package';
                                 return <button
                                   key={shipment.id}
                                   type="button"
                                   onClick={() => void abrirDetallePedido(shipment.id)}
-                                  style={{ width: '100%', minWidth: 850, display: 'grid', gridTemplateColumns: 'minmax(170px, 1.25fr) repeat(4, minmax(135px, 1fr))', alignItems: 'start', gap: '0.75rem', textAlign: 'left', padding: '0.75rem 0.9rem', border: 0, borderTop: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer' }}
+                                  style={{ width: '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '0.22rem', textAlign: 'left', padding: '0.8rem 0.9rem', border: 0, borderTop: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer', font: 'inherit' }}
                                 >
-                                  <span><small style={cellLabelStyle}>Tracking</small><strong style={{ color: style.color, overflowWrap: 'anywhere' }}>{shipment.tracking}</strong></span>
-                                  <span><small style={cellLabelStyle}>Carrier</small><span style={{ color: '#334155' }}>{shipment.carrier || '—'}</span></span>
-                                  <span><small style={cellLabelStyle}>Container</small><span style={{ color: '#334155' }}>{containerLabel}</span></span>
-                                  <span><small style={cellLabelStyle}>First received</small><span style={{ color: '#334155' }}>{formatStaffDateTime(firstReceived)}</span></span>
-                                  <span><small style={cellLabelStyle}>Last scan</small><span style={{ color: '#334155' }}>{formatStaffDateTime(lastScan)}</span></span>
+                                  <strong style={{ color: '#1d4ed8', textDecoration: 'underline', overflowWrap: 'anywhere' }}>#{shipment.tracking}</strong>
+                                  <span style={{ color: '#334155' }}>{shipment.carrier || 'Carrier unavailable'} - {packageType} - {containerLabel}</span>
+                                  <span style={{ color: '#334155' }}>First received {formatPickupDate(firstReceived)} - Last scanned {formatPickupDate(lastScan)}</span>
                                 </button>;
                               })}
                             </div>
@@ -3275,9 +3300,14 @@ const App = () => {
                       cursor: 'default',
                     }}
                   >
-                    <span style={{ fontWeight: 600, minWidth: 200, overflowWrap: 'anywhere' }}>
+                    <button
+                      type="button"
+                      aria-label={`Open shipment details for tracking ${p.tracking}`}
+                      onClick={() => void abrirDetallePedido(p.id)}
+                      style={{ fontWeight: 600, minWidth: 200, overflowWrap: 'anywhere', padding: 0, border: 0, background: 'transparent', color: '#1d4ed8', textDecoration: 'underline', textAlign: 'left', cursor: 'pointer', font: 'inherit' }}
+                    >
                       #{p.tracking}
-                    </span>
+                    </button>
                     <span
                       style={{
                         color: '#0f172a',

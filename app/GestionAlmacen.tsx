@@ -7,6 +7,7 @@ import React, {
   useRef,
   useState,
 } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { centralAmericaDateParts, formatStaffDateTime } from "../lib/staff-date-format";
 import { formatPortName } from "../lib/port-format";
@@ -3707,6 +3708,9 @@ const handlePackageCreated = (pkg: Package) => {
     <div className="ga-page-wrapper">
       <header className="ga-nav">
         <div className="ga-nav-inner">
+          <div className="ga-compact-brand">
+            <Image src="/imagenes/logo-pages.png" alt="Caribex Logistics Group" width={112} height={48} sizes="112px" />
+          </div>
           <div className="ga-account-actions" aria-label={isEs ? "Opciones de cuenta" : "Account controls"}>
             <button
               type="button"

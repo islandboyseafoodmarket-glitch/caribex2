@@ -2062,14 +2062,20 @@ main {
   max-width: 1440px;
   margin: 0 auto;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
+  gap: 0.25rem 0.75rem;
+  padding: 0.2rem 0 0.45rem;
 }
+.ga-compact-brand { display: inline-flex; flex: 0 0 auto; align-items: center; }
+.ga-compact-brand img { width: 112px; height: 48px; object-fit: contain; }
 .ga-account-actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
+  margin-left: auto;
   gap: 0.5rem;
 }
 .ga-lang-button {
