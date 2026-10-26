@@ -52,13 +52,18 @@ export async function POST(request: Request) {
     const supabase = adminClient();
     const actor = await requireStaff(request, supabase);
     const isMultipart = request.headers.get("content-type")?.toLowerCase().includes("multipart/form-data") || false;
-    if (!isMultipart) return NextResponse.json({ error: "Problem photos must be uploaded as multipart form data" }, { status: 400 });
-    const form = await request.formData();
-    const shipmentId = String(form.get("shipment_id") || "").trim();
-    const note = String(form.get("note") || "").trim();
-    const problem = String(form.get("problem") || "false").toLowerCase() === "true";
-    const suppliedPhotos = form.getAll("photo");
-    const photos = suppliedPhotos.filter(isPhotoFile);
+    const body = isMultipart ? await request.formData() : await request.json();
+    const value = (key: string) => isMultipart ? String(body.get(key) || "") : String(body?.[key] || "");
+    const shipmentId = value("shipment_id").trim();
+    const note = value("note").trim();
+    const problem = value("problem").toLowerCase() === "true";
+    const suppliedPhotos: FormDataEntryValue[] = isMultipart ? body.getAll("photo") : [];
+    const jsonPhotoBase64 = !isMultipart && typeof body?.photo_base64 === "string" ? body.photo_base64.trim() : "";
+    const photos = isMultipart
+      ? suppliedPhotos.filter(isPhotoFile)
+      : jsonPhotoBase64
+        ? [new File([Buffer.from(jsonPhotoBase64, "base64")], String(body.photo_name || "problem-photo.jpg"), { type: String(body.photo_type || "image/jpeg") })]
+        : [];
     if (!shipmentId) return NextResponse.json({ error: "Shipment is required" }, { status: 400 });
     if (note.length > 4000) return NextResponse.json({ error: "The note is too long" }, { status: 400 });
     if (suppliedPhotos.some((value) => typeof value === "string")) return NextResponse.json({ error: "Invalid photo upload" }, { status: 400 });

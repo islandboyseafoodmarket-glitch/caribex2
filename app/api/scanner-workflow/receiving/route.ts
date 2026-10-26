@@ -208,7 +208,12 @@ export async function POST(request: Request) {
     const value = (key: string) => isMultipart ? String(body.get(key) || "") : String(body?.[key] || "");
     const ownerUnknown = value("owner_unknown").toLowerCase() === "true";
     const noteText = value("note").trim();
-    const photos = isMultipart ? body.getAll("photo").filter(isPhotoFile) : [];
+    const jsonPhotoBase64 = !isMultipart && typeof body?.photo_base64 === "string" ? body.photo_base64.trim() : "";
+    const photos = isMultipart
+      ? body.getAll("photo").filter(isPhotoFile)
+      : jsonPhotoBase64
+        ? [new File([Buffer.from(jsonPhotoBase64, "base64")], String(body.photo_name || "package-photo.jpg"), { type: String(body.photo_type || "image/jpeg") })]
+        : [];
     const carrier = value("carrier").trim();
     const tracking = normalizeUspsTracking(value("tracking"));
     const type = value("type") === "BOX" ? "BOX" : value("type") === "PACKAGE" ? "PACKAGE" : "";
@@ -225,7 +230,7 @@ export async function POST(request: Request) {
     if (!tracking) return NextResponse.json({ error: "Tracking number or barcode is required" }, { status: 400 });
     if (!type) return NextResponse.json({ error: "Select Box or Package" }, { status: 400 });
     if (ownerUnknown && !noteText && photos.length === 0) return NextResponse.json({ error: "Unknown Owner requires an internal note or a photo" }, { status: 400 });
-    if (photos.some((photo: File) => photo.size > 8 * 1024 * 1024)) return NextResponse.json({ error: "Each photo must be 8 MB or smaller" }, { status: 400 });
+    if (photos.some((photo: File) => photo.size > 8 * 1024 * 1024)) return NextResponse.json({ error: "Each photo must be 8 MB or smaller", code: "PHOTO_TOO_LARGE" }, { status: 400 });
     const existingMatches = await findTrackingMatches(supabase, tracking, carrier);
     if (existingMatches.length) {
       const canAttachPhoto = photos.length > 0 && existingMatches.length === 1 &&
