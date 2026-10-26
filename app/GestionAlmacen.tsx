@@ -13,6 +13,7 @@ import { centralAmericaDateParts, formatStaffDateTime } from "../lib/staff-date-
 import { formatPortName } from "../lib/port-format";
 import { invoiceApprovalStatus } from "../lib/invoice-approval";
 import { detectCarrier } from "./lib/carrierDetection";
+import { NAV_SECTION_COLORS, WORKFLOW_STAGE_COLORS, tabColorStyle } from "../lib/shipment-colors";
 
 import {
   Box,
@@ -3709,7 +3710,7 @@ const handlePackageCreated = (pkg: Package) => {
       <header className="ga-nav">
         <div className="ga-nav-inner">
           <div className="ga-compact-brand">
-            <Image src="/imagenes/logo-pages.png" alt="Caribex Logistics Group" width={112} height={48} sizes="112px" />
+            <Image src="/imagenes/logo-pages.png" alt="Caribex Logistics Group" width={156} height={68} sizes="156px" />
           </div>
           <div className="ga-account-actions" aria-label={isEs ? "Opciones de cuenta" : "Account controls"}>
             <button
@@ -3745,6 +3746,7 @@ const handlePackageCreated = (pkg: Package) => {
             type="button"
             className={"ga-workspace-tab" + (activeWarehouseTab === "stages" ? " ga-workspace-tab-active" : "")}
             data-workspace="stages"
+            style={tabColorStyle(NAV_SECTION_COLORS.operations)}
             aria-current={activeWarehouseTab === "stages" ? "page" : undefined}
             onClick={() => setActiveWarehouseTab("stages")}
           >
@@ -3755,6 +3757,7 @@ const handlePackageCreated = (pkg: Package) => {
             type="button"
             className={"ga-workspace-tab" + (activeWarehouseTab === "client360" ? " ga-workspace-tab-active" : "")}
             data-workspace="client360"
+            style={tabColorStyle(NAV_SECTION_COLORS.customers)}
             aria-current={activeWarehouseTab === "client360" ? "page" : undefined}
             onClick={() => setActiveWarehouseTab("client360")}
           >
@@ -3766,6 +3769,7 @@ const handlePackageCreated = (pkg: Package) => {
               key={stage.id}
               type="button"
               data-stage={stage.id}
+              style={tabColorStyle(WORKFLOW_STAGE_COLORS[stage.id])}
               aria-current={activeWarehouseTab === "stages" && activeStage === stage.id ? "page" : undefined}
               className={"ga-stage-chip" + (activeWarehouseTab === "stages" && activeStage === stage.id ? " ga-stage-chip-active" : "")}
               onClick={() => { setActiveWarehouseTab("stages"); setActiveStage(stage.id); }}
@@ -3781,6 +3785,7 @@ const handlePackageCreated = (pkg: Package) => {
             type="button"
             className={"ga-workspace-tab" + (activeWarehouseTab === "labels" ? " ga-workspace-tab-active" : "")}
             data-workspace="labels"
+            style={tabColorStyle(NAV_SECTION_COLORS.tools)}
             aria-current={activeWarehouseTab === "labels" ? "page" : undefined}
             onClick={() => setActiveWarehouseTab("labels")}
           >
@@ -3790,7 +3795,7 @@ const handlePackageCreated = (pkg: Package) => {
         </nav>
       </header>
 
-      <main className="ga-main">
+      <main className={"ga-main" + (activeWarehouseTab === "stages" && activeStage === "FACTURAS" ? " ga-main--invoices" : "")}>
         {activeWarehouseTab === "labels" ? (
           <section className="ga-state-card" style={{ padding: "1.5rem" }}>
             <h2 style={{ marginTop: 0 }}>{isEs ? "Generar etiquetas para cajas nuevas" : "Generate labels for new boxes"}</h2>
@@ -3920,7 +3925,7 @@ const handlePackageCreated = (pkg: Package) => {
                                 <td><button type="button" className="ga-client360-tracking" onClick={() => handleViewPackage(pkg)}>{pkg.tracking}</button></td>
                                 <td>{pkg.containerCode ? <><strong>{pkg.containerCode}</strong><br /><small>{client360DateLabel(pkg.containerCreatedAt, isEs ? "es-ES" : "en-US")}</small></> : "-"}</td>
                                 <td><span className="ga-client360-status">{pkg.estado || "-"}</span></td>
-                                <td>{pkg.billing_total != null ? `$${Number(pkg.billing_total).toFixed(2)}` : "-"}</td>
+                                <td>{pkg.billing_total != null ? <button type="button" className="ga-client360-tracking" onClick={() => void handleOpenInvoiceModal(pkg)} title={isEs ? "Abrir factura" : "Open invoice"} aria-label={`${isEs ? "Abrir factura para" : "Open invoice for"} ${pkg.tracking}`}>${Number(pkg.billing_total).toFixed(2)}</button> : "-"}</td>
                               </tr>
                             ))}
                           </tbody>
@@ -3934,7 +3939,7 @@ const handlePackageCreated = (pkg: Package) => {
               <div className="ga-client360-empty"><Users size={28} /><p>{isEs ? "No se encontraron clientes." : "No clients found."}</p></div>
             )}
           </section>
-        ) : <section className="ga-state-card">
+        ) : <section className={"ga-state-card" + (activeStage === "FACTURAS" ? " invoice-workspace" : "")}>
           {activeStage === "RECIBIDO_FLORIDA" ? (
             <StageReceived
               isEs={isEs}

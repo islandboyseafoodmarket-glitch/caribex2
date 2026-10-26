@@ -15,6 +15,7 @@ import ReportsAdmin from "./ReportsAdmin";
 import { formatStaffDateTime } from "../../lib/staff-date-format";
 import InvoicePreview, { type InvoicePreviewProps } from "../../components/InvoicePreview";
 import { BILLABLE_INVOICE_ITEMS, INVOICE_DISCOUNTS, HANDLING_FEE_RATE, formatCatalogCharge, parseInvoiceChargeLine, parseInvoiceDiscountLine, roundMoney, type InvoiceDiscountCode } from "../../lib/invoice-pricing";
+import { INVOICE_FILTER_COLORS, NAV_SECTION_COLORS, SHIPMENT_STAGE_COLORS, tabColorStyle } from "../../lib/shipment-colors";
 
 /**
  * DASHBOARD OPERATIVO - VERSIÓN VISUAL PURA
@@ -156,13 +157,10 @@ const SHIPMENT_STAGE_OPTIONS = [
   ["PICKED_UP", "Picked up"],
 ] as const;
 
-const TRACK_STAGE_STYLES: Record<string, { color: string; background: string; border: string }> = {
-  RECEIVED: { color: '#475569', background: '#f1f5f9', border: '#cbd5e1' },
-  REGISTERED: { color: '#15803d', background: '#f0fdf4', border: '#86efac' },
-  IN_TRANSIT: { color: '#0f766e', background: '#f0fdfa', border: '#5eead4' },
-  UNLOADED: { color: '#b45309', background: '#fffbeb', border: '#fcd34d' },
-  PICKED_UP: { color: '#7e22ce', background: '#faf5ff', border: '#d8b4fe' },
-};
+const TRACK_STAGE_STYLES = SHIPMENT_STAGE_COLORS;
+
+const selectedNavStyle = (isActive: boolean, section: keyof typeof NAV_SECTION_COLORS) =>
+  isActive ? tabColorStyle(NAV_SECTION_COLORS[section]) : undefined;
 
 const formatPickupDate = (value: unknown) => {
   const raw = String(value ?? '').trim();
@@ -1784,65 +1782,107 @@ const App = () => {
           max-width: 1900px;
         }
 
+        .admin-workspace-layout {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) minmax(220px, 240px);
+          gap: 16px;
+          align-items: start;
+        }
+
         .admin-horizontal-nav {
-          display: flex;
-          flex-wrap: wrap;
-          align-items: center;
-          justify-content: center;
-          gap: 2px 4px;
-          margin: 0 0 14px;
-          padding: 4px 6px;
-          border: 1px solid #d8dedb;
-          border-radius: 4px;
-          background: #f1f2ee;
+          display: grid;
+          align-content: start;
+          gap: 10px;
+          min-width: 0;
+          max-height: calc(100vh - 24px);
+          margin: 0;
+          padding: 10px;
+          overflow-y: auto;
+          border: 1px solid #163a5c;
+          border-radius: 6px;
+          background: #173f64;
+        }
+
+        .admin-right-navigation {
+          grid-column: 2;
+          grid-row: 1;
+          position: sticky;
+          top: 12px;
+          align-self: start;
+        }
+
+        .admin-workspace-layout > .data-card {
+          grid-column: 1;
+          grid-row: 1;
+          min-width: 0;
+        }
+
+        .admin-nav-group {
+          min-width: 0;
+          padding: 0 0 8px;
+          border-bottom: 1px solid rgba(226, 232, 240, 0.18);
+        }
+
+        .admin-nav-group:last-child { padding-bottom: 0; border-bottom: 0; }
+
+        .admin-nav-label {
+          display: block;
+          margin: 0 2px 6px;
+          color: #e2e8f0;
+          font-size: 0.68rem;
+          font-weight: 800;
+          letter-spacing: 0.08em;
+          line-height: 1.25;
+          text-transform: uppercase;
+        }
+
+        .admin-nav-buttons {
+          display: grid;
+          gap: 3px;
         }
 
         .admin-horizontal-tab {
           position: relative;
           display: flex;
-          flex: 0 0 auto;
-          min-width: 70px;
-          min-height: 48px;
-          flex-direction: column;
+          width: 100%;
+          min-width: 0;
+          min-height: 38px;
           align-items: center;
-          justify-content: center;
-          gap: 3px;
-          padding: 5px 8px;
+          justify-content: flex-start;
+          gap: 8px;
+          padding: 7px 8px;
           border: 1px solid transparent;
-          border-radius: 3px;
+          border-radius: 4px;
           background: transparent;
-          color: #475569;
-          font-size: 0.75rem;
+          color: #ffffff;
+          font-size: 0.78rem;
           font-weight: 600;
           line-height: 1.2;
-          text-align: center;
+          text-align: left;
           cursor: pointer;
           transition: background 150ms ease, color 150ms ease, border-color 150ms ease;
         }
 
-        .admin-horizontal-tab svg { width: 16px; height: 16px; flex: 0 0 auto; }
+        .admin-horizontal-tab svg { width: 16px; height: 16px; flex: 0 0 auto; color: #ffffff; }
         .admin-horizontal-tab > span:not(.count-badge) { min-width: 0; overflow-wrap: anywhere; }
-        .admin-horizontal-tab:hover { background: #ffffff; color: #0f172a; }
-        .admin-horizontal-tab:focus-visible { outline: 2px solid #0f766e; outline-offset: 1px; }
-        .admin-horizontal-tab.active { background: #eff6ff; color: #1d4ed8; border-color: #dbeafe; }
-        .admin-horizontal-tab.active::after { content: ""; position: absolute; left: 7px; right: 7px; bottom: 0; height: 2px; border-radius: 2px; background: currentColor; }
-        .admin-horizontal-tab--customers.active { background: #f5f3ff; color: #6d28d9; border-color: #ede9fe; }
-        .admin-horizontal-tab--billing.active { background: #fffbeb; color: #92400e; border-color: #fef3c7; }
-        .admin-horizontal-tab--admin.active { background: #fdf2f8; color: #9d174d; border-color: #fce7f3; }
-        .admin-horizontal-tab .count-badge { position: absolute; top: 0; right: 0; min-width: 1rem; margin: 0; padding: 1px 4px; border-radius: 999px; background: #e2e8f0; color: #475569; font-size: 0.66rem; line-height: 1.2; }
-        .admin-horizontal-tab--operations.active .count-badge { background: #dbeafe; color: #1d4ed8; }
-        .admin-horizontal-tab--customers.active .count-badge { background: #ede9fe; color: #6d28d9; }
-        .admin-horizontal-tab--billing.active .count-badge { background: #fef3c7; color: #92400e; }
-        .admin-horizontal-tab--admin.active .count-badge { background: #fce7f3; color: #9d174d; }
+        .admin-horizontal-tab:hover { background: #234f78; color: #ffffff; }
+        .admin-horizontal-tab:focus-visible { outline: 2px solid #93c5fd; outline-offset: 1px; }
+        .admin-horizontal-tab.active { background: var(--tab-tint, #f1f5f9); color: var(--tab-color, #475569); border-color: var(--tab-border, #cbd5e1); }
+        .admin-horizontal-tab.active svg { color: var(--tab-color, #475569); }
+        .admin-horizontal-tab.active::after { content: ""; position: absolute; left: 4px; top: 5px; bottom: 5px; width: 2px; border-radius: 2px; background: currentColor; }
+        .admin-horizontal-tab .count-badge { min-width: 1rem; margin-left: auto; padding: 1px 4px; border-radius: 999px; background: rgba(255,255,255,.16); color: #f8fafc; font-size: 0.66rem; line-height: 1.2; text-align: center; }
+        .admin-horizontal-tab.active .count-badge { background: var(--tab-border, #cbd5e1); color: var(--tab-color, #475569); }
 
-        @media (max-width: 800px) {
+        @media (max-width: 899px) {
           .dashboard-root { padding: 10px 10px 24px; }
-          .admin-horizontal-nav { gap: 2px; padding: 3px 4px; }
-          .admin-horizontal-tab { font-size: 0.72rem; padding: 5px 6px; }
+          .admin-workspace-layout { display: flex; flex-direction: column; gap: 14px; }
+          .admin-right-navigation { order: 1; position: static; width: 100%; max-height: none; overflow: visible; }
+          .admin-workspace-layout > .data-card { order: 2; width: 100%; }
+          .admin-horizontal-nav { width: 100%; box-sizing: border-box; }
         }
 
         @media (max-width: 440px) {
-          .admin-horizontal-tab { max-width: 10rem; }
+          .admin-horizontal-tab { font-size: 0.74rem; }
         }
 
         /* Header Style */
@@ -1867,7 +1907,7 @@ const App = () => {
         }
 
         .admin-compact-brand { display: inline-flex; flex: 0 0 auto; align-items: center; }
-        .admin-compact-brand img { width: 112px; height: 48px; object-fit: contain; }
+        .admin-compact-brand img { width: 156px; height: 68px; object-fit: contain; }
         .admin-account-controls { display: flex; justify-content: flex-end; align-items: center; gap: 0.35rem; margin-left: auto; }
         .admin-account-controls .pa-secondary-btn,
         .admin-account-controls .admin-sign-out { padding: 0.3rem 0.55rem; font-size: 0.75rem; }
@@ -2189,7 +2229,7 @@ const App = () => {
       {/* Small Caribex brand above the tabs, with compact account controls. */}
       <header className="page-header">
         <div className="admin-compact-brand">
-          <Image src="/imagenes/logo-pages.png" alt="Caribex Logistics Group" width={112} height={48} sizes="112px" />
+          <Image src="/imagenes/logo-pages.png" alt="Caribex Logistics Group" width={156} height={68} sizes="156px" />
         </div>
         <div className="admin-account-controls">
           <button type="button" className="pa-secondary-btn" onClick={() => setIsPasswordModalOpen(true)} title="Change Admin password">
@@ -2210,30 +2250,51 @@ const App = () => {
         </div>
       </header>
 
-      <nav className="admin-horizontal-nav" aria-label="Admin navigation">
-        <button type="button" className={`admin-horizontal-tab admin-horizontal-tab--operations ${activeTab === 'track' ? 'active' : ''}`} aria-current={activeTab === 'track' ? 'page' : undefined} onClick={() => setActiveTab('track')}><ScanLine /><span>Track Package</span><span className="count-badge">{pedidos.length}</span></button>
-        <button type="button" className={`admin-horizontal-tab admin-horizontal-tab--operations ${activeTab === 'client360' ? 'active' : ''}`} aria-current={activeTab === 'client360' ? 'page' : undefined} onClick={() => setActiveTab('client360')}><IconUsers /><span>Client 360</span></button>
-        <button type="button" className={`admin-horizontal-tab admin-horizontal-tab--operations ${activeTab === 'pedidos' ? 'active' : ''}`} aria-current={activeTab === 'pedidos' ? 'page' : undefined} onClick={() => setActiveTab('pedidos')}><Package /><span>Shipments</span><span className="count-badge">{pedidos.length}</span></button>
-        <button type="button" className={`admin-horizontal-tab admin-horizontal-tab--operations ${activeTab === 'incidencias' ? 'active' : ''}`} aria-current={activeTab === 'incidencias' ? 'page' : undefined} onClick={() => setActiveTab('incidencias')}><AlertTriangle /><span>Issues</span><span className="count-badge">{pedidosConIncidencia.length}</span></button>
-        <button type="button" className={`admin-horizontal-tab admin-horizontal-tab--operations ${activeTab === 'labels' ? 'active' : ''}`} aria-current={activeTab === 'labels' ? 'page' : undefined} onClick={() => setActiveTab('labels')}><QrCode /><span>Print Labels</span></button>
-        <button type="button" className={`admin-horizontal-tab admin-horizontal-tab--operations ${activeTab === 'reports' ? 'active' : ''}`} aria-current={activeTab === 'reports' ? 'page' : undefined} onClick={() => setActiveTab('reports')}><BarChart3 /><span>Reports</span></button>
-        <button type="button" className={`admin-horizontal-tab admin-horizontal-tab--billing ${activeTab === 'facturas' ? 'active' : ''}`} aria-current={activeTab === 'facturas' ? 'page' : undefined} onClick={() => setActiveTab('facturas')}><Receipt /><span>Invoices</span><span className="count-badge">{facturasCount}</span></button>
-        <button type="button" className={`admin-horizontal-tab admin-horizontal-tab--billing ${activeTab === 'finanzas' ? 'active' : ''}`} aria-current={activeTab === 'finanzas' ? 'page' : undefined} onClick={() => setActiveTab('finanzas')}><DollarSign /><span>Finances</span></button>
-        <button type="button" className={`admin-horizontal-tab admin-horizontal-tab--billing ${activeTab === 'containers' ? 'active' : ''}`} aria-current={activeTab === 'containers' ? 'page' : undefined} onClick={() => setActiveTab('containers')}><Container /><span>Containers</span></button>
-        <button type="button" className={`admin-horizontal-tab admin-horizontal-tab--billing ${activeTab === 'ferry' ? 'active' : ''}`} aria-current={activeTab === 'ferry' ? 'page' : undefined} onClick={() => setActiveTab('ferry')}><Ship /><span>Ferry</span></button>
-        <button type="button" className={`admin-horizontal-tab admin-horizontal-tab--customers ${activeTab === 'clientes' ? 'active' : ''}`} aria-current={activeTab === 'clientes' ? 'page' : undefined} onClick={() => setActiveTab('clientes')}><UserPlus /><span>Customers</span><span className="count-badge">{clientes.length}</span></button>
-        <button type="button" className={`admin-horizontal-tab admin-horizontal-tab--customers ${activeTab === 'prepaid' ? 'active' : ''}`} aria-current={activeTab === 'prepaid' ? 'page' : undefined} onClick={() => setActiveTab('prepaid')}><DollarSign /><span>Prepaid</span><span className="count-badge">{clientes.filter((customer) => customer.tipo_cuenta === 'Developer / Builder — Prepaid').length}</span></button>
-        <button type="button" className={`admin-horizontal-tab admin-horizontal-tab--customers ${activeTab === 'leads' ? 'active' : ''}`} aria-current={activeTab === 'leads' ? 'page' : undefined} onClick={() => setActiveTab('leads')}><UserPlus /><span>Leads</span><span className="count-badge">{leads.filter((lead) => lead.status === 'NEW').length}</span></button>
-        <button type="button" className={`admin-horizontal-tab admin-horizontal-tab--customers ${activeTab === 'portal' ? 'active' : ''}`} aria-current={activeTab === 'portal' ? 'page' : undefined} onClick={() => setActiveTab('portal')}><Bell /><span>Portal Alerts</span><span className="count-badge">{portalEvents.filter((event) => !event.success).length}</span></button>
-        <button type="button" className={`admin-horizontal-tab admin-horizontal-tab--admin ${activeTab === 'personal' ? 'active' : ''}`} aria-current={activeTab === 'personal' ? 'page' : undefined} onClick={() => setActiveTab('personal')}><UserCog /><span>Staff</span><span className="count-badge">{personal.length}</span></button>
-        <button type="button" className={`admin-horizontal-tab admin-horizontal-tab--admin ${activeTab === 'activityLogs' ? 'active' : ''}`} aria-current={activeTab === 'activityLogs' ? 'page' : undefined} onClick={() => { setActiveTab('activityLogs'); void cargarStaffActionLogs(); }}><Bell /><span>Activity Logs</span></button>
-      </nav>
+      <div className="admin-workspace-layout">
+        <nav className="admin-horizontal-nav admin-right-navigation" aria-label="Admin navigation">
+          <section className="admin-nav-group" aria-labelledby="admin-nav-shipments">
+            <h2 id="admin-nav-shipments" className="admin-nav-label">Shipments / Operations</h2>
+            <div className="admin-nav-buttons">
+              <button type="button" className={`admin-horizontal-tab admin-horizontal-tab--operations ${activeTab === 'track' ? 'active' : ''}`} style={selectedNavStyle(activeTab === 'track', 'operations')} aria-current={activeTab === 'track' ? 'page' : undefined} onClick={() => setActiveTab('track')}><ScanLine /><span>Track Package</span><span className="count-badge">{pedidos.length}</span></button>
+              <button type="button" className={`admin-horizontal-tab admin-horizontal-tab--operations ${activeTab === 'pedidos' ? 'active' : ''}`} style={selectedNavStyle(activeTab === 'pedidos', 'operations')} aria-current={activeTab === 'pedidos' ? 'page' : undefined} onClick={() => setActiveTab('pedidos')}><Package /><span>Shipments</span><span className="count-badge">{pedidos.length}</span></button>
+              <button type="button" className={`admin-horizontal-tab admin-horizontal-tab--operations ${activeTab === 'incidencias' ? 'active' : ''}`} style={selectedNavStyle(activeTab === 'incidencias', 'operations')} aria-current={activeTab === 'incidencias' ? 'page' : undefined} onClick={() => setActiveTab('incidencias')}><AlertTriangle /><span>Issues</span><span className="count-badge">{pedidosConIncidencia.length}</span></button>
+              <button type="button" className={`admin-horizontal-tab admin-horizontal-tab--tools ${activeTab === 'labels' ? 'active' : ''}`} style={selectedNavStyle(activeTab === 'labels', 'tools')} aria-current={activeTab === 'labels' ? 'page' : undefined} onClick={() => setActiveTab('labels')}><QrCode /><span>Print Labels</span></button>
+              <button type="button" className={`admin-horizontal-tab admin-horizontal-tab--tools ${activeTab === 'reports' ? 'active' : ''}`} style={selectedNavStyle(activeTab === 'reports', 'tools')} aria-current={activeTab === 'reports' ? 'page' : undefined} onClick={() => setActiveTab('reports')}><BarChart3 /><span>Reports</span></button>
+              <button type="button" className={`admin-horizontal-tab admin-horizontal-tab--billing ${activeTab === 'ferry' ? 'active' : ''}`} style={selectedNavStyle(activeTab === 'ferry', 'billing')} aria-current={activeTab === 'ferry' ? 'page' : undefined} onClick={() => setActiveTab('ferry')}><Ship /><span>Ferry</span></button>
+            </div>
+          </section>
+          <section className="admin-nav-group" aria-labelledby="admin-nav-customers">
+            <h2 id="admin-nav-customers" className="admin-nav-label">Customers</h2>
+            <div className="admin-nav-buttons">
+              <button type="button" className={`admin-horizontal-tab admin-horizontal-tab--customers ${activeTab === 'client360' ? 'active' : ''}`} style={selectedNavStyle(activeTab === 'client360', 'customers')} aria-current={activeTab === 'client360' ? 'page' : undefined} onClick={() => setActiveTab('client360')}><IconUsers /><span>Client 360</span></button>
+              <button type="button" className={`admin-horizontal-tab admin-horizontal-tab--customers ${activeTab === 'clientes' ? 'active' : ''}`} style={selectedNavStyle(activeTab === 'clientes', 'customers')} aria-current={activeTab === 'clientes' ? 'page' : undefined} onClick={() => setActiveTab('clientes')}><UserPlus /><span>Customers</span><span className="count-badge">{clientes.length}</span></button>
+              <button type="button" className={`admin-horizontal-tab admin-horizontal-tab--customers ${activeTab === 'prepaid' ? 'active' : ''}`} style={selectedNavStyle(activeTab === 'prepaid', 'customers')} aria-current={activeTab === 'prepaid' ? 'page' : undefined} onClick={() => setActiveTab('prepaid')}><DollarSign /><span>Prepaid</span><span className="count-badge">{clientes.filter((customer) => customer.tipo_cuenta === 'Developer / Builder — Prepaid').length}</span></button>
+              <button type="button" className={`admin-horizontal-tab admin-horizontal-tab--customers ${activeTab === 'leads' ? 'active' : ''}`} style={selectedNavStyle(activeTab === 'leads', 'customers')} aria-current={activeTab === 'leads' ? 'page' : undefined} onClick={() => setActiveTab('leads')}><UserPlus /><span>Leads</span><span className="count-badge">{leads.filter((lead) => lead.status === 'NEW').length}</span></button>
+              <button type="button" className={`admin-horizontal-tab admin-horizontal-tab--customers ${activeTab === 'portal' ? 'active' : ''}`} style={selectedNavStyle(activeTab === 'portal', 'customers')} aria-current={activeTab === 'portal' ? 'page' : undefined} onClick={() => setActiveTab('portal')}><Bell /><span>Portal Alerts</span><span className="count-badge">{portalEvents.filter((event) => !event.success).length}</span></button>
+            </div>
+          </section>
+          <section className="admin-nav-group" aria-labelledby="admin-nav-finances">
+            <h2 id="admin-nav-finances" className="admin-nav-label">Invoices / Finances</h2>
+            <div className="admin-nav-buttons">
+              <button type="button" className={`admin-horizontal-tab admin-horizontal-tab--billing ${activeTab === 'facturas' ? 'active' : ''}`} style={selectedNavStyle(activeTab === 'facturas', 'billing')} aria-current={activeTab === 'facturas' ? 'page' : undefined} onClick={() => setActiveTab('facturas')}><Receipt /><span>Invoices</span><span className="count-badge">{facturasCount}</span></button>
+              <button type="button" className={`admin-horizontal-tab admin-horizontal-tab--billing ${activeTab === 'finanzas' ? 'active' : ''}`} style={selectedNavStyle(activeTab === 'finanzas', 'billing')} aria-current={activeTab === 'finanzas' ? 'page' : undefined} onClick={() => setActiveTab('finanzas')}><DollarSign /><span>Payments</span></button>
+              <button type="button" className={`admin-horizontal-tab admin-horizontal-tab--billing ${activeTab === 'containers' ? 'active' : ''}`} style={selectedNavStyle(activeTab === 'containers', 'billing')} aria-current={activeTab === 'containers' ? 'page' : undefined} onClick={() => setActiveTab('containers')}><Container /><span>Containers</span></button>
+            </div>
+          </section>
+          <section className="admin-nav-group" aria-labelledby="admin-nav-administration">
+            <h2 id="admin-nav-administration" className="admin-nav-label">Administration</h2>
+            <div className="admin-nav-buttons">
+              <button type="button" className={`admin-horizontal-tab admin-horizontal-tab--admin ${activeTab === 'personal' ? 'active' : ''}`} style={selectedNavStyle(activeTab === 'personal', 'admin')} aria-current={activeTab === 'personal' ? 'page' : undefined} onClick={() => setActiveTab('personal')}><UserCog /><span>Staff</span><span className="count-badge">{personal.length}</span></button>
+              <button type="button" className={`admin-horizontal-tab admin-horizontal-tab--admin ${activeTab === 'activityLogs' ? 'active' : ''}`} style={selectedNavStyle(activeTab === 'activityLogs', 'admin')} aria-current={activeTab === 'activityLogs' ? 'page' : undefined} onClick={() => { setActiveTab('activityLogs'); void cargarStaffActionLogs(); }}><Bell /><span>Activity Logs</span></button>
+            </div>
+          </section>
+        </nav>
 
       {/* Card de Visualización de Datos */}
-      <div className={`data-card ${activeTab === 'facturas' ? 'data-card--invoices' : ''}`}>
-        <div className="card-header-inner" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
+      <div className={`data-card ${activeTab === 'facturas' ? 'data-card--invoices invoice-workspace' : ''}`}>
+        <div className={`card-header-inner ${activeTab === 'facturas' ? 'invoice-panel-header' : ''}`} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
           <div>
-            <h3>
+            <h3 className={activeTab === 'facturas' ? 'invoice-panel-heading' : undefined}>
               {activeTab === 'personal' ? <IconUsers /> : <IconBriefcase />}{' '}
               {activeTab === 'personal'
                 ? 'Listado de Personal'
@@ -2566,7 +2627,7 @@ const App = () => {
               <button
                 type="button"
                 className={`tab-pill ${activeInvoiceTab === 'sinAprobar' ? 'active' : ''}`}
-                style={{ minWidth: 120, fontSize: '0.8rem' }}
+                style={{ ...tabColorStyle(INVOICE_FILTER_COLORS.pending), minWidth: 120, fontSize: '0.8rem' }}
                 onClick={() => setActiveInvoiceTab('sinAprobar')}
               >
                 Sin aprobar
@@ -2574,17 +2635,17 @@ const App = () => {
               <button
                 type="button"
                 className={`tab-pill ${activeInvoiceTab === 'aprobadas' ? 'active' : ''}`}
-                style={{ minWidth: 120, fontSize: '0.8rem' }}
+                style={{ ...tabColorStyle(INVOICE_FILTER_COLORS.approved), minWidth: 120, fontSize: '0.8rem' }}
                 onClick={() => setActiveInvoiceTab('aprobadas')}
               >
                 Aprobadas
               </button>
-              <button type="button" className={`tab-pill ${activeInvoiceTab === 'todas' ? 'active' : ''}`} style={{ minWidth: 100, fontSize: '0.8rem' }} onClick={() => setActiveInvoiceTab('todas')}>All</button>
-              <button type="button" className={`tab-pill ${activeInvoiceTab === 'problemas' ? 'active' : ''}`} style={{ minWidth: 110, fontSize: '0.8rem' }} onClick={() => setActiveInvoiceTab('problemas')}>Problems</button>
+              <button type="button" className={`tab-pill ${activeInvoiceTab === 'todas' ? 'active' : ''}`} style={{ ...tabColorStyle(INVOICE_FILTER_COLORS.all), minWidth: 100, fontSize: '0.8rem' }} onClick={() => setActiveInvoiceTab('todas')}>All</button>
+              <button type="button" className={`tab-pill ${activeInvoiceTab === 'problemas' ? 'active' : ''}`} style={{ ...tabColorStyle(INVOICE_FILTER_COLORS.problems), minWidth: 110, fontSize: '0.8rem' }} onClick={() => setActiveInvoiceTab('problemas')}>Problems</button>
               <button
                 type="button"
                 className={`tab-pill ${activeInvoiceTab === 'enviadas' ? 'active' : ''}`}
-                style={{ minWidth: 120, fontSize: '0.8rem' }}
+                style={{ ...tabColorStyle(INVOICE_FILTER_COLORS.sent), minWidth: 120, fontSize: '0.8rem' }}
                 onClick={() => setActiveInvoiceTab('enviadas')}
               >
                 Enviadas
@@ -2592,19 +2653,20 @@ const App = () => {
               <button
                 type="button"
                 className={`tab-pill ${activeInvoiceTab === 'pagadas' ? 'active' : ''}`}
-                style={{ minWidth: 120, fontSize: '0.8rem' }}
+                style={{ ...tabColorStyle(INVOICE_FILTER_COLORS.paid), minWidth: 120, fontSize: '0.8rem' }}
                 onClick={() => setActiveInvoiceTab('pagadas')}
               >
                 Pagadas
               </button>
             </div>
 
-            <div style={{ maxHeight: '65vh', overflowY: 'auto', overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '0.5rem' }}>
+            <div className="invoice-table-scroll" style={{ maxHeight: '65vh', overflowY: 'auto', overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '0.5rem' }}>
             {/* Encabezados de la tabla de facturas */}
             <div
+              className="invoice-table-header"
               style={{
                 display: 'grid',
-                gridTemplateColumns: 'minmax(220px, 2fr) 200px 150px 100px 140px 140px 280px',
+                gridTemplateColumns: 'var(--invoice-columns)',
                 columnGap: '0.75rem',
                 padding: '0.4rem 0',
                 fontSize: '0.8rem',
@@ -2658,12 +2720,13 @@ const App = () => {
                 return (
                   <li
                     key={f.id}
+                    className="invoice-table-row"
                     style={{
                       padding: '0.8rem 0',
                       borderBottom: '1px solid #e2e8f0',
                       fontSize: '0.9rem',
                       display: 'grid',
-                      gridTemplateColumns: 'minmax(220px, 2fr) 200px 150px 100px 140px 140px 280px',
+                      gridTemplateColumns: 'var(--invoice-columns)',
                       columnGap: '0.75rem',
                       alignItems: 'center',
                       minWidth: 1280,
@@ -3244,7 +3307,7 @@ const App = () => {
                 </select>
               </div>
               <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', width: '100%' }}>
-                {SHIPMENT_STAGE_OPTIONS.map(([value, label]) => <button key={value} type="button" onClick={() => setPedidoEtapa(value)} style={{ border: pedidoEtapa === value ? '1px solid #2563eb' : '1px solid #e2e8f0', background: pedidoEtapa === value ? '#eff6ff' : '#fff', color: pedidoEtapa === value ? '#1d4ed8' : '#475569', borderRadius: '999px', padding: '0.25rem 0.55rem', fontSize: '0.74rem', cursor: 'pointer' }}>{label}{value !== 'ALL' ? ` (${pedidos.filter((p) => shipmentStage(p.estado) === value).length})` : ` (${pedidos.length})`}</button>)}
+                {SHIPMENT_STAGE_OPTIONS.map(([value, label]) => <button key={value} type="button" onClick={() => setPedidoEtapa(value)} style={{ border: pedidoEtapa === value ? `1px solid ${(TRACK_STAGE_STYLES[value] || TRACK_STAGE_STYLES.RECEIVED).border}` : '1px solid #e2e8f0', background: pedidoEtapa === value ? (TRACK_STAGE_STYLES[value] || TRACK_STAGE_STYLES.RECEIVED).background : '#fff', color: pedidoEtapa === value ? (TRACK_STAGE_STYLES[value] || TRACK_STAGE_STYLES.RECEIVED).color : '#475569', borderRadius: '999px', padding: '0.25rem 0.55rem', fontSize: '0.74rem', cursor: 'pointer' }}>{label}{value !== 'ALL' ? ` (${pedidos.filter((p) => shipmentStage(p.estado) === value).length})` : ` (${pedidos.length})`}</button>)}
               </div>
             </div>
 
@@ -3385,6 +3448,7 @@ const App = () => {
             </ul>
           </div>
         )}
+      </div>
       </div>
 
       {incidenciaImagenes && incidenciaImagenes.length > 0 && (

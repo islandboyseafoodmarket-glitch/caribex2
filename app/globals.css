@@ -1,3 +1,5 @@
+@import "./invoice-workspace.css";
+
 * {
   box-sizing: border-box;
   margin: 0;
@@ -2069,7 +2071,7 @@ main {
   padding: 0.2rem 0 0.45rem;
 }
 .ga-compact-brand { display: inline-flex; flex: 0 0 auto; align-items: center; }
-.ga-compact-brand img { width: 112px; height: 48px; object-fit: contain; }
+.ga-compact-brand img { width: 156px; height: 68px; object-fit: contain; }
 .ga-account-actions {
   display: flex;
   flex-wrap: wrap;
@@ -2155,14 +2157,15 @@ main {
   justify-content: center;
   gap: 0.2rem 0.5rem;
   padding: 0.25rem 0 0.4rem;
-  background: #f1f2ee;
-  border: 1px solid #d8dedb;
+  background: #173f64;
+  border: 1px solid #163a5c;
   border-radius: 4px;
 }
 .ga-compact-navigation .ga-stage-chip,
 .ga-compact-navigation .ga-workspace-tab {
-  --tab-color: #1976b5;
-  --tab-tint: #eff6ff;
+  --tab-color: #475569;
+  --tab-tint: #f1f5f9;
+  --tab-border: #cbd5e1;
   position: relative;
   flex: 0 0 auto;
   min-width: 74px;
@@ -2177,7 +2180,7 @@ main {
   border-bottom: 2px solid transparent;
   border-radius: 0;
   background: transparent;
-  color: #475569;
+  color: #f8fafc;
   font-size: 0.75rem;
   line-height: 1.2;
   font-weight: 500;
@@ -2196,17 +2199,9 @@ main {
 .ga-compact-navigation .ga-stage-chip:hover,
 .ga-compact-navigation .ga-workspace-tab:hover { background: var(--tab-tint); color: var(--tab-color); }
 .ga-compact-navigation button:focus-visible,
-.ga-account-actions button:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
-.ga-compact-navigation [data-stage="RECIBIDO_FLORIDA"] { --tab-color: #1976b5; --tab-tint: #eff6ff; }
-.ga-compact-navigation [data-stage="REGISTRO"] { --tab-color: #7c3aed; --tab-tint: #f5f3ff; }
-.ga-compact-navigation [data-stage="EN_TRANSITO"] { --tab-color: #d97706; --tab-tint: #fffbeb; }
-.ga-compact-navigation [data-stage="DESCARGADO_ROATAN"] { --tab-color: #0f8a70; --tab-tint: #ecfdf5; }
-.ga-compact-navigation [data-stage="PASTILLA"] { --tab-color: #c2415a; --tab-tint: #fff1f2; }
-.ga-compact-navigation [data-stage="FACTURAS"] { --tab-color: #92400e; --tab-tint: #fffbeb; }
-.ga-compact-navigation [data-workspace="client360"] { --tab-color: #6d28d9; --tab-tint: #f5f3ff; }
-.ga-compact-navigation [data-workspace="labels"] { --tab-color: #0f766e; --tab-tint: #f0fdfa; }
+.ga-account-actions button:focus-visible { outline: 2px solid #93c5fd; outline-offset: 2px; }
 .ga-compact-navigation .ga-stage-icon,
-.ga-compact-navigation .ga-workspace-tab > svg { color: var(--tab-color); }
+.ga-compact-navigation .ga-workspace-tab > svg { color: currentColor; }
 .ga-stage-icon { display: inline-flex; align-items: center; justify-content: center; margin: 0; }
 .ga-compact-navigation svg { width: 16px; height: 16px; }
 .ga-compact-navigation .ga-stage-badge {
@@ -2217,9 +2212,9 @@ main {
   margin: 0;
   padding: 0 0.25rem;
   border-radius: 999px;
-  background: rgba(15, 23, 42, 0.08);
+  background: rgba(255, 255, 255, 0.16);
   font-size: 0.65rem;
-  color: #263642;
+  color: currentColor;
 }
 
 .ga-state-card {

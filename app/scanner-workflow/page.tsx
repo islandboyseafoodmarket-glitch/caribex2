@@ -7,6 +7,7 @@ import { ArrowRight, CheckCircle2, Keyboard, LogOut, PackageCheck, ScanLine, Sea
 import { supabase } from "../../lib/supabaseClient";
 import { detectCarrier } from "../lib/carrierDetection";
 import { formatPortName } from "../../lib/port-format";
+import { SHIPMENT_STAGE_COLORS, WORKFLOW_STAGE_COLORS, tabColorStyle } from "../../lib/shipment-colors";
 import styles from "./scanner-workflow.module.css";
 
 type WorkflowStep = { key: string; status: string; label: string; description: string };
@@ -135,7 +136,27 @@ export default function ScannerWorkflowPage() {
     </header>
     <section className={styles.shell}>
       <div className={styles.hero}><div><p className={styles.eyebrow}>CARIBEX OPERATIONS</p><h1>Move a shipment through its workflow</h1><p>Scan a label, review the current status, and apply only the next allowed status.</p></div><div className={styles.heroIcon}><PackageCheck size={34} /></div></div>
-      <div className={styles.workflow}>{(shipment?.workflow || [{ key: "RECEIVED", label: "Received" }, { key: "CHECK_IN", label: "Check In" }, { key: "IN_TRANSIT", label: "In Transit" }, { key: "UNLOADED", label: "Ready for Pickup" }, { key: "PICKED_UP", label: "Picked Up" }]).map((step: any, index: number) => { const activeIndex = shipment ? shipment.workflow.findIndex((item) => item.key === shipment.current.key) : -1; return <div className={`${styles.workflowStep} ${styles[`stage_${step.key}`] || ""} ${shipment && index === activeIndex ? styles.active : ""} ${shipment && index < activeIndex ? styles.completed : ""}`} key={step.key}><span>{index + 1}</span><small>{step.label}</small>{index < 4 && <ArrowRight size={15} />}</div>; })}</div>
+      <div className={styles.workflow}>
+        {(shipment?.workflow || [
+          { key: "RECEIVED", label: "Received" },
+          { key: "CHECK_IN", label: "Check In" },
+          { key: "IN_TRANSIT", label: "In Transit" },
+          { key: "UNLOADED", label: "Ready for Pickup" },
+          { key: "PICKED_UP", label: "Picked Up" },
+        ]).map((step: any, index: number) => {
+          const activeIndex = shipment ? shipment.workflow.findIndex((item) => item.key === shipment.current.key) : -1;
+          const palette = WORKFLOW_STAGE_COLORS[step.key] || SHIPMENT_STAGE_COLORS.RECEIVED;
+          return <div
+            className={`${styles.workflowStep} ${shipment && index === activeIndex ? styles.active : ""} ${shipment && index < activeIndex ? styles.completed : ""}`}
+            key={step.key}
+            style={{ ...tabColorStyle(palette), color: palette.color }}
+          >
+            <span>{index + 1}</span>
+            <small>{step.label}</small>
+            {index < 4 && <ArrowRight size={15} />}
+          </div>;
+        })}
+      </div>
       <div className={styles.scanCard}>
         <div className={styles.cardTitle}><div><h2>Scan shipment</h2><p>Use the dedicated handheld scanner or type the tracking number.</p></div><ScanLine size={25} /></div>
         <div className={styles.scanActions}><button type="button" className={styles.primaryButton} onClick={activateHandheldScanner}><ScanLine size={18} /> Activate scanner</button><div className={styles.or}><span>or</span></div><form className={styles.manualForm} onSubmit={(event) => { event.preventDefault(); void lookup(manualCode); }}><Keyboard size={18} /><input ref={manualInputRef} autoFocus autoComplete="off" value={manualCode} onChange={(event) => setManualCode(event.target.value)} placeholder="Scan or enter tracking number" aria-label="Tracking number" /><button type="submit" disabled={loading || !manualCode.trim()}><Search size={17} /> Find</button></form></div>
