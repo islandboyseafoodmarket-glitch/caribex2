@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
-import { FileText, Eye, Receipt, Trash2 } from "lucide-react";
+import { FileText, Trash2 } from "lucide-react";
 import { BILLABLE_INVOICE_ITEMS, formatCatalogCharge } from "../lib/invoice-pricing";
 
 // Este tipo refleja el tipo Package definido en GestionAlmacen,
@@ -22,6 +22,8 @@ type PackageForInvoice = {
   billing_total?: number | null;
   approval_status?: string | null;
   invoice_status?: string | null;
+  issue_status?: string | null;
+  containerCode?: string | null;
 };
 
 type InvoicesStageProps = {
@@ -46,13 +48,6 @@ const getClientName = (pkg: PackageForInvoice): string => {
   // Como respaldo, usamos destinatario o remitente si existen.
   const name = (pkg.destinatario || pkg.remitente || "").toString().trim();
   return name || "-";
-};
-
-const getCategoryLabel = (id: "BOX" | "PACKAGE", isEs: boolean): string => {
-  if (isEs) {
-    return id === "BOX" ? "Caja" : "Paquete";
-  }
-  return id === "BOX" ? "Box" : "Package";
 };
 
 const formatCurrency = (value: number | null | undefined): string => {
@@ -86,6 +81,8 @@ const InvoicesStage: React.FC<InvoicesStageProps> = ({
   onCreateManualInvoice,
 }) => {
   const [search, setSearch] = useState("");
+  const [activeFilter, setActiveFilter] = useState<"pending" | "approved" | "all" | "problems" | "sent" | "paid">("pending");
+  const [containerFilter, setContainerFilter] = useState("ALL");
   const [manualOpen, setManualOpen] = useState(false);
   const [manual, setManual] = useState({ customer_id: "", tracking: "", description: "", charges: [] as string[], catalogLines: [] as { itemId: string; quantity: number }[], catalogItem: "", catalogQuantity: "1", taxEnabled: true });
   const customerOptions = useMemo(() => Array.from(new Map(packages.filter((p) => p.numeroClienteId).map((p) => [p.numeroClienteId, { id: p.numeroClienteId as string, label: `${p.clienteNombre || "Customer"} · ${p.numeroCliente || ""}` }])).values()), [packages]);
@@ -121,23 +118,44 @@ const InvoicesStage: React.FC<InvoicesStageProps> = ({
     void onCreateManualInvoice?.({ customer_id: manual.customer_id, tracking: manual.tracking, description: manual.description, additional_charges: [...manual.charges, ...catalogCharges].join(", ") || null, tax_enabled: manual.taxEnabled });
   };
 
-  const filtered = useMemo(() => {
-    const term = search.trim().toLowerCase();
-    // Trabajar solo con envíos que estén en estado "Descargado" o "Entregado" (cualquier variante).
-    const unloaded = packages.filter((p) => {
+  const invoiceReady = useMemo(
+    () => packages.filter((p) => {
       const raw = (p.estado || "").toLowerCase();
       return raw.includes("descargado") || raw.includes("entregado");
+    }),
+    [packages],
+  );
+  const containerOptions = useMemo(
+    () => Array.from(new Set(invoiceReady.map((p) => p.containerCode?.trim()).filter((code): code is string => Boolean(code)))).sort((a, b) => a.localeCompare(b)),
+    [invoiceReady],
+  );
+  const filtered = useMemo(() => {
+    const normalize = (value: unknown) => String(value ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+    const term = normalize(search);
+    return invoiceReady.filter((p) => {
+      const approval = (p.approval_status || "").toUpperCase();
+      const invoice = (p.invoice_status || "").toUpperCase();
+      const hasProblem = approval === "REJECTED" || invoice === "OVERDUE" || (p.issue_status || "").toUpperCase() === "OPEN";
+      const matchesSearch = !term || [p.tracking, p.clienteNombre, p.numeroCliente, p.carrier].some((value) => normalize(value).includes(term));
+      const matchesContainer = containerFilter === "ALL" || p.containerCode === containerFilter;
+      let matchesStatus = true;
+      if (activeFilter === "pending") matchesStatus = !approval || approval === "PENDING";
+      else if (activeFilter === "approved") matchesStatus = approval === "APPROVED";
+      else if (activeFilter === "sent") matchesStatus = invoice === "SENT";
+      else if (activeFilter === "paid") matchesStatus = invoice === "PAID";
+      else if (activeFilter === "problems") matchesStatus = hasProblem;
+      return matchesSearch && matchesContainer && matchesStatus;
     });
+  }, [invoiceReady, search, containerFilter, activeFilter]);
 
-    // Si no hay término de búsqueda, mostramos todos los descargados.
-    if (!term) return unloaded;
-
-    // Filtrar por coincidencia parcial en el nombre del cliente dentro de los descargados.
-    return unloaded.filter((p) => {
-      const clientName = getClientName(p).toLowerCase();
-      return clientName.includes(term);
-    });
-  }, [packages, search]);
+  const invoiceTabs = [
+    { id: "pending", label: isEs ? "Por aprobar" : "Pending approval" },
+    { id: "approved", label: isEs ? "Aprobadas" : "Approved" },
+    { id: "all", label: isEs ? "Todas" : "All" },
+    { id: "problems", label: isEs ? "Problemas" : "Problems" },
+    { id: "sent", label: isEs ? "Enviadas" : "Sent" },
+    { id: "paid", label: isEs ? "Pagadas" : "Paid" },
+  ] as const;
 
   const hasPackages = filtered.length > 0;
 
@@ -169,25 +187,36 @@ const InvoicesStage: React.FC<InvoicesStageProps> = ({
               </h2>
               <p className="ga-state-subtitle">
                 {isEs
-                  ? `${filtered.length} pedidos listos para facturar`
-                  : `${filtered.length} orders ready for invoicing`}
+                  ? `${filtered.length} de ${invoiceReady.length} facturas`
+                  : `${filtered.length} of ${invoiceReady.length} invoices`}
               </p>
             </div>
           </div>
 
-          <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
-            <div className="ga-search-bar" style={{ maxWidth: 260 }}>
+          <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
+            <div className="ga-search-bar" style={{ minWidth: 260, maxWidth: 360 }}>
               <input
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder={
                   isEs
-                    ? "Buscar factura por nombre de cliente..."
-                    : "Search invoices by client name..."
+                    ? "Buscar cliente, cuenta, tracking o paquetería..."
+                    : "Search customer, account, tracking, or carrier..."
                 }
+                aria-label={isEs ? "Buscar facturas" : "Search invoices"}
               />
             </div>
+            <select
+              value={containerFilter}
+              onChange={(event) => setContainerFilter(event.target.value)}
+              aria-label={isEs ? "Filtrar facturas por contenedor" : "Filter invoices by container"}
+              style={{ minHeight: 40, minWidth: 180, padding: "0.55rem 0.75rem", border: "1px solid #cbd5e1", borderRadius: "0.65rem", background: "#fff" }}
+            >
+              <option value="ALL">{isEs ? "Todos los contenedores" : "All containers"}</option>
+              {containerOptions.map((code) => <option key={code} value={code}>{isEs ? `Contenedor: ${code}` : `Container: ${code}`}</option>)}
+            </select>
+            {(search || containerFilter !== "ALL") && <button type="button" className="ga-secondary-button" onClick={() => { setSearch(""); setContainerFilter("ALL"); }}>{isEs ? "Limpiar filtros" : "Clear filters"}</button>}
 
             {onBulkGenerate && (
               <button
@@ -209,6 +238,21 @@ const InvoicesStage: React.FC<InvoicesStageProps> = ({
         </div>
       </header>
 
+      <div style={{ display: "flex", gap: "0.5rem", marginBottom: "0.75rem", overflowX: "auto", paddingBottom: "0.25rem" }}>
+        {invoiceTabs.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            className={`tab-pill ${activeFilter === tab.id ? "active" : ""}`}
+            style={{ minWidth: tab.id === "pending" ? 140 : 100, fontSize: "0.8rem" }}
+            onClick={() => setActiveFilter(tab.id)}
+            aria-pressed={activeFilter === tab.id}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
       {manualOpen && onCreateManualInvoice && (
         <div className="staff-invoice-modal-overlay" role="dialog" aria-modal="true" aria-label={isEs ? "Crear factura manual" : "Create manual invoice"}>
           <div className="staff-invoice-modal" style={{ maxHeight: "90vh", overflowY: "auto" }}>
@@ -228,85 +272,43 @@ const InvoicesStage: React.FC<InvoicesStageProps> = ({
       )}
 
       {hasPackages ? (
-        <div className="ga-table-card">
-          <table className="ga-table">
-            <thead>
-              <tr>
-                <th>{isEs ? "N.º cliente" : "Client #"}</th>
-                <th>{isEs ? "Nombre cliente" : "Client name"}</th>
-                <th>Tracking</th>
-                <th>{isEs ? "Paquetería" : "Carrier"}</th>
-                <th>{isEs ? "Tipo" : "Type"}</th>
-                <th>{isEs ? "Subtotal" : "Subtotal"}</th>
-                <th>{isEs ? "Impuesto de venta (15%)" : "Sales tax (15%)"}</th>
-                <th>{isEs ? "Total" : "Total"}</th>
-                <th>{isEs ? "Aprobación" : "Approval"}</th>
-                <th>{isEs ? "Estado factura" : "Invoice status"}</th>
-                <th className="ga-table-col-actions">
-                  {isEs ? "Acciones" : "Actions"}
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((p) => (
-                <tr key={p.id} className="ga-table-row">
-                  <td className="ga-table-text">
-                    {p.numeroCliente != null ? p.numeroCliente : "-"}
-                  </td>
-                  <td className="ga-table-text">{getClientName(p)}</td>
-                  <td className="ga-table-tracking">{p.tracking}</td>
-                  <td className="ga-table-text">{p.carrier || "-"}</td>
-                  <td className="ga-table-text">
-                    <span className="ga-tag">{getCategoryLabel(p.type, isEs)}</span>
-                  </td>
-                  <td className="ga-table-text">
-                    {formatCurrency(p.billing_subtotal ?? null)}
-                  </td>
-                  <td className="ga-table-text">
-                    {formatCurrency(p.billing_tax ?? null)}
-                  </td>
-                  <td className="ga-table-text">
-                    {formatCurrency(p.billing_total ?? null)}
-                  </td>
-                  <td className="ga-table-text">
-                    {getApprovalLabel(p.approval_status, isEs)}
-                  </td>
-                  <td className="ga-table-text">
-                    {getInvoiceStatusLabel(p.invoice_status, isEs)}
-                  </td>
-                  <td className="ga-table-actions">
-                    <div
-                      style={{
-                        display: "flex",
-                        gap: "0.25rem",
-                        justifyContent: "center",
-                      }}
-                    >
-                      <button
-                        type="button"
-                        className="ga-icon-button"
-                        title={isEs ? "Ver factura" : "View invoice"}
-                        onClick={() => onView(p)}
-                      >
-                        <Receipt size={16} />
-                      </button>
-
-                      {onDeleteInvoice && (
-                        <button
-                          type="button"
-                          className="ga-icon-button ga-icon-button-danger"
-                          title={isEs ? "Eliminar factura" : "Delete invoice"}
-                          onClick={() => onDeleteInvoice(p)}
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      )}
+        <div style={{ maxHeight: "65vh", overflowY: "auto", overflowX: "auto", border: "1px solid #e2e8f0", borderRadius: "0.5rem", background: "#fff" }}>
+          <div style={{ minWidth: 1100 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "minmax(180px, 2fr) minmax(180px, 1.7fr) 140px 100px 140px 140px 150px", columnGap: "0.75rem", padding: "0.65rem 0.75rem", fontSize: "0.8rem", color: "#64748b", borderBottom: "1px solid #e2e8f0", fontWeight: 600, position: "sticky", top: 0, background: "#fff", zIndex: 1 }}>
+              <span>Tracking</span>
+              <span>{isEs ? "Cliente / cuenta" : "Customer / account"}</span>
+              <span>{isEs ? "Paquetería" : "Carrier"}</span>
+              <span>Total</span>
+              <span>{isEs ? "Aprobación" : "Approval"}</span>
+              <span>{isEs ? "Estado factura" : "Invoice status"}</span>
+              <span>{isEs ? "Acciones" : "Actions"}</span>
+            </div>
+            <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+              {filtered.map((p) => {
+                const approval = (p.approval_status || "").toUpperCase();
+                const invoice = (p.invoice_status || "").toUpperCase();
+                const approvalColor = approval === "APPROVED" ? "#166534" : approval === "REJECTED" ? "#b91c1c" : "#b45309";
+                const invoiceColor = invoice === "PAID" ? "#166534" : invoice === "OVERDUE" ? "#b91c1c" : invoice === "SENT" ? "#1d4ed8" : "#64748b";
+                return (
+                  <li key={p.id} style={{ padding: "0.8rem 0.75rem", borderBottom: "1px solid #e2e8f0", fontSize: "0.9rem", display: "grid", gridTemplateColumns: "minmax(180px, 2fr) minmax(180px, 1.7fr) 140px 100px 140px 140px 150px", columnGap: "0.75rem", alignItems: "center" }}>
+                    <button type="button" onClick={() => onView(p)} title={isEs ? "Abrir factura" : "Open invoice"} style={{ border: 0, padding: 0, background: "transparent", color: "#2563eb", textDecoration: "underline", textUnderlineOffset: 2, textAlign: "left", fontWeight: 700, cursor: "pointer", overflowWrap: "anywhere" }}>#{p.tracking || "-"}</button>
+                    <span style={{ color: "#0f172a" }}>
+                      <span style={{ display: "block", fontWeight: 600 }}>{getClientName(p)}</span>
+                      <span style={{ display: "block", marginTop: "0.2rem", color: "#64748b", fontSize: "0.8rem" }}>{isEs ? "Cuenta" : "Account"}: {p.numeroCliente != null ? `#${p.numeroCliente}` : "-"}</span>
+                    </span>
+                    <span style={{ color: "#475569", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.carrier || "-"}</span>
+                    <span style={{ fontFeatureSettings: '"tnum" on', fontWeight: 600 }}>{formatCurrency(p.billing_total ?? null)}</span>
+                    <span style={{ color: approvalColor, fontSize: "0.85rem" }}>{getApprovalLabel(p.approval_status, isEs)}</span>
+                    <span style={{ color: invoiceColor, fontSize: "0.85rem" }}>{getInvoiceStatusLabel(p.invoice_status, isEs)}</span>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "0.35rem", alignItems: "center" }}>
+                      <button type="button" className="ga-secondary-button" style={{ padding: "0.3rem 0.55rem", fontSize: "0.72rem", whiteSpace: "nowrap" }} onClick={() => onView(p)}>{isEs ? "Ver" : "View"}</button>
+                      {onDeleteInvoice && <button type="button" className="ga-icon-button ga-icon-button-danger" title={isEs ? "Eliminar factura" : "Delete invoice"} onClick={() => onDeleteInvoice(p)}><Trash2 size={16} /></button>}
                     </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
         </div>
       ) : (
         <div className="ga-empty-state">
@@ -315,9 +317,10 @@ const InvoicesStage: React.FC<InvoicesStageProps> = ({
           </div>
           <p className="ga-empty-title">
             {isEs
-              ? "No hay pedidos listos para facturar"
-              : "No orders ready for invoicing"}
+              ? "No hay facturas que coincidan con estos filtros"
+              : "No invoices match these filters"}
           </p>
+          {(search || containerFilter !== "ALL" || activeFilter !== "all") && <button type="button" className="ga-secondary-button" onClick={() => { setSearch(""); setContainerFilter("ALL"); setActiveFilter("all"); }}>{isEs ? "Ver todas las facturas" : "Show all invoices"}</button>}
         </div>
       )}
     </>
