@@ -87,6 +87,7 @@ export async function POST(request: Request) {
     }];
     let resolvedServiceDate = serviceDate || null;
     let groupedShipmentIds: string[] = [];
+    let persistedExtraCharges: string[] = [];
 
     // Invoices are grouped by customer and operational container. This keeps
     // one customer from receiving a separate email for every item in the same
@@ -100,7 +101,7 @@ export async function POST(request: Request) {
       .limit(1)
       .maybeSingle();
     if (currentShipment) {
-    const [{ data: currentLink }, { data: currentCheckin }] = await Promise.all([
+      const [{ data: currentLink }, { data: currentCheckin }] = await Promise.all([
         authClient
         .from("contenedor_paquetes")
         .select("contenedor_id")
@@ -115,6 +116,10 @@ export async function POST(request: Request) {
           .limit(1)
           .maybeSingle(),
       ]);
+      persistedExtraCharges = String(currentCheckin?.cargos_adicionales || "")
+        .split(",")
+        .map((value) => value.trim())
+        .filter(Boolean);
       const currentStoredTotal = Number(currentShipment.billing_total);
       // Customer-facing invoice content comes from package contents. Never
       // allow the internal notas/staff-notes field to be rendered here.
@@ -236,7 +241,10 @@ export async function POST(request: Request) {
         }).format(parsedServiceDate)
       : "-";
 
-    const extrasList = Array.isArray(extraCharges) ? extraCharges : [];
+    const extrasList = Array.from(new Set([
+      ...(Array.isArray(extraCharges) ? extraCharges : []),
+      ...persistedExtraCharges,
+    ].filter((value): value is string => typeof value === "string" && value.trim().length > 0)));
 
     const hasHandling = extrasList.some((label) => {
       const parsed = parseInvoiceChargeLine(label);
