@@ -135,14 +135,10 @@ const shipmentStage = (status: string | null | undefined) => {
   return "RECEIVED";
 };
 
-const trackPackageStage = (shipment: { estado?: string | null; insideBox?: boolean }) =>
-  shipment.insideBox && shipmentStage(shipment.estado) !== "PICKED_UP" ? "INSIDE_BOX" : shipmentStage(shipment.estado);
-
 const SHIPMENT_STAGE_OPTIONS = [
   ["ALL", "All stages"],
   ["RECEIVED", "Received"],
   ["REGISTERED", "Registered / Check In"],
-  ["INSIDE_BOX", "Inside a box"],
   ["IN_TRANSIT", "In transit"],
   ["UNLOADED", "Unloaded / Ready for pickup"],
   ["PICKED_UP", "Picked up"],
@@ -151,7 +147,6 @@ const SHIPMENT_STAGE_OPTIONS = [
 const TRACK_STAGE_STYLES: Record<string, { color: string; background: string; border: string }> = {
   RECEIVED: { color: '#475569', background: '#f1f5f9', border: '#cbd5e1' },
   REGISTERED: { color: '#15803d', background: '#f0fdf4', border: '#86efac' },
-  INSIDE_BOX: { color: '#7c3aed', background: '#f5f3ff', border: '#c4b5fd' },
   IN_TRANSIT: { color: '#0f766e', background: '#f0fdfa', border: '#5eead4' },
   UNLOADED: { color: '#15803d', background: '#f0fdf4', border: '#86efac' },
   PICKED_UP: { color: '#7e22ce', background: '#faf5ff', border: '#d8b4fe' },
@@ -223,7 +218,6 @@ const App = () => {
     issue_status?: 'OPEN' | 'RESOLVED' | null;
     cargos_adicionales?: string | null;
     consolidacion?: boolean | null;
-    insideBox?: boolean;
     containerLabels?: string[];
   };
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
@@ -438,7 +432,7 @@ const App = () => {
   const trackStageGroups = useMemo(() => {
     const groups: Record<string, Pedido[]> = Object.fromEntries(SHIPMENT_STAGE_OPTIONS.filter(([value]) => value !== "ALL").map(([value]) => [value, [] as Pedido[]]));
     trackResults.forEach((shipment) => {
-      const stage = trackPackageStage(shipment);
+      const stage = shipmentStage(shipment.estado);
       (groups[stage] ||= []).push(shipment);
     });
     return groups;
@@ -1135,13 +1129,12 @@ const App = () => {
     if (data) {
       const rows = data as any[];
       const packageIds = rows.map((row) => row.id).filter(Boolean);
-      const [{ data: containerLinks }, { data: containers }, { data: checkins }] = packageIds.length
+      const [{ data: containerLinks }, { data: containers }] = packageIds.length
         ? await Promise.all([
             supabase.from("contenedor_paquetes").select("paquete_id, contenedor_id").in("paquete_id", packageIds),
             supabase.from("contenedores").select("id, codigo"),
-            supabase.from("paquetes_checkin").select("paquete_id, parent_box_id, consolidacion").in("paquete_id", packageIds),
           ])
-        : [{ data: [] }, { data: [] }, { data: [] }];
+        : [{ data: [] }, { data: [] }];
       const containerById = new Map((containers || []).map((container: any) => [String(container.id), String(container.codigo || container.id)]));
       const labelsByPackage = new Map<string, string[]>();
       (containerLinks || []).forEach((link: any) => {
@@ -1149,7 +1142,6 @@ const App = () => {
         labels.push(containerById.get(String(link.contenedor_id)) || String(link.contenedor_id));
         labelsByPackage.set(String(link.paquete_id), labels);
       });
-      const insideBoxIds = new Set((checkins || []).filter((row: any) => row.parent_box_id).map((row: any) => String(row.paquete_id)));
       const mapped = rows.map((row) => ({
         id: row.id as string,
         tracking: (row.tracking as string) || "-",
@@ -1176,7 +1168,6 @@ const App = () => {
         hora_descargado: row.hora_descargado || null,
         fecha_entregado: row.fecha_entregado || null,
         hora_entregado: row.hora_entregado || null,
-        insideBox: insideBoxIds.has(String(row.id)),
         containerLabels: labelsByPackage.get(String(row.id)) || [],
       }));
 
