@@ -102,15 +102,19 @@ const InvoicesStage: React.FC<InvoicesStageProps> = ({
     });
   };
   const submitManualInvoice = () => {
+    const selectedQuantity = Math.floor(Number(manual.catalogQuantity));
+    const pendingCatalogLines = manual.catalogItem && Number.isFinite(selectedQuantity) && selectedQuantity >= 1
+      ? [...manual.catalogLines.filter((line) => line.itemId !== manual.catalogItem), { itemId: manual.catalogItem, quantity: selectedQuantity }]
+      : manual.catalogLines;
     if (!manual.customer_id) {
       window.alert(isEs ? "Seleccione un cliente." : "Select a customer.");
       return;
     }
-    if (!manual.charges.length && !manual.catalogLines.length) {
+    if (!manual.charges.length && !pendingCatalogLines.length) {
       window.alert(isEs ? "Seleccione un artículo del catálogo o un cargo operativo." : "Select a catalog item or operational extra.");
       return;
     }
-    const catalogCharges = manual.catalogLines.map((line) => {
+    const catalogCharges = pendingCatalogLines.map((line) => {
       const item = BILLABLE_INVOICE_ITEMS.find((candidate) => candidate.id === line.itemId);
       return item ? formatCatalogCharge(item, line.quantity) : null;
     }).filter((charge): charge is string => Boolean(charge));

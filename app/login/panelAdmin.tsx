@@ -1279,11 +1279,15 @@ const App = () => {
     setManualInvoiceCatalogQuantity("1");
   };
   const createManualInvoice = async () => {
+    const selectedQuantity = Math.floor(Number(manualInvoiceCatalogQuantity));
+    const pendingCatalogLines = manualInvoiceCatalogItem && Number.isFinite(selectedQuantity) && selectedQuantity >= 1
+      ? [...manualInvoiceCatalogLines.filter((line) => line.itemId !== manualInvoiceCatalogItem), { itemId: manualInvoiceCatalogItem, quantity: selectedQuantity }]
+      : manualInvoiceCatalogLines;
     if (!manualInvoiceForm.customerId) {
       setManualInvoiceError("Select a customer for the invoice.");
       return;
     }
-    if (manualInvoiceForm.charges.length === 0 && manualInvoiceCatalogLines.length === 0) {
+    if (manualInvoiceForm.charges.length === 0 && pendingCatalogLines.length === 0) {
       setManualInvoiceError("Select a catalog item or operational extra.");
       return;
     }
@@ -1300,7 +1304,7 @@ const App = () => {
           customer_id: manualInvoiceForm.customerId || null,
           tracking: manualInvoiceForm.tracking.trim() || undefined,
           description: manualInvoiceForm.description.trim(),
-          additional_charges: [...manualInvoiceForm.charges, ...manualInvoiceCatalogLines.map((line) => {
+          additional_charges: [...manualInvoiceForm.charges, ...pendingCatalogLines.map((line) => {
             const item = BILLABLE_INVOICE_ITEMS.find((candidate) => candidate.id === line.itemId);
             return item ? formatCatalogCharge(item, line.quantity) : null;
           }).filter((charge): charge is string => Boolean(charge))].join(", ") || null,

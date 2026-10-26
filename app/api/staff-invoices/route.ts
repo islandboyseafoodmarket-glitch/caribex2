@@ -41,7 +41,11 @@ export async function POST(request: Request) {
     const finalTotal = roundMoney(finalSubtotal + finalTax);
     const { data: shipment, error } = await supabase.from("paquetes_registro").insert({ tracking, tipo_paquete: type, contenido: description, notas: "MANUAL INVOICE CREATED BY STAFF", numero_cliente_id: customerId, registro: staff.name, estado: "Descargado", billing_subtotal: finalSubtotal, billing_tax: finalTax, billing_total: finalTotal, approval_status: "PENDING", invoice_status: "PENDING" }).select("id, tracking, tipo_paquete, contenido, numero_cliente_id, billing_subtotal, billing_tax, billing_total, approval_status, invoice_status").single();
     if (error) throw error;
-    await supabase.from("paquetes_checkin").insert({ paquete_id: shipment.id, numero_cliente_id: customerId, cargos_adicionales: body?.additional_charges || null });
+    const { error: checkinError } = await supabase.from("paquetes_checkin").insert({ paquete_id: shipment.id, numero_cliente_id: customerId, cargos_adicionales: body?.additional_charges || null });
+    if (checkinError) {
+      await supabase.from("paquetes_registro").delete().eq("id", shipment.id);
+      throw checkinError;
+    }
     await supabase.from("staff_action_logs").insert({ actor_id: staff.user.id, actor_name: staff.name, actor_email: staff.user.email || null, actor_role: staff.role, action: "manual_invoice_created", entity_type: "paquetes_registro", entity_id: shipment.id, tracking, customer_name: customer?.nombre || null, customer_account_number: customer?.numero_cliente || null, success: true, details: { source: "staff_invoice_panel", description, type } });
     return NextResponse.json({ ok: true, shipment });
   } catch (error) {

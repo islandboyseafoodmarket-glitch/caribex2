@@ -87,8 +87,9 @@ export async function POST(request: Request) {
     for (const photo of photos) {
       const extension = (photo.name.split(".").pop() || "jpg").replace(/[^a-z0-9]/gi, "").toLowerCase() || "jpg";
       const path = `scanner/${shipment.id}/${Date.now()}-${crypto.randomUUID()}.${extension}`;
-      const upload = await supabase.storage.from("notas-imagenes").upload(path, photo, { contentType: photo.type || "image/jpeg", upsert: false });
-      if (upload.error) throw upload.error;
+      const photoBytes = new Uint8Array(await photo.arrayBuffer());
+      const upload = await supabase.storage.from("notas-imagenes").upload(path, photoBytes, { contentType: photo.type || "image/jpeg", upsert: false });
+      if (upload.error) throw new Error(`Photo upload failed: ${upload.error.message}`);
       const { data: publicUrl } = supabase.storage.from("notas-imagenes").getPublicUrl(path);
       if (publicUrl.publicUrl) imageUrls = [...imageUrls, publicUrl.publicUrl];
     }

@@ -122,7 +122,8 @@ async function uploadPhotoFiles(supabase: SupabaseClient, shipmentId: string, ph
         ? reportedType === "image/jpg" ? "image/jpeg" : reportedType
         : Object.entries(extensionsByMime).find(([, mapped]) => mapped === extension)?.[0] || "image/jpeg";
       const path = `scanner/${shipmentId}/${Date.now()}-${index}-${crypto.randomUUID()}.${extension}`;
-      const { error: uploadError } = await storage.upload(path, photo, {
+      const photoBytes = new Uint8Array(await photo.arrayBuffer());
+      const { error: uploadError } = await storage.upload(path, photoBytes, {
         contentType,
         upsert: false,
       });
@@ -142,8 +143,10 @@ async function uploadPhotoFiles(supabase: SupabaseClient, shipmentId: string, ph
     }
     console.error("[scanner-receiving] Photo upload failed", {
       message: error instanceof Error ? error.message : "Unexpected storage error",
+      shipmentId,
+      photoCount: photos.length,
     });
-    throw error;
+    throw new Error(`Photo upload failed: ${error instanceof Error ? error.message : "Unexpected storage error"}`);
   }
 }
 
