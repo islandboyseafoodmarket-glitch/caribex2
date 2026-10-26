@@ -1,5 +1,7 @@
 @import "./admin-navigation.css";
 @import "./invoice-workspace.css";
+@import "./admin-leads.css";
+@import "./workspace-theme.css";
 
 * {
   box-sizing: border-box;
@@ -2180,7 +2182,7 @@ main {
   border: 0;
   border-bottom: 2px solid transparent;
   border-radius: 0;
-  background: transparent;
+  background: #214b73;
   color: #f8fafc;
   font-size: 0.75rem;
   line-height: 1.2;
@@ -2192,13 +2194,13 @@ main {
 .ga-compact-navigation .ga-stage-label { display: inline; border: 0; padding: 0; }
 .ga-compact-navigation .ga-stage-chip-active,
 .ga-compact-navigation .ga-workspace-tab-active {
-  background: var(--tab-tint);
+  background: var(--tab-color);
   border-bottom-color: var(--tab-color);
-  color: var(--tab-color);
+  color: #ffffff;
   box-shadow: none;
 }
 .ga-compact-navigation .ga-stage-chip:hover,
-.ga-compact-navigation .ga-workspace-tab:hover { background: var(--tab-tint); color: var(--tab-color); }
+.ga-compact-navigation .ga-workspace-tab:hover { background: var(--tab-color); color: #ffffff; }
 .ga-compact-navigation button:focus-visible,
 .ga-account-actions button:focus-visible { outline: 2px solid #93c5fd; outline-offset: 2px; }
 .ga-compact-navigation .ga-stage-icon,
@@ -2216,6 +2218,11 @@ main {
   background: rgba(255, 255, 255, 0.16);
   font-size: 0.65rem;
   color: currentColor;
+}
+.ga-compact-navigation .ga-stage-chip-active .ga-stage-badge,
+.ga-compact-navigation .ga-workspace-tab-active .ga-stage-badge {
+  background: transparent;
+  color: #ffffff;
 }
 
 .ga-state-card {

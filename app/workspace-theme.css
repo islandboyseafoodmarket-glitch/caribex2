@@ -1,0 +1,55 @@
+/* Consistent opaque workspace surfaces, with readable light data/form areas. */
+.dashboard-root .data-card,
+.ga-page-wrapper .ga-state-card {
+  background: #eaf3fb;
+}
+.dashboard-root .data-card .card-header-inner,
+.ga-page-wrapper .ga-state-card-header,
+.ga-page-wrapper .ga-state-header,
+.ga-page-wrapper .invoice-panel-header {
+  background: #173f64;
+  border: 1px solid #315d86;
+  border-radius: 12px;
+  padding: 16px 20px;
+  color: #ffffff;
+}
+.dashboard-root .data-card .card-header-inner h3,
+.dashboard-root .data-card .card-header-inner svg,
+.ga-page-wrapper .ga-state-card-header h2,
+.ga-page-wrapper .ga-state-card-header h3,
+.ga-page-wrapper .ga-state-header h2,
+.ga-page-wrapper .ga-state-header h3,
+.ga-page-wrapper .invoice-panel-header .invoice-panel-heading,
+.ga-page-wrapper .invoice-panel-header svg {
+  color: #ffffff;
+}
+.dashboard-root .data-card .card-header-inner span,
+.ga-page-wrapper .ga-state-card-header p,
+.ga-page-wrapper .ga-state-header p,
+.ga-page-wrapper .invoice-panel-header p {
+  color: #dbeafe;
+}
+.dashboard-root .admin-table thead,
+.dashboard-root .admin-table thead th,
+.dashboard-root .data-card table thead,
+.dashboard-root .data-card table thead th,
+.invoice-workspace .invoice-table-header,
+.ga-page-wrapper table thead,
+.ga-page-wrapper table thead th {
+  background: #173f64 !important;
+  color: #ffffff !important;
+}
+.invoice-workspace .invoice-table-header > span,
+.dashboard-root .data-card table thead th > span,
+.dashboard-root .data-card table thead th > button {
+  color: #ffffff !important;
+}
+.dashboard-root .admin-table thead th,
+.ga-page-wrapper table thead th {
+  padding: 12px 14px;
+  border-bottom: 1px solid #315d86;
+}
+.invoice-workspace .invoice-table-header {
+  padding: 12px 0;
+}
+/* Keep existing rows, form controls, validation colors, and billing actions intact. */

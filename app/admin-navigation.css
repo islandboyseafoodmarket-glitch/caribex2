@@ -1,10 +1,10 @@
 /*
- * Caribex Admin grouped right navigation restoration
+ * Caribex Admin grouped left navigation restoration
  *
- * Historical reference: a3f2604^ used a light grouped sidebar with compact
+ * Historical reference: a3f2604^ used a grouped sidebar with compact
  * horizontal rows (.admin-sidebar / .admin-sidebar-item), before the compact
  * icon-toolbar rewrite. This override maps that treatment onto the current
- * right-side DOM without changing the project files, markup, logo, page
+ * navigation DOM without changing the markup, logo, page
  * background, staff view, or the current inline --tab-* color variables.
  *
  * Cascade issue addressed:
@@ -14,12 +14,15 @@
  * below so each current group remains a single vertical list.
  */
 
-/* Keep the explicit Admin navigation on the right, with enough width for labels. */
+/* Keep the existing navigation styling, but place the tabs on the left. */
 .dashboard-root .admin-workspace-layout {
-  grid-template-columns: minmax(0, 1fr) minmax(240px, 260px);
+  grid-template-columns: minmax(240px, 260px) minmax(0, 1fr);
 }
 
+/* The legacy class name is retained for compatibility with existing markup. */
 .dashboard-root .admin-right-navigation {
+  grid-column: 1;
+  grid-row: 1;
   box-sizing: border-box;
   width: 100%;
   min-width: 0;
@@ -34,20 +37,25 @@
   gap: 0;
   overflow-x: hidden;
   overflow-y: auto;
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
+  background: #173f64;
+  border: 1px solid #315d86;
   border-radius: 12px;
   box-shadow: 8px 0 24px rgba(15, 23, 42, 0.06);
 }
 
-/* Natural grouped sections: no second column, no dark separator treatment. */
+.dashboard-root .admin-workspace-layout > .data-card {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+/* Compact grouped sections with visible separators on the solid-blue panel. */
 .dashboard-root .admin-right-navigation .admin-nav-group {
   min-width: 0;
   width: 100%;
   padding: 0 0 12px;
   margin: 0 0 12px;
   border: 0;
-  border-bottom: 1px solid #eef2f6;
+  border-bottom: 1px solid #315d86;
 }
 
 .dashboard-root .admin-right-navigation .admin-nav-group:last-child {
@@ -62,7 +70,7 @@
   min-height: 0;
   margin: 0 0 7px;
   padding: 0 4px;
-  color: #64748b;
+  color: #bfdbfe;
   font-size: 0.64rem;
   font-weight: 800;
   letter-spacing: 0.1em;
@@ -95,10 +103,10 @@
   justify-content: flex-start;
   gap: 9px;
   padding: 7px 9px;
-  border: 1px solid transparent;
+  border: 1px solid #315d86;
   border-radius: 7px;
-  background: transparent;
-  color: #475569;
+  background: #214b73;
+  color: #e2e8f0;
   font-size: 0.8rem;
   font-weight: 600;
   line-height: 1.25;
@@ -126,8 +134,8 @@
 }
 
 .dashboard-root .admin-right-navigation .admin-horizontal-tab:hover {
-  background: #f8fafc;
-  color: #0f172a;
+  background: #285b88;
+  color: #ffffff;
 }
 
 .dashboard-root .admin-right-navigation .admin-horizontal-tab:focus-visible {
@@ -137,9 +145,9 @@
 
 /* selectedNavStyle() supplies these canonical sharedlib variables inline. */
 .dashboard-root .admin-right-navigation .admin-horizontal-tab.active {
-  background: var(--tab-tint, #f1f5f9);
-  border-color: var(--tab-border, #cbd5e1);
-  color: var(--tab-color, #475569);
+  background: var(--tab-color, #475569);
+  border-color: var(--tab-color, #475569);
+  color: #ffffff;
   box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
 }
 
@@ -151,11 +159,11 @@
   bottom: 5px;
   width: 2px;
   border-radius: 2px;
-  background: currentColor;
+  background: var(--tab-color, #475569);
 }
 
 .dashboard-root .admin-right-navigation .admin-horizontal-tab.active > svg {
-  color: var(--tab-color, #475569);
+  color: #ffffff;
 }
 
 .dashboard-root .admin-right-navigation .admin-horizontal-tab .count-badge {
@@ -167,10 +175,10 @@
   max-width: 4.5rem;
   margin-left: auto;
   padding: 2px 5px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid #527ca0;
   border-radius: 999px;
-  background: #f8fafc;
-  color: #475569;
+  background: #315d86;
+  color: #ffffff;
   font-size: 0.68rem;
   font-weight: 700;
   line-height: 1.15;
@@ -181,9 +189,9 @@
 }
 
 .dashboard-root .admin-right-navigation .admin-horizontal-tab.active .count-badge {
-  background: var(--tab-border, #cbd5e1);
-  border-color: var(--tab-border, #cbd5e1);
-  color: var(--tab-color, #475569);
+  background: transparent;
+  border-color: transparent;
+  color: #ffffff;
 }
 
 /* Preserve the existing responsive stack, while still preventing horizontal scroll. */

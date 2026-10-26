@@ -288,10 +288,31 @@ const App = () => {
   const [leads, setLeads] = useState<Lead[]>([]);
   type PortalEvent = { id: string; customer_name: string | null; account_number: number | null; email: string; event_type: string; success: boolean; reason: string | null; created_at: string };
   const [portalEvents, setPortalEvents] = useState<PortalEvent[]>([]);
+  const [portalEventsStatus, setPortalEventsStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
+  const [portalEventsError, setPortalEventsError] = useState<string | null>(null);
+  const portalEventsRequestRef = useRef(0);
   const cargarPortalEvents = useCallback(async () => {
-    const { data } = await supabase.from("customer_portal_login_events").select("id, customer_name, account_number, email, event_type, success, reason, created_at").order("created_at", { ascending: false }).limit(100);
-    if (data) setPortalEvents(data as PortalEvent[]);
+    const requestId = portalEventsRequestRef.current + 1;
+    portalEventsRequestRef.current = requestId;
+    setPortalEventsStatus("loading");
+    setPortalEventsError(null);
+    try {
+      const { data, error } = await supabase.from("customer_portal_login_events").select("id, customer_name, account_number, email, event_type, success, reason, created_at").order("created_at", { ascending: false }).limit(100);
+      if (requestId !== portalEventsRequestRef.current) return;
+      if (error) throw error;
+      setPortalEvents((data || []) as PortalEvent[]);
+      setPortalEventsStatus("ready");
+    } catch (error) {
+      if (requestId !== portalEventsRequestRef.current) return;
+      setPortalEventsError(error instanceof Error ? error.message : "Could not load portal alerts.");
+      setPortalEventsStatus("error");
+    }
   }, []);
+  const portalAlertsBadge = portalEventsStatus === "ready"
+    ? portalEvents.filter((event) => !event.success).length
+    : portalEventsStatus === "loading"
+      ? "…"
+      : "?";
   type StaffActionLog = { id: string; actor_name: string | null; actor_email: string | null; actor_role: string; action: string; entity_type: string; entity_id: string | null; tracking: string | null; customer_name: string | null; customer_account_number: number | null; success: boolean; error_message: string | null; details: Record<string, unknown> | null; created_at: string };
   const [staffActionLogs, setStaffActionLogs] = useState<StaffActionLog[]>([]);
   const [staffLogSearch, setStaffLogSearch] = useState('');
@@ -353,6 +374,7 @@ const App = () => {
   const [invoiceDiscountCode, setInvoiceDiscountCode] = useState<InvoiceDiscountCode | "">("");
   const [existingInvoiceDiscount, setExistingInvoiceDiscount] = useState<ExistingInvoiceDiscount | null>(null);
   const [isSavingInvoiceDiscount, setIsSavingInvoiceDiscount] = useState(false);
+  const [invoiceDiscountError, setInvoiceDiscountError] = useState<string | null>(null);
   const [invoiceSearch, setInvoiceSearch] = useState("");
   const [invoiceContainerFilter, setInvoiceContainerFilter] = useState("ALL");
   const [isManualInvoiceOpen, setIsManualInvoiceOpen] = useState(false);
@@ -1419,6 +1441,7 @@ const App = () => {
     cargarPedidos();
     cargarFacturas();
     cargarLeads();
+    void cargarPortalEvents();
 
     const pedidoSubscription = supabase
       .channel("realtime-pedidos")
@@ -1449,14 +1472,19 @@ const App = () => {
     const signupSubscription = supabase.channel('realtime-customer-signups').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'numero_cliente' }, (payload) => {
       setAdminNotice(`New customer account created: ${(payload.new as any).nombre || 'customer'}`);
     }).subscribe();
+    const portalEventSubscription = supabase.channel("realtime-portal-events").on("postgres_changes", { event: "*", schema: "public", table: "customer_portal_login_events" }, () => {
+      void cargarPortalEvents();
+    }).subscribe();
 
     return () => {
+      portalEventsRequestRef.current += 1;
       supabase.removeChannel(pedidoSubscription);
       supabase.removeChannel(clienteSubscription);
       supabase.removeChannel(leadSubscription);
       supabase.removeChannel(signupSubscription);
+      supabase.removeChannel(portalEventSubscription);
     };
-  }, [cargarPersonal, cargarClientes, cargarPedidos, cargarFacturas, cargarLeads]);
+  }, [cargarPersonal, cargarClientes, cargarPedidos, cargarFacturas, cargarLeads, cargarPortalEvents]);
 
   useEffect(() => {
     if (activeTab === "portal") void cargarPortalEvents();
@@ -1531,6 +1559,7 @@ const App = () => {
     setInvoiceAddOnType("");
     setInvoiceAddOnAmount("");
     setInvoiceDiscountCode("");
+    setInvoiceDiscountError(null);
     setExistingInvoiceDiscount(findExistingInvoiceDiscount(checkin.cargos_adicionales));
     setEditingInvoiceAddOns(factura);
   };
@@ -1558,8 +1587,13 @@ const App = () => {
   };
 
   const saveAdminInvoiceDiscount = async (action: "apply" | "remove") => {
-    if (!editingInvoiceAddOns || (action === "apply" && !invoiceDiscountCode)) return;
+    if (!editingInvoiceAddOns) return;
+    if (action === "apply" && !invoiceDiscountCode) {
+      setInvoiceDiscountError("Select a percentage discount before saving the adjustment.");
+      return;
+    }
     setIsSavingInvoiceDiscount(true);
+    setInvoiceDiscountError(null);
     try {
       const { data: sessionData } = await supabase.auth.getSession();
       const response = await fetch("/api/invoice-catalog", {
@@ -1577,6 +1611,7 @@ const App = () => {
       const subtotal = Number(payload.subtotal);
       const tax = Number(payload.tax);
       const total = Number(payload.total);
+      if (![subtotal, tax, total].every(Number.isFinite)) throw new Error("The invoice discount response was invalid; no invoice state was changed.");
       updateFacturaEnEstado(editingInvoiceAddOns.id, { subtotal, tax, total });
       if (action === "apply" && payload.discountCode && INVOICE_DISCOUNTS[payload.discountCode as InvoiceDiscountCode]) {
         const code = payload.discountCode as InvoiceDiscountCode;
@@ -1586,8 +1621,10 @@ const App = () => {
       }
       setInvoiceDiscountCode("");
       await cargarFacturas();
+      setAdminNotice(action === "apply" ? "Invoice percentage discount saved successfully." : "Invoice discount removed successfully.");
+      setEditingInvoiceAddOns(null);
     } catch (error) {
-      alert(error instanceof Error ? error.message : "Could not update invoice discount");
+      setInvoiceDiscountError(error instanceof Error ? error.message : "Could not update invoice discount");
     } finally {
       setIsSavingInvoiceDiscount(false);
     }
@@ -2269,7 +2306,7 @@ const App = () => {
               <button type="button" className={`admin-horizontal-tab admin-horizontal-tab--customers ${activeTab === 'clientes' ? 'active' : ''}`} style={selectedNavStyle(activeTab === 'clientes', 'customers')} aria-current={activeTab === 'clientes' ? 'page' : undefined} onClick={() => setActiveTab('clientes')}><UserPlus /><span>Customers</span><span className="count-badge">{clientes.length}</span></button>
               <button type="button" className={`admin-horizontal-tab admin-horizontal-tab--customers ${activeTab === 'prepaid' ? 'active' : ''}`} style={selectedNavStyle(activeTab === 'prepaid', 'customers')} aria-current={activeTab === 'prepaid' ? 'page' : undefined} onClick={() => setActiveTab('prepaid')}><DollarSign /><span>Prepaid</span><span className="count-badge">{clientes.filter((customer) => customer.tipo_cuenta === 'Developer / Builder — Prepaid').length}</span></button>
               <button type="button" className={`admin-horizontal-tab admin-horizontal-tab--customers ${activeTab === 'leads' ? 'active' : ''}`} style={selectedNavStyle(activeTab === 'leads', 'customers')} aria-current={activeTab === 'leads' ? 'page' : undefined} onClick={() => setActiveTab('leads')}><UserPlus /><span>Leads</span><span className="count-badge">{leads.filter((lead) => lead.status === 'NEW').length}</span></button>
-              <button type="button" className={`admin-horizontal-tab admin-horizontal-tab--customers ${activeTab === 'portal' ? 'active' : ''}`} style={selectedNavStyle(activeTab === 'portal', 'customers')} aria-current={activeTab === 'portal' ? 'page' : undefined} onClick={() => setActiveTab('portal')}><Bell /><span>Portal Alerts</span><span className="count-badge">{portalEvents.filter((event) => !event.success).length}</span></button>
+              <button type="button" className={`admin-horizontal-tab admin-horizontal-tab--customers ${activeTab === 'portal' ? 'active' : ''}`} style={selectedNavStyle(activeTab === 'portal', 'customers')} aria-current={activeTab === 'portal' ? 'page' : undefined} onClick={() => setActiveTab('portal')}><Bell /><span>Portal Alerts</span><span className="count-badge">{portalAlertsBadge}</span></button>
             </div>
           </section>
           <section className="admin-nav-group" aria-labelledby="admin-nav-finances">
@@ -2290,7 +2327,7 @@ const App = () => {
         </nav>
 
       {/* Card de Visualización de Datos */}
-      <div className={`data-card ${activeTab === 'facturas' ? 'data-card--invoices invoice-workspace' : ''}`}>
+      <div className={`data-card ${activeTab === 'facturas' ? 'data-card--invoices invoice-workspace' : ''} ${activeTab === 'leads' ? 'data-card--leads' : ''}`}>
         <div className={`card-header-inner ${activeTab === 'facturas' ? 'invoice-panel-header' : ''}`} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
           <div>
             <h3 className={activeTab === 'facturas' ? 'invoice-panel-heading' : undefined}>
@@ -2351,7 +2388,11 @@ const App = () => {
                       : activeTab === 'leads'
                         ? `${leads.length} leads received from the website`
                       : activeTab === 'portal'
-                        ? `${portalEvents.length} recent portal and account events`
+                        ? portalEventsStatus === 'ready'
+                          ? `${portalEvents.length} recent portal and account events`
+                          : portalEventsStatus === 'loading'
+                            ? 'Verifying portal and account events…'
+                            : 'Portal and account events could not be verified'
                       : activeTab === 'containers'
                         ? 'Container totals, locations, shipment details, and PDF manifest export'
                       : activeTab === 'labels'
@@ -2462,7 +2503,10 @@ const App = () => {
         </div>}
 
         {activeTab === 'portal' && <div style={{ width: '100%', overflowX: 'auto' }}>
-          {portalEvents.length === 0 ? <p style={{ padding: '1.5rem', color: '#64748b' }}>No customer portal or account events have been recorded yet.</p> : <table className="admin-table" style={{ minWidth: 980, width: '100%' }}><thead><tr><th>Date</th><th>Customer</th><th>Email</th><th>Result</th><th>Reason</th><th>Event</th></tr></thead><tbody>{portalEvents.map((event) => <tr key={event.id}><td>{formatStaffDateTime(event.created_at)}</td><td>{event.customer_name || '-'}{event.account_number != null && <><br /><small>Account #{event.account_number}</small></>}</td><td>{event.email}</td><td><span style={{ color: event.success ? '#166534' : '#b91c1c', fontWeight: 700 }}>{event.success ? (event.event_type === 'login_attempt' ? 'Successful' : 'Completed') : 'Problem'}</span></td><td>{event.reason || '-'}</td><td>{portalEventLabel(event.event_type)}</td></tr>)}</tbody></table>}
+          {portalEventsStatus === 'loading' && <p role="status" style={{ padding: '1.5rem', color: '#64748b' }}>Loading customer portal and account events…</p>}
+          {portalEventsStatus === 'error' && <div role="alert" style={{ padding: '1.5rem', color: '#991b1b' }}>Portal alerts could not be verified: {portalEventsError || 'Unknown error.'} <button type="button" className="pa-secondary-btn" onClick={() => { void cargarPortalEvents(); }}>Retry</button></div>}
+          {portalEventsStatus === 'ready' && portalEvents.length === 0 && <p style={{ padding: '1.5rem', color: '#64748b' }}>No customer portal or account events have been recorded yet.</p>}
+          {portalEvents.length > 0 && <table className="admin-table" style={{ minWidth: 980, width: '100%' }}><thead><tr><th>Date</th><th>Customer</th><th>Email</th><th>Result</th><th>Reason</th><th>Event</th></tr></thead><tbody>{portalEvents.map((event) => <tr key={event.id}><td>{formatStaffDateTime(event.created_at)}</td><td>{event.customer_name || '-'}{event.account_number != null && <><br /><small>Account #{event.account_number}</small></>}</td><td>{event.email}</td><td><span style={{ color: event.success ? '#166534' : '#b91c1c', fontWeight: 700 }}>{event.success ? (event.event_type === 'login_attempt' ? 'Successful' : 'Completed') : 'Problem'}</span></td><td>{event.reason || '-'}</td><td>{portalEventLabel(event.event_type)}</td></tr>)}</tbody></table>}
         </div>}
 
         {activeTab === 'finanzas' && <div style={{ width: '100%' }}>
@@ -3536,7 +3580,7 @@ const App = () => {
               <button type="button" className="pa-close-btn" onClick={() => setEditingInvoiceAddOns(null)}>×</button>
             </div>
             <div className="pa-field" style={{ paddingBottom: "1rem", marginBottom: "1rem", borderBottom: "1px solid #e2e8f0" }}>
-              <label htmlFor="admin-invoice-discount">Admin-only discount (10%)</label>
+              <label htmlFor="admin-invoice-discount">Percentage discount (server-calculated, 10%)</label>
               {existingInvoiceDiscount ? (
                 <>
                   <p style={{ margin: "0.35rem 0 0.65rem", color: "#334155" }}>
@@ -3558,25 +3602,26 @@ const App = () => {
                     Business and customer-appreciation discounts apply to the invoice subtotal. Ferry Charge Offset applies to freight and shipping/service charges, excluding catalog merchandise. The discount is applied before handling fee; only one discount may be active. Apply after items and charges are finalized; remove and reapply to refresh the percentage after changes.
                   </p>
                   <button type="button" className="pa-primary-btn" disabled={!invoiceDiscountCode || isSavingInvoiceDiscount} onClick={() => void saveAdminInvoiceDiscount("apply")}>
-                    {isSavingInvoiceDiscount ? "Saving…" : "Apply discount"}
+                    {isSavingInvoiceDiscount ? "Saving adjustment…" : "Save adjustment"}
                   </button>
                 </>
               )}
+              {invoiceDiscountError && <p role="alert" style={{ margin: "0.45rem 0", color: "#991b1b", fontSize: "0.82rem" }}>{invoiceDiscountError}</p>}
             </div>
             <div className="pa-field">
-              <label htmlFor="admin-invoice-charge-type">Additional charge or customer credit</label>
+              <label htmlFor="admin-invoice-charge-type">Fixed additional charge or customer credit</label>
               <select id="admin-invoice-charge-type" className="pa-input" value={invoiceAddOnType} onChange={(event) => setInvoiceAddOnType(event.target.value)}>
                 <option value="">Select an adjustment</option>
                 {ADMIN_EXTRA_CHARGE_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
               </select>
             </div>
             <div className="pa-field">
-              <label htmlFor="admin-invoice-charge-amount">Amount</label>
+              <label htmlFor="admin-invoice-charge-amount">Fixed amount (required for fixed charges)</label>
               <input id="admin-invoice-charge-amount" className="pa-input" type="number" min="0.01" step="0.01" value={invoiceAddOnAmount} onChange={(event) => setInvoiceAddOnAmount(event.target.value)} placeholder="0.00" />
             </div>
             <div className="pa-modal-actions">
               <button type="button" className="pa-secondary-btn" onClick={() => setEditingInvoiceAddOns(null)}>Cancel</button>
-              <button type="button" className="pa-primary-btn" disabled={!invoiceAddOnType || !invoiceAddOnAmount} onClick={() => void saveAdminInvoiceAddOn()}>Save adjustment</button>
+              <button type="button" className="pa-primary-btn" disabled={!invoiceAddOnType || !invoiceAddOnAmount} onClick={() => void saveAdminInvoiceAddOn()}>Save fixed adjustment</button>
             </div>
           </div>
         </div>

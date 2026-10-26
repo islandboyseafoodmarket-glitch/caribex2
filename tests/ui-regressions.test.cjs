@@ -95,11 +95,11 @@ function loadTypeScript(relativeFile) {
   return compiled.exports;
 }
 
-test('Page stays blue; Staff retains dark tabs while Admin restores the earlier light grouped sidebar', () => {
+test('Page stays blue and Admin/Staff navigation uses the requested solid-blue background', () => {
   assert.match(css, /\.ga-page-wrapper\s*\{[^}]*background: #2f6f9d;/);
   assert.match(css, /\.ga-compact-navigation\s*\{[^}]*background: #173f64;/);
   assert.match(admin, /--bg-main: #2f6f9d;/);
-  assert.match(read('app/admin-navigation.css'), /\.dashboard-root \.admin-right-navigation\s*\{[^}]*background: #ffffff;/);
+  assert.match(read('app/admin-navigation.css'), /\.dashboard-root \.admin-right-navigation\s*\{[^}]*background: #173f64;/);
 });
 
 test('Enabled and disabled invoice previews say handling fee and retain the 15% amount', () => {
@@ -242,14 +242,16 @@ test('Actual invoice rendering retains persisted catalog items and handling-fee 
   assert.ok(html.includes(`$${total.toFixed(2)}`));
 });
 
-test('Admin navigation restores the four functional groups in the right-side workspace layout', () => {
+test('Admin navigation preserves the four functional groups in the left-side workspace layout', () => {
   assert.match(admin, /admin-workspace-layout/);
   assert.match(admin, /admin-right-navigation/);
   for (const heading of [/Shipments\s*\/\s*Operations/, /Customers/, /Invoices\s*\/\s*Finances/, /Administration/]) {
     assert.match(admin, heading);
   }
-  assert.match(admin, /\.admin-workspace-layout\s*\{[^}]*grid-template-columns:/);
-  assert.match(admin, /\.admin-right-navigation\s*\{[^}]*grid-column:\s*2/);
+  const placement = read('app/admin-navigation.css');
+  assert.match(placement, /grid-template-columns: minmax\(240px, 260px\) minmax\(0, 1fr\);/);
+  assert.match(placement, /\.dashboard-root \.admin-right-navigation\s*\{[^}]*grid-column:\s*1/);
+  assert.match(placement, /\.dashboard-root \.admin-workspace-layout > \.data-card\s*\{[^}]*grid-column:\s*2/);
 });
 
 
@@ -375,4 +377,80 @@ test('Admin and Staff use identical shared invoice tab markup and heading treatm
   assert.match(staff, /<h3 className="invoice-panel-heading"/);
   assert.doesNotMatch(staff, /ga-state-header-icon|invoiceTabs\.map/);
   assert.match(read('app/invoice-workspace.css'), /\.invoice-workspace \.invoice-status-tabs \.tab-pill/);
+});
+
+
+test('Staff selected and hovered navigation tabs are solid stage colors with white content', () => {
+  const rules = postcss.parse(css).nodes.filter((node) => node.type === 'rule');
+  const active = rules.find((rule) => rule.selector.includes('.ga-stage-chip-active') && !rule.selector.includes('.ga-stage-badge'));
+  const hover = rules.find((rule) => rule.selector.includes('.ga-stage-chip:hover'));
+  for (const rule of [active, hover]) {
+    assert.ok(rule);
+    assert.equal(rule.nodes.find((node) => node.prop === 'background').value, 'var(--tab-color)');
+    assert.equal(rule.nodes.find((node) => node.prop === 'color').value, '#ffffff');
+  }
+  assert.match(css, /\.ga-workspace-tab-active \.ga-stage-badge\s*\{[^}]*background: transparent;[^}]*color: #ffffff;/);
+});
+
+test('Solid Admin sidebar and selected stage colors keep readable contrast', () => {
+  const sidebar = read('app/admin-navigation.css');
+  assert.match(sidebar, /\.admin-horizontal-tab\s*\{[^}]*background: #214b73;[^}]*color: #e2e8f0;/);
+  assert.match(sidebar, /\.admin-horizontal-tab\.active\s*\{[^}]*background: var\(--tab-color, #475569\);[^}]*color: #ffffff;/);
+  const luminance = (hex) => {
+    const c = hex.slice(1).match(/../g).map((n) => parseInt(n, 16) / 255).map((n) => n <= .04045 ? n / 12.92 : ((n + .055) / 1.055) ** 2.4);
+    return c[0] * .2126 + c[1] * .7152 + c[2] * .0722;
+  };
+  const contrast = (a, b) => { const x = luminance(a), y = luminance(b); return (Math.max(x, y) + .05) / (Math.min(x, y) + .05); };
+  assert.ok(contrast('#e2e8f0', '#214b73') >= 4.5);
+  assert.ok(contrast('#bfdbfe', '#173f64') >= 4.5);
+  const stages = loadTypeScript('lib/shipment-colors.ts').SHIPMENT_STAGE_COLORS;
+  for (const palette of Object.values(stages)) assert.ok(contrast('#ffffff', palette.color) >= 4.5, palette.color);
+});
+
+test('Portal Alerts loads during initialization and never presents an unverified zero', () => {
+  assert.match(admin, /cargarLeads\(\);\s*void cargarPortalEvents\(\);/);
+  assert.match(admin, /realtime-portal-events/);
+  assert.match(admin, /portalEventsRequestRef\.current \+= 1/);
+  const expression = admin.match(/const portalAlertsBadge = ([\s\S]*?);/)[1];
+  const badge = new Function('portalEventsStatus', 'portalEvents', `return ${expression};`);
+  const events = [{ success: true }, { success: false }, { success: false }];
+  assert.equal(badge('ready', events), 2);
+  assert.equal(badge('ready', []), 0);
+  assert.equal(badge('loading', []), '…');
+  assert.equal(badge('idle', []), '?');
+  assert.equal(badge('error', []), '?');
+  assert.match(admin, /portalEventsStatus === 'ready' && portalEvents\.length === 0/);
+});
+
+test('Customer Leads uses scoped solid title and column headers with readable controls', () => {
+  const leads = read('app/admin-leads.css');
+  postcss.parse(leads);
+  assert.match(css, /@import "\.\/admin-leads\.css";/);
+  assert.match(admin, /activeTab === 'leads' \? 'data-card--leads'/);
+  assert.match(leads, /\.card-header-inner\s*\{[^}]*background: #173f64;/);
+  assert.match(leads, /\.admin-table thead th\s*\{[^}]*background: #173f64;[^}]*color: #ffffff;/);
+  assert.match(leads, /\.admin-table tbody td\s*\{[^}]*background: #ffffff;[^}]*color: #0f172a;/);
+  assert.match(leads, /\.admin-table textarea\s*\{[^}]*background: #ffffff;[^}]*color: #0f172a;/);
+});
+
+
+test('All Admin/Staff workspaces use opaque panel surfaces and solid readable header bars', () => {
+  const theme = read('app/workspace-theme.css');
+  const parsed = postcss.parse(theme);
+  assert.match(css, /@import "\.\/workspace-theme\.css";/);
+  assert.match(theme, /\.ga-page-wrapper \.ga-state-card\s*\{[^}]*background: #eaf3fb;/);
+  assert.match(theme, /\.invoice-panel-header\s*\{[^}]*background: #173f64;/);
+  const header = parsed.nodes.find((node) => node.type === 'rule' && node.selector.includes('.invoice-workspace .invoice-table-header') && !node.selector.includes('> span'));
+  assert.equal(header.nodes.find((node) => node.prop === 'background').value, '#173f64');
+  assert.equal(header.nodes.find((node) => node.prop === 'color').value, '#ffffff');
+  assert.equal(header.nodes.find((node) => node.prop === 'color').important, true);
+});
+
+test('Shared Admin/Staff invoice filter tabs no longer have clear or two-tone backgrounds', () => {
+  const shared = postcss.parse(read('app/invoice-workspace.css'));
+  const base = shared.nodes.find((node) => node.type === 'rule' && node.selector === '.invoice-workspace .invoice-status-tabs .tab-pill');
+  const active = shared.nodes.find((node) => node.type === 'rule' && node.selector === '.invoice-workspace .invoice-status-tabs .tab-pill.active');
+  assert.equal(base.nodes.find((node) => node.prop === 'background').value, '#214b73');
+  assert.equal(active.nodes.find((node) => node.prop === 'background').value, 'var(--tab-color, #166534)');
+  assert.equal(active.nodes.find((node) => node.prop === 'color').value, '#ffffff');
 });

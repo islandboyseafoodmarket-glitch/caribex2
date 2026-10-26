@@ -43,21 +43,21 @@
   align-items: center;
   justify-content: center;
   gap: 5px;
-  border: 1px solid transparent;
+  border: 1px solid #315d86;
   border-radius: 12px;
-  background: #fff;
-  color: #64748b;
+  background: #214b73;
+  color: #e2e8f0;
   font-size: 0.8rem;
   font-weight: 500;
   cursor: pointer;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
   transition: background 160ms ease, border-color 160ms ease, color 160ms ease;
 }
-.invoice-workspace .invoice-status-tabs .tab-pill:hover { background: #f8fafc; }
+ .invoice-workspace .invoice-status-tabs .tab-pill:hover { background: #285b88; color: #ffffff; }
 .invoice-workspace .invoice-status-tabs .tab-pill.active {
-  color: var(--tab-color, #166534);
-  background: var(--tab-tint, #fff);
-  border-color: var(--tab-border, #dcfce7);
+  color: #ffffff;
+  background: var(--tab-color, #166534);
+  border-color: var(--tab-color, #166534);
   box-shadow: 0 4px 12px rgba(22, 101, 52, 0.08);
 }
 .invoice-workspace .invoice-status-tabs .tab-pill:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }

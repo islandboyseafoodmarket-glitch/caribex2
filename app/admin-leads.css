@@ -1,0 +1,48 @@
+/* Customer Leads: solid header bars without changing the editable table body. */
+.dashboard-root .data-card--leads .card-header-inner {
+  background: #173f64;
+  padding: 16px 20px;
+  border: 1px solid #315d86;
+  border-radius: 12px;
+}
+.dashboard-root .data-card--leads .card-header-inner h3,
+.dashboard-root .data-card--leads .card-header-inner svg {
+  color: #ffffff;
+}
+.dashboard-root .data-card--leads .card-header-inner span {
+  color: #dbeafe;
+}
+.dashboard-root .data-card--leads .admin-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  color: #0f172a;
+  background: #ffffff;
+}
+.dashboard-root .data-card--leads .admin-table thead,
+.dashboard-root .data-card--leads .admin-table thead th {
+  background: #173f64;
+  color: #ffffff;
+}
+.dashboard-root .data-card--leads .admin-table thead th {
+  padding: 12px 14px;
+  border-bottom: 1px solid #315d86;
+  font-weight: 700;
+}
+.dashboard-root .data-card--leads .admin-table tbody td {
+  padding: 12px 14px;
+  border-bottom: 1px solid #e2e8f0;
+  background: #ffffff;
+  color: #0f172a;
+  vertical-align: top;
+}
+.dashboard-root .data-card--leads .admin-table select,
+.dashboard-root .data-card--leads .admin-table textarea {
+  background: #ffffff;
+  color: #0f172a;
+  border: 1px solid #94a3b8;
+  border-radius: 6px;
+  padding: 6px 8px;
+}
+.dashboard-root .data-card--leads .admin-table textarea {
+  min-width: 160px;
+}
