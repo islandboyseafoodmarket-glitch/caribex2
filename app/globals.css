@@ -2049,13 +2049,13 @@ main {
 /* GESTIÓN DE ALMACÉN (GestionAlmacen) */
 .ga-page-wrapper {
   min-height: 100vh;
-  background: #75a9cf;
+  background: #2f6f9d;
 }
 
 .ga-nav {
-  background: linear-gradient(90deg, #0ea5e9 0%, #2563eb 50%, #1d4ed8 100%);
+  background: #2f6f9d;
   padding: 0.75rem 2.5rem;
-  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.25);
+  box-shadow: none;
 }
 
 .ga-nav-inner {
@@ -2160,12 +2160,12 @@ main {
 .ga-page-title {
   font-size: 1.9rem;
   font-weight: 700;
-  color: #0f172a;
+  color: #ffffff;
 }
 
 .ga-page-subtitle {
   font-size: 0.9rem;
-  color: #64748b;
+  color: rgba(255, 255, 255, 0.86);
 }
 
 .ga-search-bar {
@@ -2199,21 +2199,33 @@ main {
 .ga-stages-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-bottom: 1.25rem;
+  gap: 4px;
+  margin-bottom: 1rem;
+  padding: 6px;
+  border: 1px solid #d8dedb;
+  border-radius: 5px;
+  background: #f1f2ee;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
 }
 
 .ga-stage-chip {
-  border-radius: 999px;
-  border: 1px solid #e5e7eb;
-  background-color: #ffffff;
-  padding: 0.45rem 0.9rem;
-  display: inline-flex;
+  flex: 1 1 92px;
+  min-width: 82px;
+  min-height: 64px;
+  border-radius: 4px;
+  border: 0;
+  background-color: transparent;
+  padding: 0.45rem 0.55rem;
+  display: flex;
   align-items: center;
-  gap: 0.35rem;
-  font-size: 0.8rem;
-  color: #4b5563;
+  justify-content: center;
+  flex-direction: column;
+  gap: 0.28rem;
+  font-size: 0.72rem;
+  color: #263642;
+  text-align: center;
   cursor: pointer;
+  transition: background 150ms ease, color 150ms ease;
 }
 
 .ga-stage-label {
@@ -2222,28 +2234,32 @@ main {
 }
 
 .ga-stage-chip-active {
-  border-color: #e5e7eb;
+  background: #f2a51a;
   box-shadow: none;
-  color: #4b5563;
+  color: #142d42;
 }
 
-.ga-stage-chip:hover .ga-stage-label,
-.ga-stage-chip-active .ga-stage-label {
-  border-bottom-color: var(--accent-green);
+.ga-stage-chip:hover {
+  background: #ffffff;
 }
 
 .ga-stage-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  margin-right: 0.25rem;
-  color: #111827;
+  margin: 0;
+  color: currentColor;
 }
 
+.ga-stage-icon svg { width: 18px; height: 18px; }
+
 .ga-stage-badge {
-  margin-left: 0.25rem;
-  font-size: 0.75rem;
-  color: #000000;
+  margin: 0;
+  padding: 0 0.25rem;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.08);
+  font-size: 0.65rem;
+  color: #263642;
 }
 
 .ga-state-card {
@@ -2929,12 +2945,12 @@ main {
   }
 
   .ga-stage-label {
-    display: none;
+    display: block;
   }
 
   .ga-stage-badge {
     font-size: 0.7rem;
-    display: none;
+    display: inline-block;
   }
 
   .ga-measurements-grid {
@@ -3114,9 +3130,11 @@ main {
 }
 
 /* CLIENT 360 */
-.ga-workspace-tabs { display:flex; gap:.5rem; margin-bottom:1rem; border-bottom:1px solid #dbeafe; }
-.ga-workspace-tab { display:inline-flex; align-items:center; gap:.45rem; border:0; border-bottom:3px solid transparent; background:transparent; color:#64748b; padding:.7rem 1rem; font-weight:700; cursor:pointer; }
-.ga-workspace-tab-active { color:#1d4ed8; border-bottom-color:#22c55e; }
+.ga-workspace-tabs { display:flex; flex-wrap:wrap; gap:4px; margin-bottom:4px; padding:6px; border:1px solid #d8dedb; border-radius:5px; background:#f1f2ee; box-shadow:0 4px 12px rgba(15,23,42,.08); }
+.ga-workspace-tab { flex:1 1 120px; min-height:62px; display:inline-flex; flex-direction:column; align-items:center; justify-content:center; gap:.3rem; border:0; border-radius:4px; background:transparent; color:#263642; padding:.5rem .65rem; font-weight:700; font-size:.72rem; cursor:pointer; }
+.ga-workspace-tab svg { width:18px; height:18px; }
+.ga-workspace-tab:hover { background:#fff; }
+.ga-workspace-tab-active { color:#142d42; background:#f2a51a; }
 .ga-client360 { background:#f8fafc; border:1px solid #e5e7eb; border-radius:1.5rem; padding:1.25rem; box-shadow:0 18px 40px rgba(148,163,184,.25); }
 .ga-client360-toolbar { display:flex; justify-content:space-between; align-items:center; gap:1rem; margin-bottom:1.25rem; }
 .ga-client360-toolbar h2 { margin:0; color:#0f172a; }

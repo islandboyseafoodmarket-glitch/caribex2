@@ -236,7 +236,10 @@ const InvoicePreview: React.FC<InvoicePreviewProps> = ({
 
             {extrasList.map((label, idx) => {
               const amount = getExtraAmountForLabel(label);
-              const hasAmount = typeof amount === "number" && amount > 0;
+              const hasAmount = typeof amount === "number" && amount !== 0;
+              const formattedAmount = amount < 0
+                ? `-$${Math.abs(amount).toFixed(2)}`
+                : `$${amount.toFixed(2)}`;
 
               return (
                 <tr key={`extra-${idx}`} style={{ borderBottom: "1px solid #e5e7eb" }}>
@@ -244,10 +247,10 @@ const InvoicePreview: React.FC<InvoicePreviewProps> = ({
                     <div>{parseInvoiceChargeLine(label).description}</div>
                   </td>
                   <td style={{ textAlign: "right" }}>
-                    {hasAmount ? `$${amount.toFixed(2)}` : ""}
+                    {hasAmount ? formattedAmount : ""}
                   </td>
                   <td style={{ textAlign: "right" }}>
-                    {hasAmount ? `$${amount.toFixed(2)}` : ""}
+                    {hasAmount ? formattedAmount : ""}
                   </td>
                 </tr>
               );

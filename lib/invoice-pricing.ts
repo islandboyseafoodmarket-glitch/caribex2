@@ -1,6 +1,15 @@
 export const SALES_TAX_RATE = 0.15;
+export const INVOICE_DISCOUNT_RATE = 0.10;
 export const CUBIC_FOOT_RATE = 18.5;
 export const CONSOLIDATION_UNIT_PRICE = 2.5;
+
+export const INVOICE_DISCOUNTS = {
+  business_discount: { label: "Business Discount (10%)", scope: "invoice" },
+  customer_appreciation: { label: "Customer Appreciation (10%)", scope: "invoice" },
+  ferry_charge_offset: { label: "Ferry Charge Offset (10%)", scope: "shipping" },
+} as const;
+
+export type InvoiceDiscountCode = keyof typeof INVOICE_DISCOUNTS;
 
 export type BillableInvoiceItem = {
   id: string;
@@ -78,4 +87,17 @@ export function parseInvoiceChargeLine(label: string): { description: string; am
   }
 
   return { description: value, amount: 0 };
+}
+
+export function formatInvoiceDiscountLine(code: InvoiceDiscountCode, amount: number): string {
+  const definition = INVOICE_DISCOUNTS[code];
+  return `${definition.label} (-$${roundMoney(Math.abs(amount)).toFixed(2)})`;
+}
+
+export function parseInvoiceDiscountLine(label: string): { code: InvoiceDiscountCode; label: string; amount: number } | null {
+  const parsed = parseInvoiceChargeLine(label);
+  if (parsed.amount >= 0) return null;
+  const match = (Object.entries(INVOICE_DISCOUNTS) as [InvoiceDiscountCode, (typeof INVOICE_DISCOUNTS)[InvoiceDiscountCode]][])
+    .find(([, definition]) => definition.label === parsed.description);
+  return match ? { code: match[0], label: match[1].label, amount: roundMoney(Math.abs(parsed.amount)) } : null;
 }

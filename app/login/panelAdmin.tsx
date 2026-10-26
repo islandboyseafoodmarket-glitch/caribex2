@@ -5,7 +5,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { supabase } from "../../lib/supabaseClient";
 import { BrowserMultiFormatReader } from "@zxing/browser";
-import { Pencil, Trash2, Unlock, LogOut, Image as ImageIcon, Check, AlertCircle, Send, DollarSign, ChevronDown, Package, ScanLine, AlertTriangle, QrCode, BarChart3, UserPlus, Bell, Receipt, Ship, Container, UserCog, Plus } from "lucide-react";
+import { Pencil, Trash2, Unlock, LogOut, Image as ImageIcon, Check, AlertCircle, Send, DollarSign, Package, ScanLine, AlertTriangle, QrCode, BarChart3, UserPlus, Bell, Receipt, Ship, Container, UserCog, Plus } from "lucide-react";
 import FerryManifestAdmin from "./FerryManifestAdmin";
 import Client360Admin from "./Client360Admin";
 import CaribexBatchLabelPrint, { BatchBoxLabel } from "../../components/CaribexBatchLabelPrint";
@@ -14,7 +14,7 @@ import ContainersAdmin from "./ContainersAdmin";
 import ReportsAdmin from "./ReportsAdmin";
 import { formatStaffDateTime } from "../../lib/staff-date-format";
 import InvoicePreview, { type InvoicePreviewProps } from "../../components/InvoicePreview";
-import { BILLABLE_INVOICE_ITEMS, SALES_TAX_RATE, formatCatalogCharge, roundMoney } from "../../lib/invoice-pricing";
+import { BILLABLE_INVOICE_ITEMS, INVOICE_DISCOUNTS, SALES_TAX_RATE, formatCatalogCharge, parseInvoiceChargeLine, parseInvoiceDiscountLine, roundMoney, type InvoiceDiscountCode } from "../../lib/invoice-pricing";
 
 /**
  * DASHBOARD OPERATIVO - VERSIÓN VISUAL PURA
@@ -49,7 +49,6 @@ const DEFAULT_STAFF_PERMISSIONS: StaffPermissions = {
 };
 
 const ADMIN_EXTRA_CHARGE_OPTIONS = [
-  "Discount",
   "Customer credit",
   "Storage fees (daily)",
   "Handling fees",
@@ -60,6 +59,19 @@ const ADMIN_EXTRA_CHARGE_OPTIONS = [
   "Consolidation fee ($2.5)",
   "Honduran imposed duty",
 ];
+type ExistingInvoiceDiscount = { code: InvoiceDiscountCode | null; label: string; amount: number };
+function findExistingInvoiceDiscount(raw: unknown): ExistingInvoiceDiscount | null {
+  const lines = String(raw || "").split(",").map((item) => item.trim()).filter(Boolean);
+  for (const line of lines) {
+    const parsed = parseInvoiceDiscountLine(line);
+    if (parsed) return parsed;
+  }
+  const legacyDiscount = lines.map((line) => ({ line, parsed: parseInvoiceChargeLine(line) }))
+    .find(({ parsed }) => parsed.description === "Discount" && parsed.amount < 0);
+  return legacyDiscount
+    ? { code: null, label: legacyDiscount.parsed.description, amount: Math.abs(legacyDiscount.parsed.amount) }
+    : null;
+}
 const MANUAL_INVOICE_CHARGE_OPTIONS = [
   "Handling fees",
   "Forklift charge ($100)",
@@ -158,13 +170,6 @@ const App = () => {
     'personal' | 'clientes' | 'prepaid' | 'client360' | 'pedidos' | 'track' | 'incidencias' | 'facturas' | 'finanzas' | 'leads' | 'portal' | 'ferry' | 'containers' | 'labels' | 'reports' | 'activityLogs'
   >('personal');
   const [incidenciaFiltro, setIncidenciaFiltro] = useState('');
-  const [expandedNavGroups, setExpandedNavGroups] = useState<Record<string, boolean>>({
-    operations: true,
-    customers: true,
-    billing: true,
-    administration: true,
-  });
-  const toggleNavGroup = (group: string) => setExpandedNavGroups((current) => ({ ...current, [group]: !current[group] }));
 
   const [personal, setPersonal] = useState<{ id: string; nombre: string; rol: string; permissions?: Partial<StaffPermissions> | null }[]>([]);
   type Cliente = {
@@ -205,6 +210,8 @@ const App = () => {
     hora_descargado?: string | null;
     fecha_entregado?: string | null;
     hora_entregado?: string | null;
+    updated_at?: string | null;
+    last_scanned_at?: string | null;
     // Campos de Check In / dimensiones y problemas
     alto?: number | null;
     ancho?: number | null;
@@ -221,6 +228,7 @@ const App = () => {
     containerLabels?: string[];
   };
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
+  const [pickupScanLookupStarted, setPickupScanLookupStarted] = useState<Record<string, boolean>>({});
   type Factura = {
     id: string;
     tracking: string;
@@ -326,6 +334,9 @@ const App = () => {
   const [editingInvoiceAddOns, setEditingInvoiceAddOns] = useState<Factura | null>(null);
   const [invoiceAddOnType, setInvoiceAddOnType] = useState("");
   const [invoiceAddOnAmount, setInvoiceAddOnAmount] = useState("");
+  const [invoiceDiscountCode, setInvoiceDiscountCode] = useState<InvoiceDiscountCode | "">("");
+  const [existingInvoiceDiscount, setExistingInvoiceDiscount] = useState<ExistingInvoiceDiscount | null>(null);
+  const [isSavingInvoiceDiscount, setIsSavingInvoiceDiscount] = useState(false);
   const [invoiceSearch, setInvoiceSearch] = useState("");
   const [invoiceContainerFilter, setInvoiceContainerFilter] = useState("ALL");
   const [isManualInvoiceOpen, setIsManualInvoiceOpen] = useState(false);
@@ -1116,7 +1127,7 @@ const App = () => {
     const { data, error } = await supabase
       .from("paquetes_registro")
       .select(
-        "id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, notas_imagenes, estado, issue_status, cubic_feet, prepaid_review_required, prepaid_review_status, numero_cliente:numero_cliente_id (id, numero_cliente, nombre), numero_cliente_id, registro, descargado, entregado_por, hora_fecha, fecha_descargado, hora_descargado, fecha_entregado, hora_entregado",
+        "id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, notas_imagenes, estado, issue_status, cubic_feet, prepaid_review_required, prepaid_review_status, numero_cliente:numero_cliente_id (id, numero_cliente, nombre), numero_cliente_id, registro, descargado, entregado_por, hora_fecha, fecha_descargado, hora_descargado, fecha_entregado, hora_entregado, updated_at",
       )
       .order("creado_en", { ascending: false });
 
@@ -1164,6 +1175,7 @@ const App = () => {
         descargado: row.descargado || null,
         entregado_por: row.entregado_por || null,
         hora_fecha: row.hora_fecha || null,
+        updated_at: row.updated_at || null,
         fecha_descargado: row.fecha_descargado || null,
         hora_descargado: row.hora_descargado || null,
         fecha_entregado: row.fecha_entregado || null,
@@ -1174,6 +1186,44 @@ const App = () => {
       setPedidos(mapped);
     }
   }, []);
+
+  const loadPickupContainerLastScans = async (shipments: Pedido[]) => {
+    const shipmentIds = shipments.map((shipment) => shipment.id).filter(Boolean);
+    const notLoaded = shipmentIds.filter((id) => !pickupScanLookupStarted[id]);
+    if (!notLoaded.length) return;
+
+    setPickupScanLookupStarted((current) => ({
+      ...current,
+      ...Object.fromEntries(notLoaded.map((id) => [id, true])),
+    }));
+
+    const { data, error } = await supabase
+      .from("staff_action_logs")
+      .select("entity_id, created_at")
+      .eq("entity_type", "paquetes_registro")
+      .in("entity_id", notLoaded)
+      .order("created_at", { ascending: false })
+      .limit(5000);
+
+    if (error) {
+      console.error("Error loading pickup container scan times", error);
+      setPickupScanLookupStarted((current) => {
+        const next = { ...current };
+        notLoaded.forEach((id) => { delete next[id]; });
+        return next;
+      });
+      return;
+    }
+
+    const latestByShipment = new Map<string, string>();
+    (data || []).forEach((event) => {
+      const id = String(event.entity_id || "");
+      if (id && event.created_at && !latestByShipment.has(id)) latestByShipment.set(id, event.created_at);
+    });
+    setPedidos((current) => current.map((shipment) => latestByShipment.has(shipment.id)
+      ? { ...shipment, last_scanned_at: latestByShipment.get(shipment.id) || null }
+      : shipment));
+  };
 
   const cargarFacturas = useCallback(async () => {
     const { data, error } = await supabase
@@ -1432,6 +1482,8 @@ const App = () => {
     if (!checkin) { alert("No check-in record exists for this invoice yet."); return; }
     setInvoiceAddOnType("");
     setInvoiceAddOnAmount("");
+    setInvoiceDiscountCode("");
+    setExistingInvoiceDiscount(findExistingInvoiceDiscount(checkin.cargos_adicionales));
     setEditingInvoiceAddOns(factura);
   };
 
@@ -1455,6 +1507,42 @@ const App = () => {
     if (invoiceUpdate.error || checkinUpdate.error) { alert(invoiceUpdate.error?.message || checkinUpdate.error?.message || "Could not update invoice add-on"); return; }
     updateFacturaEnEstado(editingInvoiceAddOns.id, { subtotal, tax, total });
     setEditingInvoiceAddOns(null);
+  };
+
+  const saveAdminInvoiceDiscount = async (action: "apply" | "remove") => {
+    if (!editingInvoiceAddOns || (action === "apply" && !invoiceDiscountCode)) return;
+    setIsSavingInvoiceDiscount(true);
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const response = await fetch("/api/invoice-catalog", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${sessionData.session?.access_token || ""}` },
+        body: JSON.stringify({
+          shipment_id: editingInvoiceAddOns.id,
+          discount_action: action,
+          ...(action === "apply" ? { discount_code: invoiceDiscountCode } : {}),
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || "Could not update invoice discount");
+
+      const subtotal = Number(payload.subtotal);
+      const tax = Number(payload.tax);
+      const total = Number(payload.total);
+      updateFacturaEnEstado(editingInvoiceAddOns.id, { subtotal, tax, total });
+      if (action === "apply" && payload.discountCode && INVOICE_DISCOUNTS[payload.discountCode as InvoiceDiscountCode]) {
+        const code = payload.discountCode as InvoiceDiscountCode;
+        setExistingInvoiceDiscount({ code, label: INVOICE_DISCOUNTS[code].label, amount: Number(payload.discountAmount) });
+      } else {
+        setExistingInvoiceDiscount(null);
+      }
+      setInvoiceDiscountCode("");
+      await cargarFacturas();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Could not update invoice discount");
+    } finally {
+      setIsSavingInvoiceDiscount(false);
+    }
   };
 
   const handleAdminSendInvoice = async (factura: Factura) => {
@@ -1648,7 +1736,7 @@ const App = () => {
     <div className={`dashboard-root ${activeTab === 'facturas' ? 'dashboard-root--invoices' : ''}`}>
       <style suppressHydrationWarning>{`
         :root {
-          --bg-main: #75a9cf;
+          --bg-main: #2f6f9d;
           --primary-blue: #2563eb;
           --success-green: #166534;
           --success-bg: #dcfce7;
@@ -1669,8 +1757,10 @@ const App = () => {
 
         .dashboard-root {
           min-height: 100vh;
-          padding: 32px clamp(18px, 4vw, 56px) 56px 310px;
-          max-width: 1480px;
+          width: 100%;
+          box-sizing: border-box;
+          padding: 24px clamp(14px, 2.2vw, 34px) 48px;
+          max-width: 1680px;
           margin: 0 auto;
         }
 
@@ -1678,145 +1768,55 @@ const App = () => {
           max-width: 1900px;
         }
 
-        .admin-sidebar {
-          position: fixed;
-          inset: 0 auto 0 0;
-          z-index: 20;
-          width: 264px;
-          padding: 24px 16px;
-          overflow-y: auto;
-          background: #ffffff;
-          border-right: 1px solid #e2e8f0;
-          box-shadow: 8px 0 24px rgba(15, 23, 42, 0.06);
-        }
-
-        .admin-sidebar-brand {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          padding: 0 8px 22px;
-          margin-bottom: 18px;
-          border-bottom: 1px solid #eef2f6;
-        }
-
-        .admin-sidebar-brand img {
-          width: 218px;
-          height: 96px;
-          object-fit: contain;
-        }
-
-        .admin-sidebar-slogan {
-          display: block;
-          margin-top: 6px;
-          color: #065f46;
-          font-size: 0.92rem;
-          font-weight: 800;
-          letter-spacing: 0.1em;
-          text-transform: uppercase;
-        }
-
-        .admin-sidebar-brand strong {
-          display: block;
-          color: #0f172a;
-          font-size: 0.92rem;
-          line-height: 1.15;
-        }
-
-        .admin-sidebar-brand span {
-          display: block;
-          margin-top: 3px;
-          color: #64748b;
-          font-size: 0.7rem;
-        }
-
-        .admin-sidebar-group {
-          margin-bottom: 18px;
-        }
-
-        .admin-sidebar-group-title {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          width: 100%;
-          padding: 0 8px 7px;
-          border: 0;
-          background: transparent;
-          color: #64748b;
-          font-size: 0.64rem;
-          font-weight: 800;
-          letter-spacing: 0.1em;
-          text-align: left;
-          text-transform: uppercase;
-          cursor: pointer;
-        }
-
-        .admin-sidebar-items {
+        .admin-horizontal-nav {
           display: grid;
+          grid-template-columns: repeat(8, minmax(0, 1fr));
+          align-items: stretch;
           gap: 4px;
+          margin: 0 0 18px;
+          padding: 6px;
+          border: 1px solid #d8dedb;
+          border-radius: 5px;
+          background: #f1f2ee;
+          box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
         }
 
-        .admin-sidebar-item {
+        .admin-horizontal-tab {
+          position: relative;
           display: flex;
+          min-width: 0;
+          min-height: 68px;
           align-items: center;
-          gap: 10px;
-          width: 100%;
-          min-height: 42px;
-          padding: 9px 11px;
-          border: 1px solid transparent;
-          border-radius: 10px;
+          justify-content: center;
+          flex-direction: column;
+          gap: 4px;
+          padding: 7px 4px;
+          border: 0;
+          border-radius: 4px;
           background: transparent;
-          color: #475569;
-          font-size: 0.84rem;
+          color: #263642;
+          font-size: 0.69rem;
           font-weight: 600;
-          text-align: left;
+          line-height: 1.15;
+          text-align: center;
           cursor: pointer;
-          transition: background 160ms ease, color 160ms ease, border-color 160ms ease;
+          transition: background 150ms ease, color 150ms ease;
         }
 
-        .admin-sidebar-item:hover {
-          background: #f8fafc;
-          color: #0f172a;
-        }
-
-        .admin-sidebar-item.active {
-          background: #eff6ff;
-          border-color: #bfdbfe;
-          color: #1d4ed8;
-          box-shadow: 0 4px 12px rgba(37, 99, 235, 0.12);
-        }
-
-        .admin-sidebar-item--customers.active { background: #f5f3ff; border-color: #ddd6fe; color: #6d28d9; }
-        .admin-sidebar-item--billing.active { background: #fffbeb; border-color: #fde68a; color: #92400e; }
-        .admin-sidebar-item--admin.active { background: #fdf2f8; border-color: #fbcfe8; color: #9d174d; }
-
-        .admin-sidebar-item .count-badge {
-          margin-left: auto;
-          font-size: 0.72rem;
-        }
+        .admin-horizontal-tab svg { width: 18px; height: 18px; flex: 0 0 auto; }
+        .admin-horizontal-tab:hover { background: #ffffff; color: #153d5a; }
+        .admin-horizontal-tab.active { background: #f2a51a; color: #142d42; box-shadow: inset 0 0 0 1px rgba(108, 71, 0, 0.14); }
+        .admin-horizontal-tab .count-badge { min-width: 1.15rem; margin: 0; padding: 0 0.25rem; border-radius: 999px; background: rgba(15, 23, 42, 0.08); font-size: 0.62rem; }
 
         @media (max-width: 800px) {
-          .dashboard-root {
-            padding: 18px 14px 40px;
-          }
+          .dashboard-root { padding: 16px 12px 32px; }
+          .admin-horizontal-nav { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 3px; }
+          .admin-horizontal-tab { min-height: 60px; font-size: 0.66rem; }
+        }
 
-          .admin-sidebar {
-            position: static;
-            width: auto;
-            margin: -18px -14px 18px;
-            padding: 16px 14px;
-            border-right: 0;
-            border-bottom: 1px solid #e2e8f0;
-            box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
-          }
-
-          .admin-sidebar-brand {
-            padding-bottom: 14px;
-            margin-bottom: 14px;
-          }
-
-          .admin-sidebar-group {
-            margin-bottom: 10px;
-          }
+        @media (max-width: 440px) {
+          .admin-horizontal-nav { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+          .admin-horizontal-tab { min-height: 56px; }
         }
 
         .admin-brand {
@@ -2243,51 +2243,24 @@ const App = () => {
         </div>
       </header>
 
-      {/* Sidebar navigation: all existing tabs and counters are preserved. */}
-      <aside className="admin-sidebar" aria-label="Admin navigation">
-        <div className="admin-sidebar-brand">
-          <div>
-            <Image src="/imagenes/logo-pages.png" alt="Caribex Logistics Group — Your Cargo Our Commitment" width={218} height={93} />
-            <strong>Caribex Admin</strong><span>Warehouse management</span>
-          </div>
-        </div>
-        <div className="admin-sidebar-group">
-          <button type="button" className="admin-sidebar-group-title" onClick={() => toggleNavGroup('operations')}>Operations <ChevronDown size={14} className={expandedNavGroups.operations ? 'nav-chevron is-open' : 'nav-chevron'} /></button>
-          {expandedNavGroups.operations && <div className="admin-sidebar-items">
-            <button className={`admin-sidebar-item ${activeTab === 'pedidos' ? 'active' : ''}`} onClick={() => setActiveTab('pedidos')}><Package /> Shipments <span className="count-badge">{pedidos.length}</span></button>
-            <button className={`admin-sidebar-item ${activeTab === 'track' ? 'active' : ''}`} onClick={() => setActiveTab('track')}><ScanLine /> Track Package <span className="count-badge">{pedidos.length}</span></button>
-            <button className={`admin-sidebar-item ${activeTab === 'client360' ? 'active' : ''}`} onClick={() => setActiveTab('client360')}><IconUsers /> Client 360</button>
-            <button className={`admin-sidebar-item ${activeTab === 'incidencias' ? 'active' : ''}`} onClick={() => setActiveTab('incidencias')}><AlertTriangle /> Issues <span className="count-badge">{pedidosConIncidencia.length}</span></button>
-            <button className={`admin-sidebar-item ${activeTab === 'labels' ? 'active' : ''}`} onClick={() => setActiveTab('labels')}><QrCode /> Caribex labels</button>
-            <button className={`admin-sidebar-item ${activeTab === 'reports' ? 'active' : ''}`} onClick={() => setActiveTab('reports')}><BarChart3 /> Reports</button>
-          </div>}
-        </div>
-        <div className="admin-sidebar-group">
-          <button type="button" className="admin-sidebar-group-title" onClick={() => toggleNavGroup('customers')}>Customers <ChevronDown size={14} className={expandedNavGroups.customers ? 'nav-chevron is-open' : 'nav-chevron'} /></button>
-          {expandedNavGroups.customers && <div className="admin-sidebar-items">
-            <button className={`admin-sidebar-item admin-sidebar-item--customers ${activeTab === 'clientes' ? 'active' : ''}`} onClick={() => setActiveTab('clientes')}><UserPlus /> Customer # <span className="count-badge">{clientes.length}</span></button>
-            <button className={`admin-sidebar-item admin-sidebar-item--customers ${activeTab === 'prepaid' ? 'active' : ''}`} onClick={() => setActiveTab('prepaid')}><DollarSign /> Prepaid accounts <span className="count-badge">{clientes.filter((customer) => customer.tipo_cuenta === 'Developer / Builder — Prepaid').length}</span></button>
-            <button className={`admin-sidebar-item admin-sidebar-item--customers ${activeTab === 'leads' ? 'active' : ''}`} onClick={() => setActiveTab('leads')}><UserPlus /> Leads <span className="count-badge">{leads.filter((lead) => lead.status === 'NEW').length}</span></button>
-            <button className={`admin-sidebar-item admin-sidebar-item--customers ${activeTab === 'portal' ? 'active' : ''}`} onClick={() => setActiveTab('portal')}><Bell /> Portal alerts <span className="count-badge">{portalEvents.filter((event) => !event.success).length}</span></button>
-          </div>}
-        </div>
-        <div className="admin-sidebar-group">
-          <button type="button" className="admin-sidebar-group-title" onClick={() => toggleNavGroup('billing')}>Billing & logistics <ChevronDown size={14} className={expandedNavGroups.billing ? 'nav-chevron is-open' : 'nav-chevron'} /></button>
-          {expandedNavGroups.billing && <div className="admin-sidebar-items">
-            <button className={`admin-sidebar-item admin-sidebar-item--billing ${activeTab === 'facturas' ? 'active' : ''}`} onClick={() => setActiveTab('facturas')}><Receipt /> Invoices <span className="count-badge">{facturasCount}</span></button>
-            <button className={`admin-sidebar-item admin-sidebar-item--billing ${activeTab === 'finanzas' ? 'active' : ''}`} onClick={() => setActiveTab('finanzas')}><DollarSign /> Finances</button>
-            <button className={`admin-sidebar-item admin-sidebar-item--billing ${activeTab === 'ferry' ? 'active' : ''}`} onClick={() => setActiveTab('ferry')}><Ship /> Ferry manifests</button>
-            <button className={`admin-sidebar-item admin-sidebar-item--billing ${activeTab === 'containers' ? 'active' : ''}`} onClick={() => setActiveTab('containers')}><Container /> Containers</button>
-          </div>}
-        </div>
-        <div className="admin-sidebar-group">
-          <button type="button" className="admin-sidebar-group-title" onClick={() => toggleNavGroup('administration')}>Administration <ChevronDown size={14} className={expandedNavGroups.administration ? 'nav-chevron is-open' : 'nav-chevron'} /></button>
-          {expandedNavGroups.administration && <div className="admin-sidebar-items">
-            <button className={`admin-sidebar-item admin-sidebar-item--admin ${activeTab === 'personal' ? 'active' : ''}`} onClick={() => setActiveTab('personal')}><UserCog /> Staff <span className="count-badge">{personal.length}</span></button>
-            <button className={`admin-sidebar-item admin-sidebar-item--admin ${activeTab === 'activityLogs' ? 'active' : ''}`} onClick={() => { setActiveTab('activityLogs'); void cargarStaffActionLogs(); }}><Bell /> Activity logs</button>
-          </div>}
-        </div>
-      </aside>
+      <nav className="admin-horizontal-nav" aria-label="Admin navigation">
+        <button type="button" className={`admin-horizontal-tab ${activeTab === 'track' ? 'active' : ''}`} aria-current={activeTab === 'track' ? 'page' : undefined} onClick={() => setActiveTab('track')}><ScanLine /><span>Track Package</span><span className="count-badge">{pedidos.length}</span></button>
+        <button type="button" className={`admin-horizontal-tab ${activeTab === 'client360' ? 'active' : ''}`} aria-current={activeTab === 'client360' ? 'page' : undefined} onClick={() => setActiveTab('client360')}><IconUsers /><span>Client 360</span></button>
+        <button type="button" className={`admin-horizontal-tab ${activeTab === 'pedidos' ? 'active' : ''}`} aria-current={activeTab === 'pedidos' ? 'page' : undefined} onClick={() => setActiveTab('pedidos')}><Package /><span>Shipments</span><span className="count-badge">{pedidos.length}</span></button>
+        <button type="button" className={`admin-horizontal-tab ${activeTab === 'incidencias' ? 'active' : ''}`} aria-current={activeTab === 'incidencias' ? 'page' : undefined} onClick={() => setActiveTab('incidencias')}><AlertTriangle /><span>Issues</span><span className="count-badge">{pedidosConIncidencia.length}</span></button>
+        <button type="button" className={`admin-horizontal-tab ${activeTab === 'labels' ? 'active' : ''}`} aria-current={activeTab === 'labels' ? 'page' : undefined} onClick={() => setActiveTab('labels')}><QrCode /><span>Print Labels</span></button>
+        <button type="button" className={`admin-horizontal-tab ${activeTab === 'reports' ? 'active' : ''}`} aria-current={activeTab === 'reports' ? 'page' : undefined} onClick={() => setActiveTab('reports')}><BarChart3 /><span>Reports</span></button>
+        <button type="button" className={`admin-horizontal-tab ${activeTab === 'facturas' ? 'active' : ''}`} aria-current={activeTab === 'facturas' ? 'page' : undefined} onClick={() => setActiveTab('facturas')}><Receipt /><span>Invoices</span><span className="count-badge">{facturasCount}</span></button>
+        <button type="button" className={`admin-horizontal-tab ${activeTab === 'finanzas' ? 'active' : ''}`} aria-current={activeTab === 'finanzas' ? 'page' : undefined} onClick={() => setActiveTab('finanzas')}><DollarSign /><span>Finances</span></button>
+        <button type="button" className={`admin-horizontal-tab ${activeTab === 'containers' ? 'active' : ''}`} aria-current={activeTab === 'containers' ? 'page' : undefined} onClick={() => setActiveTab('containers')}><Container /><span>Containers</span></button>
+        <button type="button" className={`admin-horizontal-tab ${activeTab === 'ferry' ? 'active' : ''}`} aria-current={activeTab === 'ferry' ? 'page' : undefined} onClick={() => setActiveTab('ferry')}><Ship /><span>Ferry</span></button>
+        <button type="button" className={`admin-horizontal-tab ${activeTab === 'clientes' ? 'active' : ''}`} aria-current={activeTab === 'clientes' ? 'page' : undefined} onClick={() => setActiveTab('clientes')}><UserPlus /><span>Customers</span><span className="count-badge">{clientes.length}</span></button>
+        <button type="button" className={`admin-horizontal-tab ${activeTab === 'prepaid' ? 'active' : ''}`} aria-current={activeTab === 'prepaid' ? 'page' : undefined} onClick={() => setActiveTab('prepaid')}><DollarSign /><span>Prepaid</span><span className="count-badge">{clientes.filter((customer) => customer.tipo_cuenta === 'Developer / Builder — Prepaid').length}</span></button>
+        <button type="button" className={`admin-horizontal-tab ${activeTab === 'leads' ? 'active' : ''}`} aria-current={activeTab === 'leads' ? 'page' : undefined} onClick={() => setActiveTab('leads')}><UserPlus /><span>Leads</span><span className="count-badge">{leads.filter((lead) => lead.status === 'NEW').length}</span></button>
+        <button type="button" className={`admin-horizontal-tab ${activeTab === 'portal' ? 'active' : ''}`} aria-current={activeTab === 'portal' ? 'page' : undefined} onClick={() => setActiveTab('portal')}><Bell /><span>Portal Alerts</span><span className="count-badge">{portalEvents.filter((event) => !event.success).length}</span></button>
+        <button type="button" className={`admin-horizontal-tab ${activeTab === 'personal' ? 'active' : ''}`} aria-current={activeTab === 'personal' ? 'page' : undefined} onClick={() => setActiveTab('personal')}><UserCog /><span>Staff</span><span className="count-badge">{personal.length}</span></button>
+        <button type="button" className={`admin-horizontal-tab ${activeTab === 'activityLogs' ? 'active' : ''}`} aria-current={activeTab === 'activityLogs' ? 'page' : undefined} onClick={() => { setActiveTab('activityLogs'); void cargarStaffActionLogs(); }}><Bell /><span>Activity Logs</span></button>
+      </nav>
 
       {/* Card de Visualización de Datos */}
       <div className={`data-card ${activeTab === 'facturas' ? 'data-card--invoices' : ''}`}>
@@ -3231,12 +3204,47 @@ const App = () => {
                       return groups;
                     }, {}) : null;
                     return <section key={stage} style={{ padding: '0.9rem 0', borderBottom: '1px solid #e2e8f0' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: style.color, fontWeight: 800, fontSize: '1rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', color: style.color, fontWeight: 800, fontSize: '1rem' }}>
                         <span style={{ width: 7, height: 22, borderRadius: 3, background: style.color }} />
-                        <span>{label}</span>
-                        <span>({shipments.length})</span>
+                        <span>{stage === 'PICKED_UP' ? 'Picked up, by container' : label}</span>
+                        <span style={{ marginLeft: 'auto', minWidth: 30, padding: '0.2rem 0.55rem', borderRadius: 999, background: style.background, color: style.color, textAlign: 'center', fontSize: '0.82rem', fontWeight: 800 }}>{shipments.length}</span>
                       </div>
-                      {!shipments.length ? <p style={{ margin: '0.4rem 0 0 1rem', color: '#64748b', fontSize: '0.86rem' }}>Nothing at this stage</p> : groupedByContainer ? Object.entries(groupedByContainer).map(([container, containerShipments]) => <details key={container} open style={{ margin: '0.55rem 0 0 1rem', border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden' }}><summary style={{ cursor: 'pointer', padding: '0.65rem 0.8rem', background: '#f8fafc', color: '#334155', fontWeight: 700 }}>{container} <span style={{ color: '#64748b', fontWeight: 500 }}>({containerShipments.length} package{containerShipments.length === 1 ? '' : 's'})</span></summary>{containerShipments.map((shipment) => <button key={shipment.id} type="button" onClick={() => void abrirDetallePedido(shipment.id)} style={{ width: '100%', display: 'flex', justifyContent: 'space-between', gap: '0.75rem', textAlign: 'left', padding: '0.65rem 0.8rem', border: 0, borderTop: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer' }}><strong style={{ color: style.color, overflowWrap: 'anywhere' }}>{shipment.tracking}</strong><span style={{ color: '#475569' }}>{shipment.clienteNombre || 'Unassigned'}{shipment.clienteNumero != null ? ` (#${shipment.clienteNumero})` : ''}</span></button>)}</details>) : shipments.map((shipment) => <button key={shipment.id} type="button" onClick={() => void abrirDetallePedido(shipment.id)} style={{ width: '100%', display: 'flex', justifyContent: 'space-between', gap: '0.75rem', textAlign: 'left', margin: '0.45rem 0 0 1rem', padding: '0.65rem 0.8rem', border: '1px solid #e2e8f0', borderRadius: 8, background: '#fff', cursor: 'pointer' }}><strong style={{ color: style.color, overflowWrap: 'anywhere' }}>{shipment.tracking}</strong><span style={{ color: '#475569' }}>{shipment.clienteNombre || 'Unassigned'}{shipment.clienteNumero != null ? ` (#${shipment.clienteNumero})` : ''}</span></button>)}
+                      {!shipments.length ? <p style={{ margin: '0.4rem 0 0 1rem', color: '#64748b', fontSize: '0.86rem' }}>Nothing at this stage</p> : groupedByContainer ? (
+                        Object.entries(groupedByContainer).map(([container, containerShipments]) => (
+                          <details
+                            key={container}
+                            onToggle={(event) => { if (event.currentTarget.open) void loadPickupContainerLastScans(containerShipments); }}
+                            style={{ margin: '0.55rem 0 0 1rem', border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden', background: '#fff' }}
+                          >
+                            <summary style={{ cursor: 'pointer', padding: '0.8rem 0.9rem', background: '#f8fafc', color: '#334155', fontWeight: 700 }}>
+                              <span style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', marginLeft: '0.25rem' }}>
+                                <span>{container}</span>
+                                <small style={{ color: '#64748b', fontWeight: 500 }}>{containerShipments.length} package{containerShipments.length === 1 ? '' : 's'}</small>
+                              </span>
+                            </summary>
+                            <div style={{ overflowX: 'auto' }}>
+                              {containerShipments.map((shipment) => {
+                                const firstReceived = shipment.hora_fecha || shipment.registro;
+                                const lastScan = shipment.last_scanned_at || shipment.updated_at || firstReceived;
+                                const containerLabel = shipment.containerLabels?.join(', ') || container;
+                                const cellLabelStyle: React.CSSProperties = { display: 'block', marginBottom: '0.2rem', color: '#64748b', fontSize: '0.72rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.03em' };
+                                return <button
+                                  key={shipment.id}
+                                  type="button"
+                                  onClick={() => void abrirDetallePedido(shipment.id)}
+                                  style={{ width: '100%', minWidth: 850, display: 'grid', gridTemplateColumns: 'minmax(170px, 1.25fr) repeat(4, minmax(135px, 1fr))', alignItems: 'start', gap: '0.75rem', textAlign: 'left', padding: '0.75rem 0.9rem', border: 0, borderTop: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer' }}
+                                >
+                                  <span><small style={cellLabelStyle}>Tracking</small><strong style={{ color: style.color, overflowWrap: 'anywhere' }}>{shipment.tracking}</strong></span>
+                                  <span><small style={cellLabelStyle}>Carrier</small><span style={{ color: '#334155' }}>{shipment.carrier || '—'}</span></span>
+                                  <span><small style={cellLabelStyle}>Container</small><span style={{ color: '#334155' }}>{containerLabel}</span></span>
+                                  <span><small style={cellLabelStyle}>First received</small><span style={{ color: '#334155' }}>{formatStaffDateTime(firstReceived)}</span></span>
+                                  <span><small style={cellLabelStyle}>Last scan</small><span style={{ color: '#334155' }}>{formatStaffDateTime(lastScan)}</span></span>
+                                </button>;
+                              })}
+                            </div>
+                          </details>
+                        ))
+                      ) : shipments.map((shipment) => <button key={shipment.id} type="button" onClick={() => void abrirDetallePedido(shipment.id)} style={{ width: '100%', display: 'flex', justifyContent: 'space-between', gap: '0.75rem', textAlign: 'left', margin: '0.45rem 0 0 1rem', padding: '0.65rem 0.8rem', border: '1px solid #e2e8f0', borderRadius: 8, background: '#fff', cursor: 'pointer' }}><strong style={{ color: style.color, overflowWrap: 'anywhere' }}>{shipment.tracking}</strong><span style={{ color: '#475569' }}>{shipment.clienteNombre || 'Unassigned'}{shipment.clienteNumero != null ? ` (#${shipment.clienteNumero})` : ''}</span></button>)}
                     </section>;
                   })}
                 </>}
@@ -3524,11 +3532,39 @@ const App = () => {
         <div className="pa-modal-overlay">
           <div className="pa-modal">
             <div className="pa-modal-header">
-              <h4 className="pa-modal-title">Edit invoice charge, discount, or credit</h4>
+              <h4 className="pa-modal-title">Edit invoice charges and discounts</h4>
               <button type="button" className="pa-close-btn" onClick={() => setEditingInvoiceAddOns(null)}>×</button>
             </div>
+            <div className="pa-field" style={{ paddingBottom: "1rem", marginBottom: "1rem", borderBottom: "1px solid #e2e8f0" }}>
+              <label htmlFor="admin-invoice-discount">Admin-only discount (10%)</label>
+              {existingInvoiceDiscount ? (
+                <>
+                  <p style={{ margin: "0.35rem 0 0.65rem", color: "#334155" }}>
+                    Applied: <strong>{existingInvoiceDiscount.label}</strong> — -${existingInvoiceDiscount.amount.toFixed(2)}
+                  </p>
+                  <button type="button" className="pa-secondary-btn" disabled={isSavingInvoiceDiscount} onClick={() => void saveAdminInvoiceDiscount("remove")}>
+                    {isSavingInvoiceDiscount ? "Saving…" : "Remove discount"}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <select id="admin-invoice-discount" className="pa-input" value={invoiceDiscountCode} onChange={(event) => setInvoiceDiscountCode(event.target.value as InvoiceDiscountCode | "")}>
+                    <option value="">Select a discount</option>
+                    {(Object.entries(INVOICE_DISCOUNTS) as [InvoiceDiscountCode, (typeof INVOICE_DISCOUNTS)[InvoiceDiscountCode]][]).map(([code, definition]) => (
+                      <option key={code} value={code}>{definition.label}</option>
+                    ))}
+                  </select>
+                  <p style={{ margin: "0.45rem 0", color: "#64748b", fontSize: "0.78rem" }}>
+                    Business and customer-appreciation discounts apply to the invoice subtotal. Ferry Charge Offset applies to freight and shipping/service charges, excluding catalog merchandise. The discount is applied before sales tax; only one discount may be active. Apply after items and charges are finalized; remove and reapply to refresh the percentage after changes.
+                  </p>
+                  <button type="button" className="pa-primary-btn" disabled={!invoiceDiscountCode || isSavingInvoiceDiscount} onClick={() => void saveAdminInvoiceDiscount("apply")}>
+                    {isSavingInvoiceDiscount ? "Saving…" : "Apply discount"}
+                  </button>
+                </>
+              )}
+            </div>
             <div className="pa-field">
-              <label htmlFor="admin-invoice-charge-type">Adjustment type</label>
+              <label htmlFor="admin-invoice-charge-type">Additional charge or customer credit</label>
               <select id="admin-invoice-charge-type" className="pa-input" value={invoiceAddOnType} onChange={(event) => setInvoiceAddOnType(event.target.value)}>
                 <option value="">Select an adjustment</option>
                 {ADMIN_EXTRA_CHARGE_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
