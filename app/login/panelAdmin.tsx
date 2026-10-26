@@ -1279,12 +1279,12 @@ const App = () => {
     setManualInvoiceCatalogQuantity("1");
   };
   const createManualInvoice = async () => {
-    if (!manualInvoiceForm.description.trim()) {
-      setManualInvoiceError("Enter a description for the invoice.");
+    if (!manualInvoiceForm.customerId) {
+      setManualInvoiceError("Select a customer for the invoice.");
       return;
     }
-    if (manualInvoiceForm.type === "BOX" && [manualInvoiceForm.height, manualInvoiceForm.width, manualInvoiceForm.length].some((value) => !value || Number(value) <= 0)) {
-      setManualInvoiceError("Enter positive height, width, and length values for a box invoice.");
+    if (manualInvoiceForm.charges.length === 0 && manualInvoiceCatalogLines.length === 0) {
+      setManualInvoiceError("Select a catalog item or operational extra.");
       return;
     }
     setManualInvoiceSaving(true);
@@ -1299,12 +1299,7 @@ const App = () => {
         body: JSON.stringify({
           customer_id: manualInvoiceForm.customerId || null,
           tracking: manualInvoiceForm.tracking.trim() || undefined,
-          type: manualInvoiceForm.type,
           description: manualInvoiceForm.description.trim(),
-          height: manualInvoiceForm.height || undefined,
-          width: manualInvoiceForm.width || undefined,
-          length: manualInvoiceForm.length || undefined,
-          weight: manualInvoiceForm.weight || undefined,
           additional_charges: [...manualInvoiceForm.charges, ...manualInvoiceCatalogLines.map((line) => {
             const item = BILLABLE_INVOICE_ITEMS.find((candidate) => candidate.id === line.itemId);
             return item ? formatCatalogCharge(item, line.quantity) : null;
@@ -3578,29 +3573,11 @@ const App = () => {
                 <label htmlFor="manual-invoice-tracking">Tracking (optional)</label>
                 <input id="manual-invoice-tracking" className="pa-input" value={manualInvoiceForm.tracking} onChange={(event) => setManualInvoiceForm((previous) => ({ ...previous, tracking: event.target.value }))} placeholder="Auto-generated if blank" />
               </div>
-              <div className="pa-field">
-                <label htmlFor="manual-invoice-type">Shipment type</label>
-                <select id="manual-invoice-type" className="pa-input" value={manualInvoiceForm.type} onChange={(event) => setManualInvoiceForm((previous) => ({ ...previous, type: event.target.value as "PACKAGE" | "BOX" }))}>
-                  <option value="PACKAGE">Package — $18.50 base</option>
-                  <option value="BOX">Box — $18.50 per cubic foot</option>
-                </select>
-              </div>
               <div className="pa-field" style={{ gridColumn: '1 / -1' }}>
-                <label htmlFor="manual-invoice-description">Description</label>
-                <input id="manual-invoice-description" className="pa-input" value={manualInvoiceForm.description} onChange={(event) => setManualInvoiceForm((previous) => ({ ...previous, description: event.target.value }))} placeholder="What is being billed?" required />
+                <label htmlFor="manual-invoice-description">Notes (optional)</label>
+                <input id="manual-invoice-description" className="pa-input" value={manualInvoiceForm.description} onChange={(event) => setManualInvoiceForm((previous) => ({ ...previous, description: event.target.value }))} placeholder="Optional notes about this invoice" />
               </div>
             </div>
-            {manualInvoiceForm.type === "BOX" && (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.75rem', marginTop: '0.75rem' }}>
-                {([['height', 'Height'], ['width', 'Width'], ['length', 'Length'], ['weight', 'Weight (optional)']] as const).map(([field, label]) => (
-                  <div className="pa-field" key={field}>
-                    <label htmlFor={`manual-invoice-${field}`}>{label}</label>
-                    <input id={`manual-invoice-${field}`} className="pa-input" type="number" min="0" step="0.01" value={manualInvoiceForm[field]} onChange={(event) => setManualInvoiceForm((previous) => ({ ...previous, [field]: event.target.value }))} placeholder={field === 'weight' ? 'Optional' : '0.00'} />
-                  </div>
-                ))}
-                <p style={{ gridColumn: '1 / -1', margin: 0, color: '#64748b', fontSize: '0.78rem' }}>Dimensions use the existing cubic-foot calculation. Weight is stored for reference and does not change the current billing formula.</p>
-              </div>
-            )}
             <div style={{ marginTop: '0.85rem' }}>
               <div style={{ fontWeight: 700, color: '#334155', fontSize: '0.85rem', marginBottom: '0.45rem' }}>Additional charges</div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.4rem 0.75rem' }}>

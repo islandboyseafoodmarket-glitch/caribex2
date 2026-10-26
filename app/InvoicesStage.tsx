@@ -35,7 +35,7 @@ type InvoicesStageProps = {
     status: "PENDING" | "SENT" | "PAID" | "OVERDUE",
   ) => void | Promise<void>;
   onDeleteInvoice?: (pkg: PackageForInvoice) => void | Promise<void>;
-  onCreateManualInvoice?: (input: { customer_id: string; tracking: string; description: string; type: "BOX" | "PACKAGE"; height: string; width: string; length: string; weight: string; subtotal: string; additional_charges: string | null; tax_enabled: boolean }) => void | Promise<void>;
+  onCreateManualInvoice?: (input: { customer_id: string; tracking: string; description: string; additional_charges: string | null; tax_enabled: boolean }) => void | Promise<void>;
 };
 
 const getClientName = (pkg: PackageForInvoice): string => {
@@ -87,7 +87,7 @@ const InvoicesStage: React.FC<InvoicesStageProps> = ({
 }) => {
   const [search, setSearch] = useState("");
   const [manualOpen, setManualOpen] = useState(false);
-  const [manual, setManual] = useState({ customer_id: "", tracking: "", description: "", type: "PACKAGE" as "BOX" | "PACKAGE", height: "", width: "", length: "", weight: "", subtotal: "", charges: [] as string[], catalogLines: [] as { itemId: string; quantity: number }[], catalogItem: "", catalogQuantity: "1", taxEnabled: true });
+  const [manual, setManual] = useState({ customer_id: "", tracking: "", description: "", charges: [] as string[], catalogLines: [] as { itemId: string; quantity: number }[], catalogItem: "", catalogQuantity: "1", taxEnabled: true });
   const customerOptions = useMemo(() => Array.from(new Map(packages.filter((p) => p.numeroClienteId).map((p) => [p.numeroClienteId, { id: p.numeroClienteId as string, label: `${p.clienteNombre || "Customer"} · ${p.numeroCliente || ""}` }])).values()), [packages]);
   const operationalCharges = ["Handling fees", "Forklift charge ($100)", "Miscellaneous fee ($10)", "Consolidation fee ($2.5)"];
   const addCatalogLine = () => {
@@ -102,19 +102,19 @@ const InvoicesStage: React.FC<InvoicesStageProps> = ({
     });
   };
   const submitManualInvoice = () => {
-    if (!manual.description.trim()) {
-      window.alert(isEs ? "Ingrese una descripción para la factura." : "Enter a description for the invoice.");
+    if (!manual.customer_id) {
+      window.alert(isEs ? "Seleccione un cliente." : "Select a customer.");
       return;
     }
-    if (manual.type === "BOX" && [manual.height, manual.width, manual.length].some((value) => !value || Number(value) <= 0)) {
-      window.alert(isEs ? "Ingrese alto, ancho y largo positivos para una factura de caja." : "Enter positive height, width, and length values for a box invoice.");
+    if (!manual.charges.length && !manual.catalogLines.length) {
+      window.alert(isEs ? "Seleccione un artículo del catálogo o un cargo operativo." : "Select a catalog item or operational extra.");
       return;
     }
     const catalogCharges = manual.catalogLines.map((line) => {
       const item = BILLABLE_INVOICE_ITEMS.find((candidate) => candidate.id === line.itemId);
       return item ? formatCatalogCharge(item, line.quantity) : null;
     }).filter((charge): charge is string => Boolean(charge));
-    void onCreateManualInvoice?.({ customer_id: manual.customer_id, tracking: manual.tracking, description: manual.description, type: manual.type, height: manual.height, width: manual.width, length: manual.length, weight: manual.weight, subtotal: manual.subtotal, additional_charges: [...manual.charges, ...catalogCharges].join(", ") || null, tax_enabled: manual.taxEnabled });
+    void onCreateManualInvoice?.({ customer_id: manual.customer_id, tracking: manual.tracking, description: manual.description, additional_charges: [...manual.charges, ...catalogCharges].join(", ") || null, tax_enabled: manual.taxEnabled });
   };
 
   const filtered = useMemo(() => {
@@ -213,10 +213,8 @@ const InvoicesStage: React.FC<InvoicesStageProps> = ({
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: ".75rem" }}>
             <div className="staff-invoice-modal-field"><label>Customer</label><select value={manual.customer_id} onChange={(e) => setManual({ ...manual, customer_id: e.target.value })}><option value="">No customer selected</option>{customerOptions.map((customer) => <option key={customer.id} value={customer.id}>{customer.label}</option>)}</select></div>
             <div className="staff-invoice-modal-field"><label>Tracking (optional)</label><input value={manual.tracking} onChange={(e) => setManual({ ...manual, tracking: e.target.value })} placeholder="Auto-generated if blank" /></div>
-            <div className="staff-invoice-modal-field"><label>Shipment type</label><select value={manual.type} onChange={(e) => setManual({ ...manual, type: e.target.value as "BOX" | "PACKAGE" })}><option value="PACKAGE">Package</option><option value="BOX">Box</option></select></div>
-            <div className="staff-invoice-modal-field" style={{ gridColumn: "1 / -1" }}><label>Description</label><input value={manual.description} onChange={(e) => setManual({ ...manual, description: e.target.value })} placeholder="What is being billed?" /></div>
+            <div className="staff-invoice-modal-field" style={{ gridColumn: "1 / -1" }}><label>Notes (optional)</label><input value={manual.description} onChange={(e) => setManual({ ...manual, description: e.target.value })} placeholder="Optional notes about this invoice" /></div>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(130px,1fr))", gap: ".75rem", marginTop: ".75rem" }}>{([["height", "Height"], ["width", "Width"], ["length", "Length"], ["weight", "Weight (optional)"]] as const).map(([field, label]) => <div className="staff-invoice-modal-field" key={field}><label>{label}</label><input type="number" min="0" step=".01" value={manual[field]} onChange={(e) => setManual({ ...manual, [field]: e.target.value })} placeholder={field === "weight" ? "Optional" : "0.00"} /></div>)}</div>
           <div style={{ marginTop: ".85rem" }}><strong style={{ color: "#334155", fontSize: ".85rem" }}>Operational extras</strong><div style={{ display: "grid", gap: ".35rem", marginTop: ".45rem" }}>{operationalCharges.map((charge) => <label key={charge} style={{ display: "flex", gap: ".45rem", alignItems: "center", color: "#475569", fontSize: ".84rem" }}><input type="checkbox" checked={manual.charges.includes(charge)} onChange={(e) => setManual({ ...manual, charges: e.target.checked ? [...manual.charges, charge] : manual.charges.filter((item) => item !== charge) })} />{charge}</label>)}</div></div>
           <div style={{ marginTop: "1rem", paddingTop: ".85rem", borderTop: "1px solid #e2e8f0" }}><strong style={{ color: "#334155", fontSize: ".85rem" }}>Catalog items</strong><div style={{ display: "grid", gridTemplateColumns: "minmax(220px,1fr) 100px auto", gap: ".5rem", alignItems: "end", marginTop: ".45rem" }}><div className="staff-invoice-modal-field"><label>Catalog item</label><select value={manual.catalogItem} onChange={(e) => setManual({ ...manual, catalogItem: e.target.value })}><option value="">Select an item</option>{BILLABLE_INVOICE_ITEMS.map((item) => <option key={item.id} value={item.id}>{item.label} — ${item.unitPrice.toFixed(2)} / {item.unit}</option>)}</select></div><div className="staff-invoice-modal-field"><label>Qty</label><input type="number" min="1" step="1" value={manual.catalogQuantity} onChange={(e) => setManual({ ...manual, catalogQuantity: e.target.value })} /></div><button type="button" className="ga-secondary-button" disabled={!manual.catalogItem} onClick={addCatalogLine}>Add item</button></div>{manual.catalogLines.length > 0 && <div style={{ display: "grid", gap: ".35rem", marginTop: ".6rem" }}>{manual.catalogLines.map((line) => { const item = BILLABLE_INVOICE_ITEMS.find((candidate) => candidate.id === line.itemId); if (!item) return null; return <div key={line.itemId} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: ".45rem .6rem", borderRadius: ".5rem", background: "#f8fafc", color: "#475569", fontSize: ".82rem" }}>{formatCatalogCharge(item, line.quantity)}<button type="button" className="ga-icon-button ga-icon-button-light" onClick={() => setManual({ ...manual, catalogLines: manual.catalogLines.filter((candidate) => candidate.itemId !== line.itemId) })}>×</button></div>; })}</div>}</div>
           <label style={{ display: "flex", gap: ".45rem", alignItems: "center", marginTop: ".9rem", color: "#475569", fontSize: ".84rem" }}><input type="checkbox" checked={manual.taxEnabled} onChange={(e) => setManual({ ...manual, taxEnabled: e.target.checked })} />Apply 15% sales tax</label>
