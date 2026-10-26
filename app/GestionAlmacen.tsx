@@ -7,7 +7,6 @@ import React, {
   useRef,
   useState,
 } from "react";
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { centralAmericaDateParts, formatStaffDateTime } from "../lib/staff-date-format";
 import { formatPortName } from "../lib/port-format";
@@ -57,7 +56,7 @@ import EscanerQRCaribex, { CaribexPayload } from "./escanerQR";
 import ConsolidacionPlayground from "./seleccion-etapas/consolidacion";
 
 import { supabase } from "../lib/supabaseClient";
-import { BILLABLE_INVOICE_ITEMS, SALES_TAX_RATE, roundMoney } from "../lib/invoice-pricing";
+import { BILLABLE_INVOICE_ITEMS, HANDLING_FEE_RATE, roundMoney } from "../lib/invoice-pricing";
 
 const EXTRA_CHARGE_OPTIONS = [
   "Storage fees (daily)",
@@ -673,7 +672,7 @@ export default function GestionAlmacen() {
     const currentSubtotal = Number(invoicePackage.billing_subtotal ?? 0) || 0;
     const subtotal = roundMoney(currentSubtotal + amount);
     const taxEnabled = isAdmin ? invoiceTaxEnabled : invoicePackage.billing_tax == null ? true : Number(invoicePackage.billing_tax) > 0;
-    const tax = taxEnabled ? roundMoney(subtotal * SALES_TAX_RATE) : 0;
+    const tax = taxEnabled ? roundMoney(subtotal * HANDLING_FEE_RATE) : 0;
     const total = roundMoney(subtotal + tax);
     const chargeLabel = `${invoiceCustomChargeLabel.trim()} ($${amount.toFixed(2)})`;
 
@@ -758,12 +757,12 @@ export default function GestionAlmacen() {
         body: JSON.stringify({ shipment_id: invoicePackage.id, tax_enabled: enabled }),
       });
       const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload.error || "Could not update sales tax");
+      if (!response.ok) throw new Error(payload.error || "Could not update handling fee");
       setInvoiceTaxEnabled(Boolean(payload.taxEnabled));
       setInvoicePackage((prev) => prev && prev.id === invoicePackage.id ? { ...prev, billing_subtotal: Number(payload.subtotal), billing_tax: Number(payload.tax), billing_total: Number(payload.total) } : prev);
       await cargarPaquetes();
     } catch (error) {
-      setMessageModal({ title: isEs ? "Error" : "Error", message: error instanceof Error ? error.message : "Could not update sales tax" });
+      setMessageModal({ title: isEs ? "Error" : "Error", message: error instanceof Error ? error.message : "Could not update handling fee" });
     } finally {
       setIsSavingInvoiceTax(false);
     }
@@ -966,7 +965,7 @@ export default function GestionAlmacen() {
     //    - 15% de la BASE (no del subtotal con extras): base * 0.15
     // 4) Subtotal
     //    - subtotal = base + extras + manejo
-    // 5) Impuesto general 15%
+    // 5) Cargo de manejo general 15%
     //    - billing_tax   = subtotal * 0.15
     //    - billing_total = subtotal + billing_tax
     let safeSubtotal: number | null = null;
@@ -1197,13 +1196,13 @@ export default function GestionAlmacen() {
     setIsUnloadQrMode(false);
   };
 
-  // Generación masiva de facturas: recalcula IVA y total para todos los
+  // Generación masiva de facturas: recalcula cargo de manejo y total para todos los
   // envíos descargados que ya tengan billing_subtotal pero aún no tengan
   // billing_total. No modifica el subtotal ni los estados básicos.
   const handleBulkGenerateInvoices = async () => {
     const confirmText = isEs
-      ? "¿Recalcular subtotal, IVA y total para todos los envíos descargados?"
-      : "Recalculate subtotal, tax and total for all unloaded shipments?";
+      ? "¿Recalcular subtotal, cargo de manejo y total para todos los envíos descargados?"
+      : "Recalculate subtotal, handling fee and total for all unloaded shipments?";
 
     if (!window.confirm(confirmText)) return;
 
@@ -1363,7 +1362,7 @@ export default function GestionAlmacen() {
       if (safeSubtotal == null) continue;
 
       const taxEnabled = row.billing_tax == null ? true : Number(row.billing_tax) > 0;
-      const tax = taxEnabled ? roundMoney(safeSubtotal * SALES_TAX_RATE) : 0;
+      const tax = taxEnabled ? roundMoney(safeSubtotal * HANDLING_FEE_RATE) : 0;
       const total = roundMoney(safeSubtotal + tax);
 
       updates.push({
@@ -1385,7 +1384,7 @@ export default function GestionAlmacen() {
     }
 
     // Actualizar cada envío directamente en paquetes_registro para asegurar que
-    // subtotal, impuesto y total queden guardados.
+    // subtotal, cargo de manejo y total queden guardados.
     for (const rec of updates) {
       const { error: updError } = await supabase
         .from("paquetes_registro")
@@ -3708,24 +3707,7 @@ const handlePackageCreated = (pkg: Package) => {
     <div className="ga-page-wrapper">
       <header className="ga-nav">
         <div className="ga-nav-inner">
-          <div className="ga-nav-brand">
-            <div className="ga-nav-logo">
-              <Image
-                src="/imagenes/logo-pages.png"
-                alt="Caribex Logistics Group"
-                width={220}
-                height={94}
-                sizes="220px"
-              />
-            </div>
-            <div className="ga-nav-text">
-              <span className="ga-nav-title-main">CARIBEX LOGISTICS GROUP</span>
-            </div>
-          </div>
-
-          <div
-            style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
-          >
+          <div className="ga-account-actions" aria-label={isEs ? "Opciones de cuenta" : "Account controls"}>
             <button
               type="button"
               className="ga-lang-button"
@@ -3750,74 +3732,61 @@ const handlePackageCreated = (pkg: Package) => {
                 router.push("/login");
               }}
             >
-              <span>{isEs ? "Cerrar sesión" : "Log out"}</span>
+              <span>{isEs ? "Cerrar sesión" : "Sign out"}</span>
             </button>
           </div>
         </div>
-      </header>
-
-      <main className="ga-main">
-        <div className="ga-main-header">
-          <div>
-            <h1 className="ga-page-title">
-              {isEs ? "Gestión de almacén" : "Warehouse management"}
-            </h1>
-            <p className="ga-page-subtitle">
-              {isEs
-                ? "Rastrear y gestionar los envíos en todas las etapas"
-                : "Track and manage shipments across all stages"}
-            </p>
-          </div>
-        </div>
-
-        <div className="ga-workspace-tabs">
+        <nav className="ga-compact-navigation" aria-label={isEs ? "Navegación de almacén" : "Warehouse navigation"}>
           <button
             type="button"
             className={"ga-workspace-tab" + (activeWarehouseTab === "stages" ? " ga-workspace-tab-active" : "")}
+            data-workspace="stages"
+            aria-current={activeWarehouseTab === "stages" ? "page" : undefined}
             onClick={() => setActiveWarehouseTab("stages")}
           >
             <PackageOpen size={16} />
-            {isEs ? "Flujo de envíos" : "Shipment workflow"}
+            <span>{isEs ? "Envíos" : "Shipments"}</span>
           </button>
           {(isAdmin || staffPermissions.client360 !== false) && <button
             type="button"
             className={"ga-workspace-tab" + (activeWarehouseTab === "client360" ? " ga-workspace-tab-active" : "")}
+            data-workspace="client360"
+            aria-current={activeWarehouseTab === "client360" ? "page" : undefined}
             onClick={() => setActiveWarehouseTab("client360")}
           >
             <Users size={16} />
-            Client 360
+            <span>Client 360</span>
           </button>}
-          <button
-            type="button"
-            className={"ga-workspace-tab" + (activeWarehouseTab === "labels" ? " ga-workspace-tab-active" : "")}
-            onClick={() => setActiveWarehouseTab("labels")}
-          >
-            <Barcode size={16} />
-            {isEs ? "Etiquetas Caribex" : "Caribex labels"}
-          </button>
-        </div>
-
-        {activeWarehouseTab === "stages" && <div className="ga-stages-row">
           {STAGES.filter((stage) => stage.id !== "FACTURAS" || isAdmin || staffPermissions.invoices !== false).map((stage) => (
             <button
               key={stage.id}
               type="button"
-              className={
-                "ga-stage-chip" +
-                (activeStage === stage.id ? " ga-stage-chip-active" : "")
-              }
-              onClick={() => setActiveStage(stage.id)}
+              data-stage={stage.id}
+              aria-current={activeWarehouseTab === "stages" && activeStage === stage.id ? "page" : undefined}
+              className={"ga-stage-chip" + (activeWarehouseTab === "stages" && activeStage === stage.id ? " ga-stage-chip-active" : "")}
+              onClick={() => { setActiveWarehouseTab("stages"); setActiveStage(stage.id); }}
             >
               <span className="ga-stage-icon">{stage.icon}</span>
-
               <span className="ga-stage-label">{getStageLabel(stage.id, isEs)}</span>
               {stage.id !== "FACTURAS" && stageCounts[stage.id] !== undefined && (
                 <span className="ga-stage-badge">{stageCounts[stage.id]}</span>
               )}
             </button>
           ))}
-        </div>}
+          <button
+            type="button"
+            className={"ga-workspace-tab" + (activeWarehouseTab === "labels" ? " ga-workspace-tab-active" : "")}
+            data-workspace="labels"
+            aria-current={activeWarehouseTab === "labels" ? "page" : undefined}
+            onClick={() => setActiveWarehouseTab("labels")}
+          >
+            <Barcode size={16} />
+            <span>{isEs ? "Imprimir etiquetas" : "Print Labels"}</span>
+          </button>
+        </nav>
+      </header>
 
+      <main className="ga-main">
         {activeWarehouseTab === "labels" ? (
           <section className="ga-state-card" style={{ padding: "1.5rem" }}>
             <h2 style={{ marginTop: 0 }}>{isEs ? "Generar etiquetas para cajas nuevas" : "Generate labels for new boxes"}</h2>
@@ -4551,12 +4520,12 @@ const handlePackageCreated = (pkg: Package) => {
               {isAdmin && (
                 <div className="ga-invoice-editor" style={{ marginBottom: "1rem" }}>
                   <div>
-                    <h5>{isEs ? "Impuesto de venta del 15%" : "15% sales tax"}</h5>
-                    <p>{isEs ? "Solo un administrador puede agregar o quitar el impuesto de esta factura." : "Only an administrator can add or remove tax from this invoice."}</p>
+                    <h5>{isEs ? "Cargo de manejo del 15%" : "15% handling fee"}</h5>
+                    <p>{isEs ? "Solo un administrador puede agregar o quitar el cargo de manejo de esta factura." : "Only an administrator can add or remove the handling fee from this invoice."}</p>
                   </div>
                   <label style={{ display: "flex", alignItems: "center", gap: "0.55rem", fontWeight: 600 }}>
                     <input type="checkbox" checked={invoiceTaxEnabled} disabled={isSavingInvoiceTax} onChange={(event) => void handleInvoiceTaxToggle(event.target.checked)} />
-                    {invoiceTaxEnabled ? (isEs ? "Impuesto aplicado" : "Sales tax applied") : (isEs ? "Impuesto no aplicado" : "Sales tax not applied")}
+                    {invoiceTaxEnabled ? (isEs ? "Cargo de manejo aplicado" : "Handling fee applied") : (isEs ? "Cargo de manejo no aplicado" : "Handling fee not applied")}
                   </label>
                 </div>
               )}
@@ -4582,7 +4551,7 @@ const handlePackageCreated = (pkg: Package) => {
                 <div className="ga-invoice-editor">
                   <div>
                     <h5>{isEs ? "Ajustar factura (solo administrador)" : "Adjust invoice (admin only)"}</h5>
-                    <p>{isEs ? "Los cargos personalizados conservan la configuración actual del impuesto. Solo un administrador puede cambiar el impuesto del 15%." : "Custom adjustments keep the current tax setting. Only an administrator can change the 15% tax."}</p>
+                    <p>{isEs ? "Los cargos personalizados conservan la configuración actual del cargo de manejo. Solo un administrador puede cambiar el cargo de manejo del 15%." : "Custom adjustments keep the current handling-fee setting. Only an administrator can change the 15% handling fee."}</p>
                   </div>
                   <div className="ga-invoice-editor-grid">
                     <select

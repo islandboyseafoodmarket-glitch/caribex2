@@ -1,4 +1,8 @@
-export const SALES_TAX_RATE = 0.15;
+// The 15% charge is a handling fee. Legacy billing_tax and tax_enabled fields
+// remain in the database/API for compatibility; they do not represent sales tax.
+export const HANDLING_FEE_RATE = 0.15;
+/** @deprecated Use HANDLING_FEE_RATE. Retained for existing integrations. */
+export const SALES_TAX_RATE = HANDLING_FEE_RATE;
 export const INVOICE_DISCOUNT_RATE = 0.10;
 export const CUBIC_FOOT_RATE = 18.5;
 export const CONSOLIDATION_UNIT_PRICE = 2.5;

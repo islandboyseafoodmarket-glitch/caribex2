@@ -14,7 +14,7 @@ import ContainersAdmin from "./ContainersAdmin";
 import ReportsAdmin from "./ReportsAdmin";
 import { formatStaffDateTime } from "../../lib/staff-date-format";
 import InvoicePreview, { type InvoicePreviewProps } from "../../components/InvoicePreview";
-import { BILLABLE_INVOICE_ITEMS, INVOICE_DISCOUNTS, SALES_TAX_RATE, formatCatalogCharge, parseInvoiceChargeLine, parseInvoiceDiscountLine, roundMoney, type InvoiceDiscountCode } from "../../lib/invoice-pricing";
+import { BILLABLE_INVOICE_ITEMS, INVOICE_DISCOUNTS, HANDLING_FEE_RATE, formatCatalogCharge, parseInvoiceChargeLine, parseInvoiceDiscountLine, roundMoney, type InvoiceDiscountCode } from "../../lib/invoice-pricing";
 
 /**
  * DASHBOARD OPERATIVO - VERSIÓN VISUAL PURA
@@ -116,7 +116,7 @@ const auditChangeLines = (log: any) => {
     numero_cliente_id: "Customer",
     contenedor_id: "Container",
     billing_subtotal: "Subtotal",
-    billing_tax: "Tax",
+    billing_tax: "Handling fee",
     billing_total: "Total",
     approval_status: "Invoice Approval",
     invoice_status: "Invoice Status",
@@ -1127,7 +1127,7 @@ const App = () => {
     const { data, error } = await supabase
       .from("paquetes_registro")
       .select(
-        "id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, notas_imagenes, estado, issue_status, cubic_feet, prepaid_review_required, prepaid_review_status, numero_cliente:numero_cliente_id (id, numero_cliente, nombre), numero_cliente_id, registro, descargado, entregado_por, hora_fecha, fecha_descargado, hora_descargado, fecha_entregado, hora_entregado, updated_at",
+        "id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, notas_imagenes, estado, issue_status, cubic_feet, prepaid_review_required, prepaid_review_status, numero_cliente:numero_cliente_id (id, numero_cliente, nombre), numero_cliente_id, registro, descargado, entregado_por, hora_fecha, creado_en, fecha_descargado, hora_descargado, fecha_entregado, hora_entregado",
       )
       .order("creado_en", { ascending: false });
 
@@ -1175,7 +1175,7 @@ const App = () => {
         descargado: row.descargado || null,
         entregado_por: row.entregado_por || null,
         hora_fecha: row.hora_fecha || null,
-        updated_at: row.updated_at || null,
+        updated_at: row.hora_fecha || row.creado_en || null,
         fecha_descargado: row.fecha_descargado || null,
         hora_descargado: row.hora_descargado || null,
         fecha_entregado: row.fecha_entregado || null,
@@ -1496,7 +1496,7 @@ const App = () => {
     const isReduction = invoiceAddOnType === "Discount" || invoiceAddOnType === "Customer credit";
     const subtotal = roundMoney(Math.max(0, Number(editingInvoiceAddOns.subtotal || 0) + (isReduction ? -amount : amount)));
     const taxEnabled = editingInvoiceAddOns.tax == null ? true : Number(editingInvoiceAddOns.tax) > 0;
-    const tax = taxEnabled ? roundMoney(subtotal * SALES_TAX_RATE) : 0;
+    const tax = taxEnabled ? roundMoney(subtotal * HANDLING_FEE_RATE) : 0;
     const total = roundMoney(subtotal + tax);
     const prior = String(checkin.cargos_adicionales || "").split(",").map((item) => item.trim()).filter(Boolean);
     const charge = `${invoiceAddOnType} (${isReduction ? "-" : "+"}$${amount.toFixed(2)})`;
@@ -1759,7 +1759,7 @@ const App = () => {
           min-height: 100vh;
           width: 100%;
           box-sizing: border-box;
-          padding: 24px clamp(14px, 2.2vw, 34px) 48px;
+          padding: 12px clamp(12px, 1.8vw, 24px) 32px;
           max-width: 1680px;
           margin: 0 auto;
         }
@@ -1769,124 +1769,86 @@ const App = () => {
         }
 
         .admin-horizontal-nav {
-          display: grid;
-          grid-template-columns: repeat(8, minmax(0, 1fr));
-          align-items: stretch;
-          gap: 4px;
-          margin: 0 0 18px;
-          padding: 6px;
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          justify-content: center;
+          gap: 2px 4px;
+          margin: 0 0 14px;
+          padding: 4px 6px;
           border: 1px solid #d8dedb;
-          border-radius: 5px;
+          border-radius: 4px;
           background: #f1f2ee;
-          box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
         }
 
         .admin-horizontal-tab {
           position: relative;
           display: flex;
-          min-width: 0;
-          min-height: 68px;
+          flex: 0 0 auto;
+          min-width: 70px;
+          min-height: 48px;
+          flex-direction: column;
           align-items: center;
           justify-content: center;
-          flex-direction: column;
-          gap: 4px;
-          padding: 7px 4px;
-          border: 0;
-          border-radius: 4px;
+          gap: 3px;
+          padding: 5px 8px;
+          border: 1px solid transparent;
+          border-radius: 3px;
           background: transparent;
-          color: #263642;
-          font-size: 0.69rem;
+          color: #475569;
+          font-size: 0.75rem;
           font-weight: 600;
-          line-height: 1.15;
+          line-height: 1.2;
           text-align: center;
           cursor: pointer;
-          transition: background 150ms ease, color 150ms ease;
+          transition: background 150ms ease, color 150ms ease, border-color 150ms ease;
         }
 
-        .admin-horizontal-tab svg { width: 18px; height: 18px; flex: 0 0 auto; }
-        .admin-horizontal-tab:hover { background: #ffffff; color: #153d5a; }
-        .admin-horizontal-tab.active { background: #f2a51a; color: #142d42; box-shadow: inset 0 0 0 1px rgba(108, 71, 0, 0.14); }
-        .admin-horizontal-tab .count-badge { min-width: 1.15rem; margin: 0; padding: 0 0.25rem; border-radius: 999px; background: rgba(15, 23, 42, 0.08); font-size: 0.62rem; }
+        .admin-horizontal-tab svg { width: 16px; height: 16px; flex: 0 0 auto; }
+        .admin-horizontal-tab > span:not(.count-badge) { min-width: 0; overflow-wrap: anywhere; }
+        .admin-horizontal-tab:hover { background: #ffffff; color: #0f172a; }
+        .admin-horizontal-tab:focus-visible { outline: 2px solid #0f766e; outline-offset: 1px; }
+        .admin-horizontal-tab.active { background: #eff6ff; color: #1d4ed8; border-color: #dbeafe; }
+        .admin-horizontal-tab.active::after { content: ""; position: absolute; left: 7px; right: 7px; bottom: 0; height: 2px; border-radius: 2px; background: currentColor; }
+        .admin-horizontal-tab--customers.active { background: #f5f3ff; color: #6d28d9; border-color: #ede9fe; }
+        .admin-horizontal-tab--billing.active { background: #fffbeb; color: #92400e; border-color: #fef3c7; }
+        .admin-horizontal-tab--admin.active { background: #fdf2f8; color: #9d174d; border-color: #fce7f3; }
+        .admin-horizontal-tab .count-badge { position: absolute; top: 0; right: 0; min-width: 1rem; margin: 0; padding: 1px 4px; border-radius: 999px; background: #e2e8f0; color: #475569; font-size: 0.66rem; line-height: 1.2; }
+        .admin-horizontal-tab--operations.active .count-badge { background: #dbeafe; color: #1d4ed8; }
+        .admin-horizontal-tab--customers.active .count-badge { background: #ede9fe; color: #6d28d9; }
+        .admin-horizontal-tab--billing.active .count-badge { background: #fef3c7; color: #92400e; }
+        .admin-horizontal-tab--admin.active .count-badge { background: #fce7f3; color: #9d174d; }
 
         @media (max-width: 800px) {
-          .dashboard-root { padding: 16px 12px 32px; }
-          .admin-horizontal-nav { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 3px; }
-          .admin-horizontal-tab { min-height: 60px; font-size: 0.66rem; }
+          .dashboard-root { padding: 10px 10px 24px; }
+          .admin-horizontal-nav { gap: 2px; padding: 3px 4px; }
+          .admin-horizontal-tab { font-size: 0.72rem; padding: 5px 6px; }
         }
 
         @media (max-width: 440px) {
-          .admin-horizontal-nav { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-          .admin-horizontal-tab { min-height: 56px; }
-        }
-
-        .admin-brand {
-          display: flex;
-          align-items: center;
-          gap: 14px;
-        }
-
-        .admin-brand-logo {
-          width: 156px;
-          height: 70px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          border-radius: 18px;
-          background: var(--white);
-          border: 1px solid var(--border);
-          box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
-          overflow: hidden;
-          flex: 0 0 auto;
-        }
-
-        .admin-brand-logo img {
-          width: 148px;
-          height: 65px;
-          object-fit: contain;
-        }
-
-        .admin-brand-slogan {
-          display: inline-block;
-          margin-top: 9px;
-          padding: 8px 16px;
-          border: 1px solid #34d399;
-          border-radius: 7px;
-          background: #a7f3d0;
-          color: #064e3b;
-          font-size: 1.12rem;
-          font-weight: 900;
-          letter-spacing: 0.12em;
-          text-transform: uppercase;
+          .admin-horizontal-tab { max-width: 10rem; }
         }
 
         /* Header Style */
         .page-header {
-          margin-bottom: 28px;
-          padding: 22px 24px;
-          background: rgba(255, 255, 255, 0.82);
+          margin-bottom: 8px;
+          padding: 0 0 8px;
+          background: transparent;
           border: 1px solid var(--border);
-          border-radius: 22px;
-          box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05);
-        }
-
-        .page-header h1 {
-          font-size: clamp(1.7rem, 3vw, 2.25rem);
-          margin: 0;
-          font-weight: 700;
-          color: var(--text-dark);
-          letter-spacing: -0.02em;
-        }
-
-        .page-header p {
-          color: var(--text-muted);
-          margin: 8px 0 0;
-          font-size: 1rem;
+          border-width: 0 0 1px;
+          border-radius: 0;
+          box-shadow: none;
         }
 
         .page-header,
         .data-card {
           min-width: 0;
         }
+
+        .admin-account-controls { display: flex; justify-content: flex-end; align-items: center; gap: 0.35rem; }
+        .admin-account-controls .pa-secondary-btn,
+        .admin-account-controls .admin-sign-out { padding: 0.3rem 0.55rem; font-size: 0.75rem; }
+        .admin-sign-out { display: inline-flex; align-items: center; justify-content: center; gap: 0.3rem; border: 1px solid #fecaca; border-radius: 999px; background: #fff1f2; color: #b91c1c; font-weight: 600; cursor: pointer; }
 
         /* Compact icon-toolbar navigation inspired by the reference layout */
         .tabs-container {
@@ -2038,7 +2000,7 @@ const App = () => {
           background: var(--white);
           border-radius: var(--radius);
           box-shadow: 0 1px 3px rgba(0,0,0,0.05), 0 10px 15px -5px rgba(0,0,0,0.02);
-          padding: 32px;
+          padding: 24px;
           border: 1px solid rgba(0,0,0,0.02);
         }
 
@@ -2050,7 +2012,7 @@ const App = () => {
           display: flex;
           flex-direction: column;
           gap: 4px;
-          margin-bottom: 24px;
+          margin-bottom: 18px;
         }
 
         .card-header-inner h3 {
@@ -2201,19 +2163,9 @@ const App = () => {
         }
       `}</style>
 
-      {/* Cabecera del Almacén */}
-      <header className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1.5rem' }}>
-        <div className="admin-brand">
-          <div className="admin-brand-logo">
-            <Image src="/imagenes/logo-pages.png" alt="Caribex Logistics Group — Your Cargo Our Commitment" width={148} height={63} />
-          </div>
-          <div>
-          <h1>Warehouse management</h1>
-          <p>Track and manage shipments across all stages</p>
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+      {/* Compact account controls */}
+      <header className="page-header">
+        <div className="admin-account-controls">
           <button type="button" className="pa-secondary-btn" onClick={() => setIsPasswordModalOpen(true)} title="Change Admin password">
             <Unlock size={16} /> Change password
           </button>
@@ -2223,43 +2175,32 @@ const App = () => {
               await supabase.auth.signOut();
               router.push("/login");
             }}
-            style={{
-              padding: '0.45rem 0.7rem',
-              borderRadius: '999px',
-              border: '1px solid #e11d48',
-              backgroundColor: '#fee2e2',
-              color: '#b91c1c',
-              fontSize: '0.85rem',
-              fontWeight: 600,
-              cursor: 'pointer',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
+            className="admin-sign-out"
             title="Cerrar sesión"
           >
             <LogOut size={16} />
+            <span>Sign out</span>
           </button>
         </div>
       </header>
 
       <nav className="admin-horizontal-nav" aria-label="Admin navigation">
-        <button type="button" className={`admin-horizontal-tab ${activeTab === 'track' ? 'active' : ''}`} aria-current={activeTab === 'track' ? 'page' : undefined} onClick={() => setActiveTab('track')}><ScanLine /><span>Track Package</span><span className="count-badge">{pedidos.length}</span></button>
-        <button type="button" className={`admin-horizontal-tab ${activeTab === 'client360' ? 'active' : ''}`} aria-current={activeTab === 'client360' ? 'page' : undefined} onClick={() => setActiveTab('client360')}><IconUsers /><span>Client 360</span></button>
-        <button type="button" className={`admin-horizontal-tab ${activeTab === 'pedidos' ? 'active' : ''}`} aria-current={activeTab === 'pedidos' ? 'page' : undefined} onClick={() => setActiveTab('pedidos')}><Package /><span>Shipments</span><span className="count-badge">{pedidos.length}</span></button>
-        <button type="button" className={`admin-horizontal-tab ${activeTab === 'incidencias' ? 'active' : ''}`} aria-current={activeTab === 'incidencias' ? 'page' : undefined} onClick={() => setActiveTab('incidencias')}><AlertTriangle /><span>Issues</span><span className="count-badge">{pedidosConIncidencia.length}</span></button>
-        <button type="button" className={`admin-horizontal-tab ${activeTab === 'labels' ? 'active' : ''}`} aria-current={activeTab === 'labels' ? 'page' : undefined} onClick={() => setActiveTab('labels')}><QrCode /><span>Print Labels</span></button>
-        <button type="button" className={`admin-horizontal-tab ${activeTab === 'reports' ? 'active' : ''}`} aria-current={activeTab === 'reports' ? 'page' : undefined} onClick={() => setActiveTab('reports')}><BarChart3 /><span>Reports</span></button>
-        <button type="button" className={`admin-horizontal-tab ${activeTab === 'facturas' ? 'active' : ''}`} aria-current={activeTab === 'facturas' ? 'page' : undefined} onClick={() => setActiveTab('facturas')}><Receipt /><span>Invoices</span><span className="count-badge">{facturasCount}</span></button>
-        <button type="button" className={`admin-horizontal-tab ${activeTab === 'finanzas' ? 'active' : ''}`} aria-current={activeTab === 'finanzas' ? 'page' : undefined} onClick={() => setActiveTab('finanzas')}><DollarSign /><span>Finances</span></button>
-        <button type="button" className={`admin-horizontal-tab ${activeTab === 'containers' ? 'active' : ''}`} aria-current={activeTab === 'containers' ? 'page' : undefined} onClick={() => setActiveTab('containers')}><Container /><span>Containers</span></button>
-        <button type="button" className={`admin-horizontal-tab ${activeTab === 'ferry' ? 'active' : ''}`} aria-current={activeTab === 'ferry' ? 'page' : undefined} onClick={() => setActiveTab('ferry')}><Ship /><span>Ferry</span></button>
-        <button type="button" className={`admin-horizontal-tab ${activeTab === 'clientes' ? 'active' : ''}`} aria-current={activeTab === 'clientes' ? 'page' : undefined} onClick={() => setActiveTab('clientes')}><UserPlus /><span>Customers</span><span className="count-badge">{clientes.length}</span></button>
-        <button type="button" className={`admin-horizontal-tab ${activeTab === 'prepaid' ? 'active' : ''}`} aria-current={activeTab === 'prepaid' ? 'page' : undefined} onClick={() => setActiveTab('prepaid')}><DollarSign /><span>Prepaid</span><span className="count-badge">{clientes.filter((customer) => customer.tipo_cuenta === 'Developer / Builder — Prepaid').length}</span></button>
-        <button type="button" className={`admin-horizontal-tab ${activeTab === 'leads' ? 'active' : ''}`} aria-current={activeTab === 'leads' ? 'page' : undefined} onClick={() => setActiveTab('leads')}><UserPlus /><span>Leads</span><span className="count-badge">{leads.filter((lead) => lead.status === 'NEW').length}</span></button>
-        <button type="button" className={`admin-horizontal-tab ${activeTab === 'portal' ? 'active' : ''}`} aria-current={activeTab === 'portal' ? 'page' : undefined} onClick={() => setActiveTab('portal')}><Bell /><span>Portal Alerts</span><span className="count-badge">{portalEvents.filter((event) => !event.success).length}</span></button>
-        <button type="button" className={`admin-horizontal-tab ${activeTab === 'personal' ? 'active' : ''}`} aria-current={activeTab === 'personal' ? 'page' : undefined} onClick={() => setActiveTab('personal')}><UserCog /><span>Staff</span><span className="count-badge">{personal.length}</span></button>
-        <button type="button" className={`admin-horizontal-tab ${activeTab === 'activityLogs' ? 'active' : ''}`} aria-current={activeTab === 'activityLogs' ? 'page' : undefined} onClick={() => { setActiveTab('activityLogs'); void cargarStaffActionLogs(); }}><Bell /><span>Activity Logs</span></button>
+        <button type="button" className={`admin-horizontal-tab admin-horizontal-tab--operations ${activeTab === 'track' ? 'active' : ''}`} aria-current={activeTab === 'track' ? 'page' : undefined} onClick={() => setActiveTab('track')}><ScanLine /><span>Track Package</span><span className="count-badge">{pedidos.length}</span></button>
+        <button type="button" className={`admin-horizontal-tab admin-horizontal-tab--operations ${activeTab === 'client360' ? 'active' : ''}`} aria-current={activeTab === 'client360' ? 'page' : undefined} onClick={() => setActiveTab('client360')}><IconUsers /><span>Client 360</span></button>
+        <button type="button" className={`admin-horizontal-tab admin-horizontal-tab--operations ${activeTab === 'pedidos' ? 'active' : ''}`} aria-current={activeTab === 'pedidos' ? 'page' : undefined} onClick={() => setActiveTab('pedidos')}><Package /><span>Shipments</span><span className="count-badge">{pedidos.length}</span></button>
+        <button type="button" className={`admin-horizontal-tab admin-horizontal-tab--operations ${activeTab === 'incidencias' ? 'active' : ''}`} aria-current={activeTab === 'incidencias' ? 'page' : undefined} onClick={() => setActiveTab('incidencias')}><AlertTriangle /><span>Issues</span><span className="count-badge">{pedidosConIncidencia.length}</span></button>
+        <button type="button" className={`admin-horizontal-tab admin-horizontal-tab--operations ${activeTab === 'labels' ? 'active' : ''}`} aria-current={activeTab === 'labels' ? 'page' : undefined} onClick={() => setActiveTab('labels')}><QrCode /><span>Print Labels</span></button>
+        <button type="button" className={`admin-horizontal-tab admin-horizontal-tab--operations ${activeTab === 'reports' ? 'active' : ''}`} aria-current={activeTab === 'reports' ? 'page' : undefined} onClick={() => setActiveTab('reports')}><BarChart3 /><span>Reports</span></button>
+        <button type="button" className={`admin-horizontal-tab admin-horizontal-tab--billing ${activeTab === 'facturas' ? 'active' : ''}`} aria-current={activeTab === 'facturas' ? 'page' : undefined} onClick={() => setActiveTab('facturas')}><Receipt /><span>Invoices</span><span className="count-badge">{facturasCount}</span></button>
+        <button type="button" className={`admin-horizontal-tab admin-horizontal-tab--billing ${activeTab === 'finanzas' ? 'active' : ''}`} aria-current={activeTab === 'finanzas' ? 'page' : undefined} onClick={() => setActiveTab('finanzas')}><DollarSign /><span>Finances</span></button>
+        <button type="button" className={`admin-horizontal-tab admin-horizontal-tab--billing ${activeTab === 'containers' ? 'active' : ''}`} aria-current={activeTab === 'containers' ? 'page' : undefined} onClick={() => setActiveTab('containers')}><Container /><span>Containers</span></button>
+        <button type="button" className={`admin-horizontal-tab admin-horizontal-tab--billing ${activeTab === 'ferry' ? 'active' : ''}`} aria-current={activeTab === 'ferry' ? 'page' : undefined} onClick={() => setActiveTab('ferry')}><Ship /><span>Ferry</span></button>
+        <button type="button" className={`admin-horizontal-tab admin-horizontal-tab--customers ${activeTab === 'clientes' ? 'active' : ''}`} aria-current={activeTab === 'clientes' ? 'page' : undefined} onClick={() => setActiveTab('clientes')}><UserPlus /><span>Customers</span><span className="count-badge">{clientes.length}</span></button>
+        <button type="button" className={`admin-horizontal-tab admin-horizontal-tab--customers ${activeTab === 'prepaid' ? 'active' : ''}`} aria-current={activeTab === 'prepaid' ? 'page' : undefined} onClick={() => setActiveTab('prepaid')}><DollarSign /><span>Prepaid</span><span className="count-badge">{clientes.filter((customer) => customer.tipo_cuenta === 'Developer / Builder — Prepaid').length}</span></button>
+        <button type="button" className={`admin-horizontal-tab admin-horizontal-tab--customers ${activeTab === 'leads' ? 'active' : ''}`} aria-current={activeTab === 'leads' ? 'page' : undefined} onClick={() => setActiveTab('leads')}><UserPlus /><span>Leads</span><span className="count-badge">{leads.filter((lead) => lead.status === 'NEW').length}</span></button>
+        <button type="button" className={`admin-horizontal-tab admin-horizontal-tab--customers ${activeTab === 'portal' ? 'active' : ''}`} aria-current={activeTab === 'portal' ? 'page' : undefined} onClick={() => setActiveTab('portal')}><Bell /><span>Portal Alerts</span><span className="count-badge">{portalEvents.filter((event) => !event.success).length}</span></button>
+        <button type="button" className={`admin-horizontal-tab admin-horizontal-tab--admin ${activeTab === 'personal' ? 'active' : ''}`} aria-current={activeTab === 'personal' ? 'page' : undefined} onClick={() => setActiveTab('personal')}><UserCog /><span>Staff</span><span className="count-badge">{personal.length}</span></button>
+        <button type="button" className={`admin-horizontal-tab admin-horizontal-tab--admin ${activeTab === 'activityLogs' ? 'active' : ''}`} aria-current={activeTab === 'activityLogs' ? 'page' : undefined} onClick={() => { setActiveTab('activityLogs'); void cargarStaffActionLogs(); }}><Bell /><span>Activity Logs</span></button>
       </nav>
 
       {/* Card de Visualización de Datos */}
@@ -3555,7 +3496,7 @@ const App = () => {
                     ))}
                   </select>
                   <p style={{ margin: "0.45rem 0", color: "#64748b", fontSize: "0.78rem" }}>
-                    Business and customer-appreciation discounts apply to the invoice subtotal. Ferry Charge Offset applies to freight and shipping/service charges, excluding catalog merchandise. The discount is applied before sales tax; only one discount may be active. Apply after items and charges are finalized; remove and reapply to refresh the percentage after changes.
+                    Business and customer-appreciation discounts apply to the invoice subtotal. Ferry Charge Offset applies to freight and shipping/service charges, excluding catalog merchandise. The discount is applied before handling fee; only one discount may be active. Apply after items and charges are finalized; remove and reapply to refresh the percentage after changes.
                   </p>
                   <button type="button" className="pa-primary-btn" disabled={!invoiceDiscountCode || isSavingInvoiceDiscount} onClick={() => void saveAdminInvoiceDiscount("apply")}>
                     {isSavingInvoiceDiscount ? "Saving…" : "Apply discount"}
@@ -3633,7 +3574,7 @@ const App = () => {
               </div>
               {manualInvoiceCatalogLines.length > 0 && <div style={{ display: 'grid', gap: '0.35rem', marginTop: '0.6rem' }}>{manualInvoiceCatalogLines.map((line) => { const item = BILLABLE_INVOICE_ITEMS.find((candidate) => candidate.id === line.itemId); if (!item) return null; return <div key={line.itemId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', padding: '0.45rem 0.6rem', borderRadius: '0.5rem', background: '#f8fafc', color: '#475569', fontSize: '0.82rem' }}><span>{formatCatalogCharge(item, line.quantity)}</span><button type="button" className="pa-close-btn" style={{ fontSize: '1rem' }} onClick={() => setManualInvoiceCatalogLines((previous) => previous.filter((candidate) => candidate.itemId !== line.itemId))} aria-label={`Remove ${item.label}`}>×</button></div>; })}</div>}
             </div>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginTop: '0.9rem', color: '#475569', fontSize: '0.84rem' }}><input type="checkbox" checked={manualInvoiceForm.taxEnabled} onChange={(event) => setManualInvoiceForm((previous) => ({ ...previous, taxEnabled: event.target.checked }))} /> Apply 15% sales tax</label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginTop: '0.9rem', color: '#475569', fontSize: '0.84rem' }}><input type="checkbox" checked={manualInvoiceForm.taxEnabled} onChange={(event) => setManualInvoiceForm((previous) => ({ ...previous, taxEnabled: event.target.checked }))} /> Apply 15% handling fee</label>
             {manualInvoiceError && <p role="alert" style={{ margin: '0.9rem 0 0', color: '#b91c1c', fontSize: '0.84rem' }}>{manualInvoiceError}</p>}
             <div className="pa-modal-actions" style={{ marginTop: '1.1rem' }}>
               <button type="button" className="pa-secondary-btn" onClick={closeManualInvoice} disabled={manualInvoiceSaving}>Cancel</button>
@@ -3786,7 +3727,7 @@ const App = () => {
                 const current = details?.new && typeof details.new === "object" ? details.new : {};
                 const previous = details?.old && typeof details.old === "object" ? details.old : {};
                 const fields = ["numero_cliente_id", "contenedor_id", "billing_subtotal", "billing_tax", "billing_total", "approval_status", "invoice_status", "payment_method", "payment_date", "payment_reference", "problema", "problema_notas", "cargos_adicionales"];
-                const labels: Record<string, string> = { numero_cliente_id: "customer", contenedor_id: "container", billing_subtotal: "subtotal", billing_tax: "tax", billing_total: "total", approval_status: "invoice approval", invoice_status: "invoice status", payment_method: "payment method", payment_date: "payment date", payment_reference: "payment reference", problema: "problem flag", problema_notas: "problem note", cargos_adicionales: "charges" };
+                const labels: Record<string, string> = { numero_cliente_id: "customer", contenedor_id: "container", billing_subtotal: "subtotal", billing_tax: "handling fee", billing_total: "total", approval_status: "invoice approval", invoice_status: "invoice status", payment_method: "payment method", payment_date: "payment date", payment_reference: "payment reference", problema: "problem flag", problema_notas: "problem note", cargos_adicionales: "charges" };
                 const fromStatus = details?.from_status ?? previous.estado;
                 const toStatus = details?.to_status ?? current.estado;
                 const statusChange = fromStatus !== undefined && toStatus !== undefined && String(fromStatus) !== String(toStatus)

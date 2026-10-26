@@ -386,7 +386,7 @@ export async function POST(request: Request) {
                           <td align="right" style="padding:2px 0;">$${invoiceSubtotal.toFixed(2)}</td>
                         </tr>
                         <tr>
-                          <td style="padding:2px 0 6px 0; border-bottom:1px solid #e5e7eb;">${invoiceTax > 0 ? "Sales tax (15%)" : "Sales tax (not applied)"}</td>
+                          <td style="padding:2px 0 6px 0; border-bottom:1px solid #e5e7eb;">${invoiceTax > 0 ? "Handling fee (15%)" : "Handling fee (not applied)"}</td>
                           <td align="right" style="padding:2px 0 6px 0; border-bottom:1px solid #e5e7eb;">$${invoiceTax.toFixed(2)}</td>
                         </tr>
                         <tr>
@@ -400,7 +400,7 @@ export async function POST(request: Request) {
 
                 <div>
                   <div style="font-size:13px; font-weight:600; margin-bottom:4px;">Note</div>
-                  <p style="font-size:12px; color:#4b5563; margin:0;">Sales tax is 15% when enabled by an administrator and is not charged when disabled.</p>
+                  <p style="font-size:12px; color:#4b5563; margin:0;">Handling fee is 15% when enabled by an administrator and is not charged when disabled.</p>
                 </div>
 
                 <div style="margin-top:24px; padding:16px; background-color:#eff6ff; border-radius:10px; text-align:center;">

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { parseInvoiceChargeLine, SALES_TAX_RATE, roundMoney } from "@/lib/invoice-pricing";
+import { parseInvoiceChargeLine, HANDLING_FEE_RATE, roundMoney } from "@/lib/invoice-pricing";
 
 function adminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -37,7 +37,7 @@ export async function POST(request: Request) {
     const finalSubtotal = roundMoney(chargeLines.reduce((sum, line) => sum + parseInvoiceChargeLine(line).amount, 0));
     if (finalSubtotal <= 0) return NextResponse.json({ error: "The selected catalog items or operational extras do not have a billable amount" }, { status: 400 });
     const taxEnabled = staff.role === "admin" && typeof body?.tax_enabled === "boolean" ? body.tax_enabled : true;
-    const finalTax = taxEnabled ? roundMoney(finalSubtotal * SALES_TAX_RATE) : 0;
+    const finalTax = taxEnabled ? roundMoney(finalSubtotal * HANDLING_FEE_RATE) : 0;
     const finalTotal = roundMoney(finalSubtotal + finalTax);
     const { data: shipment, error } = await supabase.from("paquetes_registro").insert({ tracking, nombre_paqueteria: "Manual Invoice", tipo_paquete: type, contenido: description, notas: "MANUAL INVOICE CREATED BY STAFF", numero_cliente_id: customerId, registro: staff.name, estado: "Descargado", billing_subtotal: finalSubtotal, billing_tax: finalTax, billing_total: finalTotal, approval_status: "PENDING", invoice_status: "PENDING" }).select("id, tracking, tipo_paquete, contenido, numero_cliente_id, billing_subtotal, billing_tax, billing_total, approval_status, invoice_status").single();
     if (error) throw new Error(`Could not create manual invoice shipment: ${error.message}`);

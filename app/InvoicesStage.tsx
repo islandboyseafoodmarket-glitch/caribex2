@@ -162,14 +162,15 @@ const InvoicesStage: React.FC<InvoicesStageProps> = ({
   return (
     <>
       <style>{`
-        .staff-invoice-modal-overlay { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 1rem; background: rgba(15, 23, 42, 0.48); }
-        .staff-invoice-modal { width: min(680px, 96vw); background: #fff; border-radius: 1rem; box-shadow: 0 25px 80px rgba(15, 23, 42, .28); padding: 1.25rem; }
-        .staff-invoice-modal-header { display: flex; align-items: center; justify-content: space-between; gap: .75rem; margin-bottom: .75rem; }
-        .staff-invoice-modal-title { margin: 0; color: #0f172a; font-size: 1.1rem; }
+        .staff-invoice-modal-overlay { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; padding: 1.5rem; background: rgba(15, 23, 42, .45); }
+        .staff-invoice-modal { width: 100%; max-width: 680px; background: #fff; border-radius: 1.25rem; box-shadow: 0 24px 60px rgba(15, 23, 42, .25); padding: 1.75rem 1.75rem 1.5rem; }
+        .staff-invoice-modal-header { display: flex; align-items: center; justify-content: space-between; gap: .75rem; margin-bottom: 1rem; }
+        .staff-invoice-modal-title { margin: 0; color: #0f172a; font-size: 1.1rem; font-weight: 700; }
+        .staff-invoice-modal-close { border: none; background: transparent; cursor: pointer; font-size: 1.25rem; color: #94a3b8; }
         .staff-invoice-modal-field { display: grid; gap: .3rem; }
-        .staff-invoice-modal-field label { color: #475569; font-size: .82rem; font-weight: 600; }
-        .staff-invoice-modal-field input, .staff-invoice-modal-field select { width: 100%; box-sizing: border-box; padding: .6rem .7rem; border: 1px solid #cbd5e1; border-radius: .6rem; background: #fff; color: #0f172a; }
-        .staff-invoice-modal-actions { display: flex; justify-content: flex-end; gap: .75rem; margin-top: 1rem; }
+        .staff-invoice-modal-field label { color: #475569; font-size: .8rem; font-weight: 600; }
+        .staff-invoice-modal-field input, .staff-invoice-modal-field select { width: 100%; box-sizing: border-box; padding: .6rem .75rem; border: 1px solid #e2e8f0; border-radius: .6rem; background: #fff; color: #0f172a; font-size: .9rem; }
+        .staff-invoice-modal-actions { display: flex; justify-content: flex-end; gap: .75rem; margin-top: 1.1rem; }
       `}</style>
       <header className="ga-state-card-header">
         <div
@@ -194,30 +195,6 @@ const InvoicesStage: React.FC<InvoicesStageProps> = ({
           </div>
 
           <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
-            <div className="ga-search-bar" style={{ minWidth: 260, maxWidth: 360 }}>
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder={
-                  isEs
-                    ? "Buscar cliente, cuenta, tracking o paquetería..."
-                    : "Search customer, account, tracking, or carrier..."
-                }
-                aria-label={isEs ? "Buscar facturas" : "Search invoices"}
-              />
-            </div>
-            <select
-              value={containerFilter}
-              onChange={(event) => setContainerFilter(event.target.value)}
-              aria-label={isEs ? "Filtrar facturas por contenedor" : "Filter invoices by container"}
-              style={{ minHeight: 40, minWidth: 180, padding: "0.55rem 0.75rem", border: "1px solid #cbd5e1", borderRadius: "0.65rem", background: "#fff" }}
-            >
-              <option value="ALL">{isEs ? "Todos los contenedores" : "All containers"}</option>
-              {containerOptions.map((code) => <option key={code} value={code}>{isEs ? `Contenedor: ${code}` : `Container: ${code}`}</option>)}
-            </select>
-            {(search || containerFilter !== "ALL") && <button type="button" className="ga-secondary-button" onClick={() => { setSearch(""); setContainerFilter("ALL"); }}>{isEs ? "Limpiar filtros" : "Clear filters"}</button>}
-
             {onBulkGenerate && (
               <button
                 type="button"
@@ -230,7 +207,7 @@ const InvoicesStage: React.FC<InvoicesStageProps> = ({
               </button>
             )}
             {onCreateManualInvoice && (
-              <button type="button" className="ga-secondary-button" onClick={() => setManualOpen((open) => !open)}>
+              <button type="button" className="ga-primary-button" onClick={() => setManualOpen((open) => !open)}>
                 {isEs ? "Crear factura manual" : "Create manual invoice"}
               </button>
             )}
@@ -238,34 +215,59 @@ const InvoicesStage: React.FC<InvoicesStageProps> = ({
         </div>
       </header>
 
-      <div style={{ display: "flex", gap: "0.5rem", marginBottom: "0.75rem", overflowX: "auto", paddingBottom: "0.25rem" }}>
-        {invoiceTabs.map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            className={`tab-pill ${activeFilter === tab.id ? "active" : ""}`}
-            style={{ minWidth: tab.id === "pending" ? 140 : 100, fontSize: "0.8rem" }}
-            onClick={() => setActiveFilter(tab.id)}
-            aria-pressed={activeFilter === tab.id}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      {invoiceReady.length > 0 && (
+        <>
+          <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", alignItems: "center", marginBottom: "0.85rem" }}>
+            <input
+              type="search"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder={isEs ? "Buscar nombre, cuenta, email o tracking..." : "Search customer name, account, email, or tracking..."}
+              aria-label={isEs ? "Buscar facturas por cliente o cuenta" : "Search invoices by customer or account"}
+              style={{ flex: "1 1 300px", minHeight: 40, padding: "0.6rem 0.75rem", border: "1px solid #cbd5e1", borderRadius: "0.65rem" }}
+            />
+            <select
+              value={containerFilter}
+              onChange={(event) => setContainerFilter(event.target.value)}
+              aria-label={isEs ? "Filtrar facturas por contenedor" : "Filter invoices by container"}
+              style={{ minHeight: 40, minWidth: 240, padding: "0.6rem 0.75rem", border: "1px solid #cbd5e1", borderRadius: "0.65rem", background: "#fff" }}
+            >
+              <option value="ALL">{isEs ? "Todos los contenedores" : "All containers"}</option>
+              {containerOptions.map((code) => <option key={code} value={code}>{isEs ? `Contenedor: ${code}` : `Container: ${code}`}</option>)}
+            </select>
+            {(search || containerFilter !== "ALL") && <button type="button" className="ga-secondary-button" onClick={() => { setSearch(""); setContainerFilter("ALL"); }}>{isEs ? "Limpiar filtros" : "Clear filters"}</button>}
+          </div>
+
+          <div style={{ display: "flex", gap: "0.5rem", marginBottom: "0.75rem", overflowX: "auto", paddingBottom: "0.25rem" }}>
+            {invoiceTabs.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                className={`tab-pill ${activeFilter === tab.id ? "active" : ""}`}
+                style={{ minWidth: tab.id === "pending" || tab.id === "approved" || tab.id === "sent" || tab.id === "paid" ? 120 : tab.id === "problems" ? 110 : 100, fontSize: "0.8rem" }}
+                onClick={() => setActiveFilter(tab.id)}
+                aria-pressed={activeFilter === tab.id}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
 
       {manualOpen && onCreateManualInvoice && (
         <div className="staff-invoice-modal-overlay" role="dialog" aria-modal="true" aria-label={isEs ? "Crear factura manual" : "Create manual invoice"}>
           <div className="staff-invoice-modal" style={{ maxHeight: "90vh", overflowY: "auto" }}>
-          <div className="staff-invoice-modal-header"><h3 className="staff-invoice-modal-title">{isEs ? "Crear factura manual" : "Create manual invoice"}</h3><button type="button" className="ga-icon-button ga-icon-button-light" onClick={() => setManualOpen(false)} aria-label={isEs ? "Cerrar" : "Close"}>×</button></div>
+          <div className="staff-invoice-modal-header"><h3 className="staff-invoice-modal-title">{isEs ? "Crear factura manual" : "Create manual invoice"}</h3><button type="button" className="staff-invoice-modal-close" onClick={() => setManualOpen(false)} aria-label={isEs ? "Cerrar" : "Close"}>×</button></div>
           <p style={{ margin: "0 0 1rem", color: "#64748b", fontSize: ".86rem" }}>{isEs ? "Crea una factura pendiente usando las mismas reglas de facturación del panel Admin." : "Create a pending invoice using the same billing rules as the Admin panel."}</p>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: ".75rem" }}>
-            <div className="staff-invoice-modal-field"><label>Customer</label><select value={manual.customer_id} onChange={(e) => setManual({ ...manual, customer_id: e.target.value })}><option value="">No customer selected</option>{customerOptions.map((customer) => <option key={customer.id} value={customer.id}>{customer.label}</option>)}</select></div>
-            <div className="staff-invoice-modal-field"><label>Tracking (optional)</label><input value={manual.tracking} onChange={(e) => setManual({ ...manual, tracking: e.target.value })} placeholder="Auto-generated if blank" /></div>
-            <div className="staff-invoice-modal-field" style={{ gridColumn: "1 / -1" }}><label>Notes (optional)</label><input value={manual.description} onChange={(e) => setManual({ ...manual, description: e.target.value })} placeholder="Optional notes about this invoice" /></div>
+            <div className="staff-invoice-modal-field"><label htmlFor="staff-manual-invoice-customer">Customer</label><select id="staff-manual-invoice-customer" value={manual.customer_id} onChange={(e) => setManual({ ...manual, customer_id: e.target.value })}><option value="">No customer selected</option>{customerOptions.map((customer) => <option key={customer.id} value={customer.id}>{customer.label}</option>)}</select></div>
+            <div className="staff-invoice-modal-field"><label htmlFor="staff-manual-invoice-tracking">Tracking (optional)</label><input id="staff-manual-invoice-tracking" value={manual.tracking} onChange={(e) => setManual({ ...manual, tracking: e.target.value })} placeholder="Auto-generated if blank" /></div>
+            <div className="staff-invoice-modal-field" style={{ gridColumn: "1 / -1" }}><label htmlFor="staff-manual-invoice-description">Notes (optional)</label><input id="staff-manual-invoice-description" value={manual.description} onChange={(e) => setManual({ ...manual, description: e.target.value })} placeholder="Optional notes about this invoice" /></div>
           </div>
-          <div style={{ marginTop: ".85rem" }}><strong style={{ color: "#334155", fontSize: ".85rem" }}>Operational extras</strong><div style={{ display: "grid", gap: ".35rem", marginTop: ".45rem" }}>{operationalCharges.map((charge) => <label key={charge} style={{ display: "flex", gap: ".45rem", alignItems: "center", color: "#475569", fontSize: ".84rem" }}><input type="checkbox" checked={manual.charges.includes(charge)} onChange={(e) => setManual({ ...manual, charges: e.target.checked ? [...manual.charges, charge] : manual.charges.filter((item) => item !== charge) })} />{charge}</label>)}</div></div>
-          <div style={{ marginTop: "1rem", paddingTop: ".85rem", borderTop: "1px solid #e2e8f0" }}><strong style={{ color: "#334155", fontSize: ".85rem" }}>Catalog items</strong><div style={{ display: "grid", gridTemplateColumns: "minmax(220px,1fr) 100px auto", gap: ".5rem", alignItems: "end", marginTop: ".45rem" }}><div className="staff-invoice-modal-field"><label>Catalog item</label><select value={manual.catalogItem} onChange={(e) => setManual({ ...manual, catalogItem: e.target.value })}><option value="">Select an item</option>{BILLABLE_INVOICE_ITEMS.map((item) => <option key={item.id} value={item.id}>{item.label} — ${item.unitPrice.toFixed(2)} / {item.unit}</option>)}</select></div><div className="staff-invoice-modal-field"><label>Qty</label><input type="number" min="1" step="1" value={manual.catalogQuantity} onChange={(e) => setManual({ ...manual, catalogQuantity: e.target.value })} /></div><button type="button" className="ga-secondary-button" disabled={!manual.catalogItem} onClick={addCatalogLine}>Add item</button></div>{manual.catalogLines.length > 0 && <div style={{ display: "grid", gap: ".35rem", marginTop: ".6rem" }}>{manual.catalogLines.map((line) => { const item = BILLABLE_INVOICE_ITEMS.find((candidate) => candidate.id === line.itemId); if (!item) return null; return <div key={line.itemId} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: ".45rem .6rem", borderRadius: ".5rem", background: "#f8fafc", color: "#475569", fontSize: ".82rem" }}>{formatCatalogCharge(item, line.quantity)}<button type="button" className="ga-icon-button ga-icon-button-light" onClick={() => setManual({ ...manual, catalogLines: manual.catalogLines.filter((candidate) => candidate.itemId !== line.itemId) })}>×</button></div>; })}</div>}</div>
-          <label style={{ display: "flex", gap: ".45rem", alignItems: "center", marginTop: ".9rem", color: "#475569", fontSize: ".84rem" }}><input type="checkbox" checked={manual.taxEnabled} onChange={(e) => setManual({ ...manual, taxEnabled: e.target.checked })} />Apply 15% sales tax</label>
+          <div style={{ marginTop: ".85rem" }}><strong style={{ color: "#334155", fontSize: ".85rem" }}>Additional charges</strong><div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: ".4rem .75rem", marginTop: ".45rem" }}>{operationalCharges.map((charge) => <label key={charge} style={{ display: "flex", gap: ".45rem", alignItems: "center", color: "#475569", fontSize: ".84rem" }}><input type="checkbox" checked={manual.charges.includes(charge)} onChange={(e) => setManual({ ...manual, charges: e.target.checked ? [...manual.charges, charge] : manual.charges.filter((item) => item !== charge) })} />{charge}</label>)}</div></div>
+          <div style={{ marginTop: "1rem", paddingTop: ".85rem", borderTop: "1px solid #e2e8f0" }}><strong style={{ color: "#334155", fontSize: ".85rem" }}>Catalog items</strong><div style={{ display: "grid", gridTemplateColumns: "minmax(220px,1fr) 100px auto", gap: ".5rem", alignItems: "end", marginTop: ".45rem" }}><div className="staff-invoice-modal-field"><label htmlFor="staff-manual-invoice-catalog-item">Catalog item</label><select id="staff-manual-invoice-catalog-item" value={manual.catalogItem} onChange={(e) => setManual({ ...manual, catalogItem: e.target.value })}><option value="">Select an item</option>{BILLABLE_INVOICE_ITEMS.map((item) => <option key={item.id} value={item.id}>{item.label} — ${item.unitPrice.toFixed(2)} / {item.unit}</option>)}</select></div><div className="staff-invoice-modal-field"><label htmlFor="staff-manual-invoice-catalog-quantity">Qty</label><input id="staff-manual-invoice-catalog-quantity" type="number" min="1" step="1" value={manual.catalogQuantity} onChange={(e) => setManual({ ...manual, catalogQuantity: e.target.value })} /></div><button type="button" className="ga-secondary-button" disabled={!manual.catalogItem} onClick={addCatalogLine}>Add item</button></div>{manual.catalogLines.length > 0 && <div style={{ display: "grid", gap: ".35rem", marginTop: ".6rem" }}>{manual.catalogLines.map((line) => { const item = BILLABLE_INVOICE_ITEMS.find((candidate) => candidate.id === line.itemId); if (!item) return null; return <div key={line.itemId} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: ".75rem", padding: ".45rem .6rem", borderRadius: ".5rem", background: "#f8fafc", color: "#475569", fontSize: ".82rem" }}><span>{formatCatalogCharge(item, line.quantity)}</span><button type="button" className="staff-invoice-modal-close" style={{ fontSize: "1rem" }} onClick={() => setManual({ ...manual, catalogLines: manual.catalogLines.filter((candidate) => candidate.itemId !== line.itemId) })} aria-label={`Remove ${item.label}`}>×</button></div>; })}</div>}</div>
+          <label style={{ display: "flex", gap: ".45rem", alignItems: "center", marginTop: ".9rem", color: "#475569", fontSize: ".84rem" }}><input type="checkbox" checked={manual.taxEnabled} onChange={(e) => setManual({ ...manual, taxEnabled: e.target.checked })} />Apply 15% handling fee</label>
           <div className="staff-invoice-modal-actions"><button type="button" className="ga-secondary-button" onClick={() => setManualOpen(false)}>Cancel</button><button type="button" className="ga-primary-button" onClick={submitManualInvoice}>Create invoice</button></div>
           </div>
         </div>
@@ -274,7 +276,7 @@ const InvoicesStage: React.FC<InvoicesStageProps> = ({
       {hasPackages ? (
         <div style={{ maxHeight: "65vh", overflowY: "auto", overflowX: "auto", border: "1px solid #e2e8f0", borderRadius: "0.5rem", background: "#fff" }}>
           <div style={{ minWidth: 1100 }}>
-            <div style={{ display: "grid", gridTemplateColumns: "minmax(180px, 2fr) minmax(180px, 1.7fr) 140px 100px 140px 140px 150px", columnGap: "0.75rem", padding: "0.65rem 0.75rem", fontSize: "0.8rem", color: "#64748b", borderBottom: "1px solid #e2e8f0", fontWeight: 600, position: "sticky", top: 0, background: "#fff", zIndex: 1 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "minmax(220px, 2fr) 200px 150px 100px 140px 140px 150px", columnGap: "0.75rem", padding: "0.4rem 0", fontSize: "0.8rem", color: "#64748b", borderBottom: "1px solid #e2e8f0", fontWeight: 600, position: "sticky", top: 0, background: "#fff", zIndex: 1 }}>
               <span>Tracking</span>
               <span>{isEs ? "Cliente / cuenta" : "Customer / account"}</span>
               <span>{isEs ? "Paquetería" : "Carrier"}</span>
@@ -290,17 +292,17 @@ const InvoicesStage: React.FC<InvoicesStageProps> = ({
                 const approvalColor = approval === "APPROVED" ? "#166534" : approval === "REJECTED" ? "#b91c1c" : "#b45309";
                 const invoiceColor = invoice === "PAID" ? "#166534" : invoice === "OVERDUE" ? "#b91c1c" : invoice === "SENT" ? "#1d4ed8" : "#64748b";
                 return (
-                  <li key={p.id} style={{ padding: "0.8rem 0.75rem", borderBottom: "1px solid #e2e8f0", fontSize: "0.9rem", display: "grid", gridTemplateColumns: "minmax(180px, 2fr) minmax(180px, 1.7fr) 140px 100px 140px 140px 150px", columnGap: "0.75rem", alignItems: "center" }}>
-                    <button type="button" onClick={() => onView(p)} title={isEs ? "Abrir factura" : "Open invoice"} style={{ border: 0, padding: 0, background: "transparent", color: "#2563eb", textDecoration: "underline", textUnderlineOffset: 2, textAlign: "left", fontWeight: 700, cursor: "pointer", overflowWrap: "anywhere" }}>#{p.tracking || "-"}</button>
-                    <span style={{ color: "#0f172a" }}>
+                  <li key={p.id} style={{ padding: "0.8rem 0", borderBottom: "1px solid #e2e8f0", fontSize: "0.9rem", display: "grid", gridTemplateColumns: "minmax(220px, 2fr) 200px 150px 100px 140px 140px 150px", columnGap: "0.75rem", alignItems: "center" }}>
+                    <span style={{ fontWeight: 600, minWidth: 180, overflowWrap: "anywhere" }}><button type="button" className="ga-client360-tracking" onClick={() => onView(p)} title={isEs ? "Abrir factura" : "Open invoice"}>#{p.tracking || "-"}</button></span>
+                    <span style={{ color: "#0f172a", minWidth: 180 }}>
                       <span style={{ display: "block", fontWeight: 600 }}>{getClientName(p)}</span>
                       <span style={{ display: "block", marginTop: "0.2rem", color: "#64748b", fontSize: "0.8rem" }}>{isEs ? "Cuenta" : "Account"}: {p.numeroCliente != null ? `#${p.numeroCliente}` : "-"}</span>
                     </span>
-                    <span style={{ color: "#475569", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.carrier || "-"}</span>
-                    <span style={{ fontFeatureSettings: '"tnum" on', fontWeight: 600 }}>{formatCurrency(p.billing_total ?? null)}</span>
-                    <span style={{ color: approvalColor, fontSize: "0.85rem" }}>{getApprovalLabel(p.approval_status, isEs)}</span>
-                    <span style={{ color: invoiceColor, fontSize: "0.85rem" }}>{getInvoiceStatusLabel(p.invoice_status, isEs)}</span>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: "0.35rem", alignItems: "center" }}>
+                    <span style={{ color: "#475569", minWidth: 140, maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.carrier || "-"}</span>
+                    <span style={{ fontFeatureSettings: '"tnum" on', minWidth: 90 }}>{formatCurrency(p.billing_total ?? null)}</span>
+                    <span style={{ color: approvalColor, fontSize: "0.85rem", minWidth: 140 }}>{getApprovalLabel(p.approval_status, isEs)}</span>
+                    <span style={{ color: invoiceColor, fontSize: "0.85rem", minWidth: 140 }}>{getInvoiceStatusLabel(p.invoice_status, isEs)}</span>
+                    <div style={{ display: "flex", justifyContent: "flex-start", flexWrap: "wrap", gap: "0.35rem", minWidth: 150, alignItems: "center" }}>
                       <button type="button" className="ga-secondary-button" style={{ padding: "0.3rem 0.55rem", fontSize: "0.72rem", whiteSpace: "nowrap" }} onClick={() => onView(p)}>{isEs ? "Ver" : "View"}</button>
                       {onDeleteInvoice && <button type="button" className="ga-icon-button ga-icon-button-danger" title={isEs ? "Eliminar factura" : "Delete invoice"} onClick={() => onDeleteInvoice(p)}><Trash2 size={16} /></button>}
                     </div>

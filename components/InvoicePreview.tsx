@@ -300,7 +300,7 @@ const InvoicePreview: React.FC<InvoicePreviewProps> = ({
               borderBottom: "1px solid #e5e7eb",
             }}
           >
-            <span>{tax > 0 ? "Sales tax (15%)" : "Sales tax (not applied)"}</span>
+            <span>{tax > 0 ? "Handling fee (15%)" : "Handling fee (not applied)"}</span>
             <span>${tax.toFixed(2)}</span>
           </div>
           <div
@@ -321,7 +321,7 @@ const InvoicePreview: React.FC<InvoicePreviewProps> = ({
       <section>
         <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>Note</div>
         <p style={{ fontSize: 12, color: "#4b5563", margin: 0 }}>
-          Sales tax is 15% when enabled by an administrator and is not charged when disabled.
+          Handling fee is 15% when enabled by an administrator and is not charged when disabled.
         </p>
       </section>
     </div>

@@ -62,7 +62,7 @@ const auditChanges = (log: any) => {
     numero_cliente_id: "Customer",
     contenedor_id: "Container",
     billing_subtotal: "Subtotal",
-    billing_tax: "Tax",
+    billing_tax: "Handling fee",
     billing_total: "Total",
     approval_status: "Invoice Approval",
     invoice_status: "Invoice Status",

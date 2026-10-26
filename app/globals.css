@@ -2054,100 +2054,45 @@ main {
 
 .ga-nav {
   background: #2f6f9d;
-  padding: 0.75rem 2.5rem;
+  padding: 0.25rem 1.25rem 0;
+  border-bottom: 0;
   box-shadow: none;
 }
-
 .ga-nav-inner {
-  max-width: 1360px;
+  max-width: 1440px;
   margin: 0 auto;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
 }
-
-.ga-nav-brand {
+.ga-account-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 0.75rem;
+  justify-content: flex-end;
+  gap: 0.5rem;
 }
-
-.ga-nav-logo {
-  width: 220px;
-  height: 96px;
-  border-radius: 0.65rem;
-  overflow: hidden;
-  background: transparent;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.ga-nav-logo img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  padding: 0.25rem 0.45rem;
-}
-
-.ga-nav-slogan {
-  display: block;
-  margin-top: 0.3rem;
-  color: #ffffff;
-  font-size: 1.15rem;
-  font-weight: 800;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  text-shadow: 0 1px 2px rgba(15, 23, 42, 0.45);
-}
-
-.ga-nav-text {
-  display: flex;
-  flex-direction: column;
-  gap: 0.1rem;
-}
-
 .ga-lang-button {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  padding: 0.3rem 0.7rem;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.4);
-  background-color: rgba(15, 23, 42, 0.25);
-  color: #e5e7eb;
+  min-height: 32px;
+  padding: 0.25rem 0.4rem;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #f8fafc;
   font-size: 0.75rem;
   font-weight: 500;
   cursor: pointer;
 }
-
-.ga-lang-button span {
-  letter-spacing: 0.06em;
-}
-
-.ga-lang-button svg {
-  width: 14px;
-  height: 14px;
-}
-
-.ga-lang-button:hover {
-  background-color: rgba(15, 23, 42, 0.4);
-}
-
-.ga-nav-title-main {
-  font-size: clamp(0.82rem, 1.45vw, 1.12rem);
-  font-weight: 900;
-  color: #ffffff;
-  letter-spacing: 0.08em;
-  line-height: 1;
-  white-space: nowrap;
-  text-shadow: 0 1px 2px rgba(15, 23, 42, 0.45);
-}
-
+.ga-lang-button span { letter-spacing: normal; }
+.ga-lang-button svg { width: 14px; height: 14px; }
+.ga-lang-button:hover { background: rgba(255, 255, 255, 0.12); color: #ffffff; }
 .ga-main {
-  max-width: 1360px;
+  max-width: 1440px;
   margin: 0 auto;
-  padding: 1.75rem 2.5rem 2.5rem;
+  padding: 1rem 1.25rem 2rem;
 }
 
 .ga-main-header {
@@ -2196,64 +2141,73 @@ main {
   font-size: 0.9rem;
 }
 
-.ga-stages-row {
+.ga-compact-navigation {
+  max-width: 1440px;
+  margin: 0 auto;
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
-  margin-bottom: 1rem;
-  padding: 6px;
-  border: 1px solid #d8dedb;
-  border-radius: 5px;
+  justify-content: center;
+  gap: 0.2rem 0.5rem;
+  padding: 0.25rem 0 0.4rem;
   background: #f1f2ee;
-  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
-}
-
-.ga-stage-chip {
-  flex: 1 1 92px;
-  min-width: 82px;
-  min-height: 64px;
+  border: 1px solid #d8dedb;
   border-radius: 4px;
-  border: 0;
-  background-color: transparent;
-  padding: 0.45rem 0.55rem;
+}
+.ga-compact-navigation .ga-stage-chip,
+.ga-compact-navigation .ga-workspace-tab {
+  --tab-color: #1976b5;
+  --tab-tint: #eff6ff;
+  position: relative;
+  flex: 0 0 auto;
+  min-width: 74px;
+  min-height: 48px;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  flex-direction: column;
-  gap: 0.28rem;
-  font-size: 0.72rem;
-  color: #263642;
+  gap: 0.25rem;
+  padding: 0.35rem 0.6rem;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: #475569;
+  font-size: 0.75rem;
+  line-height: 1.2;
+  font-weight: 500;
   text-align: center;
   cursor: pointer;
   transition: background 150ms ease, color 150ms ease;
 }
-
-.ga-stage-label {
-  border-bottom: 2px solid transparent;
-  padding-bottom: 1px;
-}
-
-.ga-stage-chip-active {
-  background: #f2a51a;
+.ga-compact-navigation .ga-stage-label { display: inline; border: 0; padding: 0; }
+.ga-compact-navigation .ga-stage-chip-active,
+.ga-compact-navigation .ga-workspace-tab-active {
+  background: var(--tab-tint);
+  border-bottom-color: var(--tab-color);
+  color: var(--tab-color);
   box-shadow: none;
-  color: #142d42;
 }
-
-.ga-stage-chip:hover {
-  background: #ffffff;
-}
-
-.ga-stage-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  margin: 0;
-  color: currentColor;
-}
-
-.ga-stage-icon svg { width: 18px; height: 18px; }
-
-.ga-stage-badge {
+.ga-compact-navigation .ga-stage-chip:hover,
+.ga-compact-navigation .ga-workspace-tab:hover { background: var(--tab-tint); color: var(--tab-color); }
+.ga-compact-navigation button:focus-visible,
+.ga-account-actions button:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
+.ga-compact-navigation [data-stage="RECIBIDO_FLORIDA"] { --tab-color: #1976b5; --tab-tint: #eff6ff; }
+.ga-compact-navigation [data-stage="REGISTRO"] { --tab-color: #7c3aed; --tab-tint: #f5f3ff; }
+.ga-compact-navigation [data-stage="EN_TRANSITO"] { --tab-color: #d97706; --tab-tint: #fffbeb; }
+.ga-compact-navigation [data-stage="DESCARGADO_ROATAN"] { --tab-color: #0f8a70; --tab-tint: #ecfdf5; }
+.ga-compact-navigation [data-stage="PASTILLA"] { --tab-color: #c2415a; --tab-tint: #fff1f2; }
+.ga-compact-navigation [data-stage="FACTURAS"] { --tab-color: #92400e; --tab-tint: #fffbeb; }
+.ga-compact-navigation [data-workspace="client360"] { --tab-color: #6d28d9; --tab-tint: #f5f3ff; }
+.ga-compact-navigation [data-workspace="labels"] { --tab-color: #0f766e; --tab-tint: #f0fdfa; }
+.ga-compact-navigation .ga-stage-icon,
+.ga-compact-navigation .ga-workspace-tab > svg { color: var(--tab-color); }
+.ga-stage-icon { display: inline-flex; align-items: center; justify-content: center; margin: 0; }
+.ga-compact-navigation svg { width: 16px; height: 16px; }
+.ga-compact-navigation .ga-stage-badge {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: inline;
   margin: 0;
   padding: 0 0.25rem;
   border-radius: 999px;
@@ -2264,14 +2218,14 @@ main {
 
 .ga-state-card {
   background-color: #ffffff;
-  border-radius: 1.5rem;
+  border-radius: 0.75rem;
   border: 1px solid #e5e7eb;
   box-shadow: 0 18px 40px rgba(148, 163, 184, 0.35);
   overflow: hidden;
 }
 
 .ga-state-card-header {
-  padding: 1.1rem 1.5rem;
+  padding: 0.8rem 1rem;
   border-bottom: 1px solid #e5e7eb;
 }
 
@@ -2926,7 +2880,7 @@ main {
 
 @media (max-width: 900px) {
   .ga-main {
-    padding: 1.5rem 1.25rem 2rem;
+    padding: 0.85rem 0.75rem 1.5rem;
   }
 
   .ga-main-header {
@@ -2935,23 +2889,10 @@ main {
     gap: 0.75rem;
   }
 
-  .ga-stages-row {
-    justify-content: space-between;
-  }
-
-  .ga-stage-chip {
-    padding: 0.35rem 0.6rem;
-    gap: 0.25rem;
-  }
-
-  .ga-stage-label {
-    display: block;
-  }
-
-  .ga-stage-badge {
-    font-size: 0.7rem;
-    display: inline-block;
-  }
+  .ga-nav { padding-left: 0.5rem; padding-right: 0.5rem; }
+  .ga-compact-navigation { gap: 0.15rem; }
+  .ga-compact-navigation .ga-stage-chip,
+  .ga-compact-navigation .ga-workspace-tab { min-width: 70px; padding: 0.35rem 0.4rem; }
 
   .ga-measurements-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -3130,11 +3071,6 @@ main {
 }
 
 /* CLIENT 360 */
-.ga-workspace-tabs { display:flex; flex-wrap:wrap; gap:4px; margin-bottom:4px; padding:6px; border:1px solid #d8dedb; border-radius:5px; background:#f1f2ee; box-shadow:0 4px 12px rgba(15,23,42,.08); }
-.ga-workspace-tab { flex:1 1 120px; min-height:62px; display:inline-flex; flex-direction:column; align-items:center; justify-content:center; gap:.3rem; border:0; border-radius:4px; background:transparent; color:#263642; padding:.5rem .65rem; font-weight:700; font-size:.72rem; cursor:pointer; }
-.ga-workspace-tab svg { width:18px; height:18px; }
-.ga-workspace-tab:hover { background:#fff; }
-.ga-workspace-tab-active { color:#142d42; background:#f2a51a; }
 .ga-client360 { background:#f8fafc; border:1px solid #e5e7eb; border-radius:1.5rem; padding:1.25rem; box-shadow:0 18px 40px rgba(148,163,184,.25); }
 .ga-client360-toolbar { display:flex; justify-content:space-between; align-items:center; gap:1rem; margin-bottom:1.25rem; }
 .ga-client360-toolbar h2 { margin:0; color:#0f172a; }

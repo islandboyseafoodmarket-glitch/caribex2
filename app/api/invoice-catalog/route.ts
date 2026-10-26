@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { BILLABLE_INVOICE_ITEMS, INVOICE_DISCOUNTS, INVOICE_DISCOUNT_RATE, SALES_TAX_RATE, formatCatalogCharge, formatInvoiceDiscountLine, parseInvoiceChargeLine, parseInvoiceDiscountLine, roundMoney, type InvoiceDiscountCode } from "@/lib/invoice-pricing";
+import { BILLABLE_INVOICE_ITEMS, INVOICE_DISCOUNTS, INVOICE_DISCOUNT_RATE, HANDLING_FEE_RATE, formatCatalogCharge, formatInvoiceDiscountLine, parseInvoiceChargeLine, parseInvoiceDiscountLine, roundMoney, type InvoiceDiscountCode } from "@/lib/invoice-pricing";
 import { calculateWorkflowBilling } from "@/lib/workflow-billing";
 
 function adminClient() {
@@ -86,7 +86,7 @@ export async function POST(request: Request) {
     const addedAmount = roundMoney(item.unitPrice * quantity);
     const nextSubtotal = roundMoney(subtotal + addedAmount);
     const taxEnabled = shipment.billing_tax == null ? true : Number(shipment.billing_tax) > 0;
-    const tax = taxEnabled ? roundMoney(nextSubtotal * SALES_TAX_RATE) : 0;
+    const tax = taxEnabled ? roundMoney(nextSubtotal * HANDLING_FEE_RATE) : 0;
     const total = roundMoney(nextSubtotal + tax);
     const chargeLabel = formatCatalogCharge(item, quantity);
     const priorCharges = String(checkin?.cargos_adicionales || "").split(",").map((value) => value.trim()).filter(Boolean);
@@ -227,7 +227,7 @@ async function updateInvoiceDiscount(
 
   const nextSubtotal = roundMoney(Math.max(0, currentSubtotal + (action === "apply" ? -discountAmount : discountAmount)));
   const taxEnabled = shipment.billing_tax == null ? true : Number(shipment.billing_tax) > 0;
-  const tax = taxEnabled ? roundMoney(nextSubtotal * SALES_TAX_RATE) : 0;
+  const tax = taxEnabled ? roundMoney(nextSubtotal * HANDLING_FEE_RATE) : 0;
   const total = roundMoney(nextSubtotal + tax);
 
   const { error: checkinUpdateError } = await supabase
@@ -270,10 +270,10 @@ export async function PATCH(request: Request) {
     if (body?.discount_action === "apply" || body?.discount_action === "remove") {
       return updateInvoiceDiscount(supabase, staff, shipmentId, body.discount_action, body.discount_code);
     }
-    if (staff.role !== "admin") return NextResponse.json({ error: "Only an administrator can change sales-tax settings" }, { status: 403 });
+    if (staff.role !== "admin") return NextResponse.json({ error: "Only an administrator can change handling-fee settings" }, { status: 403 });
     const taxEnabled = body?.tax_enabled;
     if (!shipmentId || typeof taxEnabled !== "boolean") {
-      return NextResponse.json({ error: "Shipment and tax setting are required" }, { status: 400 });
+      return NextResponse.json({ error: "Shipment and handling-fee setting are required" }, { status: 400 });
     }
 
     const { data: shipment, error: shipmentError } = await supabase
@@ -289,9 +289,9 @@ export async function PATCH(request: Request) {
 
     const subtotal = Number(shipment.billing_subtotal);
     if (!Number.isFinite(subtotal) || subtotal < 0) {
-      return NextResponse.json({ error: "A valid invoice subtotal is required before changing tax" }, { status: 409 });
+      return NextResponse.json({ error: "A valid invoice subtotal is required before changing the handling fee" }, { status: 409 });
     }
-    const tax = taxEnabled ? roundMoney(subtotal * SALES_TAX_RATE) : 0;
+    const tax = taxEnabled ? roundMoney(subtotal * HANDLING_FEE_RATE) : 0;
     const total = roundMoney(subtotal + tax);
     const { error: updateError } = await supabase
       .from("paquetes_registro")
@@ -309,7 +309,7 @@ export async function PATCH(request: Request) {
       entity_id: shipment.id,
       tracking: shipment.tracking,
       success: true,
-      details: { tax_enabled: taxEnabled, tax_rate: SALES_TAX_RATE, tax_amount: tax, total },
+      details: { tax_enabled: taxEnabled, tax_rate: HANDLING_FEE_RATE, tax_amount: tax, total },
     });
 
     return NextResponse.json({ ok: true, subtotal: roundMoney(subtotal), tax, total, taxEnabled });

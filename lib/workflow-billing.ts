@@ -1,6 +1,6 @@
 import {
   CUBIC_FOOT_RATE,
-  SALES_TAX_RATE,
+  HANDLING_FEE_RATE,
   parseInvoiceChargeLine,
   roundMoney,
 } from "./invoice-pricing";
@@ -36,7 +36,7 @@ function extrasAndHandling(raw: unknown, base: number) {
   for (const extra of extras) {
     const parsed = parseInvoiceChargeLine(extra);
     if (parsed.description === "Handling fees" && parsed.amount === 0) {
-      handlingCharge += base * SALES_TAX_RATE;
+      handlingCharge += base * HANDLING_FEE_RATE;
       continue;
     }
     extrasAmount += parsed.amount;
@@ -67,7 +67,7 @@ export function calculateWorkflowBilling(input: WorkflowBillingInput): WorkflowB
 
   const { extrasAmount, handlingCharge } = extrasAndHandling(input.cargos_adicionales, base);
   const subtotal = roundMoney(base + extrasAmount + handlingCharge);
-  const tax = roundMoney(subtotal * SALES_TAX_RATE);
+  const tax = roundMoney(subtotal * HANDLING_FEE_RATE);
   const total = roundMoney(subtotal + tax);
   return { subtotal, tax, total, base, volumeFt3 };
 }

@@ -224,7 +224,7 @@ export default function ContainersAdmin() {
         <div className="container-dashboard-total-card" aria-label={`Grand total for ${selected.codigo}`}>
           <div><span>Container subtotal</span><strong>{money(selectedTotals.subtotal)}</strong></div>
           <div><span>Additional charges</span><strong>{money(selectedTotals.additional)}</strong></div>
-          <div><span>Tax</span><strong>{money(selectedTotals.tax)}</strong></div>
+          <div><span>Handling fee</span><strong>{money(selectedTotals.tax)}</strong></div>
           <div className="container-dashboard-grand-total"><span>Container grand total</span><strong>{money(selectedTotals.total)}</strong></div>
         </div>
       </div>}
@@ -239,7 +239,7 @@ export default function ContainersAdmin() {
             </div>
             <button type="button" className="container-invoice-close" onClick={() => setInvoiceGroup(null)}>Close</button>
           </div>
-          <table className="container-invoice-lines"><thead><tr><th>Tracking</th><th>Package</th><th>Subtotal</th><th>Additional</th><th>Tax</th><th>Total</th></tr></thead><tbody>
+          <table className="container-invoice-lines"><thead><tr><th>Tracking</th><th>Package</th><th>Subtotal</th><th>Additional</th><th>Handling fee</th><th>Total</th></tr></thead><tbody>
             {invoiceGroup.map((shipment) => {
               const additional = additionalChargeTotal(shipment.checkin?.cargos_adicionales);
               const subtotal = Number(shipment.billing_subtotal || 0);
@@ -248,7 +248,7 @@ export default function ContainersAdmin() {
               return <tr key={shipment.id}><td><strong>{shipment.tracking || "—"}</strong></td><td>{shipment.tipo_paquete || shipment.contenido || "Package"}</td><td>{money(subtotal)}</td><td>{additional ? money(additional) : "—"}</td><td>{money(tax)}</td><td><strong>{money(total)}</strong></td></tr>;
             })}
           </tbody></table>
-          <div className="container-invoice-totals"><div className="container-invoice-total-row"><span>Subtotal</span><strong>{money(invoiceTotals.subtotal)}</strong></div><div className="container-invoice-total-row"><span>Additional charges</span><strong>{money(invoiceTotals.additional)}</strong></div><div className="container-invoice-total-row"><span>Tax</span><strong>{money(invoiceTotals.tax)}</strong></div><div className="container-invoice-total-row final"><span>Invoice total</span><strong>{money(invoiceTotals.total)}</strong></div></div>
+          <div className="container-invoice-totals"><div className="container-invoice-total-row"><span>Subtotal</span><strong>{money(invoiceTotals.subtotal)}</strong></div><div className="container-invoice-total-row"><span>Additional charges</span><strong>{money(invoiceTotals.additional)}</strong></div><div className="container-invoice-total-row"><span>Handling fee</span><strong>{money(invoiceTotals.tax)}</strong></div><div className="container-invoice-total-row final"><span>Invoice total</span><strong>{money(invoiceTotals.total)}</strong></div></div>
         </section>
       </div>}
     </div>
