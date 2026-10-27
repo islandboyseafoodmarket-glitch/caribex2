@@ -3101,7 +3101,7 @@ const App = () => {
 
         {(activeTab === 'clientes' || activeTab === 'prepaid') && clientes.length > 0 && (
           <div style={{ width: '100%', overflowX: 'auto' }}>
-            <section style={{ marginBottom: '1.25rem', padding: '1rem 1.1rem', borderRadius: '0.9rem', border: '1px solid #bfdbfe', background: '#eff6ff' }}>
+            {activeTab === 'prepaid' && <section style={{ marginBottom: '1.25rem', padding: '1rem 1.1rem', borderRadius: '0.9rem', border: '1px solid #bfdbfe', background: '#eff6ff' }}>
               <h3 style={{ margin: 0, color: '#1e3a8a' }}>Developer / Builder prepaid allowance</h3>
               <p style={{ margin: '0.35rem 0 0.8rem', color: '#475569' }}>Select a prepaid customer to view allowance usage, remaining cubic feet, and add more prepaid space.</p>
               <div style={{ display: 'flex', gap: '0.65rem', flexWrap: 'wrap', alignItems: 'end' }}>
@@ -3115,7 +3115,7 @@ const App = () => {
                 <button type="button" className="pa-primary-btn" onClick={() => void addPrepaidAllowance()} disabled={prepaidAllowanceSaving || !prepaidCustomerId}>{prepaidAllowanceSaving ? 'Saving…' : 'Add allowance'}</button>
                 {(() => { const customer = clientes.find((item) => item.id === prepaidCustomerId); return customer?.tipo_cuenta === 'Developer / Builder — Prepaid' ? <button type="button" className="pa-secondary-btn" onClick={() => printPrepaidUsageReport(customer)}>PDF usage report</button> : null; })()}
               </div>
-            </section>
+            </section>}
             <div
               style={{
                 display: 'grid',
