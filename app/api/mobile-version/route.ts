@@ -10,6 +10,16 @@ export async function GET() {
       version_code: 1233,
       apk_url: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663449196187/WXZNtSnldjUEAhQJ.apk",
       filename: "Caribex-Warehouse-Management-1.2.33.apk",
+      rollback_releases: [
+        {
+          app: "Caribex Warehouse Management",
+          version: "1.2.32",
+          version_code: 1232,
+          apk_url: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663449196187/VafcMsVdAfgVXGZc.apk",
+          filename: "Caribex-Warehouse-Management-1.2.32.apk",
+          release_notes: ["Previous stable release for rollback if the current update has a problem."],
+        },
+      ],
       release_notes: [
         "Web-equivalent Receiving, Check In, consolidation, and customer assignment",
         "Client Pickup now shows every shipment tracking number with the authoritative invoice status",
