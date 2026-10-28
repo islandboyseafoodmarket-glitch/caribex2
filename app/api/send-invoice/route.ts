@@ -425,6 +425,7 @@ export async function POST(request: Request) {
       },
       body: JSON.stringify({
         from: "CARIBEX <billing@caribexlogisticsgroup.com>",
+        reply_to: "billing@caribexlogisticsgroup.com",
         to,
         subject,
         html,

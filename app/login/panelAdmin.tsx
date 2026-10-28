@@ -15,6 +15,7 @@ import ReportsAdmin from "./ReportsAdmin";
 import { formatStaffDateTime } from "../../lib/staff-date-format";
 import InvoicePreview, { type InvoicePreviewProps } from "../../components/InvoicePreview";
 import { BILLABLE_INVOICE_ITEMS, SALES_TAX_RATE, formatCatalogCharge, roundMoney } from "../../lib/invoice-pricing";
+import { INVOICE_FILTER_COLORS, tabColorStyle } from "../../lib/shipment-colors";
 
 /**
  * DASHBOARD OPERATIVO - VERSIÓN VISUAL PURA
@@ -29,6 +30,7 @@ const NUEVO_CLIENTE_INITIAL = {
   puerto: "",
   tipoCuenta: "Personal",
   prepaidAllowanceCubicFeet: "",
+  prepaidRatePerCubicFoot: "18.50",
 };
 
 const STAFF_PERMISSION_OPTIONS = [
@@ -182,6 +184,7 @@ const App = () => {
     tipo_cuenta: string | null;
     prepaid_allowance_cubic_feet?: number | null;
     prepaid_used_cubic_feet?: number | null;
+    prepaid_rate_per_cubic_foot?: number | null;
     creado_en: string | null;
     auth_user_id?: string | null;
   };
@@ -1041,7 +1044,7 @@ const App = () => {
   const cargarClientes = useCallback(async () => {
     const initial = await supabase
       .from("numero_cliente")
-      .select("id, nombre, numero_cliente, email, telefono, puerto, tipo_cuenta, prepaid_allowance_cubic_feet, prepaid_used_cubic_feet, creado_en, auth_user_id")
+      .select("id, nombre, numero_cliente, email, telefono, puerto, tipo_cuenta, prepaid_allowance_cubic_feet, prepaid_used_cubic_feet, prepaid_rate_per_cubic_foot, creado_en, auth_user_id")
       .order("creado_en", { ascending: false });
     let data: any[] | null = initial.data as any[] | null;
     let error = initial.error;
@@ -1089,6 +1092,7 @@ const App = () => {
       puerto: cliente.puerto ?? "",
       tipoCuenta: cliente.tipo_cuenta ?? "Personal",
       prepaidAllowanceCubicFeet: cliente.prepaid_allowance_cubic_feet == null ? "" : String(cliente.prepaid_allowance_cubic_feet),
+      prepaidRatePerCubicFoot: cliente.prepaid_rate_per_cubic_foot == null ? "18.50" : String(cliente.prepaid_rate_per_cubic_foot),
     });
     setClienteModalError(null);
     setIsClienteModalOpen(true);
@@ -1125,12 +1129,20 @@ const App = () => {
     }
     const allowance = Number(customer.prepaid_allowance_cubic_feet || 0);
     const used = Number(customer.prepaid_used_cubic_feet || 0);
+    const rate = Number(customer.prepaid_rate_per_cubic_foot || 18.5);
     const remaining = Math.max(0, allowance - used);
     const shipments = pedidos.filter((shipment) => shipment.numero_cliente_id === customer.id);
     const reportWindow = window.open('', '_blank', 'width=900,height=900');
     if (!reportWindow) { alert('Please allow pop-ups to generate the prepaid usage report.'); return; }
-    const rows = shipments.map((shipment) => `<tr><td>${String(shipment.tracking || '-')}</td><td>${String(shipment.estado || '-')}</td><td>${Number(shipment.cubic_feet || 0).toFixed(2)} ft³</td><td>${formatStaffDateTime(shipment.hora_fecha || '')}</td></tr>`).join('');
-    reportWindow.document.write(`<!doctype html><html><head><title>Prepaid Cubic-Foot Usage — ${customer.nombre}</title><style>body{font-family:Arial,sans-serif;color:#111827;padding:28px}h1{margin:0 0 6px}p{margin:4px 0 16px;color:#475569}.summary{display:flex;gap:12px;margin:20px 0}.card{border:1px solid #bfdbfe;border-radius:8px;padding:12px;min-width:140px}.card strong{display:block;font-size:20px;color:#1d4ed8}table{width:100%;border-collapse:collapse;margin-top:20px}th,td{text-align:left;border-bottom:1px solid #e2e8f0;padding:8px}button{padding:8px 14px;border:0;border-radius:6px;background:#2563eb;color:#fff}@media print{button{display:none}}</style></head><body><h1>Prepaid Cubic-Foot Usage</h1><p>${customer.nombre} · Account #${customer.numero_cliente} · ${customer.puerto || 'Port not provided'}</p><div class="summary"><div class="card">Allowance<strong>${allowance.toFixed(2)} ft³</strong></div><div class="card">Used<strong>${used.toFixed(2)} ft³</strong></div><div class="card">Remaining<strong>${remaining.toFixed(2)} ft³</strong></div></div><button onclick="window.print()">Print / Save as PDF</button><table><thead><tr><th>Tracking</th><th>Stage</th><th>Cubic feet</th><th>Date</th></tr></thead><tbody>${rows || '<tr><td colspan="4">No shipments recorded for this prepaid account.</td></tr>'}</tbody></table><script>window.onload=function(){window.focus();}</script></body></html>`);
+    const grouped = new Map<string, typeof shipments>();
+    shipments.forEach((shipment) => { const key = shipment.containerLabels?.[0] || 'No container assigned'; grouped.set(key, [...(grouped.get(key) || []), shipment]); });
+    const groupedSections = Array.from(grouped.entries()).map(([container, containerShipments]) => {
+      const containerTotal = containerShipments.reduce((sum, shipment) => sum + Number(shipment.cubic_feet || 0), 0);
+      const rows = containerShipments.map((shipment) => `<tr><td>${String(shipment.tracking || '-')}</td><td>${String(shipment.carrier || '-')}</td><td>${String(shipment.tipo_paquete || '-')}</td><td>${String(shipment.estado || '-')}</td><td>${String(shipment.contenido || '-')}</td><td>${[shipment.largo, shipment.ancho, shipment.alto].every((value) => Number(value) > 0) ? `${shipment.largo} × ${shipment.ancho} × ${shipment.alto} in` : '-'}</td><td>${Number(shipment.cubic_feet || 0).toFixed(2)} ft³</td><td>$${(Number(shipment.cubic_feet || 0) * rate).toFixed(2)}</td><td>${formatStaffDateTime(shipment.hora_fecha || '')}</td></tr>`).join('');
+      return `<section><h2>${container} <span>(${containerShipments.length} shipment${containerShipments.length === 1 ? '' : 's'} · ${containerTotal.toFixed(2)} ft³)</span></h2><table><thead><tr><th>Tracking</th><th>Carrier</th><th>Type</th><th>Stage</th><th>Contents</th><th>Dimensions</th><th>Cubic feet</th><th>Usage value</th><th>Date</th></tr></thead><tbody>${rows}</tbody></table></section>`;
+    }).join('') || '<p>No shipments recorded for this prepaid account.</p>';
+    const reportTotal = shipments.reduce((sum, shipment) => sum + Number(shipment.cubic_feet || 0), 0);
+    reportWindow.document.write(`<!doctype html><html><head><title>Prepaid Cubic-Foot Usage — ${customer.nombre}</title><style>body{font-family:Arial,sans-serif;color:#111827;padding:28px}h1{margin:0 0 6px}h2{margin:24px 0 8px;color:#1e3a8a;font-size:16px}h2 span{font-size:12px;color:#64748b;font-weight:400}p{margin:4px 0 16px;color:#475569}.summary{display:grid;grid-template-columns:repeat(5,minmax(120px,1fr));gap:12px;margin:20px 0}.card{border:1px solid #bfdbfe;border-radius:8px;padding:12px}.card strong{display:block;font-size:20px;color:#1d4ed8}table{width:100%;border-collapse:collapse;margin-top:8px;font-size:10px}th,td{text-align:left;border-bottom:1px solid #e2e8f0;padding:6px;vertical-align:top}button{padding:8px 14px;border:0;border-radius:6px;background:#2563eb;color:#fff}@media print{button{display:none}.summary{grid-template-columns:repeat(5,1fr)}section{break-inside:avoid}}@media(max-width:800px){.summary{grid-template-columns:repeat(2,1fr)}table{font-size:9px}}</style></head><body><h1>Prepaid Cubic-Foot Usage</h1><p>${customer.nombre} · Account #${customer.numero_cliente} · ${customer.puerto || 'Port not provided'}</p><div class="summary"><div class="card">Allowance<strong>${allowance.toFixed(2)} ft³</strong></div><div class="card">Used<strong>${used.toFixed(2)} ft³</strong></div><div class="card">Remaining<strong>${remaining.toFixed(2)} ft³</strong></div><div class="card">Rate<strong>$${rate.toFixed(2)}/ft³</strong></div><div class="card">Report total<strong>${reportTotal.toFixed(2)} ft³</strong></div></div><button onclick="window.print()">Print / Save as PDF</button>${groupedSections}<script>window.onload=function(){window.focus();}</script></body></html>`);
     reportWindow.document.close();
   };
 
@@ -1138,7 +1150,7 @@ const App = () => {
     const { data, error } = await supabase
       .from("paquetes_registro")
       .select(
-        "id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, notas_imagenes, estado, issue_status, cubic_feet, prepaid_review_required, prepaid_review_status, numero_cliente:numero_cliente_id (id, numero_cliente, nombre), numero_cliente_id, registro, descargado, entregado_por, hora_fecha, fecha_descargado, hora_descargado, fecha_entregado, hora_entregado",
+        "id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, notas_imagenes, estado, issue_status, cubic_feet, alto, ancho, largo, peso, prepaid_review_required, prepaid_review_status, numero_cliente:numero_cliente_id (id, numero_cliente, nombre), numero_cliente_id, registro, descargado, entregado_por, hora_fecha, fecha_descargado, hora_descargado, fecha_entregado, hora_entregado",
       )
       .order("creado_en", { ascending: false });
 
@@ -1181,6 +1193,10 @@ const App = () => {
         notas_imagenes: row.notas_imagenes || null,
         issue_status: row.issue_status || null,
         cubic_feet: row.cubic_feet ?? null,
+        alto: row.alto ?? null,
+        ancho: row.ancho ?? null,
+        largo: row.largo ?? null,
+        peso: row.peso ?? null,
         prepaid_review_required: Boolean(row.prepaid_review_required),
         prepaid_review_status: row.prepaid_review_status || null,
         numero_cliente_id: row.numero_cliente_id || row.numero_cliente?.id || null,
@@ -2651,7 +2667,7 @@ const App = () => {
               <button
                 type="button"
                 className={`tab-pill ${activeInvoiceTab === 'sinAprobar' ? 'active' : ''}`}
-                style={{ minWidth: 120, fontSize: '0.8rem' }}
+                style={{ ...tabColorStyle(INVOICE_FILTER_COLORS.pending), minWidth: 120, fontSize: '0.8rem' }}
                 onClick={() => setActiveInvoiceTab('sinAprobar')}
               >
                 Sin aprobar
@@ -2659,17 +2675,17 @@ const App = () => {
               <button
                 type="button"
                 className={`tab-pill ${activeInvoiceTab === 'aprobadas' ? 'active' : ''}`}
-                style={{ minWidth: 120, fontSize: '0.8rem' }}
+                style={{ ...tabColorStyle(INVOICE_FILTER_COLORS.approved), minWidth: 120, fontSize: '0.8rem' }}
                 onClick={() => setActiveInvoiceTab('aprobadas')}
               >
                 Aprobadas
               </button>
-              <button type="button" className={`tab-pill ${activeInvoiceTab === 'todas' ? 'active' : ''}`} style={{ minWidth: 100, fontSize: '0.8rem' }} onClick={() => setActiveInvoiceTab('todas')}>All</button>
-              <button type="button" className={`tab-pill ${activeInvoiceTab === 'problemas' ? 'active' : ''}`} style={{ minWidth: 110, fontSize: '0.8rem' }} onClick={() => setActiveInvoiceTab('problemas')}>Problems</button>
+              <button type="button" className={`tab-pill ${activeInvoiceTab === 'todas' ? 'active' : ''}`} style={{ ...tabColorStyle(INVOICE_FILTER_COLORS.all), minWidth: 100, fontSize: '0.8rem' }} onClick={() => setActiveInvoiceTab('todas')}>All</button>
+              <button type="button" className={`tab-pill ${activeInvoiceTab === 'problemas' ? 'active' : ''}`} style={{ ...tabColorStyle(INVOICE_FILTER_COLORS.problems), minWidth: 110, fontSize: '0.8rem' }} onClick={() => setActiveInvoiceTab('problemas')}>Problems</button>
               <button
                 type="button"
                 className={`tab-pill ${activeInvoiceTab === 'enviadas' ? 'active' : ''}`}
-                style={{ minWidth: 120, fontSize: '0.8rem' }}
+                style={{ ...tabColorStyle(INVOICE_FILTER_COLORS.sent), minWidth: 120, fontSize: '0.8rem' }}
                 onClick={() => setActiveInvoiceTab('enviadas')}
               >
                 Enviadas
@@ -2677,7 +2693,7 @@ const App = () => {
               <button
                 type="button"
                 className={`tab-pill ${activeInvoiceTab === 'pagadas' ? 'active' : ''}`}
-                style={{ minWidth: 120, fontSize: '0.8rem' }}
+                style={{ ...tabColorStyle(INVOICE_FILTER_COLORS.paid), minWidth: 120, fontSize: '0.8rem' }}
                 onClick={() => setActiveInvoiceTab('pagadas')}
               >
                 Pagadas
@@ -4667,6 +4683,7 @@ const App = () => {
                         puerto: nuevoCliente.puerto || null,
                         tipo_cuenta: nuevoCliente.tipoCuenta,
                         prepaid_allowance_cubic_feet: nuevoCliente.prepaidAllowanceCubicFeet ? Number(nuevoCliente.prepaidAllowanceCubicFeet) : 0,
+                        prepaid_rate_per_cubic_foot: nuevoCliente.prepaidRatePerCubicFoot ? Number(nuevoCliente.prepaidRatePerCubicFoot) : 18.5,
                       })
                       .eq("id", clienteEditandoId);
 
@@ -4698,6 +4715,7 @@ const App = () => {
                         puerto: nuevoCliente.puerto,
                         tipo_cuenta: nuevoCliente.tipoCuenta,
                         prepaid_allowance_cubic_feet: nuevoCliente.prepaidAllowanceCubicFeet ? Number(nuevoCliente.prepaidAllowanceCubicFeet) : 0,
+                        prepaid_rate_per_cubic_foot: nuevoCliente.prepaidRatePerCubicFoot ? Number(nuevoCliente.prepaidRatePerCubicFoot) : 18.5,
                         numero_cliente: siguienteNumero,
                       });
 
@@ -4807,6 +4825,21 @@ const App = () => {
                     Used: {Number(clientes.find((cliente) => cliente.id === clienteEditandoId)?.prepaid_used_cubic_feet || 0).toFixed(2)} cubic ft. New allowance is added to the account record.
                   </small>
                 )}
+              </div>
+
+              <div className="pa-field">
+                <label htmlFor="cliente-prepaid-rate">Prepaid price per cubic foot (USD)</label>
+                <input
+                  id="cliente-prepaid-rate"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  className="pa-input"
+                  value={nuevoCliente.prepaidRatePerCubicFoot}
+                  onChange={(e) => setNuevoCliente((prev) => ({ ...prev, prepaidRatePerCubicFoot: e.target.value }))}
+                  placeholder="18.50"
+                />
+                <small style={{ color: '#64748b' }}>Current standard rate: $18.50/ft³. This field is editable for prepaid Developer / Builder accounts.</small>
               </div>
 
               <div className="pa-modal-actions">
