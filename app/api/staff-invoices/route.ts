@@ -27,7 +27,6 @@ export async function POST(request: Request) {
     const body = await request.json();
     const customerId = String(body?.customer_id || "").trim() || null;
     const tracking = String(body?.tracking || `MANUAL-${Date.now()}`).trim().toUpperCase();
-    const type = "PACKAGE";
     const chargeLines = String(body?.additional_charges || "").split(",").map((line) => line.trim()).filter(Boolean);
     const description = String(body?.description || chargeLines.map((line) => parseInvoiceChargeLine(line).description).join(", ") || "Manual invoice").trim();
     if (!customerId) return NextResponse.json({ error: "Select a customer" }, { status: 400 });
@@ -39,14 +38,14 @@ export async function POST(request: Request) {
     const taxEnabled = staff.role === "admin" && typeof body?.tax_enabled === "boolean" ? body.tax_enabled : true;
     const finalTax = taxEnabled ? roundMoney(finalSubtotal * HANDLING_FEE_RATE) : 0;
     const finalTotal = roundMoney(finalSubtotal + finalTax);
-    const { data: shipment, error } = await supabase.from("paquetes_registro").insert({ tracking, nombre_paqueteria: "Manual Invoice", tipo_paquete: type, contenido: description, notas: "MANUAL INVOICE CREATED BY STAFF", numero_cliente_id: customerId, registro: staff.name, estado: "Descargado", billing_subtotal: finalSubtotal, billing_tax: finalTax, billing_total: finalTotal, approval_status: "PENDING", invoice_status: "PENDING" }).select("id, tracking, tipo_paquete, contenido, numero_cliente_id, billing_subtotal, billing_tax, billing_total, approval_status, invoice_status").single();
+    const { data: shipment, error } = await supabase.from("paquetes_registro").insert({ tracking, nombre_paqueteria: "Manual Invoice", tipo_paquete: null, contenido: description, notas: "MANUAL INVOICE CREATED BY STAFF", numero_cliente_id: customerId, registro: staff.name, estado: "Descargado", billing_subtotal: finalSubtotal, billing_tax: finalTax, billing_total: finalTotal, approval_status: "PENDING", invoice_status: "PENDING" }).select("id, tracking, tipo_paquete, contenido, numero_cliente_id, billing_subtotal, billing_tax, billing_total, approval_status, invoice_status").single();
     if (error) throw new Error(`Could not create manual invoice shipment: ${error.message}`);
     const { error: checkinError } = await supabase.from("paquetes_checkin").insert({ paquete_id: shipment.id, numero_cliente_id: customerId, cargos_adicionales: body?.additional_charges || null });
     if (checkinError) {
       await supabase.from("paquetes_registro").delete().eq("id", shipment.id);
       throw new Error(`Could not create manual invoice check-in record: ${checkinError.message}`);
     }
-    await supabase.from("staff_action_logs").insert({ actor_id: staff.user.id, actor_name: staff.name, actor_email: staff.user.email || null, actor_role: staff.role, action: "manual_invoice_created", entity_type: "paquetes_registro", entity_id: shipment.id, tracking, customer_name: customer?.nombre || null, customer_account_number: customer?.numero_cliente || null, success: true, details: { source: "staff_invoice_panel", description, type } });
+    await supabase.from("staff_action_logs").insert({ actor_id: staff.user.id, actor_name: staff.name, actor_email: staff.user.email || null, actor_role: staff.role, action: "manual_invoice_created", entity_type: "paquetes_registro", entity_id: shipment.id, tracking, customer_name: customer?.nombre || null, customer_account_number: customer?.numero_cliente || null, success: true, details: { source: "staff_invoice_panel", description, invoice_kind: "MANUAL_INVOICE" } });
     return NextResponse.json({ ok: true, shipment });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not create manual invoice";
