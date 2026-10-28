@@ -1,4 +1,11 @@
-/* Customer Leads: solid header bars without changing the editable table body. */
+/* Customer Leads: solid panel and header bars without changing the editable table body. */
+.dashboard-root .data-card--leads {
+  background: #ffffff;
+  border: 1px solid #dbe5ef;
+  border-radius: 14px;
+  padding: 18px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+}
 .dashboard-root .data-card--leads .card-header-inner {
   background: #173f64;
   padding: 16px 20px;

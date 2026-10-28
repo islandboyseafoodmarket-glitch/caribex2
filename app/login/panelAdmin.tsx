@@ -1132,16 +1132,22 @@ const App = () => {
     const rate = Number(customer.prepaid_rate_per_cubic_foot || 18.5);
     const remaining = Math.max(0, allowance - used);
     const shipments = pedidos.filter((shipment) => shipment.numero_cliente_id === customer.id);
+    const cubicFeetFor = (shipment: Pedido) => {
+      const stored = Number(shipment.cubic_feet || 0);
+      if (stored > 0) return stored;
+      const dimensions = [shipment.largo, shipment.ancho, shipment.alto].map(Number);
+      return dimensions.every((value) => value > 0) ? Number(((dimensions[0] * dimensions[1] * dimensions[2]) / 1728).toFixed(2)) : 0;
+    };
     const reportWindow = window.open('', '_blank', 'width=900,height=900');
     if (!reportWindow) { alert('Please allow pop-ups to generate the prepaid usage report.'); return; }
     const grouped = new Map<string, typeof shipments>();
     shipments.forEach((shipment) => { const key = shipment.containerLabels?.[0] || 'No container assigned'; grouped.set(key, [...(grouped.get(key) || []), shipment]); });
     const groupedSections = Array.from(grouped.entries()).map(([container, containerShipments]) => {
-      const containerTotal = containerShipments.reduce((sum, shipment) => sum + Number(shipment.cubic_feet || 0), 0);
-      const rows = containerShipments.map((shipment) => `<tr><td>${String(shipment.tracking || '-')}</td><td>${String(shipment.carrier || '-')}</td><td>${String(shipment.tipo_paquete || '-')}</td><td>${String(shipment.estado || '-')}</td><td>${String(shipment.contenido || '-')}</td><td>${[shipment.largo, shipment.ancho, shipment.alto].every((value) => Number(value) > 0) ? `${shipment.largo} × ${shipment.ancho} × ${shipment.alto} in` : '-'}</td><td>${Number(shipment.cubic_feet || 0).toFixed(2)} ft³</td><td>$${(Number(shipment.cubic_feet || 0) * rate).toFixed(2)}</td><td>${formatStaffDateTime(shipment.hora_fecha || '')}</td></tr>`).join('');
+      const containerTotal = containerShipments.reduce((sum, shipment) => sum + cubicFeetFor(shipment), 0);
+      const rows = containerShipments.map((shipment) => { const cubicFeet = cubicFeetFor(shipment); return `<tr><td>${String(shipment.tracking || '-')}</td><td>${String(shipment.carrier || '-')}</td><td>${String(shipment.tipo_paquete || '-')}</td><td>${String(shipment.estado || '-')}</td><td>${String(shipment.contenido || '-')}</td><td>${[shipment.largo, shipment.ancho, shipment.alto].every((value) => Number(value) > 0) ? `${shipment.largo} × ${shipment.ancho} × ${shipment.alto} in` : '-'}</td><td>${cubicFeet.toFixed(2)} ft³</td><td>$${(cubicFeet * rate).toFixed(2)}</td><td>${formatStaffDateTime(shipment.hora_fecha || '')}</td></tr>`; }).join('');
       return `<section><h2>${container} <span>(${containerShipments.length} shipment${containerShipments.length === 1 ? '' : 's'} · ${containerTotal.toFixed(2)} ft³)</span></h2><table><thead><tr><th>Tracking</th><th>Carrier</th><th>Type</th><th>Stage</th><th>Contents</th><th>Dimensions</th><th>Cubic feet</th><th>Usage value</th><th>Date</th></tr></thead><tbody>${rows}</tbody></table></section>`;
     }).join('') || '<p>No shipments recorded for this prepaid account.</p>';
-    const reportTotal = shipments.reduce((sum, shipment) => sum + Number(shipment.cubic_feet || 0), 0);
+    const reportTotal = shipments.reduce((sum, shipment) => sum + cubicFeetFor(shipment), 0);
     reportWindow.document.write(`<!doctype html><html><head><title>Prepaid Cubic-Foot Usage — ${customer.nombre}</title><style>body{font-family:Arial,sans-serif;color:#111827;padding:28px}h1{margin:0 0 6px}h2{margin:24px 0 8px;color:#1e3a8a;font-size:16px}h2 span{font-size:12px;color:#64748b;font-weight:400}p{margin:4px 0 16px;color:#475569}.summary{display:grid;grid-template-columns:repeat(5,minmax(120px,1fr));gap:12px;margin:20px 0}.card{border:1px solid #bfdbfe;border-radius:8px;padding:12px}.card strong{display:block;font-size:20px;color:#1d4ed8}table{width:100%;border-collapse:collapse;margin-top:8px;font-size:10px}th,td{text-align:left;border-bottom:1px solid #e2e8f0;padding:6px;vertical-align:top}button{padding:8px 14px;border:0;border-radius:6px;background:#2563eb;color:#fff}@media print{button{display:none}.summary{grid-template-columns:repeat(5,1fr)}section{break-inside:avoid}}@media(max-width:800px){.summary{grid-template-columns:repeat(2,1fr)}table{font-size:9px}}</style></head><body><h1>Prepaid Cubic-Foot Usage</h1><p>${customer.nombre} · Account #${customer.numero_cliente} · ${customer.puerto || 'Port not provided'}</p><div class="summary"><div class="card">Allowance<strong>${allowance.toFixed(2)} ft³</strong></div><div class="card">Used<strong>${used.toFixed(2)} ft³</strong></div><div class="card">Remaining<strong>${remaining.toFixed(2)} ft³</strong></div><div class="card">Rate<strong>$${rate.toFixed(2)}/ft³</strong></div><div class="card">Report total<strong>${reportTotal.toFixed(2)} ft³</strong></div></div><button onclick="window.print()">Print / Save as PDF</button>${groupedSections}<script>window.onload=function(){window.focus();}</script></body></html>`);
     reportWindow.document.close();
   };
@@ -1150,7 +1156,7 @@ const App = () => {
     const { data, error } = await supabase
       .from("paquetes_registro")
       .select(
-        "id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, notas_imagenes, estado, issue_status, cubic_feet, alto, ancho, largo, peso, prepaid_review_required, prepaid_review_status, numero_cliente:numero_cliente_id (id, numero_cliente, nombre), numero_cliente_id, registro, descargado, entregado_por, hora_fecha, fecha_descargado, hora_descargado, fecha_entregado, hora_entregado",
+        "id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, notas_imagenes, estado, issue_status, cubic_feet, prepaid_review_required, prepaid_review_status, numero_cliente:numero_cliente_id (id, numero_cliente, nombre), numero_cliente_id, registro, descargado, entregado_por, hora_fecha, fecha_descargado, hora_descargado, fecha_entregado, hora_entregado",
       )
       .order("creado_en", { ascending: false });
 
@@ -1167,7 +1173,7 @@ const App = () => {
         ? await Promise.all([
             supabase.from("contenedor_paquetes").select("paquete_id, contenedor_id").in("paquete_id", packageIds),
             supabase.from("contenedores").select("id, codigo"),
-            supabase.from("paquetes_checkin").select("paquete_id, parent_box_id, consolidacion").in("paquete_id", packageIds),
+            supabase.from("paquetes_checkin").select("paquete_id, parent_box_id, consolidacion, alto, ancho, largo, peso, creado_en").in("paquete_id", packageIds).order("creado_en", { ascending: false }),
           ])
         : [{ data: [] }, { data: [] }, { data: [] }];
       const containerById = new Map((containers || []).map((container: any) => [String(container.id), String(container.codigo || container.id)]));
@@ -1178,6 +1184,10 @@ const App = () => {
         labelsByPackage.set(String(link.paquete_id), labels);
       });
       const insideBoxIds = new Set((checkins || []).filter((row: any) => row.parent_box_id).map((row: any) => String(row.paquete_id)));
+      const checkinByPackage = new Map<string, any>();
+      (checkins || []).forEach((row: any) => {
+        if (!checkinByPackage.has(String(row.paquete_id))) checkinByPackage.set(String(row.paquete_id), row);
+      });
       const mapped = rows.map((row) => ({
         id: row.id as string,
         tracking: (row.tracking as string) || "-",
@@ -1193,10 +1203,10 @@ const App = () => {
         notas_imagenes: row.notas_imagenes || null,
         issue_status: row.issue_status || null,
         cubic_feet: row.cubic_feet ?? null,
-        alto: row.alto ?? null,
-        ancho: row.ancho ?? null,
-        largo: row.largo ?? null,
-        peso: row.peso ?? null,
+        alto: checkinByPackage.get(String(row.id))?.alto ?? null,
+        ancho: checkinByPackage.get(String(row.id))?.ancho ?? null,
+        largo: checkinByPackage.get(String(row.id))?.largo ?? null,
+        peso: checkinByPackage.get(String(row.id))?.peso ?? null,
         prepaid_review_required: Boolean(row.prepaid_review_required),
         prepaid_review_status: row.prepaid_review_status || null,
         numero_cliente_id: row.numero_cliente_id || row.numero_cliente?.id || null,
@@ -2498,7 +2508,7 @@ const App = () => {
 
         {activeTab === 'client360' && <Client360Admin clientes={clientes} pedidos={pedidos} facturas={facturas} />}
 
-        {activeTab === 'leads' && <div style={{ width: '100%', overflowX: 'auto' }}>
+        {activeTab === 'leads' && <div className="data-card--leads" style={{ width: '100%', overflowX: 'auto' }}>
           {leads.length === 0 ? <p style={{ padding: '1.5rem', color: '#64748b' }}>No customer leads have been received yet.</p> : <table className="admin-table" style={{ minWidth: 980, width: '100%' }}><thead><tr><th>Date</th><th>Customer</th><th>Contact</th><th>Message</th><th>Status</th><th>Admin notes</th></tr></thead><tbody>{leads.map((lead) => <tr key={lead.id}><td>{formatStaffDateTime(lead.created_at)}</td><td><strong>{lead.nombre}</strong><br /><small>{lead.service_type || 'Website contact'}</small></td><td><a href={`mailto:${lead.email}`}>{lead.email}</a><br />{lead.telefono || '-'}</td><td style={{ maxWidth: 320, whiteSpace: 'pre-wrap' }}>{lead.mensaje}</td><td><select value={lead.status} onChange={(event) => actualizarLead(lead.id, { status: event.target.value as Lead['status'] })}><option value="NEW">New</option><option value="CONTACTED">Contacted</option><option value="CONVERTED">Converted</option><option value="CLOSED">Closed</option></select></td><td><textarea defaultValue={lead.admin_notes || ''} rows={2} placeholder="Add notes" onBlur={(event) => { const notes = event.target.value; if (notes !== (lead.admin_notes || '')) actualizarLead(lead.id, { admin_notes: notes }); }} /></td></tr>)}</tbody></table>}
         </div>}
 
