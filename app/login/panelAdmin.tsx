@@ -2667,7 +2667,7 @@ const App = () => {
               <button
                 type="button"
                 className={`tab-pill ${activeInvoiceTab === 'sinAprobar' ? 'active' : ''}`}
-                style={{ ...tabColorStyle(INVOICE_FILTER_COLORS.pending), minWidth: 120, fontSize: '0.8rem' }}
+                style={{ ...tabColorStyle(INVOICE_FILTER_COLORS.pending), ...(activeInvoiceTab === 'sinAprobar' ? { color: INVOICE_FILTER_COLORS.pending.color, backgroundColor: INVOICE_FILTER_COLORS.pending.background, borderColor: INVOICE_FILTER_COLORS.pending.border } : {}), minWidth: 120, fontSize: '0.8rem' }}
                 onClick={() => setActiveInvoiceTab('sinAprobar')}
               >
                 Sin aprobar
@@ -2675,17 +2675,17 @@ const App = () => {
               <button
                 type="button"
                 className={`tab-pill ${activeInvoiceTab === 'aprobadas' ? 'active' : ''}`}
-                style={{ ...tabColorStyle(INVOICE_FILTER_COLORS.approved), minWidth: 120, fontSize: '0.8rem' }}
+                style={{ ...tabColorStyle(INVOICE_FILTER_COLORS.approved), ...(activeInvoiceTab === 'aprobadas' ? { color: INVOICE_FILTER_COLORS.approved.color, backgroundColor: INVOICE_FILTER_COLORS.approved.background, borderColor: INVOICE_FILTER_COLORS.approved.border } : {}), minWidth: 120, fontSize: '0.8rem' }}
                 onClick={() => setActiveInvoiceTab('aprobadas')}
               >
                 Aprobadas
               </button>
-              <button type="button" className={`tab-pill ${activeInvoiceTab === 'todas' ? 'active' : ''}`} style={{ ...tabColorStyle(INVOICE_FILTER_COLORS.all), minWidth: 100, fontSize: '0.8rem' }} onClick={() => setActiveInvoiceTab('todas')}>All</button>
-              <button type="button" className={`tab-pill ${activeInvoiceTab === 'problemas' ? 'active' : ''}`} style={{ ...tabColorStyle(INVOICE_FILTER_COLORS.problems), minWidth: 110, fontSize: '0.8rem' }} onClick={() => setActiveInvoiceTab('problemas')}>Problems</button>
+              <button type="button" className={`tab-pill ${activeInvoiceTab === 'todas' ? 'active' : ''}`} style={{ ...tabColorStyle(INVOICE_FILTER_COLORS.all), ...(activeInvoiceTab === 'todas' ? { color: INVOICE_FILTER_COLORS.all.color, backgroundColor: INVOICE_FILTER_COLORS.all.background, borderColor: INVOICE_FILTER_COLORS.all.border } : {}), minWidth: 100, fontSize: '0.8rem' }} onClick={() => setActiveInvoiceTab('todas')}>All</button>
+              <button type="button" className={`tab-pill ${activeInvoiceTab === 'problemas' ? 'active' : ''}`} style={{ ...tabColorStyle(INVOICE_FILTER_COLORS.problems), ...(activeInvoiceTab === 'problemas' ? { color: INVOICE_FILTER_COLORS.problems.color, backgroundColor: INVOICE_FILTER_COLORS.problems.background, borderColor: INVOICE_FILTER_COLORS.problems.border } : {}), minWidth: 110, fontSize: '0.8rem' }} onClick={() => setActiveInvoiceTab('problemas')}>Problems</button>
               <button
                 type="button"
                 className={`tab-pill ${activeInvoiceTab === 'enviadas' ? 'active' : ''}`}
-                style={{ ...tabColorStyle(INVOICE_FILTER_COLORS.sent), minWidth: 120, fontSize: '0.8rem' }}
+                style={{ ...tabColorStyle(INVOICE_FILTER_COLORS.sent), ...(activeInvoiceTab === 'enviadas' ? { color: INVOICE_FILTER_COLORS.sent.color, backgroundColor: INVOICE_FILTER_COLORS.sent.background, borderColor: INVOICE_FILTER_COLORS.sent.border } : {}), minWidth: 120, fontSize: '0.8rem' }}
                 onClick={() => setActiveInvoiceTab('enviadas')}
               >
                 Enviadas
@@ -2693,7 +2693,7 @@ const App = () => {
               <button
                 type="button"
                 className={`tab-pill ${activeInvoiceTab === 'pagadas' ? 'active' : ''}`}
-                style={{ ...tabColorStyle(INVOICE_FILTER_COLORS.paid), minWidth: 120, fontSize: '0.8rem' }}
+                style={{ ...tabColorStyle(INVOICE_FILTER_COLORS.paid), ...(activeInvoiceTab === 'pagadas' ? { color: INVOICE_FILTER_COLORS.paid.color, backgroundColor: INVOICE_FILTER_COLORS.paid.background, borderColor: INVOICE_FILTER_COLORS.paid.border } : {}), minWidth: 120, fontSize: '0.8rem' }}
                 onClick={() => setActiveInvoiceTab('pagadas')}
               >
                 Pagadas

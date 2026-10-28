@@ -307,6 +307,7 @@ export async function POST(request: Request) {
                             <div style="font-size:18px; font-weight:700; color:#111827; margin-bottom:4px;">Caribex Logistics Group</div>
                             <div>Roatán, Bay Islands, Honduras</div>
                             <div>billing@caribexlogisticsgroup.com</div>
+                            <div style="margin-top:6px; color:#6b7280;">This invoice email is sent from an unmonitored mailbox. Please use the Caribex customer portal or contact Caribex separately for assistance.</div>
                           </td>
                         </tr>
                       </table>
@@ -424,8 +425,7 @@ export async function POST(request: Request) {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: "CARIBEX <billing@caribexlogisticsgroup.com>",
-        reply_to: "billing@caribexlogisticsgroup.com",
+        from: "CARIBEX <no-reply@caribexlogisticsgroup.com>",
         to,
         subject,
         html,

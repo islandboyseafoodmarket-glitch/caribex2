@@ -20,6 +20,10 @@ export default function InvoiceStatusTabs({ value, onChange, isEs = false }: Pro
     { id: "paid", label: isEs ? "Pagadas" : "Paid" },
   ];
   return <div className="invoice-status-tabs" role="group" aria-label={isEs ? "Filtrar facturas" : "Filter invoices"}>
-    {tabs.map((tab) => <button key={tab.id} type="button" className={`tab-pill ${value === tab.id ? "active" : ""}`} style={tabColorStyle(INVOICE_FILTER_COLORS[tab.id])} onClick={() => onChange(tab.id)} aria-pressed={value === tab.id}>{tab.label}</button>)}
+    {tabs.map((tab) => {
+      const palette = INVOICE_FILTER_COLORS[tab.id];
+      const active = value === tab.id;
+      return <button key={tab.id} type="button" className={`tab-pill ${active ? "active" : ""}`} style={{ ...tabColorStyle(palette), ...(active ? { color: palette.color, backgroundColor: palette.background, borderColor: palette.border } : {}) }} onClick={() => onChange(tab.id)} aria-pressed={active}>{tab.label}</button>;
+    })}
   </div>;
 }
