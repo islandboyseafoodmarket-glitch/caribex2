@@ -1,4 +1,4 @@
-/* Customer Leads: solid panel and header bars without changing the editable table body. */
+/* Customer Leads: dark solid-blue headers with a lighter blue table body. */
 .dashboard-root .data-card--leads {
   background: #ffffff;
   border: 1px solid #dbe5ef;
@@ -37,10 +37,13 @@
 }
 .dashboard-root .data-card--leads .admin-table tbody td {
   padding: 12px 14px;
-  border-bottom: 1px solid #e2e8f0;
-  background: #ffffff;
+  border-bottom: 1px solid #bfdbfe;
+  background: #eff6ff;
   color: #0f172a;
   vertical-align: top;
+}
+.dashboard-root .data-card--leads .admin-table tbody tr:hover td {
+  background: #dbeafe;
 }
 .dashboard-root .data-card--leads .admin-table select,
 .dashboard-root .data-card--leads .admin-table textarea {
