@@ -5,7 +5,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { supabase } from "../../lib/supabaseClient";
 import { BrowserMultiFormatReader } from "@zxing/browser";
-import { Pencil, Trash2, Unlock, LogOut, Image as ImageIcon, Check, AlertCircle, Send, DollarSign, Package, ScanLine, AlertTriangle, QrCode, BarChart3, UserPlus, Bell, Receipt, Ship, Container, UserCog, Plus } from "lucide-react";
+import { Pencil, Trash2, Unlock, LogOut, Image as ImageIcon, Check, AlertCircle, Send, DollarSign, ChevronDown, Package, ScanLine, AlertTriangle, QrCode, BarChart3, UserPlus, Bell, Receipt, Ship, Container, UserCog, Plus } from "lucide-react";
 import FerryManifestAdmin from "./FerryManifestAdmin";
 import Client360Admin from "./Client360Admin";
 import PaymentsAdmin, { type PaymentBalance } from "./PaymentsAdmin";
@@ -20,8 +20,8 @@ import ContainersAdmin from "./ContainersAdmin";
 import ReportsAdmin from "./ReportsAdmin";
 import { formatStaffDateTime } from "../../lib/staff-date-format";
 import InvoicePreview, { type InvoicePreviewProps } from "../../components/InvoicePreview";
-import { BILLABLE_INVOICE_ITEMS, INVOICE_DISCOUNTS, HANDLING_FEE_RATE, formatCatalogCharge, parseInvoiceChargeLine, parseInvoiceDiscountLine, roundMoney, type InvoiceDiscountCode } from "../../lib/invoice-pricing";
-import { INVOICE_FILTER_COLORS, NAV_SECTION_COLORS, SHIPMENT_STAGE_COLORS, tabColorStyle } from "../../lib/shipment-colors";
+import { BILLABLE_INVOICE_ITEMS, SALES_TAX_RATE, formatCatalogCharge, roundMoney } from "../../lib/invoice-pricing";
+import { INVOICE_FILTER_COLORS, tabColorStyle } from "../../lib/shipment-colors";
 
 /**
  * DASHBOARD OPERATIVO - VERSIÓN VISUAL PURA
@@ -36,6 +36,7 @@ const NUEVO_CLIENTE_INITIAL = {
   puerto: "",
   tipoCuenta: "Personal",
   prepaidAllowanceCubicFeet: "",
+  prepaidRatePerCubicFoot: "18.50",
 };
 
 const STAFF_PERMISSION_OPTIONS = [
@@ -56,6 +57,7 @@ const DEFAULT_STAFF_PERMISSIONS: StaffPermissions = {
 };
 
 const ADMIN_EXTRA_CHARGE_OPTIONS = [
+  "Discount",
   "Customer credit",
   "Storage fees (daily)",
   "Handling fees",
@@ -66,19 +68,6 @@ const ADMIN_EXTRA_CHARGE_OPTIONS = [
   "Consolidation fee ($2.5)",
   "Honduran imposed duty",
 ];
-type ExistingInvoiceDiscount = { code: InvoiceDiscountCode | null; label: string; amount: number };
-function findExistingInvoiceDiscount(raw: unknown): ExistingInvoiceDiscount | null {
-  const lines = String(raw || "").split(",").map((item) => item.trim()).filter(Boolean);
-  for (const line of lines) {
-    const parsed = parseInvoiceDiscountLine(line);
-    if (parsed) return parsed;
-  }
-  const legacyDiscount = lines.map((line) => ({ line, parsed: parseInvoiceChargeLine(line) }))
-    .find(({ parsed }) => parsed.description === "Discount" && parsed.amount < 0);
-  return legacyDiscount
-    ? { code: null, label: legacyDiscount.parsed.description, amount: Math.abs(legacyDiscount.parsed.amount) }
-    : null;
-}
 const MANUAL_INVOICE_CHARGE_OPTIONS = [
   "Handling fees",
   "Forklift charge ($100)",
@@ -123,7 +112,7 @@ const auditChangeLines = (log: any) => {
     numero_cliente_id: "Customer",
     contenedor_id: "Container",
     billing_subtotal: "Subtotal",
-    billing_tax: "Handling fee",
+    billing_tax: "Tax",
     billing_total: "Total",
     approval_status: "Invoice Approval",
     invoice_status: "Invoice Status",
@@ -154,34 +143,26 @@ const shipmentStage = (status: string | null | undefined) => {
   return "RECEIVED";
 };
 
+const trackPackageStage = (shipment: { estado?: string | null; insideBox?: boolean }) =>
+  shipment.insideBox && shipmentStage(shipment.estado) !== "PICKED_UP" ? "INSIDE_BOX" : shipmentStage(shipment.estado);
+
 const SHIPMENT_STAGE_OPTIONS = [
   ["ALL", "All stages"],
   ["RECEIVED", "Received"],
   ["REGISTERED", "Registered / Check In"],
+  ["INSIDE_BOX", "Inside a box"],
   ["IN_TRANSIT", "In transit"],
   ["UNLOADED", "Unloaded / Ready for pickup"],
   ["PICKED_UP", "Picked up"],
 ] as const;
 
-const TRACK_STAGE_STYLES = SHIPMENT_STAGE_COLORS;
-
-const selectedNavStyle = (isActive: boolean, section: keyof typeof NAV_SECTION_COLORS) =>
-  isActive ? tabColorStyle(NAV_SECTION_COLORS[section]) : undefined;
-
-const formatPickupDate = (value: unknown) => {
-  const raw = String(value ?? '').trim();
-  if (!raw) return 'Date unavailable';
-  const dateOnly = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (dateOnly) return `${dateOnly[2]}/${dateOnly[3]}/${dateOnly[1]}`;
-  const parsed = new Date(raw);
-  if (Number.isNaN(parsed.getTime())) return 'Date unavailable';
-  return `${String(parsed.getMonth() + 1).padStart(2, '0')}/${String(parsed.getDate()).padStart(2, '0')}/${parsed.getFullYear()}`;
-};
-
-const formatPickupContainerLabel = (value: string) => {
-  const raw = value.trim();
-  const dateCode = raw.match(/^CONT-(\d{4})-(\d{2})-(\d{2})$/i);
-  return dateCode ? `Container - ${dateCode[2]}/${dateCode[3]}/${dateCode[1]}` : raw;
+const TRACK_STAGE_STYLES: Record<string, { color: string; background: string; border: string }> = {
+  RECEIVED: { color: '#475569', background: '#f1f5f9', border: '#cbd5e1' },
+  REGISTERED: { color: '#15803d', background: '#f0fdf4', border: '#86efac' },
+  INSIDE_BOX: { color: '#7c3aed', background: '#f5f3ff', border: '#c4b5fd' },
+  IN_TRANSIT: { color: '#0f766e', background: '#f0fdfa', border: '#5eead4' },
+  UNLOADED: { color: '#15803d', background: '#f0fdf4', border: '#86efac' },
+  PICKED_UP: { color: '#7e22ce', background: '#faf5ff', border: '#d8b4fe' },
 };
 
 const App = () => {
@@ -190,6 +171,13 @@ const App = () => {
     'personal' | 'clientes' | 'prepaid' | 'client360' | 'pedidos' | 'track' | 'incidencias' | 'facturas' | 'finanzas' | 'expenses' | 'leads' | 'portal' | 'ferry' | 'containers' | 'labels' | 'reports' | 'activityLogs'
   >('personal');
   const [incidenciaFiltro, setIncidenciaFiltro] = useState('');
+  const [expandedNavGroups, setExpandedNavGroups] = useState<Record<string, boolean>>({
+    operations: true,
+    customers: true,
+    billing: true,
+    administration: true,
+  });
+  const toggleNavGroup = (group: string) => setExpandedNavGroups((current) => ({ ...current, [group]: !current[group] }));
 
   const [personal, setPersonal] = useState<{ id: string; nombre: string; rol: string; permissions?: Partial<StaffPermissions> | null }[]>([]);
   type Cliente = {
@@ -202,10 +190,9 @@ const App = () => {
     tipo_cuenta: string | null;
     prepaid_allowance_cubic_feet?: number | null;
     prepaid_used_cubic_feet?: number | null;
+    prepaid_rate_per_cubic_foot?: number | null;
     creado_en: string | null;
     auth_user_id?: string | null;
-    heard_about_us?: string | null;
-    heard_about_us_details?: string | null;
   };
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [customerLoadError, setCustomerLoadError] = useState<string | null>(null);
@@ -232,8 +219,6 @@ const App = () => {
     hora_descargado?: string | null;
     fecha_entregado?: string | null;
     hora_entregado?: string | null;
-    updated_at?: string | null;
-    last_scanned_at?: string | null;
     // Campos de Check In / dimensiones y problemas
     alto?: number | null;
     ancho?: number | null;
@@ -247,7 +232,9 @@ const App = () => {
     issue_status?: 'OPEN' | 'RESOLVED' | null;
     cargos_adicionales?: string | null;
     consolidacion?: boolean | null;
+    insideBox?: boolean;
     containerLabels?: string[];
+    last_scanned_at?: string | null;
   };
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
   const [pickupScanLookupStarted, setPickupScanLookupStarted] = useState<Record<string, boolean>>({});
@@ -291,31 +278,10 @@ const App = () => {
   const [leads, setLeads] = useState<Lead[]>([]);
   type PortalEvent = { id: string; customer_name: string | null; account_number: number | null; email: string; event_type: string; success: boolean; reason: string | null; created_at: string };
   const [portalEvents, setPortalEvents] = useState<PortalEvent[]>([]);
-  const [portalEventsStatus, setPortalEventsStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
-  const [portalEventsError, setPortalEventsError] = useState<string | null>(null);
-  const portalEventsRequestRef = useRef(0);
   const cargarPortalEvents = useCallback(async () => {
-    const requestId = portalEventsRequestRef.current + 1;
-    portalEventsRequestRef.current = requestId;
-    setPortalEventsStatus("loading");
-    setPortalEventsError(null);
-    try {
-      const { data, error } = await supabase.from("customer_portal_login_events").select("id, customer_name, account_number, email, event_type, success, reason, created_at").order("created_at", { ascending: false }).limit(100);
-      if (requestId !== portalEventsRequestRef.current) return;
-      if (error) throw error;
-      setPortalEvents((data || []) as PortalEvent[]);
-      setPortalEventsStatus("ready");
-    } catch (error) {
-      if (requestId !== portalEventsRequestRef.current) return;
-      setPortalEventsError(error instanceof Error ? error.message : "Could not load portal alerts.");
-      setPortalEventsStatus("error");
-    }
+    const { data } = await supabase.from("customer_portal_login_events").select("id, customer_name, account_number, email, event_type, success, reason, created_at").order("created_at", { ascending: false }).limit(100);
+    if (data) setPortalEvents(data as PortalEvent[]);
   }, []);
-  const portalAlertsBadge = portalEventsStatus === "ready"
-    ? portalEvents.filter((event) => !event.success).length
-    : portalEventsStatus === "loading"
-      ? "…"
-      : "?";
   type StaffActionLog = { id: string; actor_name: string | null; actor_email: string | null; actor_role: string; action: string; entity_type: string; entity_id: string | null; tracking: string | null; customer_name: string | null; customer_account_number: number | null; success: boolean; error_message: string | null; details: Record<string, unknown> | null; created_at: string };
   const [staffActionLogs, setStaffActionLogs] = useState<StaffActionLog[]>([]);
   const [staffLogSearch, setStaffLogSearch] = useState('');
@@ -374,10 +340,6 @@ const App = () => {
   const [editingInvoiceAddOns, setEditingInvoiceAddOns] = useState<Factura | null>(null);
   const [invoiceAddOnType, setInvoiceAddOnType] = useState("");
   const [invoiceAddOnAmount, setInvoiceAddOnAmount] = useState("");
-  const [invoiceDiscountCode, setInvoiceDiscountCode] = useState<InvoiceDiscountCode | "">("");
-  const [existingInvoiceDiscount, setExistingInvoiceDiscount] = useState<ExistingInvoiceDiscount | null>(null);
-  const [isSavingInvoiceDiscount, setIsSavingInvoiceDiscount] = useState(false);
-  const [invoiceDiscountError, setInvoiceDiscountError] = useState<string | null>(null);
   const [invoiceSearch, setInvoiceSearch] = useState("");
   const [invoiceContainerFilter, setInvoiceContainerFilter] = useState("ALL");
   const [isManualInvoiceOpen, setIsManualInvoiceOpen] = useState(false);
@@ -386,7 +348,6 @@ const App = () => {
   const [manualInvoiceForm, setManualInvoiceForm] = useState({
     customerId: "",
     tracking: "",
-    type: "PACKAGE" as "PACKAGE" | "BOX",
     description: "",
     height: "",
     width: "",
@@ -512,7 +473,7 @@ const App = () => {
   const trackStageGroups = useMemo(() => {
     const groups: Record<string, Pedido[]> = Object.fromEntries(SHIPMENT_STAGE_OPTIONS.filter(([value]) => value !== "ALL").map(([value]) => [value, [] as Pedido[]]));
     trackResults.forEach((shipment) => {
-      const stage = shipmentStage(shipment.estado);
+      const stage = trackPackageStage(shipment);
       (groups[stage] ||= []).push(shipment);
     });
     return groups;
@@ -1115,7 +1076,7 @@ const App = () => {
   const cargarClientes = useCallback(async () => {
     const initial = await supabase
       .from("numero_cliente")
-      .select("id, nombre, numero_cliente, email, telefono, puerto, tipo_cuenta, prepaid_allowance_cubic_feet, prepaid_used_cubic_feet, creado_en, auth_user_id, heard_about_us, heard_about_us_details")
+      .select("id, nombre, numero_cliente, email, telefono, puerto, tipo_cuenta, prepaid_allowance_cubic_feet, prepaid_used_cubic_feet, prepaid_rate_per_cubic_foot, creado_en, auth_user_id")
       .order("creado_en", { ascending: false });
     let data: any[] | null = initial.data as any[] | null;
     let error = initial.error;
@@ -1163,6 +1124,7 @@ const App = () => {
       puerto: cliente.puerto ?? "",
       tipoCuenta: cliente.tipo_cuenta ?? "Personal",
       prepaidAllowanceCubicFeet: cliente.prepaid_allowance_cubic_feet == null ? "" : String(cliente.prepaid_allowance_cubic_feet),
+      prepaidRatePerCubicFoot: cliente.prepaid_rate_per_cubic_foot == null ? "18.50" : String(cliente.prepaid_rate_per_cubic_foot),
     });
     setClienteModalError(null);
     setIsClienteModalOpen(true);
@@ -1192,11 +1154,41 @@ const App = () => {
     setPrepaidAllowanceSaving(false);
   };
 
+  const printPrepaidUsageReport = (customer: Cliente) => {
+    if (customer.tipo_cuenta !== 'Developer / Builder — Prepaid') {
+      alert('Cubic-foot usage reports are available only for prepaid Developer / Builder accounts.');
+      return;
+    }
+    const allowance = Number(customer.prepaid_allowance_cubic_feet || 0);
+    const used = Number(customer.prepaid_used_cubic_feet || 0);
+    const rate = Number(customer.prepaid_rate_per_cubic_foot || 18.5);
+    const remaining = Math.max(0, allowance - used);
+    const shipments = pedidos.filter((shipment) => shipment.numero_cliente_id === customer.id);
+    const cubicFeetFor = (shipment: Pedido) => {
+      const stored = Number(shipment.cubic_feet || 0);
+      if (stored > 0) return stored;
+      const dimensions = [shipment.largo, shipment.ancho, shipment.alto].map(Number);
+      return dimensions.every((value) => value > 0) ? Number(((dimensions[0] * dimensions[1] * dimensions[2]) / 1728).toFixed(2)) : 0;
+    };
+    const reportWindow = window.open('', '_blank', 'width=900,height=900');
+    if (!reportWindow) { alert('Please allow pop-ups to generate the prepaid usage report.'); return; }
+    const grouped = new Map<string, typeof shipments>();
+    shipments.forEach((shipment) => { const key = shipment.containerLabels?.[0] || 'No container assigned'; grouped.set(key, [...(grouped.get(key) || []), shipment]); });
+    const groupedSections = Array.from(grouped.entries()).map(([container, containerShipments]) => {
+      const containerTotal = containerShipments.reduce((sum, shipment) => sum + cubicFeetFor(shipment), 0);
+      const rows = containerShipments.map((shipment) => { const cubicFeet = cubicFeetFor(shipment); return `<tr><td>${String(shipment.tracking || '-')}</td><td>${String(shipment.carrier || '-')}</td><td>${String(shipment.tipo_paquete || '-')}</td><td>${String(shipment.estado || '-')}</td><td>${String(shipment.contenido || '-')}</td><td>${[shipment.largo, shipment.ancho, shipment.alto].every((value) => Number(value) > 0) ? `${shipment.largo} × ${shipment.ancho} × ${shipment.alto} in` : '-'}</td><td>${cubicFeet.toFixed(2)} ft³</td><td>$${(cubicFeet * rate).toFixed(2)}</td><td>${formatStaffDateTime(shipment.hora_fecha || '')}</td></tr>`; }).join('');
+      return `<section><h2>${container} <span>(${containerShipments.length} shipment${containerShipments.length === 1 ? '' : 's'} · ${containerTotal.toFixed(2)} ft³)</span></h2><table><thead><tr><th>Tracking</th><th>Carrier</th><th>Type</th><th>Stage</th><th>Contents</th><th>Dimensions</th><th>Cubic feet</th><th>Usage value</th><th>Date</th></tr></thead><tbody>${rows}</tbody></table></section>`;
+    }).join('') || '<p>No shipments recorded for this prepaid account.</p>';
+    const reportTotal = shipments.reduce((sum, shipment) => sum + cubicFeetFor(shipment), 0);
+    reportWindow.document.write(`<!doctype html><html><head><title>Prepaid Cubic-Foot Usage — ${customer.nombre}</title><style>body{font-family:Arial,sans-serif;color:#111827;padding:28px}h1{margin:0 0 6px}h2{margin:24px 0 8px;color:#1e3a8a;font-size:16px}h2 span{font-size:12px;color:#64748b;font-weight:400}p{margin:4px 0 16px;color:#475569}.summary{display:grid;grid-template-columns:repeat(5,minmax(120px,1fr));gap:12px;margin:20px 0}.card{border:1px solid #bfdbfe;border-radius:8px;padding:12px}.card strong{display:block;font-size:20px}.card.allowance{border-color:#93c5fd;background:#eff6ff}.card.allowance strong{color:#2563eb}.card.used{border-color:#fca5a5;background:#fef2f2}.card.used strong{color:#dc2626}.card.remaining{border-color:#86efac;background:#f0fdf4}.card.remaining strong{color:#15803d}.card.rate{border-color:#fcd34d;background:#fffbeb}.card.rate strong{color:#b45309}.card.report-total{border-color:#c4b5fd;background:#f5f3ff}.card.report-total strong{color:#6d28d9}table{width:100%;border-collapse:collapse;margin-top:8px;font-size:10px}th,td{text-align:left;border-bottom:1px solid #e2e8f0;padding:6px;vertical-align:top}button{padding:8px 14px;border:0;border-radius:6px;background:#2563eb;color:#fff}@media print{button{display:none}.summary{grid-template-columns:repeat(5,1fr)}section{break-inside:avoid}}@media(max-width:800px){.summary{grid-template-columns:repeat(2,1fr)}table{font-size:9px}}</style></head><body><h1>Prepaid Cubic-Foot Usage</h1><p>${customer.nombre} · Account #${customer.numero_cliente} · ${customer.puerto || 'Port not provided'}</p><div class="summary"><div class="card allowance">Allowance<strong>${allowance.toFixed(2)} ft³</strong></div><div class="card used">Used<strong>${used.toFixed(2)} ft³</strong></div><div class="card remaining">Remaining<strong>${remaining.toFixed(2)} ft³</strong></div><div class="card rate">Rate<strong>$${rate.toFixed(2)}/ft³</strong></div><div class="card report-total">Report total<strong>${reportTotal.toFixed(2)} ft³</strong></div></div><button onclick="window.print()">Print / Save as PDF</button>${groupedSections}<script>window.onload=function(){window.focus();}</script></body></html>`);
+    reportWindow.document.close();
+  };
+
   const cargarPedidos = useCallback(async () => {
     const { data, error } = await supabase
       .from("paquetes_registro")
       .select(
-        "id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, notas_imagenes, estado, issue_status, cubic_feet, prepaid_review_required, prepaid_review_status, numero_cliente:numero_cliente_id (id, numero_cliente, nombre), numero_cliente_id, registro, descargado, entregado_por, hora_fecha, creado_en, fecha_descargado, hora_descargado, fecha_entregado, hora_entregado",
+        "id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, notas_imagenes, estado, issue_status, cubic_feet, prepaid_review_required, prepaid_review_status, numero_cliente:numero_cliente_id (id, numero_cliente, nombre), numero_cliente_id, registro, descargado, entregado_por, hora_fecha, fecha_descargado, hora_descargado, fecha_entregado, hora_entregado",
       )
       .order("creado_en", { ascending: false });
 
@@ -1209,18 +1201,24 @@ const App = () => {
     if (data) {
       const rows = data as any[];
       const packageIds = rows.map((row) => row.id).filter(Boolean);
-      const [{ data: containerLinks }, { data: containers }] = packageIds.length
+      const [{ data: containerLinks }, { data: containers }, { data: checkins }] = packageIds.length
         ? await Promise.all([
             supabase.from("contenedor_paquetes").select("paquete_id, contenedor_id").in("paquete_id", packageIds),
             supabase.from("contenedores").select("id, codigo"),
+            supabase.from("paquetes_checkin").select("paquete_id, parent_box_id, consolidacion, alto, ancho, largo, peso, creado_en").in("paquete_id", packageIds).order("creado_en", { ascending: false }),
           ])
-        : [{ data: [] }, { data: [] }];
+        : [{ data: [] }, { data: [] }, { data: [] }];
       const containerById = new Map((containers || []).map((container: any) => [String(container.id), String(container.codigo || container.id)]));
       const labelsByPackage = new Map<string, string[]>();
       (containerLinks || []).forEach((link: any) => {
         const labels = labelsByPackage.get(String(link.paquete_id)) || [];
         labels.push(containerById.get(String(link.contenedor_id)) || String(link.contenedor_id));
         labelsByPackage.set(String(link.paquete_id), labels);
+      });
+      const insideBoxIds = new Set((checkins || []).filter((row: any) => row.parent_box_id).map((row: any) => String(row.paquete_id)));
+      const checkinByPackage = new Map<string, any>();
+      (checkins || []).forEach((row: any) => {
+        if (!checkinByPackage.has(String(row.paquete_id))) checkinByPackage.set(String(row.paquete_id), row);
       });
       const mapped = rows.map((row) => ({
         id: row.id as string,
@@ -1237,6 +1235,10 @@ const App = () => {
         notas_imagenes: row.notas_imagenes || null,
         issue_status: row.issue_status || null,
         cubic_feet: row.cubic_feet ?? null,
+        alto: checkinByPackage.get(String(row.id))?.alto ?? null,
+        ancho: checkinByPackage.get(String(row.id))?.ancho ?? null,
+        largo: checkinByPackage.get(String(row.id))?.largo ?? null,
+        peso: checkinByPackage.get(String(row.id))?.peso ?? null,
         prepaid_review_required: Boolean(row.prepaid_review_required),
         prepaid_review_status: row.prepaid_review_status || null,
         numero_cliente_id: row.numero_cliente_id || row.numero_cliente?.id || null,
@@ -1244,11 +1246,11 @@ const App = () => {
         descargado: row.descargado || null,
         entregado_por: row.entregado_por || null,
         hora_fecha: row.hora_fecha || null,
-        updated_at: row.hora_fecha || row.creado_en || null,
         fecha_descargado: row.fecha_descargado || null,
         hora_descargado: row.hora_descargado || null,
         fecha_entregado: row.fecha_entregado || null,
         hora_entregado: row.hora_entregado || null,
+        insideBox: insideBoxIds.has(String(row.id)),
         containerLabels: labelsByPackage.get(String(row.id)) || [],
       }));
 
@@ -1375,7 +1377,7 @@ const App = () => {
     setIsManualInvoiceOpen(false);
     setManualInvoiceError(null);
     setManualInvoiceSaving(false);
-    setManualInvoiceForm({ customerId: "", tracking: "", type: "PACKAGE", description: "", height: "", width: "", length: "", weight: "", charges: [], taxEnabled: true });
+    setManualInvoiceForm({ customerId: "", tracking: "", description: "", height: "", width: "", length: "", weight: "", charges: [], taxEnabled: true });
     setManualInvoiceCatalogItem("");
     setManualInvoiceCatalogQuantity("1");
     setManualInvoiceCatalogLines([]);
@@ -1447,7 +1449,6 @@ const App = () => {
     cargarPedidos();
     cargarFacturas();
     cargarLeads();
-    void cargarPortalEvents();
 
     const pedidoSubscription = supabase
       .channel("realtime-pedidos")
@@ -1478,19 +1479,14 @@ const App = () => {
     const signupSubscription = supabase.channel('realtime-customer-signups').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'numero_cliente' }, (payload) => {
       setAdminNotice(`New customer account created: ${(payload.new as any).nombre || 'customer'}`);
     }).subscribe();
-    const portalEventSubscription = supabase.channel("realtime-portal-events").on("postgres_changes", { event: "*", schema: "public", table: "customer_portal_login_events" }, () => {
-      void cargarPortalEvents();
-    }).subscribe();
 
     return () => {
-      portalEventsRequestRef.current += 1;
       supabase.removeChannel(pedidoSubscription);
       supabase.removeChannel(clienteSubscription);
       supabase.removeChannel(leadSubscription);
       supabase.removeChannel(signupSubscription);
-      supabase.removeChannel(portalEventSubscription);
     };
-  }, [cargarPersonal, cargarClientes, cargarPedidos, cargarFacturas, cargarLeads, cargarPortalEvents]);
+  }, [cargarPersonal, cargarClientes, cargarPedidos, cargarFacturas, cargarLeads]);
 
   useEffect(() => {
     if (activeTab === "portal") void cargarPortalEvents();
@@ -1542,10 +1538,6 @@ const App = () => {
     factura: Factura,
     status: 'PENDING' | 'SENT' | 'PAID' | 'OVERDUE',
   ) => {
-    if (status === 'PAID') {
-      alert('Record payments from Admin → Payments.');
-      return;
-    }
     const { error } = await supabase
       .from('paquetes_registro')
       .update({ invoice_status: status })
@@ -1564,9 +1556,6 @@ const App = () => {
     if (!checkin) { alert("No check-in record exists for this invoice yet."); return; }
     setInvoiceAddOnType("");
     setInvoiceAddOnAmount("");
-    setInvoiceDiscountCode("");
-    setInvoiceDiscountError(null);
-    setExistingInvoiceDiscount(findExistingInvoiceDiscount(checkin.cargos_adicionales));
     setEditingInvoiceAddOns(factura);
   };
 
@@ -1579,7 +1568,7 @@ const App = () => {
     const isReduction = invoiceAddOnType === "Discount" || invoiceAddOnType === "Customer credit";
     const subtotal = roundMoney(Math.max(0, Number(editingInvoiceAddOns.subtotal || 0) + (isReduction ? -amount : amount)));
     const taxEnabled = editingInvoiceAddOns.tax == null ? true : Number(editingInvoiceAddOns.tax) > 0;
-    const tax = taxEnabled ? roundMoney(subtotal * HANDLING_FEE_RATE) : 0;
+    const tax = taxEnabled ? roundMoney(subtotal * SALES_TAX_RATE) : 0;
     const total = roundMoney(subtotal + tax);
     const prior = String(checkin.cargos_adicionales || "").split(",").map((item) => item.trim()).filter(Boolean);
     const charge = `${invoiceAddOnType} (${isReduction ? "-" : "+"}$${amount.toFixed(2)})`;
@@ -1592,56 +1581,12 @@ const App = () => {
     setEditingInvoiceAddOns(null);
   };
 
-  const saveAdminInvoiceDiscount = async (action: "apply" | "remove") => {
-    if (!editingInvoiceAddOns) return;
-    if (action === "apply" && !invoiceDiscountCode) {
-      setInvoiceDiscountError("Select a percentage discount before saving the adjustment.");
-      return;
-    }
-    setIsSavingInvoiceDiscount(true);
-    setInvoiceDiscountError(null);
-    try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const response = await fetch("/api/invoice-catalog", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${sessionData.session?.access_token || ""}` },
-        body: JSON.stringify({
-          shipment_id: editingInvoiceAddOns.id,
-          discount_action: action,
-          ...(action === "apply" ? { discount_code: invoiceDiscountCode } : {}),
-        }),
-      });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload.error || "Could not update invoice discount");
-
-      const subtotal = Number(payload.subtotal);
-      const tax = Number(payload.tax);
-      const total = Number(payload.total);
-      if (![subtotal, tax, total].every(Number.isFinite)) throw new Error("The invoice discount response was invalid; no invoice state was changed.");
-      updateFacturaEnEstado(editingInvoiceAddOns.id, { subtotal, tax, total });
-      if (action === "apply" && payload.discountCode && INVOICE_DISCOUNTS[payload.discountCode as InvoiceDiscountCode]) {
-        const code = payload.discountCode as InvoiceDiscountCode;
-        setExistingInvoiceDiscount({ code, label: INVOICE_DISCOUNTS[code].label, amount: Number(payload.discountAmount) });
-      } else {
-        setExistingInvoiceDiscount(null);
-      }
-      setInvoiceDiscountCode("");
-      await cargarFacturas();
-      setAdminNotice(action === "apply" ? "Invoice percentage discount saved successfully." : "Invoice discount removed successfully.");
-      setEditingInvoiceAddOns(null);
-    } catch (error) {
-      setInvoiceDiscountError(error instanceof Error ? error.message : "Could not update invoice discount");
-    } finally {
-      setIsSavingInvoiceDiscount(false);
-    }
-  };
-
   const handleAdminSendInvoice = async (factura: Factura) => {
     if (!factura.clienteEmail) { alert("This customer does not have an email address."); return; }
     const { data: checkin } = await supabase.from("paquetes_checkin").select("cargos_adicionales, consolidacion").eq("paquete_id", factura.id).order("creado_en", { ascending: false }).limit(1).maybeSingle();
     const extraCharges = String(checkin?.cargos_adicionales || "").split(",").map((item) => item.trim()).filter(Boolean);
     const { data: sessionData } = await supabase.auth.getSession();
-    const response = await fetch("/api/send-invoice", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${sessionData.session?.access_token || ""}` }, body: JSON.stringify({ to: factura.clienteEmail, subject: `Invoice for ${factura.clienteNombre || factura.tracking}`, clientName: factura.clienteNombre, clientNumber: factura.clienteNumero, tracking: factura.tracking, typeLabel: factura.tipo_paquete || "Shipment", contents: factura.contenido, customerInvoiceNote: factura.customer_invoice_note, subtotal: factura.subtotal || 0, tax: factura.tax || 0, total: factura.total || 0, extraCharges, isConsolidationBox: Boolean(checkin?.consolidacion) }) });
+    const response = await fetch("/api/send-invoice", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${sessionData.session?.access_token || ""}` }, body: JSON.stringify({ to: factura.clienteEmail, subject: `Invoice for ${factura.clienteNombre || factura.tracking}`, clientName: factura.clienteNombre, clientNumber: factura.clienteNumero, tracking: factura.tracking, typeLabel: factura.carrier === "Manual Invoice" ? "Manual invoice" : factura.tipo_paquete || "Shipment", contents: factura.contenido, customerInvoiceNote: factura.customer_invoice_note, subtotal: factura.subtotal || 0, tax: factura.tax || 0, total: factura.total || 0, extraCharges, isConsolidationBox: Boolean(checkin?.consolidacion) }) });
     const body = await response.json().catch(() => ({}));
     if (!response.ok) { alert(body.error || "Could not send invoice"); return; }
     await handleAdminChangeInvoiceStatus(factura, "SENT");
@@ -1822,7 +1767,7 @@ const App = () => {
     <div className={`dashboard-root ${activeTab === 'facturas' ? 'dashboard-root--invoices' : ''}`}>
       <style suppressHydrationWarning>{`
         :root {
-          --bg-main: #2f6f9d;
+          --bg-main: #75a9cf;
           --primary-blue: #2563eb;
           --success-green: #166534;
           --success-bg: #dcfce7;
@@ -1843,10 +1788,8 @@ const App = () => {
 
         .dashboard-root {
           min-height: 100vh;
-          width: 100%;
-          box-sizing: border-box;
-          padding: 12px clamp(12px, 1.8vw, 24px) 32px;
-          max-width: 1680px;
+          padding: 32px clamp(18px, 4vw, 56px) 56px 310px;
+          max-width: 1480px;
           margin: 0 auto;
         }
 
@@ -1854,136 +1797,215 @@ const App = () => {
           max-width: 1900px;
         }
 
-        .admin-workspace-layout {
-          display: grid;
-          grid-template-columns: minmax(0, 1fr) minmax(220px, 240px);
-          gap: 16px;
-          align-items: start;
-        }
-
-        .admin-horizontal-nav {
-          display: grid;
-          align-content: start;
-          gap: 10px;
-          min-width: 0;
-          max-height: calc(100vh - 24px);
-          margin: 0;
-          padding: 10px;
+        .admin-sidebar {
+          position: fixed;
+          inset: 0 auto 0 0;
+          z-index: 20;
+          width: 264px;
+          padding: 24px 16px;
           overflow-y: auto;
-          border: 1px solid #163a5c;
-          border-radius: 6px;
-          background: #173f64;
+          background: #ffffff;
+          border-right: 1px solid #e2e8f0;
+          box-shadow: 8px 0 24px rgba(15, 23, 42, 0.06);
         }
 
-        .admin-right-navigation {
-          grid-column: 2;
-          grid-row: 1;
-          position: sticky;
-          top: 12px;
-          align-self: start;
+        .admin-sidebar-brand {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 0 8px 22px;
+          margin-bottom: 18px;
+          border-bottom: 1px solid #eef2f6;
         }
 
-        .admin-workspace-layout > .data-card {
-          grid-column: 1;
-          grid-row: 1;
-          min-width: 0;
+        .admin-sidebar-brand img {
+          width: 218px;
+          height: 96px;
+          object-fit: contain;
         }
 
-        .admin-nav-group {
-          min-width: 0;
-          padding: 0 0 8px;
-          border-bottom: 1px solid rgba(226, 232, 240, 0.18);
-        }
-
-        .admin-nav-group:last-child { padding-bottom: 0; border-bottom: 0; }
-
-        .admin-nav-label {
+        .admin-sidebar-slogan {
           display: block;
-          margin: 0 2px 6px;
-          color: #e2e8f0;
-          font-size: 0.68rem;
+          margin-top: 6px;
+          color: #065f46;
+          font-size: 0.92rem;
           font-weight: 800;
-          letter-spacing: 0.08em;
-          line-height: 1.25;
+          letter-spacing: 0.1em;
           text-transform: uppercase;
         }
 
-        .admin-nav-buttons {
-          display: grid;
-          gap: 3px;
+        .admin-sidebar-brand strong {
+          display: block;
+          color: #0f172a;
+          font-size: 0.92rem;
+          line-height: 1.15;
         }
 
-        .admin-horizontal-tab {
-          position: relative;
+        .admin-sidebar-brand span {
+          display: block;
+          margin-top: 3px;
+          color: #64748b;
+          font-size: 0.7rem;
+        }
+
+        .admin-sidebar-group {
+          margin-bottom: 18px;
+        }
+
+        .admin-sidebar-group-title {
           display: flex;
-          width: 100%;
-          min-width: 0;
-          min-height: 38px;
           align-items: center;
-          justify-content: flex-start;
-          gap: 8px;
-          padding: 7px 8px;
-          border: 1px solid transparent;
-          border-radius: 4px;
+          justify-content: space-between;
+          width: 100%;
+          padding: 0 8px 7px;
+          border: 0;
           background: transparent;
-          color: #ffffff;
-          font-size: 0.78rem;
+          color: #64748b;
+          font-size: 0.64rem;
+          font-weight: 800;
+          letter-spacing: 0.1em;
+          text-align: left;
+          text-transform: uppercase;
+          cursor: pointer;
+        }
+
+        .admin-sidebar-items {
+          display: grid;
+          gap: 4px;
+        }
+
+        .admin-sidebar-item {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          width: 100%;
+          min-height: 42px;
+          padding: 9px 11px;
+          border: 1px solid transparent;
+          border-radius: 10px;
+          background: transparent;
+          color: #475569;
+          font-size: 0.84rem;
           font-weight: 600;
-          line-height: 1.2;
           text-align: left;
           cursor: pointer;
-          transition: background 150ms ease, color 150ms ease, border-color 150ms ease;
+          transition: background 160ms ease, color 160ms ease, border-color 160ms ease;
         }
 
-        .admin-horizontal-tab svg { width: 16px; height: 16px; flex: 0 0 auto; color: #ffffff; }
-        .admin-horizontal-tab > span:not(.count-badge) { min-width: 0; overflow-wrap: anywhere; }
-        .admin-horizontal-tab:hover { background: #234f78; color: #ffffff; }
-        .admin-horizontal-tab:focus-visible { outline: 2px solid #93c5fd; outline-offset: 1px; }
-        .admin-horizontal-tab.active { background: var(--tab-tint, #f1f5f9); color: var(--tab-color, #475569); border-color: var(--tab-border, #cbd5e1); }
-        .admin-horizontal-tab.active svg { color: var(--tab-color, #475569); }
-        .admin-horizontal-tab.active::after { content: ""; position: absolute; left: 4px; top: 5px; bottom: 5px; width: 2px; border-radius: 2px; background: currentColor; }
-        .admin-horizontal-tab .count-badge { min-width: 1rem; margin-left: auto; padding: 1px 4px; border-radius: 999px; background: rgba(255,255,255,.16); color: #f8fafc; font-size: 0.66rem; line-height: 1.2; text-align: center; }
-        .admin-horizontal-tab.active .count-badge { background: var(--tab-border, #cbd5e1); color: var(--tab-color, #475569); }
-
-        @media (max-width: 899px) {
-          .dashboard-root { padding: 10px 10px 24px; }
-          .admin-workspace-layout { display: flex; flex-direction: column; gap: 14px; }
-          .admin-right-navigation { order: 1; position: static; width: 100%; max-height: none; overflow: visible; }
-          .admin-workspace-layout > .data-card { order: 2; width: 100%; }
-          .admin-horizontal-nav { width: 100%; box-sizing: border-box; }
+        .admin-sidebar-item:hover {
+          background: #f8fafc;
+          color: #0f172a;
         }
 
-        @media (max-width: 440px) {
-          .admin-horizontal-tab { font-size: 0.74rem; }
+        .admin-sidebar-item.active {
+          background: #eff6ff;
+          border-color: #bfdbfe;
+          color: #1d4ed8;
+          box-shadow: 0 4px 12px rgba(37, 99, 235, 0.12);
+        }
+
+        .admin-sidebar-item--customers.active { background: #f5f3ff; border-color: #ddd6fe; color: #6d28d9; }
+        .admin-sidebar-item--billing.active { background: #fffbeb; border-color: #fde68a; color: #92400e; }
+        .admin-sidebar-item--admin.active { background: #fdf2f8; border-color: #fbcfe8; color: #9d174d; }
+
+        .admin-sidebar-item .count-badge {
+          margin-left: auto;
+          font-size: 0.72rem;
+        }
+
+        @media (max-width: 800px) {
+          .dashboard-root {
+            padding: 18px 14px 40px;
+          }
+
+          .admin-sidebar {
+            position: static;
+            width: auto;
+            margin: -18px -14px 18px;
+            padding: 16px 14px;
+            border-right: 0;
+            border-bottom: 1px solid #e2e8f0;
+            box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
+          }
+
+          .admin-sidebar-brand {
+            padding-bottom: 14px;
+            margin-bottom: 14px;
+          }
+
+          .admin-sidebar-group {
+            margin-bottom: 10px;
+          }
+        }
+
+        .admin-brand {
+          display: flex;
+          align-items: center;
+          gap: 14px;
+        }
+
+        .admin-brand-logo {
+          width: 156px;
+          height: 70px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 18px;
+          background: var(--white);
+          border: 1px solid var(--border);
+          box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+          overflow: hidden;
+          flex: 0 0 auto;
+        }
+
+        .admin-brand-logo img {
+          width: 148px;
+          height: 65px;
+          object-fit: contain;
+        }
+
+        .admin-brand-slogan {
+          display: inline-block;
+          margin-top: 9px;
+          padding: 8px 16px;
+          border: 1px solid #34d399;
+          border-radius: 7px;
+          background: #a7f3d0;
+          color: #064e3b;
+          font-size: 1.12rem;
+          font-weight: 900;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
         }
 
         /* Header Style */
         .page-header {
-          display: flex;
-          flex-wrap: wrap;
-          align-items: center;
-          justify-content: space-between;
-          gap: 0.25rem 0.75rem;
-          margin-bottom: 8px;
-          padding: 0 0 8px;
-          background: transparent;
+          margin-bottom: 28px;
+          padding: 22px 24px;
+          background: rgba(255, 255, 255, 0.82);
           border: 1px solid var(--border);
-          border-width: 0 0 1px;
-          border-radius: 0;
-          box-shadow: none;
+          border-radius: 22px;
+          box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05);
+        }
+
+        .page-header h1 {
+          font-size: clamp(1.7rem, 3vw, 2.25rem);
+          margin: 0;
+          font-weight: 700;
+          color: var(--text-dark);
+          letter-spacing: -0.02em;
+        }
+
+        .page-header p {
+          color: var(--text-muted);
+          margin: 8px 0 0;
+          font-size: 1rem;
         }
 
         .page-header,
         .data-card {
           min-width: 0;
         }
-
-        .admin-compact-brand { display: inline-flex; flex: 0 0 auto; align-items: center; }
-        .admin-compact-brand img { width: 320px; height: 80px; max-width: calc(100vw - 48px); object-fit: contain; }
-        .admin-account-controls { display: flex; justify-content: flex-end; align-items: center; gap: 0.35rem; margin-left: auto; }
-        .admin-account-controls .pa-secondary-btn,
-        .admin-account-controls .admin-sign-out { padding: 0.3rem 0.55rem; font-size: 0.75rem; }
-        .admin-sign-out { display: inline-flex; align-items: center; justify-content: center; gap: 0.3rem; border: 1px solid #fecaca; border-radius: 999px; background: #fff1f2; color: #b91c1c; font-weight: 600; cursor: pointer; }
 
         /* Compact icon-toolbar navigation inspired by the reference layout */
         .tabs-container {
@@ -2135,7 +2157,7 @@ const App = () => {
           background: var(--white);
           border-radius: var(--radius);
           box-shadow: 0 1px 3px rgba(0,0,0,0.05), 0 10px 15px -5px rgba(0,0,0,0.02);
-          padding: 24px;
+          padding: 32px;
           border: 1px solid rgba(0,0,0,0.02);
         }
 
@@ -2147,7 +2169,7 @@ const App = () => {
           display: flex;
           flex-direction: column;
           gap: 4px;
-          margin-bottom: 18px;
+          margin-bottom: 24px;
         }
 
         .card-header-inner h3 {
@@ -2298,12 +2320,19 @@ const App = () => {
         }
       `}</style>
 
-      {/* Small Caribex brand above the tabs, with compact account controls. */}
-      <header className="page-header">
-        <div className="admin-compact-brand">
-          <Image src="/imagenes/logo-header.png" alt="Caribex Logistics Group" width={320} height={80} sizes="320px" />
+      {/* Cabecera del Almacén */}
+      <header className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1.5rem' }}>
+        <div className="admin-brand">
+          <div className="admin-brand-logo">
+            <Image src="/imagenes/logo-pages.png" alt="Caribex Logistics Group — Your Cargo Our Commitment" width={148} height={63} />
+          </div>
+          <div>
+          <h1>Warehouse management</h1>
+          <p>Track and manage shipments across all stages</p>
+          </div>
         </div>
-        <div className="admin-account-controls">
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <button type="button" className="pa-secondary-btn" onClick={() => setIsPasswordModalOpen(true)} title="Change Admin password">
             <Unlock size={16} /> Change password
           </button>
@@ -2313,61 +2342,78 @@ const App = () => {
               await supabase.auth.signOut();
               router.push("/login");
             }}
-            className="admin-sign-out"
+            style={{
+              padding: '0.45rem 0.7rem',
+              borderRadius: '999px',
+              border: '1px solid #e11d48',
+              backgroundColor: '#fee2e2',
+              color: '#b91c1c',
+              fontSize: '0.85rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
             title="Cerrar sesión"
           >
             <LogOut size={16} />
-            <span>Sign out</span>
           </button>
         </div>
       </header>
 
-      <div className="admin-workspace-layout">
-        <nav className="admin-horizontal-nav admin-right-navigation" aria-label="Admin navigation">
-          <section className="admin-nav-group" aria-labelledby="admin-nav-shipments">
-            <h2 id="admin-nav-shipments" className="admin-nav-label">Shipments / Operations</h2>
-            <div className="admin-nav-buttons">
-              <button type="button" className={`admin-horizontal-tab admin-horizontal-tab--operations ${activeTab === 'track' ? 'active' : ''}`} style={selectedNavStyle(activeTab === 'track', 'operations')} aria-current={activeTab === 'track' ? 'page' : undefined} onClick={() => setActiveTab('track')}><ScanLine /><span>Track Package</span><span className="count-badge">{pedidos.length}</span></button>
-              <button type="button" className={`admin-horizontal-tab admin-horizontal-tab--operations ${activeTab === 'pedidos' ? 'active' : ''}`} style={selectedNavStyle(activeTab === 'pedidos', 'operations')} aria-current={activeTab === 'pedidos' ? 'page' : undefined} onClick={() => setActiveTab('pedidos')}><Package /><span>Shipments</span><span className="count-badge">{pedidos.length}</span></button>
-              <button type="button" className={`admin-horizontal-tab admin-horizontal-tab--operations ${activeTab === 'incidencias' ? 'active' : ''}`} style={selectedNavStyle(activeTab === 'incidencias', 'operations')} aria-current={activeTab === 'incidencias' ? 'page' : undefined} onClick={() => setActiveTab('incidencias')}><AlertTriangle /><span>Issues</span><span className="count-badge">{pedidosConIncidencia.length}</span></button>
-              <button type="button" className={`admin-horizontal-tab admin-horizontal-tab--tools ${activeTab === 'labels' ? 'active' : ''}`} style={selectedNavStyle(activeTab === 'labels', 'tools')} aria-current={activeTab === 'labels' ? 'page' : undefined} onClick={() => setActiveTab('labels')}><QrCode /><span>Print Labels</span></button>
-              <button type="button" className={`admin-horizontal-tab admin-horizontal-tab--tools ${activeTab === 'reports' ? 'active' : ''}`} style={selectedNavStyle(activeTab === 'reports', 'tools')} aria-current={activeTab === 'reports' ? 'page' : undefined} onClick={() => setActiveTab('reports')}><BarChart3 /><span>Reports</span></button>
-              <button type="button" className={`admin-horizontal-tab admin-horizontal-tab--billing ${activeTab === 'ferry' ? 'active' : ''}`} style={selectedNavStyle(activeTab === 'ferry', 'billing')} aria-current={activeTab === 'ferry' ? 'page' : undefined} onClick={() => setActiveTab('ferry')}><Ship /><span>Ferry</span></button>
-            </div>
-          </section>
-          <section className="admin-nav-group" aria-labelledby="admin-nav-customers">
-            <h2 id="admin-nav-customers" className="admin-nav-label">Customers</h2>
-            <div className="admin-nav-buttons">
-              <button type="button" className={`admin-horizontal-tab admin-horizontal-tab--customers ${activeTab === 'client360' ? 'active' : ''}`} style={selectedNavStyle(activeTab === 'client360', 'customers')} aria-current={activeTab === 'client360' ? 'page' : undefined} onClick={() => setActiveTab('client360')}><IconUsers /><span>Client 360</span></button>
-              <button type="button" className={`admin-horizontal-tab admin-horizontal-tab--customers ${activeTab === 'clientes' ? 'active' : ''}`} style={selectedNavStyle(activeTab === 'clientes', 'customers')} aria-current={activeTab === 'clientes' ? 'page' : undefined} onClick={() => setActiveTab('clientes')}><UserPlus /><span>Customers</span><span className="count-badge">{clientes.length}</span></button>
-              <button type="button" className={`admin-horizontal-tab admin-horizontal-tab--customers ${activeTab === 'prepaid' ? 'active' : ''}`} style={selectedNavStyle(activeTab === 'prepaid', 'customers')} aria-current={activeTab === 'prepaid' ? 'page' : undefined} onClick={() => setActiveTab('prepaid')}><DollarSign /><span>Prepaid</span><span className="count-badge">{clientes.filter((customer) => customer.tipo_cuenta === 'Developer / Builder — Prepaid').length}</span></button>
-              <button type="button" className={`admin-horizontal-tab admin-horizontal-tab--customers ${activeTab === 'leads' ? 'active' : ''}`} style={selectedNavStyle(activeTab === 'leads', 'customers')} aria-current={activeTab === 'leads' ? 'page' : undefined} onClick={() => setActiveTab('leads')}><UserPlus /><span>Leads</span><span className="count-badge">{leads.filter((lead) => lead.status === 'NEW').length}</span></button>
-              <button type="button" className={`admin-horizontal-tab admin-horizontal-tab--customers ${activeTab === 'portal' ? 'active' : ''}`} style={selectedNavStyle(activeTab === 'portal', 'customers')} aria-current={activeTab === 'portal' ? 'page' : undefined} onClick={() => setActiveTab('portal')}><Bell /><span>Portal Alerts</span><span className="count-badge">{portalAlertsBadge}</span></button>
-            </div>
-          </section>
-          <section className="admin-nav-group" aria-labelledby="admin-nav-finances">
-            <h2 id="admin-nav-finances" className="admin-nav-label">Invoices / Finances</h2>
-            <div className="admin-nav-buttons">
-              <button type="button" className={`admin-horizontal-tab admin-horizontal-tab--billing ${activeTab === 'facturas' ? 'active' : ''}`} style={selectedNavStyle(activeTab === 'facturas', 'billing')} aria-current={activeTab === 'facturas' ? 'page' : undefined} onClick={() => setActiveTab('facturas')}><Receipt /><span>Invoices</span><span className="count-badge">{facturasCount}</span></button>
-              <button type="button" className={`admin-horizontal-tab admin-horizontal-tab--billing ${activeTab === 'finanzas' ? 'active' : ''}`} style={selectedNavStyle(activeTab === 'finanzas', 'billing')} aria-current={activeTab === 'finanzas' ? 'page' : undefined} onClick={() => setActiveTab('finanzas')}><DollarSign /><span>Payments</span></button>
-              <button type="button" className={`admin-horizontal-tab admin-horizontal-tab--billing ${activeTab === 'expenses' ? 'active' : ''}`} style={selectedNavStyle(activeTab === 'expenses', 'billing')} aria-current={activeTab === 'expenses' ? 'page' : undefined} onClick={() => setActiveTab('expenses')}><DollarSign /><span>Expenses</span></button>
-              <button type="button" className={`admin-horizontal-tab admin-horizontal-tab--billing ${activeTab === 'containers' ? 'active' : ''}`} style={selectedNavStyle(activeTab === 'containers', 'billing')} aria-current={activeTab === 'containers' ? 'page' : undefined} onClick={() => setActiveTab('containers')}><Container /><span>Containers</span></button>
-            </div>
-          </section>
-          <section className="admin-nav-group" aria-labelledby="admin-nav-administration">
-            <h2 id="admin-nav-administration" className="admin-nav-label">Administration</h2>
-            <div className="admin-nav-buttons">
-              <button type="button" className={`admin-horizontal-tab admin-horizontal-tab--admin ${activeTab === 'personal' ? 'active' : ''}`} style={selectedNavStyle(activeTab === 'personal', 'admin')} aria-current={activeTab === 'personal' ? 'page' : undefined} onClick={() => setActiveTab('personal')}><UserCog /><span>Staff</span><span className="count-badge">{personal.length}</span></button>
-              <button type="button" className={`admin-horizontal-tab admin-horizontal-tab--admin ${activeTab === 'activityLogs' ? 'active' : ''}`} style={selectedNavStyle(activeTab === 'activityLogs', 'admin')} aria-current={activeTab === 'activityLogs' ? 'page' : undefined} onClick={() => { setActiveTab('activityLogs'); void cargarStaffActionLogs(); }}><Bell /><span>Activity Logs</span></button>
-            </div>
-          </section>
-        </nav>
+      {/* Sidebar navigation: all existing tabs and counters are preserved. */}
+      <aside className="admin-sidebar" aria-label="Admin navigation">
+        <div className="admin-sidebar-brand">
+          <div>
+            <Image src="/imagenes/logo-pages.png" alt="Caribex Logistics Group — Your Cargo Our Commitment" width={218} height={93} />
+            <strong>Caribex Admin</strong><span>Warehouse management</span>
+          </div>
+        </div>
+        <div className="admin-sidebar-group">
+          <button type="button" className="admin-sidebar-group-title" onClick={() => toggleNavGroup('operations')}>Operations <ChevronDown size={14} className={expandedNavGroups.operations ? 'nav-chevron is-open' : 'nav-chevron'} /></button>
+          {expandedNavGroups.operations && <div className="admin-sidebar-items">
+            <button className={`admin-sidebar-item ${activeTab === 'pedidos' ? 'active' : ''}`} onClick={() => setActiveTab('pedidos')}><Package /> Shipments <span className="count-badge">{pedidos.length}</span></button>
+            <button className={`admin-sidebar-item ${activeTab === 'track' ? 'active' : ''}`} onClick={() => setActiveTab('track')}><ScanLine /> Track Package <span className="count-badge">{pedidos.length}</span></button>
+            <button className={`admin-sidebar-item ${activeTab === 'client360' ? 'active' : ''}`} onClick={() => setActiveTab('client360')}><IconUsers /> Client 360</button>
+            <button className={`admin-sidebar-item ${activeTab === 'incidencias' ? 'active' : ''}`} onClick={() => setActiveTab('incidencias')}><AlertTriangle /> Issues <span className="count-badge">{pedidosConIncidencia.length}</span></button>
+            <button className={`admin-sidebar-item ${activeTab === 'labels' ? 'active' : ''}`} onClick={() => setActiveTab('labels')}><QrCode /> Caribex labels</button>
+            <button className={`admin-sidebar-item ${activeTab === 'reports' ? 'active' : ''}`} onClick={() => setActiveTab('reports')}><BarChart3 /> Reports</button>
+          </div>}
+        </div>
+        <div className="admin-sidebar-group">
+          <button type="button" className="admin-sidebar-group-title" onClick={() => toggleNavGroup('customers')}>Customers <ChevronDown size={14} className={expandedNavGroups.customers ? 'nav-chevron is-open' : 'nav-chevron'} /></button>
+          {expandedNavGroups.customers && <div className="admin-sidebar-items">
+            <button className={`admin-sidebar-item admin-sidebar-item--customers ${activeTab === 'clientes' ? 'active' : ''}`} onClick={() => setActiveTab('clientes')}><UserPlus /> Customer # <span className="count-badge">{clientes.length}</span></button>
+            <button className={`admin-sidebar-item admin-sidebar-item--customers ${activeTab === 'prepaid' ? 'active' : ''}`} onClick={() => setActiveTab('prepaid')}><DollarSign /> Prepaid accounts <span className="count-badge">{clientes.filter((customer) => customer.tipo_cuenta === 'Developer / Builder — Prepaid').length}</span></button>
+            <button className={`admin-sidebar-item admin-sidebar-item--customers ${activeTab === 'leads' ? 'active' : ''}`} onClick={() => setActiveTab('leads')}><UserPlus /> Leads <span className="count-badge">{leads.filter((lead) => lead.status === 'NEW').length}</span></button>
+            <button className={`admin-sidebar-item admin-sidebar-item--customers ${activeTab === 'portal' ? 'active' : ''}`} onClick={() => setActiveTab('portal')}><Bell /> Portal alerts <span className="count-badge">{portalEvents.filter((event) => !event.success).length}</span></button>
+          </div>}
+        </div>
+        <div className="admin-sidebar-group">
+          <button type="button" className="admin-sidebar-group-title" onClick={() => toggleNavGroup('billing')}>Billing & logistics <ChevronDown size={14} className={expandedNavGroups.billing ? 'nav-chevron is-open' : 'nav-chevron'} /></button>
+          {expandedNavGroups.billing && <div className="admin-sidebar-items">
+            <button className={`admin-sidebar-item admin-sidebar-item--billing ${activeTab === 'facturas' ? 'active' : ''}`} onClick={() => setActiveTab('facturas')}><Receipt /> Invoices <span className="count-badge">{facturasCount}</span></button>
+            <button className={`admin-sidebar-item admin-sidebar-item--billing ${activeTab === 'finanzas' ? 'active' : ''}`} onClick={() => setActiveTab('finanzas')}><DollarSign /> Finances</button>
+            <button className={`admin-sidebar-item admin-sidebar-item--billing ${activeTab === 'expenses' ? 'active' : ''}`} onClick={() => setActiveTab('expenses')}><DollarSign /> Expenses</button>
+            <button className={`admin-sidebar-item admin-sidebar-item--billing ${activeTab === 'ferry' ? 'active' : ''}`} onClick={() => setActiveTab('ferry')}><Ship /> Ferry manifests</button>
+            <button className={`admin-sidebar-item admin-sidebar-item--billing ${activeTab === 'containers' ? 'active' : ''}`} onClick={() => setActiveTab('containers')}><Container /> Containers</button>
+          </div>}
+        </div>
+        <div className="admin-sidebar-group">
+          <button type="button" className="admin-sidebar-group-title" onClick={() => toggleNavGroup('administration')}>Administration <ChevronDown size={14} className={expandedNavGroups.administration ? 'nav-chevron is-open' : 'nav-chevron'} /></button>
+          {expandedNavGroups.administration && <div className="admin-sidebar-items">
+            <button className={`admin-sidebar-item admin-sidebar-item--admin ${activeTab === 'personal' ? 'active' : ''}`} onClick={() => setActiveTab('personal')}><UserCog /> Staff <span className="count-badge">{personal.length}</span></button>
+            <button className={`admin-sidebar-item admin-sidebar-item--admin ${activeTab === 'activityLogs' ? 'active' : ''}`} onClick={() => { setActiveTab('activityLogs'); void cargarStaffActionLogs(); }}><Bell /> Activity logs</button>
+          </div>}
+        </div>
+      </aside>
 
       {/* Card de Visualización de Datos */}
-      <div className={`data-card ${activeTab === 'facturas' ? 'data-card--invoices invoice-workspace' : ''} ${activeTab === 'leads' ? 'data-card--leads' : ''}`}>
-        <div className={`card-header-inner ${activeTab === 'facturas' ? 'invoice-panel-header' : ''}`} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
+      <div className={`data-card ${activeTab === 'facturas' ? 'data-card--invoices' : ''}`}>
+        <div className="card-header-inner" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
           <div>
-            <h3 className={activeTab === 'facturas' ? 'invoice-panel-heading' : undefined}>
+            <h3>
               {activeTab === 'personal' ? <IconUsers /> : <IconBriefcase />}{' '}
               {activeTab === 'personal'
                 ? 'Listado de Personal'
@@ -2429,11 +2475,7 @@ const App = () => {
                       : activeTab === 'leads'
                         ? `${leads.length} leads received from the website`
                       : activeTab === 'portal'
-                        ? portalEventsStatus === 'ready'
-                          ? `${portalEvents.length} recent portal and account events`
-                          : portalEventsStatus === 'loading'
-                            ? 'Verifying portal and account events…'
-                            : 'Portal and account events could not be verified'
+                        ? `${portalEvents.length} recent portal and account events`
                       : activeTab === 'containers'
                         ? 'Container totals, locations, shipment details, and PDF manifest export'
                       : activeTab === 'labels'
@@ -2473,7 +2515,7 @@ const App = () => {
 
           {activeTab === 'reports' && <ReportsAdmin />}
 
-          {activeTab === 'prepaid' && facturas.some((invoice) => invoice.prepaid_review_required && invoice.prepaid_review_status !== 'APPROVED') && (
+          {activeTab === 'finanzas' && (
             <div style={{ margin: '1rem 0', padding: '1rem 1.1rem', borderRadius: '0.9rem', border: '1px solid #f59e0b', background: '#fffbeb' }}>
               <strong style={{ color: '#92400e' }}>Prepaid allowance review</strong>
               <p style={{ margin: '0.35rem 0 0.8rem', color: '#78350f' }}>Shipments that exceed a customer’s cubic-foot allowance stay visible for Admin approval before operational completion.</p>
@@ -2539,15 +2581,12 @@ const App = () => {
 
         {activeTab === 'client360' && <Client360Admin clientes={clientes} pedidos={pedidos} facturas={facturas} />}
 
-        {activeTab === 'leads' && <div style={{ width: '100%', overflowX: 'auto' }}>
+        {activeTab === 'leads' && <div className="data-card--leads" style={{ width: '100%', overflowX: 'auto' }}>
           {leads.length === 0 ? <p style={{ padding: '1.5rem', color: '#64748b' }}>No customer leads have been received yet.</p> : <table className="admin-table" style={{ minWidth: 980, width: '100%' }}><thead><tr><th>Date</th><th>Customer</th><th>Contact</th><th>Message</th><th>Status</th><th>Admin notes</th></tr></thead><tbody>{leads.map((lead) => <tr key={lead.id}><td>{formatStaffDateTime(lead.created_at)}</td><td><strong>{lead.nombre}</strong><br /><small>{lead.service_type || 'Website contact'}</small></td><td><a href={`mailto:${lead.email}`}>{lead.email}</a><br />{lead.telefono || '-'}</td><td style={{ maxWidth: 320, whiteSpace: 'pre-wrap' }}>{lead.mensaje}</td><td><select value={lead.status} onChange={(event) => actualizarLead(lead.id, { status: event.target.value as Lead['status'] })}><option value="NEW">New</option><option value="CONTACTED">Contacted</option><option value="CONVERTED">Converted</option><option value="CLOSED">Closed</option></select></td><td><textarea defaultValue={lead.admin_notes || ''} rows={2} placeholder="Add notes" onBlur={(event) => { const notes = event.target.value; if (notes !== (lead.admin_notes || '')) actualizarLead(lead.id, { admin_notes: notes }); }} /></td></tr>)}</tbody></table>}
         </div>}
 
         {activeTab === 'portal' && <div style={{ width: '100%', overflowX: 'auto' }}>
-          {portalEventsStatus === 'loading' && <p role="status" style={{ padding: '1.5rem', color: '#64748b' }}>Loading customer portal and account events…</p>}
-          {portalEventsStatus === 'error' && <div role="alert" style={{ padding: '1.5rem', color: '#991b1b' }}>Portal alerts could not be verified: {portalEventsError || 'Unknown error.'} <button type="button" className="pa-secondary-btn" onClick={() => { void cargarPortalEvents(); }}>Retry</button></div>}
-          {portalEventsStatus === 'ready' && portalEvents.length === 0 && <p style={{ padding: '1.5rem', color: '#64748b' }}>No customer portal or account events have been recorded yet.</p>}
-          {portalEvents.length > 0 && <table className="admin-table" style={{ minWidth: 980, width: '100%' }}><thead><tr><th>Date</th><th>Customer</th><th>Email</th><th>Result</th><th>Reason</th><th>Event</th></tr></thead><tbody>{portalEvents.map((event) => <tr key={event.id}><td>{formatStaffDateTime(event.created_at)}</td><td>{event.customer_name || '-'}{event.account_number != null && <><br /><small>Account #{event.account_number}</small></>}</td><td>{event.email}</td><td><span style={{ color: event.success ? '#166534' : '#b91c1c', fontWeight: 700 }}>{event.success ? (event.event_type === 'login_attempt' ? 'Successful' : 'Completed') : 'Problem'}</span></td><td>{event.reason || '-'}</td><td>{portalEventLabel(event.event_type)}</td></tr>)}</tbody></table>}
+          {portalEvents.length === 0 ? <p style={{ padding: '1.5rem', color: '#64748b' }}>No customer portal or account events have been recorded yet.</p> : <table className="admin-table" style={{ minWidth: 980, width: '100%' }}><thead><tr><th>Date</th><th>Customer</th><th>Email</th><th>Result</th><th>Reason</th><th>Event</th></tr></thead><tbody>{portalEvents.map((event) => <tr key={event.id}><td>{formatStaffDateTime(event.created_at)}</td><td>{event.customer_name || '-'}{event.account_number != null && <><br /><small>Account #{event.account_number}</small></>}</td><td>{event.email}</td><td><span style={{ color: event.success ? '#166534' : '#b91c1c', fontWeight: 700 }}>{event.success ? (event.event_type === 'login_attempt' ? 'Successful' : 'Completed') : 'Problem'}</span></td><td>{event.reason || '-'}</td><td>{portalEventLabel(event.event_type)}</td></tr>)}</tbody></table>}
         </div>}
 
         {activeTab === 'finanzas' && <div style={{ width: '100%' }}>
@@ -2712,19 +2751,58 @@ const App = () => {
               </select>
               {(invoiceSearch || invoiceContainerFilter !== 'ALL') && <button type="button" className="pa-secondary-btn" onClick={() => { setInvoiceSearch(''); setInvoiceContainerFilter('ALL'); }}>Clear filters</button>}
             </div>
-            <InvoiceStatusTabs
-              isEs
-              value={({ sinAprobar: 'pending', aprobadas: 'approved', todas: 'all', problemas: 'problems', enviadas: 'sent', pagadas: 'paid' } as const)[activeInvoiceTab]}
-              onChange={(value) => setActiveInvoiceTab(({ pending: 'sinAprobar', approved: 'aprobadas', all: 'todas', problems: 'problemas', sent: 'enviadas', paid: 'pagadas' } as const)[value])}
-            />
+            {/* Sub-pestañas internas para facturas (carrusel horizontal) */}
+            <div
+              style={{
+                display: 'flex',
+                gap: '0.5rem',
+                marginBottom: '0.75rem',
+                overflowX: 'auto',
+                paddingBottom: '0.25rem',
+              }}
+            >
+              <button
+                type="button"
+                className={`tab-pill ${activeInvoiceTab === 'sinAprobar' ? 'active' : ''}`}
+                style={{ ...tabColorStyle(INVOICE_FILTER_COLORS.pending), ...(activeInvoiceTab === 'sinAprobar' ? { color: INVOICE_FILTER_COLORS.pending.color, backgroundColor: INVOICE_FILTER_COLORS.pending.background, borderColor: INVOICE_FILTER_COLORS.pending.border } : {}), minWidth: 120, fontSize: '0.8rem' }}
+                onClick={() => setActiveInvoiceTab('sinAprobar')}
+              >
+                Sin aprobar
+              </button>
+              <button
+                type="button"
+                className={`tab-pill ${activeInvoiceTab === 'aprobadas' ? 'active' : ''}`}
+                style={{ ...tabColorStyle(INVOICE_FILTER_COLORS.approved), ...(activeInvoiceTab === 'aprobadas' ? { color: INVOICE_FILTER_COLORS.approved.color, backgroundColor: INVOICE_FILTER_COLORS.approved.background, borderColor: INVOICE_FILTER_COLORS.approved.border } : {}), minWidth: 120, fontSize: '0.8rem' }}
+                onClick={() => setActiveInvoiceTab('aprobadas')}
+              >
+                Aprobadas
+              </button>
+              <button type="button" className={`tab-pill ${activeInvoiceTab === 'todas' ? 'active' : ''}`} style={{ ...tabColorStyle(INVOICE_FILTER_COLORS.all), ...(activeInvoiceTab === 'todas' ? { color: INVOICE_FILTER_COLORS.all.color, backgroundColor: INVOICE_FILTER_COLORS.all.background, borderColor: INVOICE_FILTER_COLORS.all.border } : {}), minWidth: 100, fontSize: '0.8rem' }} onClick={() => setActiveInvoiceTab('todas')}>All</button>
+              <button type="button" className={`tab-pill ${activeInvoiceTab === 'problemas' ? 'active' : ''}`} style={{ ...tabColorStyle(INVOICE_FILTER_COLORS.problems), ...(activeInvoiceTab === 'problemas' ? { color: INVOICE_FILTER_COLORS.problems.color, backgroundColor: INVOICE_FILTER_COLORS.problems.background, borderColor: INVOICE_FILTER_COLORS.problems.border } : {}), minWidth: 110, fontSize: '0.8rem' }} onClick={() => setActiveInvoiceTab('problemas')}>Problems</button>
+              <button
+                type="button"
+                className={`tab-pill ${activeInvoiceTab === 'enviadas' ? 'active' : ''}`}
+                style={{ ...tabColorStyle(INVOICE_FILTER_COLORS.sent), ...(activeInvoiceTab === 'enviadas' ? { color: INVOICE_FILTER_COLORS.sent.color, backgroundColor: INVOICE_FILTER_COLORS.sent.background, borderColor: INVOICE_FILTER_COLORS.sent.border } : {}), minWidth: 120, fontSize: '0.8rem' }}
+                onClick={() => setActiveInvoiceTab('enviadas')}
+              >
+                Enviadas
+              </button>
+              <button
+                type="button"
+                className={`tab-pill ${activeInvoiceTab === 'pagadas' ? 'active' : ''}`}
+                style={{ ...tabColorStyle(INVOICE_FILTER_COLORS.paid), ...(activeInvoiceTab === 'pagadas' ? { color: INVOICE_FILTER_COLORS.paid.color, backgroundColor: INVOICE_FILTER_COLORS.paid.background, borderColor: INVOICE_FILTER_COLORS.paid.border } : {}), minWidth: 120, fontSize: '0.8rem' }}
+                onClick={() => setActiveInvoiceTab('pagadas')}
+              >
+                Pagadas
+              </button>
+            </div>
 
-            <div className="invoice-table-scroll" style={{ maxHeight: '65vh', overflowY: 'auto', overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '0.5rem' }}>
+            <div style={{ maxHeight: '65vh', overflowY: 'auto', overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '0.5rem' }}>
             {/* Encabezados de la tabla de facturas */}
             <div
-              className="invoice-table-header"
               style={{
                 display: 'grid',
-                gridTemplateColumns: 'var(--invoice-columns)',
+                gridTemplateColumns: 'minmax(220px, 2fr) 200px 150px 100px 140px 140px 280px',
                 columnGap: '0.75rem',
                 padding: '0.4rem 0',
                 fontSize: '0.8rem',
@@ -2778,13 +2856,12 @@ const App = () => {
                 return (
                   <li
                     key={f.id}
-                    className="invoice-table-row"
                     style={{
                       padding: '0.8rem 0',
                       borderBottom: '1px solid #e2e8f0',
                       fontSize: '0.9rem',
                       display: 'grid',
-                      gridTemplateColumns: 'var(--invoice-columns)',
+                      gridTemplateColumns: 'minmax(220px, 2fr) 200px 150px 100px 140px 140px 280px',
                       columnGap: '0.75rem',
                       alignItems: 'center',
                       minWidth: 1280,
@@ -3137,7 +3214,7 @@ const App = () => {
 
         {(activeTab === 'clientes' || activeTab === 'prepaid') && clientes.length > 0 && (
           <div style={{ width: '100%', overflowX: 'auto' }}>
-            <section style={{ marginBottom: '1.25rem', padding: '1rem 1.1rem', borderRadius: '0.9rem', border: '1px solid #bfdbfe', background: '#eff6ff' }}>
+            {activeTab === 'prepaid' && <section style={{ marginBottom: '1.25rem', padding: '1rem 1.1rem', borderRadius: '0.9rem', border: '1px solid #bfdbfe', background: '#eff6ff' }}>
               <h3 style={{ margin: 0, color: '#1e3a8a' }}>Developer / Builder prepaid allowance</h3>
               <p style={{ margin: '0.35rem 0 0.8rem', color: '#475569' }}>Select a prepaid customer to view allowance usage, remaining cubic feet, and add more prepaid space.</p>
               <div style={{ display: 'flex', gap: '0.65rem', flexWrap: 'wrap', alignItems: 'end' }}>
@@ -3149,8 +3226,9 @@ const App = () => {
                 </>; })()}
                 <label style={{ display: 'grid', gap: '0.25rem', minWidth: 155 }}><span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#475569' }}>Add cubic feet</span><input type="number" min="0.01" step="0.01" value={prepaidAllowanceToAdd} onChange={(event) => setPrepaidAllowanceToAdd(event.target.value)} placeholder="e.g. 100" style={{ padding: '0.6rem 0.7rem', border: '1px solid #cbd5e1', borderRadius: '0.55rem' }} /></label>
                 <button type="button" className="pa-primary-btn" onClick={() => void addPrepaidAllowance()} disabled={prepaidAllowanceSaving || !prepaidCustomerId}>{prepaidAllowanceSaving ? 'Saving…' : 'Add allowance'}</button>
+                {(() => { const customer = clientes.find((item) => item.id === prepaidCustomerId); return customer?.tipo_cuenta === 'Developer / Builder — Prepaid' ? <button type="button" className="pa-secondary-btn" onClick={() => printPrepaidUsageReport(customer)}>PDF usage report</button> : null; })()}
               </div>
-            </section>
+            </section>}
             <div
               style={{
                 display: 'grid',
@@ -3287,51 +3365,17 @@ const App = () => {
                     const shipments = trackStageGroups[stage] || [];
                     const style = TRACK_STAGE_STYLES[stage] || TRACK_STAGE_STYLES.RECEIVED;
                     const groupedByContainer = stage === 'PICKED_UP' ? shipments.reduce<Record<string, Pedido[]>>((groups, shipment) => {
-                      const key = shipment.containerLabels?.[0]?.trim() || 'Collected without container';
+                      const key = shipment.containerLabels?.[0] || 'Collected without container';
                       (groups[key] ||= []).push(shipment);
                       return groups;
                     }, {}) : null;
-                    const stageCount = groupedByContainer ? Object.keys(groupedByContainer).length : shipments.length;
                     return <section key={stage} style={{ padding: '0.9rem 0', borderBottom: '1px solid #e2e8f0' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', color: style.color, fontWeight: 800, fontSize: '1rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: style.color, fontWeight: 800, fontSize: '1rem' }}>
                         <span style={{ width: 7, height: 22, borderRadius: 3, background: style.color }} />
-                        <span>{stage === 'PICKED_UP' ? `Picked up, by container (${stageCount})` : label}</span>
-                        {stage !== 'PICKED_UP' && <span style={{ marginLeft: 'auto', minWidth: 30, padding: '0.2rem 0.55rem', borderRadius: 999, background: style.background, color: style.color, textAlign: 'center', fontSize: '0.82rem', fontWeight: 800 }}>{stageCount}</span>}
+                        <span>{label}</span>
+                        <span>({shipments.length})</span>
                       </div>
-                      {!shipments.length ? <p style={{ margin: '0.4rem 0 0 1rem', color: '#64748b', fontSize: '0.86rem' }}>Nothing at this stage</p> : groupedByContainer ? (
-                        Object.entries(groupedByContainer).map(([container, containerShipments]) => (
-                          <details
-                            key={container}
-                            onToggle={(event) => { if (event.currentTarget.open) void loadPickupContainerLastScans(containerShipments); }}
-                            style={{ margin: '0.55rem 0 0 1rem', border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden', background: '#fff' }}
-                          >
-                            <summary style={{ cursor: 'pointer', padding: '0.8rem 0.9rem', background: '#f8fafc', color: '#334155', fontWeight: 700 }}>
-                              <span style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', marginLeft: '0.25rem' }}>
-                                <span>{formatPickupContainerLabel(container)}</span>
-                                <small style={{ color: '#64748b', fontWeight: 500 }}>{containerShipments.length} package{containerShipments.length === 1 ? '' : 's'}</small>
-                              </span>
-                            </summary>
-                            <div>
-                              {containerShipments.map((shipment) => {
-                                const firstReceived = shipment.hora_fecha || shipment.registro;
-                                const lastScan = shipment.last_scanned_at;
-                                const containerLabel = shipment.containerLabels?.map(formatPickupContainerLabel).join(', ') || formatPickupContainerLabel(container);
-                                const packageType = shipment.tipo_paquete ? shipment.tipo_paquete.toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase()) : 'Package';
-                                return <button
-                                  key={shipment.id}
-                                  type="button"
-                                  onClick={() => void abrirDetallePedido(shipment.id)}
-                                  style={{ width: '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '0.22rem', textAlign: 'left', padding: '0.8rem 0.9rem', border: 0, borderTop: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer', font: 'inherit' }}
-                                >
-                                  <strong style={{ color: '#1d4ed8', textDecoration: 'underline', overflowWrap: 'anywhere' }}>#{shipment.tracking}</strong>
-                                  <span style={{ color: '#334155' }}>{shipment.carrier || 'Carrier unavailable'} - {packageType} - {containerLabel}</span>
-                                  <span style={{ color: '#334155' }}>First received {formatPickupDate(firstReceived)} - Last scanned {formatPickupDate(lastScan)}</span>
-                                </button>;
-                              })}
-                            </div>
-                          </details>
-                        ))
-                      ) : shipments.map((shipment) => <button key={shipment.id} type="button" onClick={() => void abrirDetallePedido(shipment.id)} style={{ width: '100%', display: 'flex', justifyContent: 'space-between', gap: '0.75rem', textAlign: 'left', margin: '0.45rem 0 0 1rem', padding: '0.65rem 0.8rem', border: '1px solid #e2e8f0', borderRadius: 8, background: '#fff', cursor: 'pointer' }}><strong style={{ color: style.color, overflowWrap: 'anywhere' }}>{shipment.tracking}</strong><span style={{ color: '#475569' }}>{shipment.clienteNombre || 'Unassigned'}{shipment.clienteNumero != null ? ` (#${shipment.clienteNumero})` : ''}</span></button>)}
+                      {!shipments.length ? <p style={{ margin: '0.4rem 0 0 1rem', color: '#64748b', fontSize: '0.86rem' }}>Nothing at this stage</p> : groupedByContainer ? Object.entries(groupedByContainer).map(([container, containerShipments]) => <details key={container} style={{ margin: '0.55rem 0 0 1rem', border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden' }}><summary style={{ cursor: 'pointer', padding: '0.65rem 0.8rem', background: '#f8fafc', color: '#334155', fontWeight: 700 }}>{container} <span style={{ color: '#64748b', fontWeight: 500 }}>({containerShipments.length} package{containerShipments.length === 1 ? '' : 's'})</span></summary>{containerShipments.map((shipment) => <button key={shipment.id} type="button" onClick={() => void abrirDetallePedido(shipment.id)} style={{ width: '100%', display: 'flex', justifyContent: 'space-between', gap: '0.75rem', textAlign: 'left', padding: '0.65rem 0.8rem', border: 0, borderTop: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer' }}><strong style={{ color: style.color, overflowWrap: 'anywhere' }}>{shipment.tracking}</strong><span style={{ color: '#475569' }}>{shipment.clienteNombre || 'Unassigned'}{shipment.clienteNumero != null ? ` (#${shipment.clienteNumero})` : ''}</span></button>)}</details>) : shipments.map((shipment) => <button key={shipment.id} type="button" onClick={() => void abrirDetallePedido(shipment.id)} style={{ width: '100%', display: 'flex', justifyContent: 'space-between', gap: '0.75rem', textAlign: 'left', margin: '0.45rem 0 0 1rem', padding: '0.65rem 0.8rem', border: '1px solid #e2e8f0', borderRadius: 8, background: '#fff', cursor: 'pointer' }}><strong style={{ color: style.color, overflowWrap: 'anywhere' }}>{shipment.tracking}</strong><span style={{ color: '#475569' }}>{shipment.clienteNombre || 'Unassigned'}{shipment.clienteNumero != null ? ` (#${shipment.clienteNumero})` : ''}</span></button>)}
                     </section>;
                   })}
                 </>}
@@ -3365,7 +3409,7 @@ const App = () => {
                 </select>
               </div>
               <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', width: '100%' }}>
-                {SHIPMENT_STAGE_OPTIONS.map(([value, label]) => <button key={value} type="button" onClick={() => setPedidoEtapa(value)} style={{ border: pedidoEtapa === value ? `1px solid ${(TRACK_STAGE_STYLES[value] || TRACK_STAGE_STYLES.RECEIVED).border}` : '1px solid #e2e8f0', background: pedidoEtapa === value ? (TRACK_STAGE_STYLES[value] || TRACK_STAGE_STYLES.RECEIVED).background : '#fff', color: pedidoEtapa === value ? (TRACK_STAGE_STYLES[value] || TRACK_STAGE_STYLES.RECEIVED).color : '#475569', borderRadius: '999px', padding: '0.25rem 0.55rem', fontSize: '0.74rem', cursor: 'pointer' }}>{label}{value !== 'ALL' ? ` (${pedidos.filter((p) => shipmentStage(p.estado) === value).length})` : ` (${pedidos.length})`}</button>)}
+                {SHIPMENT_STAGE_OPTIONS.map(([value, label]) => <button key={value} type="button" onClick={() => setPedidoEtapa(value)} style={{ border: pedidoEtapa === value ? '1px solid #2563eb' : '1px solid #e2e8f0', background: pedidoEtapa === value ? '#eff6ff' : '#fff', color: pedidoEtapa === value ? '#1d4ed8' : '#475569', borderRadius: '999px', padding: '0.25rem 0.55rem', fontSize: '0.74rem', cursor: 'pointer' }}>{label}{value !== 'ALL' ? ` (${pedidos.filter((p) => shipmentStage(p.estado) === value).length})` : ` (${pedidos.length})`}</button>)}
               </div>
             </div>
 
@@ -3421,14 +3465,9 @@ const App = () => {
                       cursor: 'default',
                     }}
                   >
-                    <button
-                      type="button"
-                      aria-label={`Open shipment details for tracking ${p.tracking}`}
-                      onClick={() => void abrirDetallePedido(p.id)}
-                      style={{ fontWeight: 600, minWidth: 200, overflowWrap: 'anywhere', padding: 0, border: 0, background: 'transparent', color: '#1d4ed8', textDecoration: 'underline', textAlign: 'left', cursor: 'pointer', font: 'inherit' }}
-                    >
+                    <span style={{ fontWeight: 600, minWidth: 200, overflowWrap: 'anywhere' }}>
                       #{p.tracking}
-                    </button>
+                    </span>
                     <span
                       style={{
                         color: '#0f172a',
@@ -3506,7 +3545,6 @@ const App = () => {
             </ul>
           </div>
         )}
-      </div>
       </div>
 
       {incidenciaImagenes && incidenciaImagenes.length > 0 && (
@@ -3625,52 +3663,23 @@ const App = () => {
         <div className="pa-modal-overlay">
           <div className="pa-modal">
             <div className="pa-modal-header">
-              <h4 className="pa-modal-title">Edit invoice charges and discounts</h4>
+              <h4 className="pa-modal-title">Edit invoice charge, discount, or credit</h4>
               <button type="button" className="pa-close-btn" onClick={() => setEditingInvoiceAddOns(null)}>×</button>
             </div>
-            <div className="pa-field" style={{ paddingBottom: "1rem", marginBottom: "1rem", borderBottom: "1px solid #e2e8f0" }}>
-              <label htmlFor="admin-invoice-discount">Percentage discount (server-calculated, 10%)</label>
-              {existingInvoiceDiscount ? (
-                <>
-                  <p style={{ margin: "0.35rem 0 0.65rem", color: "#334155" }}>
-                    Applied: <strong>{existingInvoiceDiscount.label}</strong> — -${existingInvoiceDiscount.amount.toFixed(2)}
-                  </p>
-                  <button type="button" className="pa-secondary-btn" disabled={isSavingInvoiceDiscount} onClick={() => void saveAdminInvoiceDiscount("remove")}>
-                    {isSavingInvoiceDiscount ? "Saving…" : "Remove discount"}
-                  </button>
-                </>
-              ) : (
-                <>
-                  <select id="admin-invoice-discount" className="pa-input" value={invoiceDiscountCode} onChange={(event) => setInvoiceDiscountCode(event.target.value as InvoiceDiscountCode | "")}>
-                    <option value="">Select a discount</option>
-                    {(Object.entries(INVOICE_DISCOUNTS) as [InvoiceDiscountCode, (typeof INVOICE_DISCOUNTS)[InvoiceDiscountCode]][]).map(([code, definition]) => (
-                      <option key={code} value={code}>{definition.label}</option>
-                    ))}
-                  </select>
-                  <p style={{ margin: "0.45rem 0", color: "#64748b", fontSize: "0.78rem" }}>
-                    Business and customer-appreciation discounts apply to the invoice subtotal. Ferry Charge Offset applies to freight and shipping/service charges, excluding catalog merchandise. The discount is applied before handling fee; only one discount may be active. Apply after items and charges are finalized; remove and reapply to refresh the percentage after changes.
-                  </p>
-                  <button type="button" className="pa-primary-btn" disabled={!invoiceDiscountCode || isSavingInvoiceDiscount} onClick={() => void saveAdminInvoiceDiscount("apply")}>
-                    {isSavingInvoiceDiscount ? "Saving adjustment…" : "Save adjustment"}
-                  </button>
-                </>
-              )}
-              {invoiceDiscountError && <p role="alert" style={{ margin: "0.45rem 0", color: "#991b1b", fontSize: "0.82rem" }}>{invoiceDiscountError}</p>}
-            </div>
             <div className="pa-field">
-              <label htmlFor="admin-invoice-charge-type">Fixed additional charge or customer credit</label>
+              <label htmlFor="admin-invoice-charge-type">Adjustment type</label>
               <select id="admin-invoice-charge-type" className="pa-input" value={invoiceAddOnType} onChange={(event) => setInvoiceAddOnType(event.target.value)}>
                 <option value="">Select an adjustment</option>
                 {ADMIN_EXTRA_CHARGE_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
               </select>
             </div>
             <div className="pa-field">
-              <label htmlFor="admin-invoice-charge-amount">Fixed amount (required for fixed charges)</label>
+              <label htmlFor="admin-invoice-charge-amount">Amount</label>
               <input id="admin-invoice-charge-amount" className="pa-input" type="number" min="0.01" step="0.01" value={invoiceAddOnAmount} onChange={(event) => setInvoiceAddOnAmount(event.target.value)} placeholder="0.00" />
             </div>
             <div className="pa-modal-actions">
               <button type="button" className="pa-secondary-btn" onClick={() => setEditingInvoiceAddOns(null)}>Cancel</button>
-              <button type="button" className="pa-primary-btn" disabled={!invoiceAddOnType || !invoiceAddOnAmount} onClick={() => void saveAdminInvoiceAddOn()}>Save fixed adjustment</button>
+              <button type="button" className="pa-primary-btn" disabled={!invoiceAddOnType || !invoiceAddOnAmount} onClick={() => void saveAdminInvoiceAddOn()}>Save adjustment</button>
             </div>
           </div>
         </div>
@@ -3727,7 +3736,7 @@ const App = () => {
               </div>
               {manualInvoiceCatalogLines.length > 0 && <div style={{ display: 'grid', gap: '0.35rem', marginTop: '0.6rem' }}>{manualInvoiceCatalogLines.map((line) => { const item = BILLABLE_INVOICE_ITEMS.find((candidate) => candidate.id === line.itemId); if (!item) return null; return <div key={line.itemId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', padding: '0.45rem 0.6rem', borderRadius: '0.5rem', background: '#f8fafc', color: '#475569', fontSize: '0.82rem' }}><span>{formatCatalogCharge(item, line.quantity)}</span><button type="button" className="pa-close-btn" style={{ fontSize: '1rem' }} onClick={() => setManualInvoiceCatalogLines((previous) => previous.filter((candidate) => candidate.itemId !== line.itemId))} aria-label={`Remove ${item.label}`}>×</button></div>; })}</div>}
             </div>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginTop: '0.9rem', color: '#475569', fontSize: '0.84rem' }}><input type="checkbox" checked={manualInvoiceForm.taxEnabled} onChange={(event) => setManualInvoiceForm((previous) => ({ ...previous, taxEnabled: event.target.checked }))} /> Apply 15% handling fee</label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginTop: '0.9rem', color: '#475569', fontSize: '0.84rem' }}><input type="checkbox" checked={manualInvoiceForm.taxEnabled} onChange={(event) => setManualInvoiceForm((previous) => ({ ...previous, taxEnabled: event.target.checked }))} /> Apply 15% sales tax</label>
             {manualInvoiceError && <p role="alert" style={{ margin: '0.9rem 0 0', color: '#b91c1c', fontSize: '0.84rem' }}>{manualInvoiceError}</p>}
             <div className="pa-modal-actions" style={{ marginTop: '1.1rem' }}>
               <button type="button" className="pa-secondary-btn" onClick={closeManualInvoice} disabled={manualInvoiceSaving}>Cancel</button>
@@ -3766,7 +3775,6 @@ const App = () => {
       )}
 
       {paymentDialogInvoice && <PaymentLedgerDialog key={paymentDialogInvoice.id} invoice={paymentDialogInvoice} mode={paymentDialogMode} onClose={() => setPaymentDialogInvoice(null)} onChanged={handlePaymentChanged} />}
-
       {isPedidoDetalleOpen && pedidoDetalle?.activity !== undefined && (
         <div className="pa-modal-overlay" onClick={() => setIsPedidoDetalleOpen(false)}>
           <div
@@ -3802,7 +3810,7 @@ const App = () => {
                 const current = details?.new && typeof details.new === "object" ? details.new : {};
                 const previous = details?.old && typeof details.old === "object" ? details.old : {};
                 const fields = ["numero_cliente_id", "contenedor_id", "billing_subtotal", "billing_tax", "billing_total", "approval_status", "invoice_status", "payment_method", "payment_date", "payment_reference", "problema", "problema_notas", "cargos_adicionales"];
-                const labels: Record<string, string> = { numero_cliente_id: "customer", contenedor_id: "container", billing_subtotal: "subtotal", billing_tax: "handling fee", billing_total: "total", approval_status: "invoice approval", invoice_status: "invoice status", payment_method: "payment method", payment_date: "payment date", payment_reference: "payment reference", problema: "problem flag", problema_notas: "problem note", cargos_adicionales: "charges" };
+                const labels: Record<string, string> = { numero_cliente_id: "customer", contenedor_id: "container", billing_subtotal: "subtotal", billing_tax: "tax", billing_total: "total", approval_status: "invoice approval", invoice_status: "invoice status", payment_method: "payment method", payment_date: "payment date", payment_reference: "payment reference", problema: "problem flag", problema_notas: "problem note", cargos_adicionales: "charges" };
                 const fromStatus = details?.from_status ?? previous.estado;
                 const toStatus = details?.to_status ?? current.estado;
                 const statusChange = fromStatus !== undefined && toStatus !== undefined && String(fromStatus) !== String(toStatus)
@@ -3819,7 +3827,7 @@ const App = () => {
                 <div style={{ display: "flex", alignItems: "center", gap: "0.65rem", borderBottom: "1px solid #e2e8f0", padding: "0.1rem 0 0.8rem" }}>
                   <span style={{ color: "#64748b", fontSize: "1.1rem" }}>▧</span>
                   <strong style={{ flex: 1, fontSize: "1.08rem", letterSpacing: "0.01em", overflowWrap: "anywhere" }}>{pedidoDetalle.tracking || "Shipment"}</strong>
-                  <span style={{ background: "#fbbf24", color: "#78350f", borderRadius: "0.35rem", padding: "0.45rem 0.7rem", fontWeight: 800 }}>{pedidoDetalle.tipo_paquete || "Package"} {pedidoDetalle.invoice_id ? pedidoDetalle.invoice_id : ""}</span>
+                  <span style={{ background: "#fbbf24", color: "#78350f", borderRadius: "0.35rem", padding: "0.45rem 0.7rem", fontWeight: 800 }}>{pedidoDetalle.nombre_paqueteria === "Manual Invoice" ? "Manual invoice" : pedidoDetalle.tipo_paquete || "Shipment"} {pedidoDetalle.invoice_id ? pedidoDetalle.invoice_id : ""}</span>
                   {invoiceIndex >= 0 && <div style={{ display: "flex", gap: "0.3rem", alignItems: "center" }}><button type="button" className="pa-secondary-btn" disabled={invoiceIndex <= 0} onClick={() => openAdjacentInvoice(-1)} style={{ padding: "0.25rem 0.45rem", fontSize: "0.72rem" }}>‹ Previous</button><span style={{ color: "#64748b", fontSize: "0.75rem", whiteSpace: "nowrap" }}>{invoiceIndex + 1} of {facturasFiltradas.length}</span><button type="button" className="pa-secondary-btn" disabled={invoiceIndex >= facturasFiltradas.length - 1} onClick={() => openAdjacentInvoice(1)} style={{ padding: "0.25rem 0.45rem", fontSize: "0.72rem" }}>Next ›</button></div>}
                   <span style={{ color: stageColor, fontWeight: 800, whiteSpace: "nowrap" }}>{status}</span>
                   <button type="button" onClick={() => setIsPedidoDetalleOpen(false)} aria-label="Close shipment details" style={{ border: 0, background: "transparent", color: "#64748b", fontSize: "1.5rem", lineHeight: 1, cursor: "pointer" }}>×</button>
@@ -3828,7 +3836,7 @@ const App = () => {
                   {detailRow("Client", customer.nombre ? <span style={{ color: "#2563eb", textDecoration: "underline" }}>{customer.nombre} (#{customer.numero_cliente ?? "—"})</span> : "Unassigned", "client")}
                   {detailRow("Carrier", pedidoDetalle.nombre_paqueteria || "—", "carrier")}
                   {detailRow("Note", <span style={{ color: pedidoDetalle.notas ? "#334155" : "#94a3b8", fontWeight: 500 }}>{pedidoDetalle.notas || "No note"} <small style={{ color: "#94a3b8", marginLeft: "0.4rem" }}>(staff/admin only)</small></span>, "note")}
-                  {detailRow("Item", `${pedidoDetalle.tipo_paquete || "Shipment"}${pedidoDetalle.billing_subtotal != null ? ` ($${Number(pedidoDetalle.billing_subtotal).toFixed(2)})` : ""}`, "item")}
+                  {detailRow("Item", `${pedidoDetalle.nombre_paqueteria === "Manual Invoice" ? "Manual invoice" : pedidoDetalle.tipo_paquete || "Shipment"}${pedidoDetalle.billing_subtotal != null ? ` ($${Number(pedidoDetalle.billing_subtotal).toFixed(2)})` : ""}`, "item")}
                   {detailRow("Charges", checkin.cargos_adicionales || "—", "charges")}
                   {detailRow("Container", containers.map((container: any) => container.codigo || container.id).join(", ") || "Not assigned", "container")}
                   {detailRow("Invoice", <span>Invoice <strong style={{ color: invoiceApproval === "APPROVED" ? "#166534" : "#64748b" }}>{invoiceApproval || "PENDING"}</strong> <span style={{ marginLeft: "0.7rem" }}>Payment: <strong style={{ color: payment === "PAID" ? "#166534" : "#b45309" }}>{payment || "UNPAID"}</strong></span></span>, "invoice")}
@@ -4693,6 +4701,7 @@ const App = () => {
                         puerto: nuevoCliente.puerto || null,
                         tipo_cuenta: nuevoCliente.tipoCuenta,
                         prepaid_allowance_cubic_feet: nuevoCliente.prepaidAllowanceCubicFeet ? Number(nuevoCliente.prepaidAllowanceCubicFeet) : 0,
+                        prepaid_rate_per_cubic_foot: nuevoCliente.prepaidRatePerCubicFoot ? Number(nuevoCliente.prepaidRatePerCubicFoot) : 18.5,
                       })
                       .eq("id", clienteEditandoId);
 
@@ -4724,6 +4733,7 @@ const App = () => {
                         puerto: nuevoCliente.puerto,
                         tipo_cuenta: nuevoCliente.tipoCuenta,
                         prepaid_allowance_cubic_feet: nuevoCliente.prepaidAllowanceCubicFeet ? Number(nuevoCliente.prepaidAllowanceCubicFeet) : 0,
+                        prepaid_rate_per_cubic_foot: nuevoCliente.prepaidRatePerCubicFoot ? Number(nuevoCliente.prepaidRatePerCubicFoot) : 18.5,
                         numero_cliente: siguienteNumero,
                       });
 
@@ -4814,12 +4824,6 @@ const App = () => {
                 </select>
               </div>
 
-              {clienteEditandoId && (() => {
-                const customer = clientes.find((item) => item.id === clienteEditandoId);
-                const source = customer?.heard_about_us;
-                return <div className="pa-field" style={{ padding: '.85rem', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '.65rem' }}><strong>How did you hear about us?</strong><span>{source ? (isReferralSource(source) ? REFERRAL_SOURCE_LABELS[source].en : source) : 'Not provided'}</span>{customer?.heard_about_us_details && <small style={{ color: '#475569' }}>{customer.heard_about_us_details}</small>}<small style={{ color: '#64748b' }}>Source recorded when the customer signed up.</small></div>;
-              })()}
-
               <div className="pa-field">
                 <label htmlFor="cliente-prepaid-allowance">Prepaid allowance (cubic ft)</label>
                 <input
@@ -4839,6 +4843,21 @@ const App = () => {
                     Used: {Number(clientes.find((cliente) => cliente.id === clienteEditandoId)?.prepaid_used_cubic_feet || 0).toFixed(2)} cubic ft. New allowance is added to the account record.
                   </small>
                 )}
+              </div>
+
+              <div className="pa-field">
+                <label htmlFor="cliente-prepaid-rate">Prepaid price per cubic foot (USD)</label>
+                <input
+                  id="cliente-prepaid-rate"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  className="pa-input"
+                  value={nuevoCliente.prepaidRatePerCubicFoot}
+                  onChange={(e) => setNuevoCliente((prev) => ({ ...prev, prepaidRatePerCubicFoot: e.target.value }))}
+                  placeholder="18.50"
+                />
+                <small style={{ color: '#64748b' }}>Current standard rate: $18.50/ft³. This field is editable for prepaid Developer / Builder accounts.</small>
               </div>
 
               <div className="pa-modal-actions">

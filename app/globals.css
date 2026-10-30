@@ -1,8 +1,3 @@
-@import "./admin-navigation.css";
-@import "./invoice-workspace.css";
-@import "./admin-leads.css";
-@import "./workspace-theme.css";
-
 * {
   box-sizing: border-box;
   margin: 0;
@@ -2054,15 +2049,15 @@ main {
 /* GESTIÓN DE ALMACÉN (GestionAlmacen) */
 .ga-page-wrapper {
   min-height: 100vh;
-  background: #2f6f9d;
+  background: #75a9cf;
 }
 
 .ga-nav {
   background: #2f6f9d;
   padding: 0.25rem 1.25rem 0;
-  border-bottom: 0;
   box-shadow: none;
 }
+
 .ga-nav-inner {
   max-width: 1440px;
   margin: 0 auto;
@@ -2073,37 +2068,93 @@ main {
   gap: 0.25rem 0.75rem;
   padding: 0.2rem 0 0.45rem;
 }
+
 .ga-compact-brand { display: inline-flex; flex: 0 0 auto; align-items: center; }
 .ga-compact-brand img { width: 320px; height: 80px; max-width: calc(100vw - 48px); object-fit: contain; }
-.ga-account-actions {
+.ga-account-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; margin-left: auto; gap: 0.5rem; }
+
+.ga-nav-brand {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  justify-content: flex-end;
-  margin-left: auto;
-  gap: 0.5rem;
+  gap: 0.75rem;
 }
+
+.ga-nav-logo {
+  width: 220px;
+  height: 96px;
+  border-radius: 0.65rem;
+  overflow: hidden;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ga-nav-logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  padding: 0.25rem 0.45rem;
+}
+
+.ga-nav-slogan {
+  display: block;
+  margin-top: 0.3rem;
+  color: #ffffff;
+  font-size: 1.15rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  text-shadow: 0 1px 2px rgba(15, 23, 42, 0.45);
+}
+
+.ga-nav-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
 .ga-lang-button {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  min-height: 32px;
-  padding: 0.25rem 0.4rem;
-  border: 0;
-  border-radius: 4px;
-  background: transparent;
-  color: #f8fafc;
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  background-color: rgba(15, 23, 42, 0.25);
+  color: #e5e7eb;
   font-size: 0.75rem;
   font-weight: 500;
   cursor: pointer;
 }
-.ga-lang-button span { letter-spacing: normal; }
-.ga-lang-button svg { width: 14px; height: 14px; }
-.ga-lang-button:hover { background: rgba(255, 255, 255, 0.12); color: #ffffff; }
+
+.ga-lang-button span {
+  letter-spacing: 0.06em;
+}
+
+.ga-lang-button svg {
+  width: 14px;
+  height: 14px;
+}
+
+.ga-lang-button:hover {
+  background-color: rgba(15, 23, 42, 0.4);
+}
+
+.ga-nav-title-main {
+  font-size: clamp(0.82rem, 1.45vw, 1.12rem);
+  font-weight: 900;
+  color: #ffffff;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  white-space: nowrap;
+  text-shadow: 0 1px 2px rgba(15, 23, 42, 0.45);
+}
+
 .ga-main {
-  max-width: 1440px;
+  max-width: 1360px;
   margin: 0 auto;
-  padding: 1rem 1.25rem 2rem;
+  padding: 1.75rem 2.5rem 2.5rem;
 }
 
 .ga-main-header {
@@ -2116,12 +2167,12 @@ main {
 .ga-page-title {
   font-size: 1.9rem;
   font-weight: 700;
-  color: #ffffff;
+  color: #0f172a;
 }
 
 .ga-page-subtitle {
   font-size: 0.9rem;
-  color: rgba(255, 255, 255, 0.86);
+  color: #64748b;
 }
 
 .ga-search-bar {
@@ -2152,89 +2203,66 @@ main {
   font-size: 0.9rem;
 }
 
-.ga-compact-navigation {
-  max-width: 1440px;
-  margin: 0 auto;
+.ga-stages-row {
   display: flex;
   flex-wrap: wrap;
-  justify-content: center;
-  gap: 0.2rem 0.5rem;
-  padding: 0.25rem 0 0.4rem;
-  background: #173f64;
-  border: 1px solid #163a5c;
-  border-radius: 4px;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
 }
-.ga-compact-navigation .ga-stage-chip,
-.ga-compact-navigation .ga-workspace-tab {
-  --tab-color: #475569;
-  --tab-tint: #f1f5f9;
-  --tab-border: #cbd5e1;
-  position: relative;
-  flex: 0 0 auto;
-  min-width: 74px;
-  min-height: 48px;
-  display: flex;
-  flex-direction: column;
+
+.ga-stage-chip {
+  border-radius: 999px;
+  border: 1px solid #e5e7eb;
+  background-color: #ffffff;
+  padding: 0.45rem 0.9rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+  color: #4b5563;
+  cursor: pointer;
+}
+
+.ga-stage-label {
+  border-bottom: 2px solid transparent;
+  padding-bottom: 1px;
+}
+
+.ga-stage-chip-active {
+  border-color: #e5e7eb;
+  box-shadow: none;
+  color: #4b5563;
+}
+
+.ga-stage-chip:hover .ga-stage-label,
+.ga-stage-chip-active .ga-stage-label {
+  border-bottom-color: var(--accent-green);
+}
+
+.ga-stage-icon {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.25rem;
-  padding: 0.35rem 0.6rem;
-  border: 0;
-  border-bottom: 2px solid transparent;
-  border-radius: 0;
-  background: #214b73;
-  color: #f8fafc;
+  margin-right: 0.25rem;
+  color: #111827;
+}
+
+.ga-stage-badge {
+  margin-left: 0.25rem;
   font-size: 0.75rem;
-  line-height: 1.2;
-  font-weight: 500;
-  text-align: center;
-  cursor: pointer;
-  transition: background 150ms ease, color 150ms ease;
-}
-.ga-compact-navigation .ga-stage-label { display: inline; border: 0; padding: 0; }
-.ga-compact-navigation .ga-stage-chip-active,
-.ga-compact-navigation .ga-workspace-tab-active {
-  background: var(--tab-color);
-  border-bottom-color: var(--tab-color);
-  color: #ffffff;
-  box-shadow: none;
-}
-.ga-compact-navigation .ga-stage-chip:hover,
-.ga-compact-navigation .ga-workspace-tab:hover { background: var(--tab-color); color: #ffffff; }
-.ga-compact-navigation button:focus-visible,
-.ga-account-actions button:focus-visible { outline: 2px solid #93c5fd; outline-offset: 2px; }
-.ga-compact-navigation .ga-stage-icon,
-.ga-compact-navigation .ga-workspace-tab > svg { color: currentColor; }
-.ga-stage-icon { display: inline-flex; align-items: center; justify-content: center; margin: 0; }
-.ga-compact-navigation svg { width: 16px; height: 16px; }
-.ga-compact-navigation .ga-stage-badge {
-  position: absolute;
-  top: 0;
-  right: 0;
-  display: inline;
-  margin: 0;
-  padding: 0 0.25rem;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.16);
-  font-size: 0.65rem;
-  color: currentColor;
-}
-.ga-compact-navigation .ga-stage-chip-active .ga-stage-badge,
-.ga-compact-navigation .ga-workspace-tab-active .ga-stage-badge {
-  background: transparent;
-  color: #ffffff;
+  color: #000000;
 }
 
 .ga-state-card {
   background-color: #ffffff;
-  border-radius: 0.75rem;
+  border-radius: 1.5rem;
   border: 1px solid #e5e7eb;
   box-shadow: 0 18px 40px rgba(148, 163, 184, 0.35);
   overflow: hidden;
 }
 
 .ga-state-card-header {
-  padding: 0.8rem 1rem;
+  padding: 1.1rem 1.5rem;
   border-bottom: 1px solid #e5e7eb;
 }
 
@@ -2889,7 +2917,7 @@ main {
 
 @media (max-width: 900px) {
   .ga-main {
-    padding: 0.85rem 0.75rem 1.5rem;
+    padding: 1.5rem 1.25rem 2rem;
   }
 
   .ga-main-header {
@@ -2898,10 +2926,23 @@ main {
     gap: 0.75rem;
   }
 
-  .ga-nav { padding-left: 0.5rem; padding-right: 0.5rem; }
-  .ga-compact-navigation { gap: 0.15rem; }
-  .ga-compact-navigation .ga-stage-chip,
-  .ga-compact-navigation .ga-workspace-tab { min-width: 70px; padding: 0.35rem 0.4rem; }
+  .ga-stages-row {
+    justify-content: space-between;
+  }
+
+  .ga-stage-chip {
+    padding: 0.35rem 0.6rem;
+    gap: 0.25rem;
+  }
+
+  .ga-stage-label {
+    display: none;
+  }
+
+  .ga-stage-badge {
+    font-size: 0.7rem;
+    display: none;
+  }
 
   .ga-measurements-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -3090,6 +3131,9 @@ main {
 }
 
 /* CLIENT 360 */
+.ga-workspace-tabs { display:flex; gap:.5rem; margin-bottom:1rem; border-bottom:1px solid #dbeafe; }
+.ga-workspace-tab { display:inline-flex; align-items:center; gap:.45rem; border:0; border-bottom:3px solid transparent; background:transparent; color:#64748b; padding:.7rem 1rem; font-weight:700; cursor:pointer; }
+.ga-workspace-tab-active { color:#1d4ed8; border-bottom-color:#22c55e; }
 .ga-client360 { background:#f8fafc; border:1px solid #e5e7eb; border-radius:1.5rem; padding:1.25rem; box-shadow:0 18px 40px rgba(148,163,184,.25); }
 .ga-client360-toolbar { display:flex; justify-content:space-between; align-items:center; gap:1rem; margin-bottom:1.25rem; }
 .ga-client360-toolbar h2 { margin:0; color:#0f172a; }
