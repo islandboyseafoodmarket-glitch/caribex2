@@ -18,6 +18,7 @@ export type WorkflowBillingResult = {
   tax: number;
   total: number;
   base: number;
+  handlingCharge: number;
   volumeFt3: number;
 };
 
@@ -69,7 +70,7 @@ export function calculateWorkflowBilling(input: WorkflowBillingInput): WorkflowB
   const subtotal = roundMoney(base + extrasAmount + handlingCharge);
   const tax = roundMoney(subtotal * HANDLING_FEE_RATE);
   const total = roundMoney(subtotal + tax);
-  return { subtotal, tax, total, base, volumeFt3 };
+  return { subtotal, tax, total, base, handlingCharge: roundMoney(handlingCharge), volumeFt3 };
 }
 
 export function isBox(input: WorkflowBillingInput) {

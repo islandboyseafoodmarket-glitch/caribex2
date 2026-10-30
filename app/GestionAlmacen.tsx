@@ -140,6 +140,12 @@ type Package = {
   billing_total?: number | null;
   approval_status?: string | null;
   invoice_status?: string | null;
+  invoice_sent_at?: string | null;
+  late_fee_applied?: boolean;
+  payment_method?: string | null;
+  payment_date?: string | null;
+  payment_reference?: string | null;
+  payment_notes?: string | null;
   issue_status?: "OPEN" | "RESOLVED" | null;
 };
 
@@ -525,6 +531,8 @@ export default function GestionAlmacen() {
   >([]);
 
   const [isQrModalOpen, setIsQrModalOpen] = useState(false);
+  const [pickupContainerFilter, setPickupContainerFilter] = useState("");
+  const [pickupCustomerNumber, setPickupCustomerNumber] = useState("");
   const [pickupScannerActive, setPickupScannerActive] = useState(false);
   const pickupScannerRef = useRef<Html5Qrcode | null>(null);
   const [qrPedido, setQrPedido] = useState<any | null>(null);
@@ -1511,6 +1519,22 @@ export default function GestionAlmacen() {
     setPendingDeleteInvoice(pkg);
   };
 
+  const handleApplyLateFee = async (pkg: { id: string; tracking: string }) => {
+    if (!window.confirm(isEs ? `¿Agregar un cargo único por mora del 5% a ${pkg.tracking}? Se requiere una factura enviada hace 30 días y saldo pendiente.` : `Apply a one-time 5% late fee to ${pkg.tracking}? Requires a verified send date at least 30 days ago and an outstanding balance.`)) return;
+    try {
+      const { data } = await supabase.auth.getSession();
+      const response = await fetch("/api/admin/invoice-late-fee", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${data.session?.access_token || ""}` },
+        body: JSON.stringify({ invoice_id: pkg.id }),
+      });
+      const payload = await response.json();
+      if (response.ok || payload.applied) await cargarPaquetes();
+      if (!response.ok) throw new Error(payload.error || "Could not apply late fee.");
+      alert(isEs ? "Cargo por mora registrado." : "Late fee recorded.");
+    } catch (error) { alert(error instanceof Error ? error.message : "Could not apply late fee."); }
+  };
+
   const confirmDeleteInvoice = async () => {
     if (!pendingDeleteInvoice) return;
 
@@ -1621,6 +1645,54 @@ export default function GestionAlmacen() {
     () => packagesByStage[activeStage] || [],
     [packagesByStage, activeStage],
   );
+
+  const pickupContainerOptions = useMemo(
+    () => Array.from(new Set(packagesByStage.PASTILLA.map((pkg) => pkg.containerCode?.trim()).filter((code): code is string => Boolean(code)))).sort((a, b) => a.localeCompare(b)),
+    [packagesByStage.PASTILLA],
+  );
+
+  const pickupPackagesByContainer = useMemo(() => {
+    if (!pickupContainerFilter) return [];
+    if (pickupContainerFilter === "ALL") return packagesByStage.PASTILLA;
+    if (pickupContainerFilter === "__NO_CONTAINER__") {
+      return packagesByStage.PASTILLA.filter((pkg) => !pkg.containerCode?.trim());
+    }
+    return packagesByStage.PASTILLA.filter((pkg) => pkg.containerCode?.trim() === pickupContainerFilter);
+  }, [packagesByStage.PASTILLA, pickupContainerFilter]);
+
+  const pickupCustomerOptions = useMemo(() => {
+    const options = new Map<string, { number: string; name: string; client: (typeof clients)[number] | null }>();
+    for (const pkg of pickupPackagesByContainer) {
+      const client = clients.find((item) =>
+        (pkg.numeroClienteId && item.id === pkg.numeroClienteId) ||
+        (pkg.numeroCliente != null && item.numero_cliente === pkg.numeroCliente),
+      ) || null;
+      const number = pkg.numeroCliente ?? client?.numero_cliente;
+      if (number == null) continue;
+      const key = String(number);
+      if (!options.has(key)) {
+        options.set(key, {
+          number: key,
+          name: client?.nombre || pkg.clienteNombre?.trim() || (isEs ? "Cliente sin nombre" : "Unnamed client"),
+          client,
+        });
+      }
+    }
+    return Array.from(options.values()).sort((a, b) => Number(a.number) - Number(b.number));
+  }, [clients, isEs, pickupPackagesByContainer]);
+
+  const pickupPackagesForDisplay = useMemo(() => {
+    if (!pickupContainerFilter) return [];
+    if (!pickupCustomerNumber) return pickupPackagesByContainer;
+    const selectedNumber = Number(pickupCustomerNumber);
+    const selectedCustomer = pickupCustomerOptions.find((customer) => customer.number === pickupCustomerNumber);
+    return pickupPackagesByContainer.filter((pkg) =>
+      pkg.numeroCliente === selectedNumber ||
+      Boolean(selectedCustomer?.client && pkg.numeroClienteId === selectedCustomer.client.id),
+    );
+  }, [pickupContainerFilter, pickupCustomerNumber, pickupCustomerOptions, pickupPackagesByContainer]);
+
+  const pickupSelectedCustomer = pickupCustomerOptions.find((customer) => customer.number === pickupCustomerNumber) || null;
 
   const stageCounts = useMemo(() => {
     return {
@@ -2107,12 +2179,21 @@ export default function GestionAlmacen() {
     const { data, error } = await supabase
       .from("paquetes_registro")
       .select(
-        "id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, notas_imagenes, registro, descargado, entregado_por, estado, hora_fecha, fecha_descargado, fecha_entregado, hora_entregado, numero_cliente_id, billing_subtotal, billing_tax, billing_total, approval_status, invoice_status, issue_status",
+        "id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, notas_imagenes, registro, descargado, entregado_por, estado, hora_fecha, fecha_descargado, fecha_entregado, hora_entregado, numero_cliente_id, billing_subtotal, billing_tax, billing_total, approval_status, invoice_status, invoice_sent_at, payment_method, payment_date, payment_reference, payment_notes, issue_status",
       )
       .order("creado_en", { ascending: false });
 
       if (!error && data) {
       const packageIds = (data as any[]).map((row) => row.id).filter(Boolean);
+      const { data: lateFeeCheckins } = packageIds.length
+        ? await supabase.from("paquetes_checkin").select("paquete_id, cargos_adicionales, creado_en").in("paquete_id", packageIds).order("creado_en", { ascending: false }).limit(10000)
+        : { data: [] };
+      const lateFeeByPackage = new Map<string, string>();
+      for (const checkin of lateFeeCheckins || []) {
+        if (!lateFeeByPackage.has(String(checkin.paquete_id))) {
+          lateFeeByPackage.set(String(checkin.paquete_id), String(checkin.cargos_adicionales || ""));
+        }
+      }
       const { data: containerLinks } = packageIds.length
         ? await supabase.from("contenedor_paquetes").select("paquete_id, contenedor_id").in("paquete_id", packageIds)
         : { data: [] };
@@ -2258,6 +2339,12 @@ export default function GestionAlmacen() {
           billing_total: row.billing_total ?? null,
           approval_status: row.approval_status ?? null,
           invoice_status: row.invoice_status ?? null,
+          invoice_sent_at: row.invoice_sent_at ?? null,
+          late_fee_applied: /late\s+fee\s*\(\s*5\s*%\s*\)/i.test(lateFeeByPackage.get(rowId) || ""),
+          payment_method: row.payment_method ?? null,
+          payment_date: row.payment_date ?? null,
+          payment_reference: row.payment_reference ?? null,
+          payment_notes: row.payment_notes ?? null,
           issue_status: row.issue_status ?? null,
         };
       });
@@ -3994,22 +4081,82 @@ const handlePackageCreated = (pkg: Package) => {
               }}
             />
           ) : activeStage === "PASTILLA" ? (
-            <PickupStage
-              isEs={isEs}
-              packages={visiblePackages as any}
-              onScanPickup={() => {
-                setIsPickupQrMode(false);
-                setIsQrModalOpen(true);
-                setPickupScannerActive(true);
-              }}
-              onView={handleViewPackage}
-              onEdit={(p) => {
-                console.log("Edit PASTILLA", p);
-              }}
-              onDelete={(p) => {
-                console.log("Delete PASTILLA", p);
-              }}
-            />
+            <>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "1rem", alignItems: "end", marginBottom: "1rem", padding: "1rem", border: "1px solid #dbe3ec", borderRadius: "0.75rem", background: "#fff" }}>
+                <label style={{ display: "grid", gap: "0.35rem", minWidth: 240, flex: "1 1 260px", fontWeight: 600 }}>
+                  {isEs ? "Filtrar retiros por contenedor" : "Filter pickups by container"}
+                  <select
+                    value={pickupContainerFilter}
+                    onChange={(event) => {
+                      setPickupContainerFilter(event.target.value);
+                      setPickupCustomerNumber("");
+                    }}
+                    style={{ minHeight: 40, padding: "0.5rem", border: "1px solid #cbd5e1", borderRadius: "0.5rem", background: "white" }}
+                    aria-label={isEs ? "Contenedor de retiro" : "Pickup container"}
+                  >
+                    <option value="">{isEs ? "Seleccione un contenedor…" : "Select a container…"}</option>
+                    {pickupContainerOptions.map((code) => (
+                      <option key={code} value={code}>{code}</option>
+                    ))}
+                    {packagesByStage.PASTILLA.some((pkg) => !pkg.containerCode?.trim()) && (
+                      <option value="__NO_CONTAINER__">{isEs ? "Sin contenedor" : "No container"}</option>
+                    )}
+                    <option value="ALL">{isEs ? "Todos los contenedores" : "All containers"}</option>
+                  </select>
+                </label>
+                <label style={{ display: "grid", gap: "0.35rem", minWidth: 240, flex: "1 1 260px", fontWeight: 600 }}>
+                  {isEs ? "Número de cliente (opcional)" : "Customer number (optional)"}
+                  <select
+                    value={pickupCustomerNumber}
+                    onChange={(event) => setPickupCustomerNumber(event.target.value)}
+                    disabled={!pickupContainerFilter || pickupCustomerOptions.length === 0}
+                    style={{ minHeight: 40, padding: "0.5rem", border: "1px solid #cbd5e1", borderRadius: "0.5rem", background: "white" }}
+                    aria-label={isEs ? "Seleccionar número de cliente" : "Select customer number"}
+                  >
+                    <option value="">{isEs ? "Todos los clientes" : "All customers"}</option>
+                    {pickupCustomerOptions.map((customer) => (
+                      <option key={customer.number} value={customer.number}>
+                        {customer.number} — {customer.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {!pickupContainerFilter && (
+                  <p style={{ margin: 0, flex: "1 1 100%", color: "#475569" }}>
+                    {isEs ? "Seleccione un contenedor o elija «Todos los contenedores» para ver los retiros." : "Select a container or choose “All containers” to view pickups."}
+                  </p>
+                )}
+              </div>
+              {pickupSelectedCustomer && (
+                <section aria-label={isEs ? "Detalles del cliente seleccionado" : "Selected customer details"} style={{ marginBottom: "1rem", padding: "1rem", border: "1px solid #bfdbfe", borderRadius: "0.75rem", background: "#eff6ff" }}>
+                  <h3 style={{ margin: "0 0 0.75rem", fontSize: "1rem" }}>{isEs ? "Detalles del cliente seleccionado" : "Selected customer details"}</h3>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "0.5rem 1rem" }}>
+                    <div><strong>{isEs ? "Nombre" : "Name"}:</strong> {pickupSelectedCustomer.client?.nombre || pickupSelectedCustomer.name || "-"}</div>
+                    <div><strong>{isEs ? "Número de cliente" : "Customer number"}:</strong> {pickupSelectedCustomer.client?.numero_cliente ?? pickupSelectedCustomer.number}</div>
+                    <div><strong>Email:</strong> {pickupSelectedCustomer.client?.email || "-"}</div>
+                    <div><strong>{isEs ? "Teléfono" : "Phone"}:</strong> {pickupSelectedCustomer.client?.telefono || "-"}</div>
+                    <div><strong>{isEs ? "Puerto" : "Port"}:</strong> {formatPortName(pickupSelectedCustomer.client?.puerto, "-")}</div>
+                    <div><strong>{isEs ? "Tipo de cuenta" : "Account type"}:</strong> {pickupSelectedCustomer.client?.tipo_cuenta || "-"}</div>
+                  </div>
+                </section>
+              )}
+              <PickupStage
+                isEs={isEs}
+                packages={pickupPackagesForDisplay as any}
+                onScanPickup={() => {
+                  setIsPickupQrMode(false);
+                  setIsQrModalOpen(true);
+                  setPickupScannerActive(true);
+                }}
+                onView={handleViewPackage}
+                onEdit={(p) => {
+                  console.log("Edit PASTILLA", p);
+                }}
+                onDelete={(p) => {
+                  console.log("Delete PASTILLA", p);
+                }}
+              />
+            </>
           ) : activeStage === "FACTURAS" ? (
             <InvoicesStage
               isEs={isEs}
@@ -4022,6 +4169,8 @@ const handlePackageCreated = (pkg: Package) => {
               onChangeInvoiceStatus={handleChangeInvoiceStatus as any}
               onDeleteInvoice={isAdmin ? (handleDeleteInvoice as any) : undefined}
               onCreateManualInvoice={handleCreateManualInvoice}
+              canReversePayments={isAdmin}
+              onApplyLateFee={canEditInvoiceAddOns ? handleApplyLateFee : undefined}
             />
           ) : null}
         </section>}

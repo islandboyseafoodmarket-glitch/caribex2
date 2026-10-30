@@ -221,3 +221,35 @@
     width: 100%;
   }
 }
+
+/* Restore the earlier solid-blue Admin canvas with transparent surrounding surfaces. */
+.dashboard-root .page-header,
+.dashboard-root .data-card {
+  background: transparent !important;
+  box-shadow: none !important;
+  border-color: transparent !important;
+}
+
+.dashboard-root .page-header {
+  margin-bottom: 12px;
+  padding: 12px 0;
+}
+
+.dashboard-root .data-card {
+  padding: 14px 0 28px;
+  border-radius: 0;
+}
+
+.dashboard-root .data-card--invoices {
+  padding: 14px 0 28px;
+}
+
+@media (max-width: 899px) {
+  .dashboard-root .page-header {
+    padding: 10px 0;
+  }
+
+  .dashboard-root .data-card {
+    margin-left: 0;
+  }
+}

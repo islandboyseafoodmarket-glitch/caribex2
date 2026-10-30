@@ -9,6 +9,7 @@ import { Pencil, Trash2, Unlock, LogOut, Image as ImageIcon, Check, AlertCircle,
 import FerryManifestAdmin from "./FerryManifestAdmin";
 import Client360Admin from "./Client360Admin";
 import PaymentsAdmin, { type PaymentBalance } from "./PaymentsAdmin";
+import ExpensesAdmin from "./ExpensesAdmin";
 import InvoiceStatusTabs from "../../components/InvoiceStatusTabs";
 import PaymentLedgerDialog from "../../components/PaymentLedgerDialog";
 import type { PaymentSummary } from "../../lib/payment-ledger";
@@ -186,7 +187,7 @@ const formatPickupContainerLabel = (value: string) => {
 const App = () => {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<
-    'personal' | 'clientes' | 'prepaid' | 'client360' | 'pedidos' | 'track' | 'incidencias' | 'facturas' | 'finanzas' | 'leads' | 'portal' | 'ferry' | 'containers' | 'labels' | 'reports' | 'activityLogs'
+    'personal' | 'clientes' | 'prepaid' | 'client360' | 'pedidos' | 'track' | 'incidencias' | 'facturas' | 'finanzas' | 'expenses' | 'leads' | 'portal' | 'ferry' | 'containers' | 'labels' | 'reports' | 'activityLogs'
   >('personal');
   const [incidenciaFiltro, setIncidenciaFiltro] = useState('');
 
@@ -266,6 +267,8 @@ const App = () => {
     total: number | null;
     approval_status: string | null;
     invoice_status: string | null;
+    invoice_sent_at: string | null;
+    late_fee_applied: boolean;
     notas: string | null;
     problema?: boolean | null;
     problema_notas?: string | null;
@@ -1267,6 +1270,7 @@ const App = () => {
       .from("staff_action_logs")
       .select("entity_id, created_at")
       .eq("entity_type", "paquetes_registro")
+      .eq("action", "package_scanned")
       .in("entity_id", notLoaded)
       .order("created_at", { ascending: false })
       .limit(5000);
@@ -1295,7 +1299,7 @@ const App = () => {
     const { data, error } = await supabase
       .from("paquetes_registro")
       .select(
-        "id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, notas_imagenes, issue_status, billing_subtotal, billing_tax, billing_total, approval_status, invoice_status, payment_method, payment_notes, payment_reference, payment_date, customer_invoice_note, cubic_feet, prepaid_review_required, prepaid_review_status, creado_en, numero_cliente:numero_cliente_id (id, numero_cliente, nombre, email, puerto)",
+        "id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, notas_imagenes, issue_status, billing_subtotal, billing_tax, billing_total, approval_status, invoice_status, invoice_sent_at, payment_method, payment_notes, payment_reference, payment_date, customer_invoice_note, cubic_feet, prepaid_review_required, prepaid_review_status, creado_en, numero_cliente:numero_cliente_id (id, numero_cliente, nombre, email, puerto)",
       )
       .or("estado.ilike.%descargado%,estado.ilike.%entregado%")
       .order("creado_en", { ascending: false });
@@ -1311,7 +1315,7 @@ const App = () => {
         ? await Promise.all([
             supabase.from("contenedor_paquetes").select("paquete_id, contenedor_id").in("paquete_id", packageIds),
             supabase.from("contenedores").select("id, codigo"),
-            supabase.from("paquetes_checkin").select("paquete_id, problema, problema_notas, creado_en").in("paquete_id", packageIds).order("creado_en", { ascending: false }),
+            supabase.from("paquetes_checkin").select("paquete_id, problema, problema_notas, cargos_adicionales, creado_en").in("paquete_id", packageIds).order("creado_en", { ascending: false }),
           ])
         : [{ data: [] }, { data: [] }, { data: [] }];
       const containerById = new Map((containers || []).map((container: any) => [container.id, container.codigo]));
@@ -1322,7 +1326,7 @@ const App = () => {
         current.labels.push(containerById.get(link.contenedor_id) || link.contenedor_id);
         containersByPackage.set(link.paquete_id, current);
       });
-      const checkinByPackage = new Map<string, { problema?: boolean | null; problema_notas?: string | null }>();
+      const checkinByPackage = new Map<string, { problema?: boolean | null; problema_notas?: string | null; cargos_adicionales?: string | null }>();
       (checkins || []).forEach((checkin: any) => {
         if (!checkinByPackage.has(checkin.paquete_id)) {
           checkinByPackage.set(checkin.paquete_id, checkin);
@@ -1344,6 +1348,8 @@ const App = () => {
         total: (row.billing_total as number | null) ?? null,
         approval_status: (row.approval_status as string | null) ?? null,
         invoice_status: (row.invoice_status as string | null) ?? null,
+        invoice_sent_at: (row.invoice_sent_at as string | null) ?? null,
+        late_fee_applied: /late\s+fee\s*\(\s*5\s*%\s*\)/i.test(String(checkinByPackage.get(row.id)?.cargos_adicionales || "")),
         notas: (row.notas as string | null) ?? null,
         problema: Boolean(checkinByPackage.get(row.id)?.problema),
         problema_notas: (checkinByPackage.get(row.id)?.problema_notas as string | null) ?? null,
@@ -1690,6 +1696,22 @@ const App = () => {
     setPaymentDialogInvoice(factura);
   };
 
+  const handleApplyLateFee = async (invoice: Factura) => {
+    if (!window.confirm(`Apply a one-time 5% late fee to ${invoice.tracking}? Requires a verified send date at least 30 days ago and an outstanding balance.`)) return;
+    try {
+      const { data } = await supabase.auth.getSession();
+      const response = await fetch("/api/admin/invoice-late-fee", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${data.session?.access_token || ""}` },
+        body: JSON.stringify({ invoice_id: invoice.id }),
+      });
+      const payload = await response.json();
+      if (response.ok || payload.applied) { await cargarFacturas(); setPaymentReload((current) => current + 1); }
+      if (!response.ok) throw new Error(payload.error || "Could not apply late fee.");
+      alert("Late fee recorded.");
+    } catch (error) { alert(error instanceof Error ? error.message : "Could not apply late fee."); }
+  };
+
   const handlePaymentChanged = (summary: PaymentSummary) => {
     setPaymentBalances((current) => ({ ...current, [summary.invoice_id]: { paid: Number(summary.paid), balance: Number(summary.balance) } }));
     updateFacturaEnEstado(summary.invoice_id, { invoice_status: summary.invoice_status });
@@ -1745,21 +1767,35 @@ const App = () => {
     if (!window.confirm("¿Eliminar este cliente y todos sus pedidos?")) return;
 
     try {
-      await supabase.from("paquetes_checkin").delete().eq("numero_cliente_id", clienteId);
-      await supabase.from("paquetes_registro").delete().eq("numero_cliente_id", clienteId);
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+      if (sessionError || !token) {
+        alert(sessionError?.message || "La sesión de Administrador expiró. Inicia sesión nuevamente.");
+        return;
+      }
 
-      const { error } = await supabase
-        .from("numero_cliente")
-        .delete()
-        .eq("id", clienteId);
-
-      if (error) {
-        alert(error.message || "No se pudo eliminar el cliente");
+      const response = await fetch("/api/admin/customer-delete", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ customer_id: clienteId }),
+      });
+      let payload: { error?: string; warning?: string } = {};
+      try {
+        payload = await response.json();
+      } catch {
+        payload = {};
+      }
+      if (!response.ok) {
+        alert(payload.error || "No se pudo eliminar el cliente. Ningún resultado se confirmó como exitoso.");
         return;
       }
 
       await cargarClientes();
       await cargarPedidos();
+      if (payload.warning) alert(payload.warning);
     } catch (err: any) {
       alert(err?.message || "Error de red al eliminar el cliente");
     }
@@ -2314,6 +2350,7 @@ const App = () => {
             <div className="admin-nav-buttons">
               <button type="button" className={`admin-horizontal-tab admin-horizontal-tab--billing ${activeTab === 'facturas' ? 'active' : ''}`} style={selectedNavStyle(activeTab === 'facturas', 'billing')} aria-current={activeTab === 'facturas' ? 'page' : undefined} onClick={() => setActiveTab('facturas')}><Receipt /><span>Invoices</span><span className="count-badge">{facturasCount}</span></button>
               <button type="button" className={`admin-horizontal-tab admin-horizontal-tab--billing ${activeTab === 'finanzas' ? 'active' : ''}`} style={selectedNavStyle(activeTab === 'finanzas', 'billing')} aria-current={activeTab === 'finanzas' ? 'page' : undefined} onClick={() => setActiveTab('finanzas')}><DollarSign /><span>Payments</span></button>
+              <button type="button" className={`admin-horizontal-tab admin-horizontal-tab--billing ${activeTab === 'expenses' ? 'active' : ''}`} style={selectedNavStyle(activeTab === 'expenses', 'billing')} aria-current={activeTab === 'expenses' ? 'page' : undefined} onClick={() => setActiveTab('expenses')}><DollarSign /><span>Expenses</span></button>
               <button type="button" className={`admin-horizontal-tab admin-horizontal-tab--billing ${activeTab === 'containers' ? 'active' : ''}`} style={selectedNavStyle(activeTab === 'containers', 'billing')} aria-current={activeTab === 'containers' ? 'page' : undefined} onClick={() => setActiveTab('containers')}><Container /><span>Containers</span></button>
             </div>
           </section>
@@ -2352,6 +2389,8 @@ const App = () => {
                       ? 'Panel de Facturas'
                       : activeTab === 'finanzas'
                         ? 'Payments'
+                      : activeTab === 'expenses'
+                        ? 'Expenses'
                       : activeTab === 'leads'
                         ? 'Customer leads'
                       : activeTab === 'portal'
@@ -2385,6 +2424,8 @@ const App = () => {
                         ? `${facturasFiltradas.length} registro${facturasFiltradas.length === 1 ? '' : 's'} en esta categoría`
                       : activeTab === 'finanzas'
                         ? `${financeRows.length} invoices across all ports — switch Owing only to show outstanding bills`
+                      : activeTab === 'expenses'
+                        ? 'Record, review, and void operating expenses'
                       : activeTab === 'leads'
                         ? `${leads.length} leads received from the website`
                       : activeTab === 'portal'
@@ -2525,9 +2566,17 @@ const App = () => {
             ports={financePorts}
             containers={invoiceContainerOptions}
             onRecordPayment={openConfirmPayInvoice}
+            onApplyLateFee={(invoice) => void handleApplyLateFee(invoice)}
             onViewPaymentHistory={(invoice) => { setPaymentDialogMode("history"); setPaymentDialogInvoice(invoice); }}
+            onEditInvoice={(invoice) => {
+              const record = facturas.find((candidate) => candidate.id === invoice.id);
+              if (record) void handleAdminEditInvoiceAddOns(record);
+              else alert("Invoice details are no longer available. Refresh the invoice list and try again.");
+            }}
           />
         </div>}
+
+        {activeTab === 'expenses' && <ExpensesAdmin />}
 
         {activeTab === 'activityLogs' && <div style={{ width: '100%' }}>
           <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap', marginBottom: '1rem' }}>
@@ -3734,6 +3783,9 @@ const App = () => {
               const payment = String(pedidoDetalle.invoice_status || "").toUpperCase();
               const invoiceApproval = String(pedidoDetalle.approval_status || "").toUpperCase();
               const activity = Array.isArray(pedidoDetalle.activity) ? pedidoDetalle.activity : [];
+              const latestScan = activity
+                .filter((event: any) => String(event.action || "").toLowerCase() === "package_scanned")
+                .sort((a: any, b: any) => Date.parse(b.created_at || "") - Date.parse(a.created_at || ""))[0]?.created_at;
               const children = Array.isArray(pedidoDetalle.consolidates) ? pedidoDetalle.consolidates : [];
               const containers = Array.isArray(pedidoDetalle.contenedores) ? pedidoDetalle.contenedores : [];
               const pickupSignatures = Array.isArray(pedidoDetalle.pickupSignatures) ? pedidoDetalle.pickupSignatures : [];
@@ -3781,7 +3833,7 @@ const App = () => {
                   {detailRow("Container", containers.map((container: any) => container.codigo || container.id).join(", ") || "Not assigned", "container")}
                   {detailRow("Invoice", <span>Invoice <strong style={{ color: invoiceApproval === "APPROVED" ? "#166534" : "#64748b" }}>{invoiceApproval || "PENDING"}</strong> <span style={{ marginLeft: "0.7rem" }}>Payment: <strong style={{ color: payment === "PAID" ? "#166534" : "#b45309" }}>{payment || "UNPAID"}</strong></span></span>, "invoice")}
                   {detailRow("Received", formatStaffDateTime(pedidoDetalle.hora_fecha || pedidoDetalle.creado_en), "received")}
-                  {detailRow("Last scanned", formatStaffDateTime(activity[activity.length - 1]?.created_at || pedidoDetalle.updated_at || pedidoDetalle.hora_fecha), "scanned")}
+                  {detailRow("Last scanned", latestScan ? formatStaffDateTime(latestScan) : "—", "scanned")}
                 </div>
                 {problemPhotos.length > 0 && <section style={{ borderTop: "1px solid #e2e8f0", paddingTop: "0.75rem", marginTop: "0.25rem" }}>
                   <h4 style={{ margin: 0, fontSize: "1rem", color: "#1e293b" }}>Problem photos ({problemPhotos.length})</h4>

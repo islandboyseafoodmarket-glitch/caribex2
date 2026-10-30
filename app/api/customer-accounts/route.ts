@@ -151,6 +151,16 @@ export async function POST(request: Request) {
       },
     });
     if (authError || !authData.user) {
+      if (authError && /already registered|already exists|user.*exist|duplicate key|email.*already/i.test(authError.message || "")) {
+        return NextResponse.json(
+          {
+            error:
+              "This email already has an Auth login that is not linked to this customer record. Do not reset or take over that login from signup; use the existing Customer Portal login/recovery flow or have an Administrator review the email.",
+            code: "AUTH_EMAIL_ALREADY_EXISTS",
+          },
+          { status: 409 },
+        );
+      }
       throw authError || new Error("Could not create customer login");
     }
 

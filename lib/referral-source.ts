@@ -25,5 +25,5 @@ export function isReferralSource(value: string): value is ReferralSource {
 }
 
 export function referralSourceNeedsDetails(value: string): boolean {
-  return value === "referred_customer" || value === "other";
+  return value === "friend_family" || value === "referred_customer" || value === "other";
 }

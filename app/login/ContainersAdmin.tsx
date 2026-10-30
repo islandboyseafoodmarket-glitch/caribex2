@@ -177,7 +177,30 @@ export default function ContainersAdmin() {
         .container-invoice-total-row { display: flex; justify-content: space-between; gap: 16px; }
         .container-invoice-total-row.final { border-top: 2px solid #0f4c81; padding-top: 8px; color: #0f4c81; font-size: 1.1rem; font-weight: 900; }
         @media (max-width: 800px) { .container-dashboard-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-        @media print { @page { size: landscape; margin: 9mm; } body { print-color-adjust: exact; -webkit-print-color-adjust: exact; } body * { visibility: hidden !important; } .container-dashboard, .container-dashboard *, .container-invoice-modal, .container-invoice-modal * { visibility: visible !important; } .container-dashboard { position: static; width: 100%; color: #0f172a; font-family: Arial, sans-serif; } .container-dashboard-toolbar, .container-dashboard-metrics, .container-dashboard-locations, .container-dashboard-filter, .container-invoice-close { display: none !important; } .container-dashboard-scroll { max-height: none; overflow: visible; padding-right: 0; } .container-dashboard-table { overflow: visible; border: 0; } .container-dashboard-table table { width: 100%; min-width: 0; table-layout: auto; font-size: 16px; } .container-dashboard-table th { background: #0f304b !important; color: #fff !important; padding: 9px 7px; white-space: normal; font-size: 16px; } .container-dashboard-table td { padding: 9px 7px; border-bottom: 1px solid #94a3b8; font-size: 16px; } .container-dashboard-total-card { width: 420px; font-size: 16px; } .container-dashboard-total-card span, .container-dashboard-total-card strong { font-size: 16px; } .container-dashboard-grand-total, .container-dashboard-grand-total strong { font-size: 18px; } .container-customer-button { color: inherit; text-decoration: none; } .container-invoice-backdrop { position: static; padding: 0; background: #fff; } .container-invoice-modal { width: 100%; max-height: none; overflow: visible; box-shadow: none; } }
+        @media print {
+          @page { size: letter landscape; margin: 10mm; }
+          html, body { width: 100%; margin: 0 !important; background: #fff !important; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+          body * { visibility: hidden !important; }
+          .container-dashboard, .container-dashboard * { visibility: visible !important; }
+          .container-invoice-backdrop { display: none !important; }
+          .container-dashboard-toolbar, .container-dashboard-metrics, .container-dashboard-locations { display: none !important; }
+          .container-dashboard { display: block; position: static; width: 100%; margin: 0; padding: 0; color: #0f172a; font-family: Arial, sans-serif; }
+          .container-dashboard-scroll { max-height: none; min-height: 0; overflow: visible; padding: 0; }
+          .container-dashboard-scroll > div:first-child { margin: 0 0 8pt; font-size: 9pt; }
+          .container-dashboard-table { overflow: visible; border: 0; border-radius: 0; }
+          .container-dashboard-table table { width: 100%; min-width: 0; table-layout: fixed; border-collapse: collapse; font-size: 8pt; line-height: 1.2; }
+          .container-dashboard-table thead { display: table-header-group; }
+          .container-dashboard-table tr { break-inside: avoid; page-break-inside: avoid; }
+          .container-dashboard-table th, .container-dashboard-table td { box-sizing: border-box; padding: 4pt 3pt; border-bottom: 0.5pt solid #94a3b8; text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+          .container-dashboard-table th { background: #0f304b !important; color: #fff !important; font-size: 7pt; line-height: 1.15; text-transform: uppercase; }
+          .container-dashboard-table td { font-size: 8pt; }
+          .container-dashboard-table tr:last-child td { border-bottom: 0.5pt solid #94a3b8; }
+          .container-dashboard-total-card { box-sizing: border-box; width: 260pt; margin: 8pt 0 0 auto; padding: 8pt 10pt; border-radius: 0; font-size: 9pt; break-inside: avoid; page-break-inside: avoid; }
+          .container-dashboard-total-card > div { gap: 10pt; }
+          .container-dashboard-total-card span, .container-dashboard-total-card strong { font-size: 9pt; }
+          .container-dashboard-grand-total, .container-dashboard-grand-total strong { font-size: 10pt; }
+          .container-customer-button { color: inherit; text-decoration: none; }
+        }
       `}</style>
       <div className="container-dashboard-toolbar">
         <select value={selectedId} onChange={(event) => setSelectedId(event.target.value)} aria-label="Select container">
@@ -198,6 +221,7 @@ export default function ContainersAdmin() {
         <div className="container-dashboard-locations">{locationSummary.map(([location, count]) => <span className="container-location-chip" key={location}>{location}: {count}</span>)}</div>
         <div className="container-dashboard-table">
           <table>
+            <colgroup><col style={{ width: "8%" }} /><col style={{ width: "13%" }} /><col style={{ width: "7%" }} /><col style={{ width: "13%" }} /><col style={{ width: "14%" }} /><col style={{ width: "7%" }} /><col style={{ width: "9%" }} /><col style={{ width: "7%" }} /><col style={{ width: "17%" }} /><col style={{ width: "5%" }} /></colgroup>
             <thead><tr><th>Location</th><th>Name</th><th>Customer ID</th><th>Tracking Number</th><th>Item</th><th>Item Cost</th><th>Additional Charges</th><th>Total Cost</th><th>Consolidates</th><th>Pkgs</th></tr></thead>
             <tbody>{groupedShipments.flatMap((group) => group.map((shipment, index) => {
               const additional = additionalChargeTotal(shipment.checkin?.cargos_adicionales);

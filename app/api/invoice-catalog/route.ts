@@ -207,7 +207,12 @@ async function updateInvoiceDiscount(
     if (removableEntries.length > 0) {
       return NextResponse.json({ error: "Remove the current discount before applying a different one" }, { status: 409 });
     }
-    let eligibleSubtotal = currentSubtotal;
+    const consolidationAmount = roundMoney(priorCharges.reduce((sum, label) => {
+      const parsed = parseInvoiceChargeLine(label);
+      return /consolidat/i.test(parsed.description) ? sum + Math.max(0, parsed.amount) : sum;
+    }, 0));
+    const handlingAmount = roundMoney(workflow?.handlingCharge || 0);
+    let eligibleSubtotal = Math.max(0, currentSubtotal - consolidationAmount - handlingAmount);
     if (INVOICE_DISCOUNTS[code!].scope === "shipping") {
       if (!workflow) return NextResponse.json({ error: "Shipping charges could not be calculated for this shipment" }, { status: 409 });
       const merchandiseAmount = priorCharges.reduce((sum, label) => {
@@ -217,7 +222,7 @@ async function updateInvoiceDiscount(
         return sum + (isMerchandise ? parsed.amount : 0);
       }, 0);
       const unexplainedInvoiceAmount = currentSubtotal - workflow.subtotal;
-      eligibleSubtotal = Math.min(currentSubtotal, Math.max(0, workflow.subtotal - merchandiseAmount + Math.max(0, unexplainedInvoiceAmount)));
+      eligibleSubtotal = Math.min(eligibleSubtotal, Math.max(0, workflow.subtotal - merchandiseAmount - consolidationAmount - handlingAmount + Math.max(0, unexplainedInvoiceAmount)));
     }
     discountAmount = roundMoney(Math.min(currentSubtotal, eligibleSubtotal) * INVOICE_DISCOUNT_RATE);
     if (discountAmount <= 0) return NextResponse.json({ error: "This invoice has no eligible amount for the selected discount" }, { status: 409 });

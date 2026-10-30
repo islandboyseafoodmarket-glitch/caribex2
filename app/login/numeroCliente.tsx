@@ -9,6 +9,7 @@ import {
   REFERRAL_SOURCE_VALUES,
   referralSourceNeedsDetails,
 } from "../../lib/referral-source";
+import PhoneCountryField from "../../components/PhoneCountryField";
 
 /**
  * App Component
@@ -60,7 +61,10 @@ export default function App() {
 
     setFormData(prev => ({
       ...prev,
-      [name]: isCheckbox ? checked : value
+      [name]: isCheckbox ? checked : value,
+      ...(name === "heardAboutUs" && !referralSourceNeedsDetails(value)
+        ? { heardAboutUsDetails: "" }
+        : {}),
     }));
   };
 
@@ -209,14 +213,13 @@ export default function App() {
             </div>
 
             <div className="form-group">
-              <label>{isEn ? "PHONE NUMBER *" : "NÚMERO DE TELÉFONO *"}</label>
-              <input
-                type="tel"
+              <PhoneCountryField
                 name="telefono"
-                placeholder={isEn ? "(555) 123-4567" : "(555) 123-4567"}
-                value={formData.telefono}
-                onChange={handleChange}
+                label={isEn ? "PHONE NUMBER" : "NÚMERO DE TELÉFONO"}
                 required
+                isEn={isEn}
+                value={formData.telefono}
+                onChange={(telefono) => setFormData((prev) => ({ ...prev, telefono }))}
               />
             </div>
 
@@ -308,9 +311,13 @@ export default function App() {
                 {referralSourceNeedsDetails(formData.heardAboutUs) && (
                   <div className="form-group full-width">
                     <label htmlFor="heard-about-us-details">
-                      {isEn
-                        ? "Referral name or other detail (optional)"
-                        : "Nombre de referencia u otro detalle (opcional)"}
+                      {formData.heardAboutUs === "friend_family"
+                        ? (isEn
+                          ? "Friend or family member's name (optional)"
+                          : "Nombre del amigo o familiar (opcional)")
+                        : (isEn
+                          ? "Referral name or other detail (optional)"
+                          : "Nombre de referencia u otro detalle (opcional)")}
                     </label>
                     <input
                       id="heard-about-us-details"
@@ -319,7 +326,9 @@ export default function App() {
                       value={formData.heardAboutUsDetails}
                       onChange={handleChange}
                       maxLength={180}
-                      placeholder={isEn ? "Optional — up to 180 characters" : "Opcional — hasta 180 caracteres"}
+                      placeholder={formData.heardAboutUs === "friend_family"
+                        ? (isEn ? "Optional — enter their name" : "Opcional — escriba su nombre")
+                        : (isEn ? "Optional — up to 180 characters" : "Opcional — hasta 180 caracteres")}
                     />
                   </div>
                 )}
@@ -354,7 +363,7 @@ export default function App() {
                 style={{
                   maxHeight: "60vh",
                   overflowY: "auto",
-                  fontSize: "0.85rem",
+                  fontSize: "1rem",
                   lineHeight: 1.5,
                   whiteSpace: "pre-line",
                   padding: "12px 16px",
@@ -484,7 +493,7 @@ For questions about these Terms of Service or to report violations, please conta
                   backgroundColor: "#2563eb",
                   color: "#ffffff",
                   border: "none",
-                  fontSize: "0.9rem",
+                  fontSize: "1rem",
                   fontWeight: 500,
                   cursor: "pointer",
                 }}
@@ -510,12 +519,13 @@ For questions about these Terms of Service or to report violations, please conta
 
         body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: var(--bg-light); color: var(--text-dark); }
         .container { display: flex; justify-content: center; align-items: flex-start; min-height: 100vh; padding: 24px 24px 32px; }
-        .registration-card { background: white; width: 100%; max-width: 760px; border-radius: 12px; border: 2px solid #003366; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+        .registration-card { background: white; width: 100%; max-width: 760px; border-radius: 12px; border: 2px solid #003366; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); font-size: 1rem; }
         .header { padding: 40px 20px 20px; text-align: center; border-bottom: 1px solid #f1f5f9; }
         .main-title { margin: 0; font-size: 28px; font-weight: 800; }
         .sub-title { color: var(--text-muted); font-size: 16px; margin: 5px 0 0; }
 
         .content { padding: 24px 32px 8px; }
+        .section-intro h2, .section-intro p { font-size: 1rem; }
 
         .registration-form {
           display: grid;
@@ -528,11 +538,11 @@ For questions about these Terms of Service or to report violations, please conta
         }
 
         .form-group { margin-bottom: 0; }
-        .form-group label { display: block; font-size: 11px; font-weight: 800; color: #475569; margin-bottom: 8px; letter-spacing: 0.05em; }
+        .form-group label { display: block; font-size: 1rem; font-weight: 800; color: #475569; margin-bottom: 8px; letter-spacing: 0.05em; }
         
-        input, select { width: 100%; padding: 12px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 14px; box-sizing: border-box; }
+        .registration-card input, .registration-card select, .registration-card select option { width: 100%; padding: 12px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 1rem; box-sizing: border-box; }
         .input-with-button { display: flex; gap: 10px; }
-        .inline-btn { background: #f8fafc; border: 1px solid var(--border-color); border-radius: 8px; padding: 0 20px; color: var(--text-muted); cursor: pointer; font-size: 13px; }
+        .inline-btn { background: #f8fafc; border: 1px solid var(--border-color); border-radius: 8px; padding: 0 20px; color: var(--text-muted); cursor: pointer; font-size: 1rem; }
 
         .terms-container {
           display: flex;
@@ -544,18 +554,19 @@ For questions about these Terms of Service or to report violations, please conta
           margin-top: 4px;
         }
 
-        .terms-label p { margin: 4px 0 0; font-size: 12px; color: #64748b; }
+        .terms-label, .terms-label p, .form-help-text { font-size: 1rem; }
+        .terms-label p { margin: 4px 0 0; color: #64748b; }
 
-        .link-btn { background: none; border: none; color: var(--primary-blue); font-weight: bold; cursor: pointer; padding: 0; text-decoration: underline; font-size: 13px; display: inline-block; margin-top: 4px; }
+        .link-btn { background: none; border: none; color: var(--primary-blue); font-weight: bold; cursor: pointer; padding: 0; text-decoration: underline; font-size: 1rem; display: inline-block; margin-top: 4px; }
         
         .form-actions { margin-top: 0; margin-bottom: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
-        .submit-btn { width: 100%; background: var(--indigo-btn); color: white; border: none; padding: 12px; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; }
+        .submit-btn { width: 100%; background: var(--indigo-btn); color: white; border: none; padding: 12px; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; }
 
         .back-button {
           background: #eef2ff;
           border: 1px solid #c7d2fe;
           color: var(--primary-blue);
-          font-size: 13px;
+          font-size: 1rem;
           font-weight: 500;
           cursor: pointer;
           padding: 8px 16px;
@@ -601,14 +612,14 @@ For questions about these Terms of Service or to report violations, please conta
 
         .duplicate-modal h3 {
           margin: 0;
-          font-size: 1.4rem;
+          font-size: 1rem;
           color: #111827;
         }
 
         .duplicate-modal p {
           margin: 0;
           color: #475569;
-          font-size: 0.95rem;
+          font-size: 1rem;
         }
 
         .modal-content {
@@ -652,6 +663,8 @@ For questions about these Terms of Service or to report violations, please conta
           margin: 0;
           font-size: 1rem;
         }
+
+        .modal-header h2 { font-size: 1rem; }
 
         .version {
           margin: 2px 0 0;

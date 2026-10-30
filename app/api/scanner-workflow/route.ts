@@ -271,7 +271,7 @@ async function validateAndRecalculateBox(supabase: SupabaseClient, shipment: any
 export async function GET(request: Request) {
   try {
     const supabase = adminClient();
-    await requireStaff(request, supabase);
+    const actor = await requireStaff(request, supabase);
     const url = new URL(request.url);
     const rawCode = url.searchParams.get("code")?.trim() || "";
     if (!rawCode) return NextResponse.json({ error: "Scan or enter a tracking number" }, { status: 400 });
@@ -293,6 +293,22 @@ export async function GET(request: Request) {
     const index = currentIndex(data.estado, data.fecha_entregado || data.hora_entregado, data.fecha_descargado || data.hora_descargado);
     const next = index < WORKFLOW.length - 1 ? WORKFLOW[index + 1] : null;
     const customer = Array.isArray(data.numero_cliente) ? data.numero_cliente[0] : data.numero_cliente;
+    const { error: scanLogError } = await supabase.from("staff_action_logs").insert({
+      actor_id: actor.user.id,
+      actor_name: actor.profile?.nombre || actor.profile?.nombre_personal || actor.user.email || null,
+      actor_email: actor.user.email || null,
+      actor_role: actor.role,
+      action: "package_scanned",
+      entity_type: "paquetes_registro",
+      entity_id: data.id,
+      tracking: data.tracking,
+      customer_name: customer?.nombre || null,
+      customer_account_number: customer?.numero_cliente || null,
+      success: true,
+      details: { source: "scanner_workflow_app" },
+      user_agent: request.headers.get("user-agent") || null,
+    });
+    if (scanLogError) console.error("Error recording package scan", scanLogError);
     const puerto = ferryPortForCustomer(customer);
     return NextResponse.json({ shipment: data, current: WORKFLOW[index], next, workflow: WORKFLOW, ferry: puerto ? { isFerry: true, puerto } : { isFerry: false } });
   } catch (error) {

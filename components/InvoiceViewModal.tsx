@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import InvoicePreview from "./InvoicePreview";
 import { supabase } from "../lib/supabaseClient";
 
@@ -40,7 +40,7 @@ function parseBoxSize(data: { alto?: unknown; ancho?: unknown; largo?: unknown }
     : null;
 }
 
-export default function InvoiceViewModal({ invoice, onClose }: { invoice: InvoiceViewData; onClose: () => void }) {
+export default function InvoiceViewModal({ invoice, onClose, actions }: { invoice: InvoiceViewData; onClose: () => void; actions?: ReactNode }) {
   const [details, setDetails] = useState<InvoiceDetails>({ extraCharges: [], boxSize: null, isConsolidationBox: false });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -118,6 +118,7 @@ export default function InvoiceViewModal({ invoice, onClose }: { invoice: Invoic
           billingTotal={invoice.billingTotal}
           serviceDate={invoice.serviceDate}
         />
+        {actions && <div style={{ display: "flex", justifyContent: "flex-end", flexWrap: "wrap", gap: ".6rem", marginTop: "1rem", paddingTop: "1rem", borderTop: "1px solid #e2e8f0" }}>{actions}</div>}
       </div>
     </div>
   );

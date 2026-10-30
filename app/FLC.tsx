@@ -2,6 +2,7 @@
 import React from 'react';
 import Link from "next/link";
 import { useTranslation } from "react-i18next";
+import PhoneCountryField from "../components/PhoneCountryField";
 
 const WHATSAPP_NUMBER = "50499274466"; // número oficial en formato internacional sin '+'
 
@@ -480,22 +481,16 @@ const FLC = () => {
                   />
 
                 </div>
-                <div style={styles.inputGroup}>
-                  <label style={styles.label}>
-                    {isEn ? "Phone *" : "Teléfono *"}
-                  </label>
-                  <input
-                    type="text"
-                    name="phone"
-                    placeholder={
-                      isEn ? "+504 89467476" : "+504 89467476"
-                    }
-
-                    style={styles.input}
-                    required
-                  />
-
-                </div>
+                <PhoneCountryField
+                  name="phone"
+                  label={isEn ? "Phone" : "Teléfono"}
+                  required
+                  isEn={isEn}
+                  labelStyle={styles.label}
+                  selectStyle={styles.select}
+                  inputStyle={styles.input}
+                  wrapperStyle={styles.inputGroup}
+                />
                 <div style={styles.inputGroup}>
                   <label style={styles.label}>
                     {isEn ? "Company" : "Compañía"}

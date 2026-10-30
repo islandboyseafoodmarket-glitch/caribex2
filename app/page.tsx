@@ -10,6 +10,7 @@ import AcercaSection from "./acerca";
 import FCL from "./FCL";
 import LCL from "./LCL";
 import { supabase } from "../lib/supabaseClient";
+import PhoneCountryField from "../components/PhoneCountryField";
 
 type PageId =
   | "inicio"
@@ -225,7 +226,13 @@ export default function HomePage() {
             <form onSubmit={handleSubmitBuilderRate} style={{ display: "grid", gap: "0.8rem", marginTop: "1.2rem" }}>
               <label>{i18n.language.startsWith("en") ? "Full name" : "Nombre completo"}<input name="builder_name" required autoComplete="name" placeholder={i18n.language.startsWith("en") ? "Your name" : "Su nombre"} /></label>
               <label>{i18n.language.startsWith("en") ? "Email" : "Correo electrónico"}<input name="builder_email" required type="email" autoComplete="email" placeholder="you@example.com" /></label>
-              <label>{i18n.language.startsWith("en") ? "Phone" : "Teléfono"}<input name="builder_phone" required type="tel" autoComplete="tel" placeholder={i18n.language.startsWith("en") ? "+Country code 555 123 4567" : "+Código de país 555 123 4567"} /></label>
+              <PhoneCountryField
+                name="builder_phone"
+                label={i18n.language.startsWith("en") ? "Phone" : "Teléfono"}
+                required
+                isEn={i18n.language.startsWith("en")}
+                autoComplete="tel"
+              />
               <label>{i18n.language.startsWith("en") ? "Company or project name" : "Nombre de la empresa o proyecto"}<input name="builder_company" required placeholder={i18n.language.startsWith("en") ? "Company or project" : "Empresa o proyecto"} /></label>
               <label>{i18n.language.startsWith("en") ? "Estimated shipment volume" : "Volumen estimado del envío"}<select name="builder_volume" required value={builderVolume} onChange={(event) => setBuilderVolume(event.target.value)}><option value="" disabled>{i18n.language.startsWith("en") ? "Select a volume" : "Seleccione un volumen"}</option><option>100–250 ft³</option><option>{i18n.language.startsWith("en") ? "Quarter container" : "Contenedor de cuarto"}</option><option>{i18n.language.startsWith("en") ? "Half container" : "Medio contenedor"}</option><option>{i18n.language.startsWith("en") ? "20 ft container" : "Contenedor de 20 pies"}</option><option>{i18n.language.startsWith("en") ? "40 ft container" : "Contenedor de 40 pies"}</option></select></label>
               <div style={{ padding: "0.75rem 0.85rem", borderRadius: "0.65rem", background: "#eff6ff", border: "1px solid #bfdbfe", color: "#1e3a8a", fontSize: "0.82rem", lineHeight: 1.45 }}>
@@ -703,10 +710,16 @@ export default function HomePage() {
                   />
                   <label>{t("contact.yourEmail")}</label>
                 </div>
-                <div className="input-wrapper">
-                  <input type="tel" name="telefono" placeholder={i18n.language.startsWith("en") ? "+Country code 555 123 4567" : "+Código de país 555 123 4567"} />
-                  <label>{i18n.language.startsWith("en") ? "Phone (optional)" : "Teléfono (opcional)"}</label>
-                </div>
+                <PhoneCountryField
+                  name="telefono"
+                  label={i18n.language.startsWith("en") ? "Phone (optional)" : "Teléfono (opcional)"}
+                  isEn={i18n.language.startsWith("en")}
+                  autoComplete="tel"
+                  wrapperStyle={{ marginBottom: "30px" }}
+                  labelStyle={{ display: "block", position: "static", marginBottom: "8px", color: "#999" }}
+                  selectStyle={{ padding: "10px 8px", border: "0", borderBottom: "2px solid #ddd", outline: "none", background: "transparent", fontSize: "1rem" }}
+                  inputStyle={{ padding: "10px 0", border: "0", borderBottom: "2px solid #ddd", outline: "none", background: "transparent", fontSize: "1rem" }}
+                />
                 <div className="input-wrapper">
                   <textarea
                     name="mensaje"

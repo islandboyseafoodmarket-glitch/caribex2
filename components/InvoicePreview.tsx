@@ -32,6 +32,48 @@ function formatServiceDate(value: string | null | undefined) {
   }).format(date);
 }
 
+type DisplayExtraCharge = {
+  description: string;
+  amount: number;
+  count: number;
+  isHandling: boolean;
+};
+
+function getDisplayExtraCharges(labels: string[]): DisplayExtraCharge[] {
+  const regular: DisplayExtraCharge[] = [];
+  const consolidation = new Map<string, DisplayExtraCharge>();
+  const handling: DisplayExtraCharge[] = [];
+
+  for (const label of labels) {
+    const parsed = parseInvoiceChargeLine(label);
+    const description = parsed.description.trim();
+    const normalizedDescription = description.toLowerCase();
+    const isConsolidation = normalizedDescription === "consolidation fee";
+    const isHandling = normalizedDescription === "handling fees" && parsed.amount === 0;
+
+    if (isConsolidation) {
+      const existing = consolidation.get(normalizedDescription);
+      if (existing) {
+        existing.amount += parsed.amount;
+        existing.count += 1;
+      } else {
+        consolidation.set(normalizedDescription, {
+          description,
+          amount: parsed.amount,
+          count: 1,
+          isHandling: false,
+        });
+      }
+    } else if (isHandling) {
+      handling.push({ description, amount: parsed.amount, count: 1, isHandling: true });
+    } else {
+      regular.push({ description, amount: parsed.amount, count: 1, isHandling: false });
+    }
+  }
+
+  return [...regular, ...Array.from(consolidation.values()), ...handling];
+}
+
 const InvoicePreview: React.FC<InvoicePreviewProps> = ({
   clientName,
   clientNumber,
@@ -67,8 +109,14 @@ const InvoicePreview: React.FC<InvoicePreviewProps> = ({
   // de extraCharges. Esto es solo para mostrar la factura; no modifica los
   // montos ya guardados en la BD.
   const extrasList = extraCharges || [];
-  const isBoxItem = typeLabel.trim().toLowerCase() === "box";
-  const itemLabel = isBoxItem ? `Box${boxSize ? ` - ${boxSize}` : ""}` : typeLabel;
+  const displayExtraCharges = getDisplayExtraCharges(extrasList);
+  const isBoxItem = /\b(box|caja)\b/i.test(typeLabel.trim());
+  const isManualInvoice = /manual\s+invoice/i.test(carrier || "");
+  const itemLabel = isManualInvoice
+    ? "Manual invoice"
+    : isBoxItem && boxSize
+      ? `${typeLabel.trim()} — ${boxSize}`
+      : typeLabel;
   const itemDetail = contents && contents.trim().length > 0 && contents.trim() !== tracking.trim() ? contents : null;
 
   const hasHandling = extrasList.some((label) => {
@@ -76,10 +124,10 @@ const InvoicePreview: React.FC<InvoicePreviewProps> = ({
     return parsed.description === "Handling fees" && parsed.amount === 0;
   });
 
-  const sumFixedExtras = extrasList.reduce((acc, label) => {
-    const parsed = parseInvoiceChargeLine(label);
-    return acc + (parsed.description === "Handling fees" && parsed.amount === 0 ? 0 : parsed.amount);
-  }, 0);
+  const sumFixedExtras = displayExtraCharges.reduce(
+    (acc, charge) => acc + (charge.isHandling ? 0 : charge.amount),
+    0,
+  );
 
   let baseAmount = subtotal;
   let handlingAmount = 0;
@@ -103,12 +151,11 @@ const InvoicePreview: React.FC<InvoicePreviewProps> = ({
   }
 
   // Helper para obtener el monto de cada cargo extra individual
-  const getExtraAmountForLabel = (label: string): number => {
-    const parsed = parseInvoiceChargeLine(label);
-    if (parsed.description === "Handling fees" && parsed.amount === 0) {
+  const getExtraAmount = (charge: DisplayExtraCharge): number => {
+    if (charge.isHandling) {
       return handlingAmount > 0 ? handlingAmount : 0;
     }
-    return parsed.amount;
+    return charge.amount;
   };
 
   return (
@@ -217,7 +264,14 @@ const InvoicePreview: React.FC<InvoicePreviewProps> = ({
             </tr>
           </thead>
           <tbody>
-            <tr style={{ borderBottom: "1px solid #e5e7eb" }}>
+            {isManualInvoice && extrasList.length > 0 ? <tr style={{ borderBottom: "1px solid #e5e7eb" }}>
+              <td style={{ padding: "8px 0" }}>
+                <div>{itemLabel}</div>
+                <div style={{ fontSize: 11, color: "#6b7280" }}>Tracking: {tracking}</div>
+              </td>
+              <td style={{ textAlign: "right" }}></td>
+              <td style={{ textAlign: "right" }}></td>
+            </tr> : <tr style={{ borderBottom: "1px solid #e5e7eb" }}>
               <td style={{ padding: "8px 0" }}>
                 <div>{itemLabel}</div>
                 <div
@@ -229,13 +283,14 @@ const InvoicePreview: React.FC<InvoicePreviewProps> = ({
                 >
                   {itemDetail || ""}
                 </div>
+                <div style={{ fontSize: 11, color: "#6b7280" }}>Tracking: {tracking}</div>
               </td>
               <td style={{ textAlign: "right" }}>${baseAmount.toFixed(2)}</td>
               <td style={{ textAlign: "right" }}>${baseAmount.toFixed(2)}</td>
-            </tr>
+            </tr>}
 
-            {extrasList.map((label, idx) => {
-              const amount = getExtraAmountForLabel(label);
+            {displayExtraCharges.map((charge, idx) => {
+              const amount = getExtraAmount(charge);
               const hasAmount = typeof amount === "number" && amount !== 0;
               const formattedAmount = amount < 0
                 ? `-$${Math.abs(amount).toFixed(2)}`
@@ -244,7 +299,12 @@ const InvoicePreview: React.FC<InvoicePreviewProps> = ({
               return (
                 <tr key={`extra-${idx}`} style={{ borderBottom: "1px solid #e5e7eb" }}>
                   <td style={{ padding: "8px 0" }}>
-                    <div>{parseInvoiceChargeLine(label).description}</div>
+                    <div>
+                      {charge.description}
+                      {charge.description.toLowerCase() === "consolidation fee" && charge.count > 1
+                        ? ` × ${charge.count}`
+                        : ""}
+                    </div>
                   </td>
                   <td style={{ textAlign: "right" }}>
                     {hasAmount ? formattedAmount : ""}
@@ -321,7 +381,8 @@ const InvoicePreview: React.FC<InvoicePreviewProps> = ({
       <section>
         <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>Note</div>
         <p style={{ fontSize: 12, color: "#4b5563", margin: 0 }}>
-          Handling fee is 15% when enabled by an administrator and is not charged when disabled.
+          Fee is not a sales tax, but a configurable charge per item to cover
+          customs/duty or handling costs.
         </p>
       </section>
     </div>

@@ -5,6 +5,54 @@ import { parseInvoiceChargeLine } from "@/lib/invoice-pricing";
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const escapeHtml = (value: string) => value.replace(/[&<>'"]/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[character] || character));
+const formatBoxMeasurements = (typeLabel: unknown, checkin: Record<string, unknown> | null | undefined) => {
+  if (!/\b(box|caja)\b/i.test(String(typeLabel || ""))) return null;
+  const dimensions = [checkin?.largo, checkin?.ancho, checkin?.alto].map(Number);
+  if (!dimensions.every((value) => Number.isFinite(value) && value > 0)) return null;
+  return `${dimensions.map((value) => String(value)).join(" × ")} in`;
+};
+
+type DisplayExtraCharge = {
+  description: string;
+  amount: number;
+  count: number;
+  isHandling: boolean;
+};
+
+function getDisplayExtraCharges(labels: string[]): DisplayExtraCharge[] {
+  const regular: DisplayExtraCharge[] = [];
+  const consolidation = new Map<string, DisplayExtraCharge>();
+  const handling: DisplayExtraCharge[] = [];
+
+  for (const label of labels) {
+    const parsed = parseInvoiceChargeLine(label);
+    const description = parsed.description.trim();
+    const normalizedDescription = description.toLowerCase();
+    const isConsolidation = normalizedDescription === "consolidation fee";
+    const isHandling = normalizedDescription === "handling fees" && parsed.amount === 0;
+
+    if (isConsolidation) {
+      const existing = consolidation.get(normalizedDescription);
+      if (existing) {
+        existing.amount += parsed.amount;
+        existing.count += 1;
+      } else {
+        consolidation.set(normalizedDescription, {
+          description,
+          amount: parsed.amount,
+          count: 1,
+          isHandling: false,
+        });
+      }
+    } else if (isHandling) {
+      handling.push({ description, amount: parsed.amount, count: 1, isHandling: true });
+    } else {
+      regular.push({ description, amount: parsed.amount, count: 1, isHandling: false });
+    }
+  }
+
+  return [...regular, ...Array.from(consolidation.values()), ...handling];
+}
 
 if (!RESEND_API_KEY) {
   console.warn("RESEND_API_KEY is not set. Email sending will fail.");
@@ -76,11 +124,13 @@ export async function POST(request: Request) {
       );
     }
 
-    type InvoiceItem = { tracking: string; typeLabel: string; contents?: string | null; subtotal: number; tax: number; total: number };
+    type InvoiceItem = { id?: string; tracking: string; typeLabel: string; contents?: string | null; dimensions?: string | null; isManualInvoice?: boolean; subtotal: number; tax: number; total: number };
     let invoiceItems: InvoiceItem[] = [{
       tracking,
       typeLabel,
       contents,
+      dimensions: null,
+      isManualInvoice: false,
       subtotal: Number(subtotal) || 0,
       tax: Number(tax) || 0,
       total: Number(total) || 0,
@@ -88,19 +138,23 @@ export async function POST(request: Request) {
     let resolvedServiceDate = serviceDate || null;
     let groupedShipmentIds: string[] = [];
     let persistedExtraCharges: string[] = [];
+    let parentBoxIds = new Set<string>();
 
     // Invoices are grouped by customer and operational container. This keeps
     // one customer from receiving a separate email for every item in the same
     // shipment/container while preserving each item's tracking and charge.
     const { data: currentShipment } = await authClient
       .from("paquetes_registro")
-      .select("id, tracking, tipo_paquete, contenido, numero_cliente_id, estado, billing_subtotal, billing_tax, billing_total")
+      .select("id, tracking, nombre_paqueteria, tipo_paquete, contenido, numero_cliente_id, estado, billing_subtotal, billing_tax, billing_total, invoice_status")
       .eq("tracking", tracking)
       .neq("estado", "Archivado")
       .order("creado_en", { ascending: false })
       .limit(1)
       .maybeSingle();
     if (currentShipment) {
+      if (String(currentShipment.invoice_status || "").toUpperCase() === "PAID") {
+        return NextResponse.json({ error: "This invoice is already paid. Use payment history instead of sending a new payment request." }, { status: 409 });
+      }
       const [{ data: currentLink }, { data: currentCheckin }] = await Promise.all([
         authClient
         .from("contenedor_paquetes")
@@ -123,7 +177,12 @@ export async function POST(request: Request) {
       const currentStoredTotal = Number(currentShipment.billing_total);
       // Customer-facing invoice content comes from package contents. Never
       // allow the internal notas/staff-notes field to be rendered here.
-      invoiceItems[0] = { ...invoiceItems[0], contents: currentShipment.contenido || null };
+      invoiceItems[0] = {
+        ...invoiceItems[0],
+        contents: currentShipment.contenido || null,
+        dimensions: formatBoxMeasurements(currentShipment.tipo_paquete, currentCheckin),
+        isManualInvoice: /manual\s+invoice/i.test(String(currentShipment.nombre_paqueteria || "")),
+      };
       if (!Number.isFinite(currentStoredTotal) || currentStoredTotal <= 0) {
         const currentBilling = calculateWorkflowBilling({ ...currentShipment, ...currentCheckin });
         if (currentBilling) {
@@ -160,7 +219,7 @@ export async function POST(request: Request) {
         if (packageIds.length) {
           const { data: directRows } = await authClient
             .from("paquetes_registro")
-            .select("id, tracking, tipo_paquete, contenido, numero_cliente_id, estado, billing_subtotal, billing_tax, billing_total")
+            .select("id, tracking, nombre_paqueteria, tipo_paquete, contenido, numero_cliente_id, estado, billing_subtotal, billing_tax, billing_total")
             .in("id", packageIds)
             .eq("numero_cliente_id", currentShipment.numero_cliente_id)
             .neq("estado", "Archivado")
@@ -174,7 +233,7 @@ export async function POST(request: Request) {
           const { data: childRows } = childIds.length
             ? await authClient
                 .from("paquetes_registro")
-                .select("id, tracking, tipo_paquete, contenido, numero_cliente_id, estado, billing_subtotal, billing_tax, billing_total")
+                .select("id, tracking, nombre_paqueteria, tipo_paquete, contenido, numero_cliente_id, estado, billing_subtotal, billing_tax, billing_total")
                 .in("id", childIds)
                 .eq("numero_cliente_id", currentShipment.numero_cliente_id)
                 .neq("estado", "Archivado")
@@ -183,6 +242,15 @@ export async function POST(request: Request) {
           const rows = [...direct, ...(childRows || [])];
           if (rows.length > 1) {
             groupedShipmentIds = rows.map((row) => row.id);
+            parentBoxIds = new Set(
+              (childLinks || [])
+                .map((link) => link.parent_box_id)
+                .filter((id): id is string => Boolean(id))
+                .map(String),
+            );
+            if (currentCheckin?.parent_box_id) {
+              parentBoxIds.add(String(currentCheckin.parent_box_id));
+            }
             const { data: checkins } = await authClient
               .from("paquetes_checkin")
               .select("paquete_id, alto, ancho, largo, cargos_adicionales, creado_en")
@@ -196,9 +264,10 @@ export async function POST(request: Request) {
             const billingUpdates: Promise<unknown>[] = [];
             invoiceItems = rows.map((row) => {
               const isCurrent = row.id === currentShipment.id;
+              const checkin = latestCheckin.get(row.id) || null;
               const storedTotal = Number(row.billing_total);
               const calculated = (!Number.isFinite(storedTotal) || storedTotal <= 0)
-                ? calculateWorkflowBilling({ ...row, ...latestCheckin.get(row.id) })
+                ? calculateWorkflowBilling({ ...row, ...checkin })
                 : null;
               if (calculated) {
                 billingUpdates.push(
@@ -210,9 +279,12 @@ export async function POST(request: Request) {
                 );
               }
               return {
+                id: row.id,
                 tracking: row.tracking,
                 typeLabel: childIds.includes(row.id) ? `Consolidated ${row.tipo_paquete || "Package"}` : row.tipo_paquete || "Shipment",
                 contents: row.contenido || null,
+                dimensions: formatBoxMeasurements(row.tipo_paquete, checkin),
+                isManualInvoice: /manual\s+invoice/i.test(String(row.nombre_paqueteria || "")),
                 subtotal: calculated?.subtotal ?? (Number(isCurrent && !Number(row.billing_subtotal) ? subtotal : row.billing_subtotal) || 0),
                 tax: calculated?.tax ?? (Number(isCurrent && !Number(row.billing_tax) ? tax : row.billing_tax) || 0),
                 total: calculated?.total ?? (Number(isCurrent && !Number(row.billing_total) ? total : row.billing_total) || 0),
@@ -223,12 +295,27 @@ export async function POST(request: Request) {
         }
       }
     }
+    // Keep the parent BOX (and its tracking) ahead of consolidated children.
+    // Preserve the previous value ordering only within each parent/child group.
+    invoiceItems.sort((left, right) => {
+      const leftIsParent = left.id ? parentBoxIds.has(left.id) : false;
+      const rightIsParent = right.id ? parentBoxIds.has(right.id) : false;
+      return Number(rightIsParent) - Number(leftIsParent)
+        || right.total - left.total
+        || right.subtotal - left.subtotal;
+    });
     const invoiceSubtotal = invoiceItems.reduce((sum, item) => sum + item.subtotal, 0);
     const invoiceTax = invoiceItems.reduce((sum, item) => sum + item.tax, 0);
     const invoiceTotal = invoiceItems.reduce((sum, item) => sum + item.total, 0);
 
     const safeClientName = clientName && clientName.trim().length > 0 ? clientName : "-";
-    const safeCustomerInvoiceNote = customerInvoiceNote?.trim() ? escapeHtml(customerInvoiceNote.trim()) : "";
+    const normalizedCustomerNote = String(customerInvoiceNote || "").trim().replace(/\s+/g, " ").toLowerCase();
+    const noteAlreadyShownUnderTracking = invoiceItems.some((item) => item.isManualInvoice) && Boolean(normalizedCustomerNote) && invoiceItems.some((item) =>
+      String(item.contents || "").trim().replace(/\s+/g, " ").toLowerCase() === normalizedCustomerNote,
+    );
+    const safeCustomerInvoiceNote = customerInvoiceNote?.trim() && !noteAlreadyShownUnderTracking
+      ? escapeHtml(customerInvoiceNote.trim())
+      : "";
     const safeClientNumber =
       typeof clientNumber === "number" ? `#${clientNumber}` : "-";
     const parsedServiceDate = resolvedServiceDate ? new Date(resolvedServiceDate) : null;
@@ -241,20 +328,21 @@ export async function POST(request: Request) {
         }).format(parsedServiceDate)
       : "-";
 
-    const extrasList = Array.from(new Set([
-      ...(Array.isArray(extraCharges) ? extraCharges : []),
-      ...persistedExtraCharges,
-    ].filter((value): value is string => typeof value === "string" && value.trim().length > 0)));
+    const extrasList = (currentShipment
+      ? persistedExtraCharges
+      : Array.isArray(extraCharges) ? extraCharges : []
+    ).filter((value): value is string => typeof value === "string" && value.trim().length > 0);
+    const displayExtraCharges = getDisplayExtraCharges(extrasList);
 
     const hasHandling = extrasList.some((label) => {
       const parsed = parseInvoiceChargeLine(label);
       return parsed.description === "Handling fees" && parsed.amount === 0;
     });
 
-    const sumFixedExtras = extrasList.reduce((acc, label) => {
-      const parsed = parseInvoiceChargeLine(label);
-      return acc + (parsed.description === "Handling fees" && parsed.amount === 0 ? 0 : parsed.amount);
-    }, 0);
+    const sumFixedExtras = displayExtraCharges.reduce(
+      (acc, charge) => acc + (charge.isHandling ? 0 : charge.amount),
+      0,
+    );
 
     let baseAmount = invoiceSubtotal;
     let handlingAmount = 0;
@@ -274,12 +362,11 @@ export async function POST(request: Request) {
       }
     }
 
-    const getExtraAmountForLabel = (label: string): number => {
-      const parsed = parseInvoiceChargeLine(label);
-      if (parsed.description === "Handling fees" && parsed.amount === 0) {
+    const getExtraAmount = (charge: DisplayExtraCharge): number => {
+      if (charge.isHandling) {
         return handlingAmount > 0 ? handlingAmount : 0;
       }
-      return parsed.amount;
+      return charge.amount;
     };
 
     const html = `<!DOCTYPE html>
@@ -352,15 +439,18 @@ export async function POST(request: Request) {
                     </tr>
                   </thead>
                   <tbody>
-                    ${invoiceItems.map((item) => `<tr style="border-bottom:1px solid #e5e7eb;">
-                      <td style="padding:8px 0;"><div>${escapeHtml(item.typeLabel)}</div>${item.contents && item.contents.trim().length > 0 ? `<div style="font-size:12px; color:#6b7280; font-style:italic;">${escapeHtml(item.contents)}</div>` : ""}<div style="font-size:11px; color:#6b7280;">Tracking: ${escapeHtml(item.tracking)}</div></td>
+                    ${invoiceItems.map((item) => item.isManualInvoice && extrasList.length > 0
+                      ? `<tr style="border-bottom:1px solid #e5e7eb;"><td style="padding:8px 0;"><div>Manual invoice</div><div style="font-size:11px; color:#6b7280;">Tracking: ${escapeHtml(item.tracking)}</div></td><td align="right"></td><td align="right"></td></tr>`
+                      : `<tr style="border-bottom:1px solid #e5e7eb;">
+                      <td style="padding:8px 0;"><div>${escapeHtml(item.typeLabel)}${item.dimensions ? ` — ${escapeHtml(item.dimensions)}` : ""}</div>${item.contents && item.contents.trim().length > 0 ? `<div style="font-size:12px; color:#6b7280; font-style:italic;">${escapeHtml(item.contents)}</div>` : ""}<div style="font-size:11px; color:#6b7280;">Tracking: ${escapeHtml(item.tracking)}</div></td>
                       <td align="right">$${item.subtotal.toFixed(2)}</td>
                       <td align="right">$${item.subtotal.toFixed(2)}</td>
                     </tr>`).join("")}
-                    ${extrasList
-                      .map((label) => {
-                        const amount = getExtraAmountForLabel(label);
-                        return `<tr style="border-bottom:1px solid #e5e7eb;"><td style="padding:8px 0;"><div>${escapeHtml(parseInvoiceChargeLine(label).description)}</div></td><td align="right">$${amount.toFixed(
+                    ${displayExtraCharges
+                      .map((charge) => {
+                        const amount = getExtraAmount(charge);
+                        const description = `${charge.description}${charge.description.toLowerCase() === "consolidation fee" && charge.count > 1 ? ` × ${charge.count}` : ""}`;
+                        return `<tr style="border-bottom:1px solid #e5e7eb;"><td style="padding:8px 0;"><div>${escapeHtml(description)}</div></td><td align="right">$${amount.toFixed(
                           2,
                         )}</td><td align="right">$${amount.toFixed(2)}</td></tr>`;
                       })
@@ -400,7 +490,7 @@ export async function POST(request: Request) {
 
                 <div>
                   <div style="font-size:13px; font-weight:600; margin-bottom:4px;">Note</div>
-                  <p style="font-size:12px; color:#4b5563; margin:0;">Handling fee is 15% when enabled by an administrator and is not charged when disabled.</p>
+                  <p style="font-size:12px; color:#4b5563; margin:0;">Fee is not a sales tax, but a configurable charge per item to cover customs/duty or handling costs.</p>
                 </div>
 
                 <div style="margin-top:24px; padding:16px; background-color:#eff6ff; border-radius:10px; text-align:center;">
@@ -440,11 +530,23 @@ export async function POST(request: Request) {
       );
     }
 
-    if (groupedShipmentIds.length) {
+    const sentShipmentIds = groupedShipmentIds.length
+      ? groupedShipmentIds
+      : currentShipment?.id
+        ? [currentShipment.id]
+        : [];
+    if (sentShipmentIds.length) {
+      const { error: timestampError } = await authClient
+        .from("paquetes_registro")
+        .update({ invoice_sent_at: new Date().toISOString() })
+        .in("id", sentShipmentIds)
+        .is("invoice_sent_at", null);
+      if (timestampError) throw timestampError;
       const { error: groupedStatusError } = await authClient
         .from("paquetes_registro")
         .update({ invoice_status: "SENT" })
-        .in("id", groupedShipmentIds);
+        .in("id", sentShipmentIds)
+        .or("invoice_status.is.null,invoice_status.neq.PAID");
       if (groupedStatusError) throw groupedStatusError;
     }
 

@@ -16,7 +16,7 @@ export const dynamic = "force-dynamic";
 
 const MIGRATION_REQUIRED_CODE = "PAYMENT_LEDGER_MIGRATION_REQUIRED";
 
-type AdminActor = { id: string; email?: string | null };
+type PaymentActor = { id: string; email?: string | null; isAdmin: boolean };
 type SupabaseError = { code?: string; message?: string; details?: string; hint?: string };
 
 class HttpError extends Error {
@@ -33,7 +33,7 @@ function adminClient() {
   return createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
 }
 
-async function requireAdmin(request: Request, supabase: SupabaseClient): Promise<AdminActor> {
+async function requireInvoiceAccess(request: Request, supabase: SupabaseClient): Promise<PaymentActor> {
   const authorization = request.headers.get("authorization") || "";
   if (!/^Bearer\s+/i.test(authorization)) throw new HttpError(401, "AUTHENTICATION_REQUIRED", "Authentication is required");
   const token = authorization.replace(/^Bearer\s+/i, "").trim();
@@ -41,14 +41,20 @@ async function requireAdmin(request: Request, supabase: SupabaseClient): Promise
   const { data: authData, error: authError } = await supabase.auth.getUser(token);
   if (authError || !authData.user) throw new HttpError(401, "INVALID_AUTHENTICATION", "Invalid authentication token");
 
-  const { data: admin, error: adminError } = await supabase
-    .from("administradores")
-    .select("id")
-    .eq("id", authData.user.id)
-    .maybeSingle();
+  const [{ data: admin, error: adminError }, { data: staff, error: staffError }] = await Promise.all([
+    supabase.from("administradores").select("id").eq("id", authData.user.id).maybeSingle(),
+    supabase.from("personal").select("id, permissions").eq("id", authData.user.id).maybeSingle(),
+  ]);
   if (adminError) throw adminError;
-  if (!admin) throw new HttpError(403, "ADMIN_ACCESS_REQUIRED", "Administrator access is required");
-  return { id: authData.user.id, email: authData.user.email };
+  if (staffError) throw staffError;
+  if (admin) return { id: authData.user.id, email: authData.user.email, isAdmin: true };
+  const permissions = staff?.permissions && typeof staff.permissions === "object"
+    ? staff.permissions as Record<string, unknown>
+    : {};
+  if (!staff || permissions.invoices !== true) {
+    throw new HttpError(403, "INVOICE_ACCESS_REQUIRED", "Invoice access is required to view or record payments");
+  }
+  return { id: authData.user.id, email: authData.user.email, isAdmin: false };
 }
 
 function isMissingLedger(error: SupabaseError | null | undefined) {
@@ -82,6 +88,7 @@ function errorCode(error: SupabaseError) {
   if (/PAYMENT_DATE_REQUIRED/i.test(message)) return [400, "PAYMENT_DATE_REQUIRED"] as const;
   if (/PAYMENT_ID_REQUIRED/i.test(message)) return [400, "PAYMENT_ID_REQUIRED"] as const;
   if (/REVERSAL_REASON_REQUIRED/i.test(message)) return [400, "REVERSAL_REASON_REQUIRED"] as const;
+  if (/INVOICE_PAYMENT_ACTOR_REQUIRED/i.test(message)) return [403, "INVOICE_ACCESS_REQUIRED"] as const;
   return [500, "PAYMENT_LEDGER_ERROR"] as const;
 }
 
@@ -182,7 +189,7 @@ async function assertLedgerReady(supabase: SupabaseClient) {
 export async function GET(request: Request) {
   try {
     const supabase = adminClient();
-    await requireAdmin(request, supabase);
+    await requireInvoiceAccess(request, supabase);
     await assertLedgerReady(supabase);
     const url = new URL(request.url);
     const invoiceIdValue = url.searchParams.get("invoice_id")?.trim() || "";
@@ -217,7 +224,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const supabase = adminClient();
-    const actor = await requireAdmin(request, supabase);
+    const actor = await requireInvoiceAccess(request, supabase);
     await assertLedgerReady(supabase);
     let body: Record<string, unknown>;
     try {
@@ -230,6 +237,9 @@ export async function POST(request: Request) {
     }
 
     const action = body.action == null ? "payment" : String(body.action).trim().toLowerCase();
+    if (action === "reverse" && !actor.isAdmin) {
+      throw new HttpError(403, "ADMIN_ACCESS_REQUIRED", "Only an administrator can reverse a recorded payment");
+    }
     const idempotencyKey = parseUuid(body.idempotency_key, "idempotency_key");
     let rpcData: unknown;
     if (action === "reverse") {

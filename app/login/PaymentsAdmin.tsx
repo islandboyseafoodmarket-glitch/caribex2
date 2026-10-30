@@ -19,6 +19,8 @@ export type PaymentInvoice = {
   tax: number | null;
   total: number | null;
   invoice_status: string | null;
+  invoice_sent_at?: string | null;
+  late_fee_applied?: boolean;
   payment_method?: string | null;
   payment_reference?: string | null;
   payment_date?: string | null;
@@ -58,6 +60,8 @@ export type PaymentsAdminProps<T extends PaymentInvoice> = {
   containers: [string, string][];
   onRecordPayment: (invoice: T) => void;
   onViewPaymentHistory?: (invoice: T) => void;
+  onEditInvoice?: (invoice: T) => void;
+  onApplyLateFee?: (invoice: T) => void;
   recordingEnabled?: boolean;
   balancesReady?: boolean;
   /** Optional authoritative append-only ledger balances, keyed by invoice id. */
@@ -101,6 +105,8 @@ export default function PaymentsAdmin<T extends PaymentInvoice>({
   containers,
   onRecordPayment,
   onViewPaymentHistory,
+  onEditInvoice,
+  onApplyLateFee,
   recordingEnabled = true,
   balancesReady = true,
   balances,
@@ -218,7 +224,7 @@ export default function PaymentsAdmin<T extends PaymentInvoice>({
                     <td>#{invoice.clienteNumero ?? "-"}</td>
                     <td><button type="button" className="invoice-link" style={{ border: 0, background: "transparent", padding: 0, cursor: "pointer" }} onClick={(event) => { event.stopPropagation(); setSelectedInvoice(invoice); }} aria-label={`Open invoice ${invoice.tracking}`}>{invoice.tracking || "-"}</button></td>
                     <td>{container}</td>
-                    <td>{money(roundMoney(Number(invoice.total || 0)))}</td>
+                    <td><button type="button" className="invoice-link" style={{ border: 0, background: "transparent", padding: 0, cursor: "pointer" }} onClick={(event) => { event.stopPropagation(); setSelectedInvoice(invoice); }} aria-label={`Open invoice details for ${invoice.tracking}`}>{money(roundMoney(Number(invoice.total || 0)))}</button></td>
                     <td>{paid == null ? "—" : money(paid)}</td>
                     <td>{balance == null ? "—" : money(balance)}</td>
                     <td>
@@ -245,7 +251,17 @@ export default function PaymentsAdmin<T extends PaymentInvoice>({
         ) : <div className="payments-workspace-empty">No invoices match these filters.</div>}
       </div>
 
-      {selectedInvoice && <InvoiceViewModal invoice={invoiceViewData(selectedInvoice)} onClose={() => setSelectedInvoice(null)} />}
+      {selectedInvoice && <InvoiceViewModal
+        invoice={invoiceViewData(selectedInvoice)}
+        onClose={() => setSelectedInvoice(null)}
+        actions={<>
+          {onRecordPayment && (balances?.[selectedInvoice.id]?.balance || 0) > 0 && <button type="button" className="pa-primary-btn" disabled={!recordingEnabled} onClick={() => { const invoice = selectedInvoice; setSelectedInvoice(null); onRecordPayment(invoice); }}>Record payment</button>}
+          {onViewPaymentHistory && <button type="button" className="pa-secondary-btn" disabled={!recordingEnabled} onClick={() => { const invoice = selectedInvoice; setSelectedInvoice(null); onViewPaymentHistory(invoice); }}>Payment history</button>}
+          {onEditInvoice && <button type="button" className="pa-secondary-btn" onClick={() => { const invoice = selectedInvoice; setSelectedInvoice(null); onEditInvoice(invoice); }}>Manage charges / discounts</button>}
+          {onApplyLateFee && !selectedInvoice.late_fee_applied && selectedInvoice.invoice_sent_at && Date.now() - Date.parse(selectedInvoice.invoice_sent_at) >= 30 * 24 * 60 * 60 * 1000 && (balances?.[selectedInvoice.id]?.balance || 0) > 0 && <button type="button" className="pa-secondary-btn" disabled={!recordingEnabled} onClick={() => { const invoice = selectedInvoice; setSelectedInvoice(null); onApplyLateFee(invoice); }}>Apply 5% late fee</button>}
+          <button type="button" className="pa-secondary-btn" onClick={() => setSelectedInvoice(null)}>Close</button>
+        </>}
+      />}
     </section>
   );
 }

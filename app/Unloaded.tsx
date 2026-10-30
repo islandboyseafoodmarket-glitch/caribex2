@@ -23,6 +23,7 @@ type UnloadedPackage = {
   estado?: string | null;
   numeroClienteId?: string | null;
   numeroCliente?: number | null;
+  invoice_status?: string | null;
 };
 
 type UnloadedProps = {
@@ -181,7 +182,15 @@ const UnloadedStage: React.FC<UnloadedProps> = ({
                   <td className="ga-table-text">
                     {p.numeroCliente != null ? p.numeroCliente : "-"}
                   </td>
-                  <td className="ga-table-tracking">{p.tracking}</td>
+                  <td className="ga-table-tracking">
+                    <span style={String(p.invoice_status || "").toUpperCase() === "PAID" ? { color: "#166534", fontWeight: 700 } : undefined}>{p.tracking}</span>
+                    {p.invoice_status && <span style={{ display: "block", marginTop: 4, fontSize: 12, fontWeight: 600, color: String(p.invoice_status).toUpperCase() === "PAID" ? "#166534" : "#475569" }}>
+                      {String(p.invoice_status).toUpperCase() === "PAID" ? (isEs ? "Factura pagada" : "Invoice paid")
+                        : String(p.invoice_status).toUpperCase() === "SENT" ? (isEs ? "Factura enviada" : "Invoice sent")
+                        : String(p.invoice_status).toUpperCase() === "OVERDUE" ? (isEs ? "Factura vencida" : "Invoice overdue")
+                        : (isEs ? "Factura pendiente" : "Invoice pending")}
+                    </span>}
+                  </td>
                   <td className="ga-table-text">{p.carrier || "-"}</td>
                   <td className="ga-table-text">
                     <span className="ga-tag">{getCategoryLabel(p.type, isEs)}</span>

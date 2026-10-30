@@ -12,6 +12,7 @@ import {
   CheckCircle,
   Package,
 } from 'lucide-react';
+import PhoneCountryField from "../components/PhoneCountryField";
 
 interface FCLProps {
   onOpenBuilderRate?: () => void;
@@ -380,17 +381,16 @@ ${formData.additionalInfo}
 
             <div style={styles.grid}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <label style={{ fontWeight: '600', color: '#334155', fontSize: '0.9rem' }}>
-                  {isEn ? 'Phone *' : 'Teléfono *'}
-                </label>
-                <input
-                  type="tel"
+                <PhoneCountryField
                   name="phone"
-                  value={formData.phone}
-                  onChange={handleChange}
+                  label={isEn ? 'Phone' : 'Teléfono'}
                   required
-                  placeholder={isEn ? "+Country code 555 123 4567" : "+Código de país 555 123 4567"}
-                  style={{ padding: '10px 12px', borderRadius: 8, border: '1px solid #e2e8f0' }}
+                  isEn={isEn}
+                  value={formData.phone}
+                  onChange={(phone) => setFormData((prev) => ({ ...prev, phone }))}
+                  labelStyle={{ fontWeight: '600', color: '#334155', fontSize: '0.9rem' }}
+                  selectStyle={{ padding: '10px 12px', borderRadius: 8, border: '1px solid #e2e8f0' }}
+                  inputStyle={{ padding: '10px 12px', borderRadius: 8, border: '1px solid #e2e8f0' }}
                 />
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
