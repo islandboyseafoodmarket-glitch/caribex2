@@ -2833,7 +2833,7 @@ const App = () => {
         </div>}
 
         {activeTab === 'portal' && <div style={{ width: '100%', overflowX: 'auto' }}>
-          {portalEvents.length === 0 ? <p style={{ padding: '1.5rem', color: '#64748b' }}>No customer portal or account events have been recorded yet.</p> : <table className="admin-table" style={{ minWidth: 980, width: '100%' }}><thead><tr><th>Date</th><th>Customer</th><th>Email</th><th>Result</th><th>Reason</th><th>Event</th></tr></thead><tbody>{portalEvents.map((event) => <tr key={event.id}><td>{formatStaffDateTime(event.created_at)}</td><td>{event.customer_name || '-'}{event.account_number != null && <><br /><small>Account #{event.account_number}</small></>}</td><td>{event.email}</td><td><span style={{ color: event.success ? '#166534' : '#b91c1c', fontWeight: 700 }}>{event.success ? (event.event_type === 'login_attempt' ? 'Successful' : 'Completed') : 'Problem'}</span></td><td>{event.reason || '-'}</td><td>{portalEventLabel(event.event_type)}</td></tr>)}</tbody></table>}
+          {portalEvents.length === 0 ? <p style={{ padding: '1.5rem', color: '#64748b' }}>No customer portal or account events have been recorded yet.</p> : <table className="admin-table admin-table--blue-header" style={{ minWidth: 980, width: '100%' }}><thead><tr><th>Date</th><th>Customer</th><th>Email</th><th>Result</th><th>Reason</th><th>Event</th></tr></thead><tbody>{portalEvents.map((event) => <tr key={event.id}><td>{formatStaffDateTime(event.created_at)}</td><td>{event.customer_name || '-'}{event.account_number != null && <><br /><small>Account #{event.account_number}</small></>}</td><td>{event.email}</td><td><span style={{ color: event.success ? '#166534' : '#b91c1c', fontWeight: 700 }}>{event.success ? (event.event_type === 'login_attempt' ? 'Successful' : 'Completed') : 'Problem'}</span></td><td>{event.reason || '-'}</td><td>{portalEventLabel(event.event_type)}</td></tr>)}</tbody></table>}
         </div>}
 
         {activeTab === 'finanzas' && <div style={{ width: '100%' }}>
@@ -3363,11 +3363,13 @@ const App = () => {
                 display: 'grid',
                 gridTemplateColumns: '0.7fr 1.5fr 1.8fr 1.2fr 1.1fr 1fr 0.8fr',
                 columnGap: '1rem',
-                padding: '0.4rem 0',
+                padding: activeTab === 'prepaid' ? '0.7rem 0' : '0.4rem 0',
+                background: activeTab === 'prepaid' ? '#1e4f7b' : undefined,
+                borderRadius: activeTab === 'prepaid' ? '8px 8px 0 0' : undefined,
                 fontSize: '0.8rem',
-                color: '#64748b',
+                color: activeTab === 'prepaid' ? '#fff' : '#64748b',
                 borderBottom: '1px solid #e2e8f0',
-                fontWeight: 600,
+                fontWeight: activeTab === 'prepaid' ? 700 : 600,
                 minWidth: 960,
               }}
             >
