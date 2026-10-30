@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import { Box, PackageOpen, ChevronDown, ChevronUp, Eye, Trash2 } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
 import { formatStaffDateTime } from "../lib/staff-date-format";
+import { SHIPMENT_STAGE_COLORS, tabColorStyle } from "../lib/shipment-colors";
 
 type InTransitPackage = {
   id: number;
@@ -462,7 +463,11 @@ const InTransitStage: React.FC<InTransitProps> = ({
                                           : `In box ${s.consolidatedIntoBoxTracking}`
                                         : "-"}
                                     </td>
-                                    <td className="ga-table-text">{s.estado || "-"}</td>
+                                    <td className="ga-table-text">
+                                      <span className="ga-stage-status" style={tabColorStyle(SHIPMENT_STAGE_COLORS.IN_TRANSIT)}>
+                                        {isEs ? "En tránsito" : "In-Transit"}
+                                      </span>
+                                    </td>
                                     <td className="ga-table-text">
                                       {formatStaffDateTime(s.scanTime, isEs ? "es-ES" : "en-US")}
                                     </td>

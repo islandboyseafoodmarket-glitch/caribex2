@@ -10,6 +10,7 @@ import FerryManifestAdmin from "./FerryManifestAdmin";
 import Client360Admin from "./Client360Admin";
 import PaymentsAdmin, { type PaymentBalance } from "./PaymentsAdmin";
 import ExpensesAdmin from "./ExpensesAdmin";
+import ShipmentsAdmin from "./ShipmentsAdmin";
 import InvoiceStatusTabs from "../../components/InvoiceStatusTabs";
 import PaymentLedgerDialog from "../../components/PaymentLedgerDialog";
 import type { PaymentSummary } from "../../lib/payment-ledger";
@@ -74,6 +75,13 @@ const MANUAL_INVOICE_CHARGE_OPTIONS = [
   "Miscellaneous fee ($10)",
   "Consolidation fee ($2.5)",
 ] as const;
+const MANUAL_INVOICE_NOTE_MARKER = "MANUAL INVOICE CREATED BY STAFF";
+const cleanIssueNotes = (value: unknown) =>
+  String(value ?? "")
+    .split(/\r?\n/)
+    .filter((line) => line.trim().toLowerCase() !== MANUAL_INVOICE_NOTE_MARKER.toLowerCase())
+    .join("\n")
+    .trim();
 const PORTAL_EVENT_LABELS: Record<string, string> = {
   account_created: "Customer account created",
   portal_access_provisioned: "Portal access provisioned",
@@ -211,6 +219,7 @@ const App = () => {
     notas_imagenes?: string | string[] | null;
     numero_cliente_id?: string | null;
     // Campos de auditoría y tiempos
+    creado_en?: string | null;
     registro?: string | null;
     descargado?: string | null;
     entregado_por?: string | null;
@@ -237,6 +246,9 @@ const App = () => {
     last_scanned_at?: string | null;
   };
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
+  const isManualInvoiceShipment = (shipment: Pick<Pedido, "tipo_paquete" | "carrier">) =>
+    String(shipment.tipo_paquete || "").trim().toUpperCase() === "MANUAL_INVOICE" ||
+    String(shipment.carrier || "").trim().toLowerCase() === "manual invoice";
   const [pickupScanLookupStarted, setPickupScanLookupStarted] = useState<Record<string, boolean>>({});
   type Factura = {
     id: string;
@@ -643,15 +655,21 @@ const App = () => {
   };
 
   const pedidosConIncidencia = useMemo(
-    () =>
-      pedidos.filter(
-        (p) =>
-          !p.numero_cliente_id ||
-          (p.notas && p.notas.trim() !== "") ||
-          (Array.isArray(p.notas_imagenes)
-            ? p.notas_imagenes.length > 0
-            : typeof p.notas_imagenes === "string" && p.notas_imagenes.trim() !== ""),
-      ),
+    () => pedidos.filter((p) => {
+      const issueStatus = String(p.issue_status || "").toUpperCase();
+      const hasProblemPhotos = Array.isArray(p.notas_imagenes)
+        ? p.notas_imagenes.length > 0
+        : typeof p.notas_imagenes === "string" && p.notas_imagenes.trim() !== "";
+      return Boolean(
+        !p.numero_cliente_id ||
+        cleanIssueNotes(p.notas) ||
+        hasProblemPhotos ||
+        p.problema ||
+        cleanIssueNotes(p.problema_notas) ||
+        issueStatus === "OPEN" ||
+        issueStatus === "RESOLVED",
+      );
+    }),
     [pedidos],
   );
   const incidenciasFiltradas = useMemo(() => {
@@ -1188,7 +1206,7 @@ const App = () => {
     const { data, error } = await supabase
       .from("paquetes_registro")
       .select(
-        "id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, notas_imagenes, estado, issue_status, cubic_feet, prepaid_review_required, prepaid_review_status, numero_cliente:numero_cliente_id (id, numero_cliente, nombre), numero_cliente_id, registro, descargado, entregado_por, hora_fecha, fecha_descargado, hora_descargado, fecha_entregado, hora_entregado",
+        "id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, notas_imagenes, estado, issue_status, cubic_feet, prepaid_review_required, prepaid_review_status, numero_cliente:numero_cliente_id (id, numero_cliente, nombre), numero_cliente_id, creado_en, registro, descargado, entregado_por, hora_fecha, fecha_descargado, hora_descargado, fecha_entregado, hora_entregado",
       )
       .order("creado_en", { ascending: false });
 
@@ -1205,7 +1223,7 @@ const App = () => {
         ? await Promise.all([
             supabase.from("contenedor_paquetes").select("paquete_id, contenedor_id").in("paquete_id", packageIds),
             supabase.from("contenedores").select("id, codigo"),
-            supabase.from("paquetes_checkin").select("paquete_id, parent_box_id, consolidacion, alto, ancho, largo, peso, creado_en").in("paquete_id", packageIds).order("creado_en", { ascending: false }),
+            supabase.from("paquetes_checkin").select("paquete_id, parent_box_id, consolidacion, alto, ancho, largo, peso, problema, problema_notas, creado_en").in("paquete_id", packageIds).order("creado_en", { ascending: false }),
           ])
         : [{ data: [] }, { data: [] }, { data: [] }];
       const containerById = new Map((containers || []).map((container: any) => [String(container.id), String(container.codigo || container.id)]));
@@ -1234,6 +1252,8 @@ const App = () => {
         notas: row.notas || null,
         notas_imagenes: row.notas_imagenes || null,
         issue_status: row.issue_status || null,
+        problema: checkinByPackage.get(String(row.id))?.problema ?? null,
+        problema_notas: checkinByPackage.get(String(row.id))?.problema_notas ?? null,
         cubic_feet: row.cubic_feet ?? null,
         alto: checkinByPackage.get(String(row.id))?.alto ?? null,
         ancho: checkinByPackage.get(String(row.id))?.ancho ?? null,
@@ -1242,6 +1262,7 @@ const App = () => {
         prepaid_review_required: Boolean(row.prepaid_review_required),
         prepaid_review_status: row.prepaid_review_status || null,
         numero_cliente_id: row.numero_cliente_id || row.numero_cliente?.id || null,
+        creado_en: row.creado_en || null,
         registro: row.registro || null,
         descargado: row.descargado || null,
         entregado_por: row.entregado_por || null,
@@ -2355,7 +2376,7 @@ const App = () => {
               alignItems: 'center',
               justifyContent: 'center',
             }}
-            title="Cerrar sesión"
+            title="Sign out"
           >
             <LogOut size={16} />
           </button>
@@ -2409,30 +2430,30 @@ const App = () => {
         </div>
       </aside>
 
-      {/* Card de Visualización de Datos */}
+      {/* Data view card */}
       <div className={`data-card ${activeTab === 'facturas' ? 'data-card--invoices' : ''}`}>
         <div className="card-header-inner" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
           <div>
             <h3>
               {activeTab === 'personal' ? <IconUsers /> : <IconBriefcase />}{' '}
               {activeTab === 'personal'
-                ? 'Listado de Personal'
+                ? 'Staff'
                 : activeTab === 'activityLogs'
                   ? 'Staff Activity Logs'
                 : activeTab === 'clientes'
-                  ? 'Listado de Clientes'
+                  ? 'Customers'
                 : activeTab === 'prepaid'
                   ? 'Prepaid Accounts'
                   : activeTab === 'client360'
                     ? 'Client 360'
                   : activeTab === 'pedidos'
-                    ? 'Listado de Pedidos'
+                    ? 'Shipments'
                   : activeTab === 'track'
                     ? 'Track Package'
                   : activeTab === 'incidencias'
-                    ? 'Paquetes con problemas'
+                    ? 'Issues'
                   : activeTab === 'facturas'
-                      ? 'Panel de Facturas'
+                      ? 'Invoices'
                       : activeTab === 'finanzas'
                         ? 'Payments'
                       : activeTab === 'expenses'
@@ -2451,23 +2472,23 @@ const App = () => {
             </h3>
             <span>
               {activeTab === 'personal'
-                ? `${personal.length} registro${personal.length === 1 ? '' : 's'} en esta categoría`
+                  ? `${personal.length} staff member${personal.length === 1 ? '' : 's'}`
                 : activeTab === 'activityLogs'
                   ? `${staffActionLogs.length} recent staff events`
                 : activeTab === 'clientes'
-                  ? `${clientes.length} registro${clientes.length === 1 ? '' : 's'} en esta categoría`
+                  ? `${clientes.length} customer${clientes.length === 1 ? '' : 's'}`
                 : activeTab === 'prepaid'
                   ? `${clientes.filter((customer) => customer.tipo_cuenta === 'Developer / Builder — Prepaid').length} prepaid customer accounts`
                   : activeTab === 'client360'
                     ? 'Complete customer profile and operational history'
                   : activeTab === 'pedidos'
-                    ? `${pedidos.length} registro${pedidos.length === 1 ? '' : 's'} en esta categoría`
+                  ? `${pedidos.length} shipment${pedidos.length === 1 ? '' : 's'}`
                   : activeTab === 'track'
                     ? `${pedidos.length} shipments with complete history`
                   : activeTab === 'incidencias'
-                    ? `${pedidosConIncidencia.length} registro${pedidosConIncidencia.length === 1 ? '' : 's'} en esta categoría`
+                    ? `${pedidosConIncidencia.length} issue${pedidosConIncidencia.length === 1 ? '' : 's'}`
                       : activeTab === 'facturas'
-                        ? `${facturasFiltradas.length} registro${facturasFiltradas.length === 1 ? '' : 's'} en esta categoría`
+                        ? `${facturasFiltradas.length} invoice${facturasFiltradas.length === 1 ? '' : 's'}`
                       : activeTab === 'finanzas'
                         ? `${financeRows.length} invoices across all ports — switch Owing only to show outstanding bills`
                       : activeTab === 'expenses'
@@ -2767,7 +2788,7 @@ const App = () => {
                 style={{ ...tabColorStyle(INVOICE_FILTER_COLORS.pending), ...(activeInvoiceTab === 'sinAprobar' ? { color: INVOICE_FILTER_COLORS.pending.color, backgroundColor: INVOICE_FILTER_COLORS.pending.background, borderColor: INVOICE_FILTER_COLORS.pending.border } : {}), minWidth: 120, fontSize: '0.8rem' }}
                 onClick={() => setActiveInvoiceTab('sinAprobar')}
               >
-                Sin aprobar
+                Pending approval
               </button>
               <button
                 type="button"
@@ -2775,7 +2796,7 @@ const App = () => {
                 style={{ ...tabColorStyle(INVOICE_FILTER_COLORS.approved), ...(activeInvoiceTab === 'aprobadas' ? { color: INVOICE_FILTER_COLORS.approved.color, backgroundColor: INVOICE_FILTER_COLORS.approved.background, borderColor: INVOICE_FILTER_COLORS.approved.border } : {}), minWidth: 120, fontSize: '0.8rem' }}
                 onClick={() => setActiveInvoiceTab('aprobadas')}
               >
-                Aprobadas
+                Approved
               </button>
               <button type="button" className={`tab-pill ${activeInvoiceTab === 'todas' ? 'active' : ''}`} style={{ ...tabColorStyle(INVOICE_FILTER_COLORS.all), ...(activeInvoiceTab === 'todas' ? { color: INVOICE_FILTER_COLORS.all.color, backgroundColor: INVOICE_FILTER_COLORS.all.background, borderColor: INVOICE_FILTER_COLORS.all.border } : {}), minWidth: 100, fontSize: '0.8rem' }} onClick={() => setActiveInvoiceTab('todas')}>All</button>
               <button type="button" className={`tab-pill ${activeInvoiceTab === 'problemas' ? 'active' : ''}`} style={{ ...tabColorStyle(INVOICE_FILTER_COLORS.problems), ...(activeInvoiceTab === 'problemas' ? { color: INVOICE_FILTER_COLORS.problems.color, backgroundColor: INVOICE_FILTER_COLORS.problems.background, borderColor: INVOICE_FILTER_COLORS.problems.border } : {}), minWidth: 110, fontSize: '0.8rem' }} onClick={() => setActiveInvoiceTab('problemas')}>Problems</button>
@@ -2785,7 +2806,7 @@ const App = () => {
                 style={{ ...tabColorStyle(INVOICE_FILTER_COLORS.sent), ...(activeInvoiceTab === 'enviadas' ? { color: INVOICE_FILTER_COLORS.sent.color, backgroundColor: INVOICE_FILTER_COLORS.sent.background, borderColor: INVOICE_FILTER_COLORS.sent.border } : {}), minWidth: 120, fontSize: '0.8rem' }}
                 onClick={() => setActiveInvoiceTab('enviadas')}
               >
-                Enviadas
+                Sent
               </button>
               <button
                 type="button"
@@ -2793,7 +2814,7 @@ const App = () => {
                 style={{ ...tabColorStyle(INVOICE_FILTER_COLORS.paid), ...(activeInvoiceTab === 'pagadas' ? { color: INVOICE_FILTER_COLORS.paid.color, backgroundColor: INVOICE_FILTER_COLORS.paid.background, borderColor: INVOICE_FILTER_COLORS.paid.border } : {}), minWidth: 120, fontSize: '0.8rem' }}
                 onClick={() => setActiveInvoiceTab('pagadas')}
               >
-                Pagadas
+                Paid
               </button>
             </div>
 
@@ -2813,12 +2834,12 @@ const App = () => {
               }}
             >
               <span style={{ minWidth: 180 }}>Tracking</span>
-              <span style={{ minWidth: 180 }}>Cliente / cuenta</span>
+              <span style={{ minWidth: 180 }}>Client / account</span>
               <span style={{ minWidth: 140 }}>Carrier</span>
               <span style={{ minWidth: 90 }}>Total</span>
-              <span style={{ minWidth: 150 }}>Aprobación</span>
-              <span style={{ minWidth: 150 }}>Estado factura</span>
-              <span style={{ textAlign: 'left', minWidth: 260 }}>Acciones</span>
+              <span style={{ minWidth: 150 }}>Approval</span>
+              <span style={{ minWidth: 150 }}>Invoice status</span>
+              <span style={{ textAlign: 'left', minWidth: 260 }}>Actions</span>
             </div>
 
             <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
@@ -2829,19 +2850,19 @@ const App = () => {
 
                 const approvalLabel =
                   approval === 'APPROVED'
-                    ? 'Aprobada'
+                    ? 'Approved'
                     : approval === 'REJECTED'
-                      ? 'Rechazada'
-                      : 'Sin aprobar / Revisión';
+                      ? 'Rejected'
+                      : 'Pending / Review';
 
                 const invoiceLabel =
                   invoice === 'PAID'
-                    ? 'Pagada'
+                    ? 'Paid'
                     : invoice === 'SENT'
-                      ? 'Enviada'
+                      ? 'Sent'
                       : invoice === 'OVERDUE'
-                        ? 'Vencida'
-                        : 'Pendiente';
+                        ? 'Overdue'
+                        : 'Pending';
 
                 const formatMoney = (v: number | null) => {
                   if (typeof v !== 'number' || Number.isNaN(v)) return '$0.00';
@@ -3069,21 +3090,21 @@ const App = () => {
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "1.4fr 2fr 2.6fr 1.1fr 1fr",
+                gridTemplateColumns: "minmax(140px, 1.2fr) minmax(160px, 1.4fr) minmax(240px, 2.4fr) minmax(110px, 0.9fr) minmax(160px, 1.2fr)",
                 columnGap: "1rem",
                 padding: "0.4rem 0",
                 fontSize: "0.8rem",
                 color: "#64748b",
                 borderBottom: "1px solid #e2e8f0",
                 fontWeight: 600,
-                minWidth: 640,
+                minWidth: 960,
               }}
             >
-              <span style={{ minWidth: 100 }}>Tracking</span>
-              <span style={{ minWidth: 140 }}>Cliente</span>
-              <span style={{ minWidth: 220 }}>Descripción del problema</span>
-              <span>Estado de incidencia</span>
-              <span style={{ textAlign: "right", minWidth: 120 }}>Acciones</span>
+              <span>Tracking</span>
+              <span>Client</span>
+              <span>Problem description</span>
+              <span>Issue status</span>
+              <span style={{ textAlign: "right" }}>Actions</span>
             </div>
 
             <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
@@ -3092,12 +3113,18 @@ const App = () => {
                   p.clienteNumero != null && p.clienteNombre
                     ? `#${p.clienteNumero} - ${p.clienteNombre}`
                     : "Unknown owner / pending identification";
-                const descripcion = (p.notas || "")
-                  .split(/\r?\n/)
-                  .filter((line) => !(p.numero_cliente_id && /^unknown owner\s*-\s*pending customer identification$/i.test(line.trim())))
-                  .join("\n")
-                  .trim() || (!p.numero_cliente_id ? "Shipment has no assigned customer." : "Sin descripción");
                 const urls = obtenerUrlsIncidencia(p);
+                const descripcion = [cleanIssueNotes(p.notas), cleanIssueNotes(p.problema_notas)]
+                  .filter(Boolean)
+                  .join("\n") || (p.problema
+                    ? "Check-in problem recorded."
+                    : urls.length
+                      ? "Problem photos attached."
+                      : !p.numero_cliente_id
+                        ? "Shipment has no assigned customer."
+                        : p.issue_status
+                          ? "Issue status recorded."
+                          : "No problem description.");
 
                 return (
                   <li
@@ -3107,47 +3134,22 @@ const App = () => {
                       borderBottom: "1px solid #e2e8f0",
                       fontSize: "0.9rem",
                       display: "grid",
-                      gridTemplateColumns: "1.4fr 2fr 2.6fr 1.1fr 1fr",
-                      columnGap: "0.75rem",
+                      gridTemplateColumns: "minmax(140px, 1.2fr) minmax(160px, 1.4fr) minmax(240px, 2.4fr) minmax(110px, 0.9fr) minmax(160px, 1.2fr)",
+                      columnGap: "1rem",
                       alignItems: "center",
-                      minWidth: 640,
+                      minWidth: 960,
                     }}
                   >
-                    <span
-                      style={{
-                        fontWeight: 600,
-                        minWidth: 100,
-                        maxWidth: 140,
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      #{p.tracking}
+                    <span style={{ fontWeight: 600, overflowWrap: "anywhere" }}>
+                      <button type="button" className="ga-client360-tracking" onClick={() => void abrirDetallePedido(p.id)} title="Open shipment details">
+                        #{p.tracking}
+                      </button>
+                      {isManualInvoiceShipment(p) && <span style={{ display: "block", marginTop: "0.2rem", color: "#92400e", fontSize: "0.72rem", fontWeight: 700 }}>Manual invoice</span>}
                     </span>
-                    <span
-                      style={{
-                        color: "#0f172a",
-                        minWidth: 140,
-                        maxWidth: 200,
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
+                    <span style={{ color: "#0f172a", overflowWrap: "anywhere" }}>
                       {clienteLabel}
                     </span>
-                    <span
-                      style={{
-                        color: "#475569",
-                        fontSize: "0.85rem",
-                        minWidth: 220,
-                        maxWidth: 260,
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
+                    <span style={{ color: "#475569", fontSize: "0.85rem", whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
                       {descripcion}
                     </span>
                     <span
@@ -3164,6 +3166,7 @@ const App = () => {
                         display: "flex",
                         justifyContent: "flex-end",
                         gap: "0.35rem",
+                        flexWrap: "wrap",
                       }}
                     >
                       <button
@@ -3242,13 +3245,13 @@ const App = () => {
                 minWidth: 960,
               }}
             >
-              <span style={{ minWidth: 80 }}>Número</span>
-              <span style={{ minWidth: 140 }}>Nombre</span>
+              <span style={{ minWidth: 80 }}>Account #</span>
+              <span style={{ minWidth: 140 }}>Name</span>
               <span style={{ minWidth: 220 }}>Email</span>
-              <span style={{ minWidth: 120 }}>Teléfono</span>
-              <span style={{ minWidth: 110 }}>Puerto</span>
-              <span style={{ minWidth: 120 }}>Tipo cuenta</span>
-              <div style={{ display: 'flex', justifyContent: 'flex-end', minWidth: 80 }}>Acciones</div>
+              <span style={{ minWidth: 120 }}>Phone</span>
+              <span style={{ minWidth: 110 }}>Port</span>
+              <span style={{ minWidth: 120 }}>Account type</span>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', minWidth: 80 }}>Actions</div>
             </div>
 
             <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
@@ -3299,7 +3302,7 @@ const App = () => {
                   <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.35rem' }}>
                     <button
                       type="button"
-                      title="Editar cliente"
+                      title="Edit customer"
                       onClick={() => handleEditarCliente(c)}
                       style={{
                         width: '28px',
@@ -3318,7 +3321,7 @@ const App = () => {
                     </button>
                     <button
                       type="button"
-                      title="Eliminar cliente"
+                      title="Delete customer"
                       onClick={() => handleEliminarCliente(c.id)}
                       style={{
                         width: '28px',
@@ -3384,166 +3387,19 @@ const App = () => {
           </div>
         )}
 
-        {activeTab === 'pedidos' && pedidos.length > 0 && (
-          <div style={{ width: '100%', overflowX: 'auto' }}>
-            {/* Filtro por tracking, número de cuenta o nombre de cliente */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
-              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                <input
-                  type="text"
-                  placeholder="Search tracking, customer account, or name..."
-                  value={pedidoFiltro}
-                  onChange={(e) => setPedidoFiltro(e.target.value)}
-                  style={{
-                    width: '100%',
-                    maxWidth: '320px',
-                    padding: '0.45rem 0.75rem',
-                    borderRadius: '999px',
-                    border: '1px solid #e2e8f0',
-                    fontSize: '0.85rem',
-                    outline: 'none',
-                  }}
-                />
-                <select value={pedidoEtapa} onChange={(e) => setPedidoEtapa(e.target.value)} style={{ padding: '0.45rem 0.7rem', borderRadius: '999px', border: '1px solid #e2e8f0', background: '#fff', fontSize: '0.85rem' }} aria-label="Filter shipments by stage">
-                  {SHIPMENT_STAGE_OPTIONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-                </select>
-              </div>
-              <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', width: '100%' }}>
-                {SHIPMENT_STAGE_OPTIONS.map(([value, label]) => <button key={value} type="button" onClick={() => setPedidoEtapa(value)} style={{ border: pedidoEtapa === value ? '1px solid #2563eb' : '1px solid #e2e8f0', background: pedidoEtapa === value ? '#eff6ff' : '#fff', color: pedidoEtapa === value ? '#1d4ed8' : '#475569', borderRadius: '999px', padding: '0.25rem 0.55rem', fontSize: '0.74rem', cursor: 'pointer' }}>{label}{value !== 'ALL' ? ` (${pedidos.filter((p) => shipmentStage(p.estado) === value).length})` : ` (${pedidos.length})`}</button>)}
-              </div>
-            </div>
-
-            {/* Encabezados de la tabla de pedidos */}
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: '2fr 2fr 1.2fr 1.2fr',
-                columnGap: '0.75rem',
-                padding: '0.4rem 0',
-                fontSize: '0.8rem',
-                color: '#64748b',
-                borderBottom: '1px solid #e2e8f0',
-                fontWeight: 600,
-                minWidth: 760,
-              }}
-            >
-              <span style={{ minWidth: 200 }}>Tracking</span>
-              <span style={{ minWidth: 140 }}>Cliente</span>
-              <span style={{ minWidth: 120 }}>Estado</span>
-              <span style={{ textAlign: 'right', minWidth: 80 }}>Acciones</span>
-            </div>
-
-            <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-              {pedidos
-                .filter((p) => {
-                  const term = pedidoFiltro.trim().toLowerCase();
-                  const num = p.clienteNumero != null ? String(p.clienteNumero) : "";
-                  const name = p.clienteNombre ? p.clienteNombre.toLowerCase() : "";
-                  const tracking = p.tracking ? String(p.tracking).toLowerCase() : "";
-                  const matchesCustomer = !term || tracking.includes(term) || num.includes(term) || name.includes(term);
-                  const matchesStage = pedidoEtapa === "ALL" || shipmentStage(p.estado) === pedidoEtapa;
-                  return matchesCustomer && matchesStage;
-                })
-                .map((p) => {
-                const clienteLabel =
-                  p.clienteNumero != null && p.clienteNombre
-                    ? `#${p.clienteNumero} - ${p.clienteNombre}`
-                    : '';
-
-                return (
-                  <li
-                    key={p.id}
-                    style={{
-                      padding: '0.8rem 0',
-                      borderBottom: '1px solid #e2e8f0',
-                      fontSize: '0.9rem',
-                      display: 'grid',
-                      gridTemplateColumns: '2fr 2fr 1.2fr 1.2fr',
-                      columnGap: '0.75rem',
-                      alignItems: 'center',
-                      minWidth: 760,
-                      cursor: 'default',
-                    }}
-                  >
-                    <span style={{ fontWeight: 600, minWidth: 200, overflowWrap: 'anywhere' }}>
-                      #{p.tracking}
-                    </span>
-                    <span
-                      style={{
-                        color: '#0f172a',
-                        minWidth: 140,
-                        maxWidth: 200,
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
-                      {clienteLabel}
-                    </span>
-                    <span
-                      style={{
-                        color: p.estado === 'Check In' ? '#16a34a' : '#0f172a',
-                        background: 'transparent',
-                        border: '0',
-                        borderRadius: '0',
-                        fontWeight: 700,
-                        textTransform: 'capitalize',
-                        minWidth: 120,
-                        maxWidth: 160,
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                        padding: 0,
-                        display: 'inline-block',
-                      }}
-                    >
-                      {p.estado || '-'}
-                    </span>
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.35rem' }} onClick={(event) => event.stopPropagation()}>
-                      <button
-                        type="button"
-                        title="Editar pedido"
-                        style={{
-                          width: '28px',
-                          height: '28px',
-                          borderRadius: '999px',
-                          border: '1px solid #bfdbfe',
-                          backgroundColor: '#eff6ff',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          color: '#1d4ed8',
-                        }}
-                        onClick={() => abrirEditarPedido(p)}
-                      >
-                        <Pencil size={16} />
-                      </button>
-                      <button
-                        type="button"
-                        title="Eliminar pedido"
-                        style={{
-                          width: '28px',
-                          height: '28px',
-                          borderRadius: '999px',
-                          border: '1px solid #fecaca',
-                          backgroundColor: '#fee2e2',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          color: '#b91c1c',
-                        }}
-                        onClick={() => handleDeletePedido(p.id)}
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
+        {activeTab === 'pedidos' && (
+          <ShipmentsAdmin
+            shipments={pedidos}
+            issueIds={pedidosConIncidencia.filter((shipment) => shipment.issue_status !== "RESOLVED").map((shipment) => shipment.id)}
+            stageOptions={SHIPMENT_STAGE_OPTIONS}
+            getStage={shipmentStage}
+            onView={(id) => void abrirDetallePedido(id)}
+            onEdit={(shipment) => {
+              const record = pedidos.find((item) => item.id === shipment.id);
+              if (record) abrirEditarPedido(record);
+            }}
+            onDelete={(id) => void handleDeletePedido(id)}
+          />
         )}
       </div>
 
@@ -3576,7 +3432,7 @@ const App = () => {
                   marginRight: "0.5rem",
                 }}
               >
-                {incidenciaTitulo || "Imágenes de incidencia"}
+                {incidenciaTitulo || "Issue photos"}
               </h4>
               <button
                 type="button"
@@ -4100,7 +3956,7 @@ const App = () => {
         <div className="pa-modal-overlay">
           <div className="pa-modal" style={{ maxWidth: "640px" }}>
             <div className="pa-modal-header">
-              <h4 className="pa-modal-title">Editar pedido</h4>
+              <h4 className="pa-modal-title">Edit shipment</h4>
               <button type="button" className="pa-close-btn" onClick={cerrarModalEditarPedido}>
                 ×
               </button>
@@ -4138,18 +3994,18 @@ const App = () => {
                   />
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
-                  <label>Tipo de paquete</label>
+                  <label>Package type</label>
                   <select
                     className="pa-input"
                     value={pedidoForm.tipo_paquete}
                     onChange={(e) => handlePedidoFormChange("tipo_paquete", e.target.value)}
                   >
-                    <option value="BOX">Caja</option>
-                    <option value="PACKAGE">Paquete</option>
+                    <option value="BOX">Box</option>
+                    <option value="PACKAGE">Package</option>
                   </select>
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
-                  <label>Estado</label>
+                  <label>Stage</label>
                   <select
                     className="pa-input"
                     value={pedidoForm.estado}
@@ -4164,12 +4020,13 @@ const App = () => {
                         "Entregado",
                       ];
                       const current = pedidoForm.estado || "";
+                      const statusLabels: Record<string, string> = { Recibido: "Received", Registro: "Registered / Check In", "En transito": "In transit", Descargado: "Unloaded", Entregado: "Delivered" };
                       const options =
                         current && !BASE.includes(current) ? [current, ...BASE] : BASE;
 
                       return options.map((opt) => (
                         <option key={opt} value={opt}>
-                          {opt}
+                          {statusLabels[opt] || opt}
                         </option>
                       ));
                     })()}
@@ -4184,7 +4041,7 @@ const App = () => {
                   />
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
-                  <label>Notas</label>
+                  <label>Notes</label>
                   <input
                     className="pa-input"
                     value={pedidoForm.notas}
@@ -4199,7 +4056,7 @@ const App = () => {
                     onChange={(e) => {
                       handlePedidoFormChange("numero_cliente_id", e.target.value);
                       const selected = clientes.find((cliente) => cliente.id === e.target.value);
-                      setPedidoClienteLabel(selected ? `#${selected.numero_cliente} - ${selected.nombre}` : "Sin cliente asignado");
+                      setPedidoClienteLabel(selected ? `#${selected.numero_cliente} - ${selected.nombre}` : "No customer assigned");
                     }}
                   >
                     <option value="">Unassigned / owner unknown</option>
@@ -4235,29 +4092,29 @@ const App = () => {
                   }}
                 >
                   <div>
-                    <div style={{ fontWeight: 600, color: "#4b5563" }}>Registrado por</div>
+                    <div style={{ fontWeight: 600, color: "#4b5563" }}>Registered by</div>
                     <div style={{ color: "#111827" }}>{pedidoForm.registro || "-"}</div>
                   </div>
                   <div>
-                    <div style={{ fontWeight: 600, color: "#4b5563" }}>Hora/fecha recibido</div>
+                    <div style={{ fontWeight: 600, color: "#4b5563" }}>Received date/time</div>
                     <div style={{ color: "#111827" }}>{formatStaffDateTime(pedidoForm.hora_fecha)}</div>
                   </div>
                   <div>
-                    <div style={{ fontWeight: 600, color: "#4b5563" }}>Descargado por</div>
+                    <div style={{ fontWeight: 600, color: "#4b5563" }}>Unloaded by</div>
                     <div style={{ color: "#111827" }}>{pedidoForm.descargado || "-"}</div>
                   </div>
                   <div>
-                    <div style={{ fontWeight: 600, color: "#4b5563" }}>Fecha/hora descargado</div>
+                    <div style={{ fontWeight: 600, color: "#4b5563" }}>Unloaded date/time</div>
                     <div style={{ color: "#111827" }}>
                       {pedidoForm.fecha_descargado || "-"} {pedidoForm.hora_descargado ? formatStaffDateTime(pedidoForm.hora_descargado) : ""}
                     </div>
                   </div>
                   <div>
-                    <div style={{ fontWeight: 600, color: "#4b5563" }}>Entregado por</div>
+                    <div style={{ fontWeight: 600, color: "#4b5563" }}>Delivered by</div>
                     <div style={{ color: "#111827" }}>{pedidoForm.entregado_por || "-"}</div>
                   </div>
                   <div>
-                    <div style={{ fontWeight: 600, color: "#4b5563" }}>Fecha/hora entregado</div>
+                    <div style={{ fontWeight: 600, color: "#4b5563" }}>Delivered date/time</div>
                     <div style={{ color: "#111827" }}>
                       {pedidoForm.fecha_entregado || "-"} {pedidoForm.hora_entregado ? formatStaffDateTime(pedidoForm.hora_entregado) : ""}
                     </div>
@@ -4292,7 +4149,7 @@ const App = () => {
                         color: "#374151",
                       }}
                     >
-                      Datos de Check In
+                      Check-in data
                     </div>
                     <div
                       style={{
@@ -4303,7 +4160,7 @@ const App = () => {
                       }}
                     >
                       <div>
-                        <div style={{ fontWeight: 600, color: "#4b5563" }}>Alto</div>
+                        <div style={{ fontWeight: 600, color: "#4b5563" }}>Height</div>
                         <input
                           className="pa-input"
                           type="number"
@@ -4314,7 +4171,7 @@ const App = () => {
                         />
                       </div>
                       <div>
-                        <div style={{ fontWeight: 600, color: "#4b5563" }}>Ancho</div>
+                        <div style={{ fontWeight: 600, color: "#4b5563" }}>Width</div>
                         <input
                           className="pa-input"
                           type="number"
@@ -4325,7 +4182,7 @@ const App = () => {
                         />
                       </div>
                       <div>
-                        <div style={{ fontWeight: 600, color: "#4b5563" }}>Largo</div>
+                        <div style={{ fontWeight: 600, color: "#4b5563" }}>Length</div>
                         <input
                           className="pa-input"
                           type="number"
@@ -4336,7 +4193,7 @@ const App = () => {
                         />
                       </div>
                       <div>
-                        <div style={{ fontWeight: 600, color: "#4b5563" }}>Peso</div>
+                        <div style={{ fontWeight: 600, color: "#4b5563" }}>Weight</div>
                         <input
                           className="pa-input"
                           type="number"
@@ -4347,7 +4204,7 @@ const App = () => {
                         />
                       </div>
                       <div>
-                        <div style={{ fontWeight: 600, color: "#4b5563" }}>Problema</div>
+                        <div style={{ fontWeight: 600, color: "#4b5563" }}>Problem</div>
                         <label style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
                           <input
                             type="checkbox"
@@ -4357,12 +4214,12 @@ const App = () => {
                             }
                           />
                           <span style={{ color: "#111827" }}>
-                            {pedidoCheckinForm.problema ? "Sí" : "No"}
+                            {pedidoCheckinForm.problema ? "Yes" : "No"}
                           </span>
                         </label>
                       </div>
                       <div>
-                        <div style={{ fontWeight: 600, color: "#4b5563" }}>Consolidación</div>
+                        <div style={{ fontWeight: 600, color: "#4b5563" }}>Consolidation</div>
                         <label style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
                           <input
                             type="checkbox"
@@ -4372,12 +4229,12 @@ const App = () => {
                             }
                           />
                           <span style={{ color: "#111827" }}>
-                            {pedidoCheckinForm.consolidacion ? "Sí" : "No"}
+                            {pedidoCheckinForm.consolidacion ? "Yes" : "No"}
                           </span>
                         </label>
                       </div>
                       <div style={{ gridColumn: "1 / -1" }}>
-                        <div style={{ fontWeight: 600, color: "#4b5563" }}>Notas de problema</div>
+                        <div style={{ fontWeight: 600, color: "#4b5563" }}>Problem notes</div>
                         <textarea
                           className="pa-input"
                           rows={2}
@@ -4388,7 +4245,7 @@ const App = () => {
                         />
                       </div>
                       <div style={{ gridColumn: "1 / -1" }}>
-                        <div style={{ fontWeight: 600, color: "#4b5563" }}>Cargos adicionales</div>
+                        <div style={{ fontWeight: 600, color: "#4b5563" }}>Additional charges</div>
                         <textarea
                           className="pa-input"
                           rows={2}
@@ -4412,7 +4269,7 @@ const App = () => {
                 }}
               >
                 <div style={{ display: "grid", gap: "0.35rem" }}>
-                  <label>Fecha descargado</label>
+                  <label>Unloaded date</label>
                   <input
                     type="date"
                     className="pa-input"
@@ -4421,7 +4278,7 @@ const App = () => {
                   />
                 </div>
                 <div style={{ display: "grid", gap: "0.35rem" }}>
-                  <label>Hora descargado</label>
+                  <label>Unloaded time</label>
                   <input
                     type="time"
                     className="pa-input"
@@ -4430,7 +4287,7 @@ const App = () => {
                   />
                 </div>
                 <div style={{ display: "grid", gap: "0.35rem" }}>
-                  <label>Fecha entregado</label>
+                  <label>Delivered date</label>
                   <input
                     type="date"
                     className="pa-input"
@@ -4439,7 +4296,7 @@ const App = () => {
                   />
                 </div>
                 <div style={{ display: "grid", gap: "0.35rem" }}>
-                  <label>Hora entregado</label>
+                  <label>Delivered time</label>
                   <input
                     type="time"
                     className="pa-input"
@@ -4456,14 +4313,14 @@ const App = () => {
                     className="pa-secondary-btn"
                     onClick={generarQrDesdeFormulario}
                   >
-                    Generar QR
+                    Generate QR
                   </button>
                 </div>
                 {pedidoQrUrl && (
                   <div style={{ textAlign: "center" }}>
                     <Image
                       src={pedidoQrUrl}
-                      alt="QR pedido"
+                      alt="Shipment QR"
                       width={200}
                       height={200}
                       unoptimized

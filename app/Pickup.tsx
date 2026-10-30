@@ -4,6 +4,7 @@ import React, { useState, useMemo } from "react";
 
 import { PackageOpen, Camera, Eye, Pencil, Trash2 } from "lucide-react";
 import { formatStaffDateTime } from "../lib/staff-date-format";
+import { SHIPMENT_STAGE_COLORS, tabColorStyle } from "../lib/shipment-colors";
 
 type PackageCategoryId = "BOX" | "PACKAGE";
 
@@ -154,7 +155,11 @@ const PickupStage: React.FC<PickupProps> = ({ isEs, packages, onScanPickup, onVi
                   <td className="ga-table-text">
                     {isEs ? "No" : "No"}
                   </td>
-                  <td className="ga-table-text">{p.estado || "-"}</td>
+                  <td className="ga-table-text">
+                    <span className="ga-stage-status" style={tabColorStyle(SHIPMENT_STAGE_COLORS.PICKED_UP)}>
+                      {isEs ? "Entregado / Pickup" : "Picked Up"}
+                    </span>
+                  </td>
                   <td className="ga-table-text">
                     {formatStaffDateTime(p.horaFecha, isEs ? "es-ES" : "en-US")}
                   </td>

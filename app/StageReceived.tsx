@@ -17,6 +17,7 @@ import {
 } from "html5-qrcode";
 import { supabase } from "../lib/supabaseClient";
 import { formatStaffDateTime } from "../lib/staff-date-format";
+import { SHIPMENT_STAGE_COLORS, tabColorStyle } from "../lib/shipment-colors";
 import { detectCarrier } from "./lib/carrierDetection";
 import EscanerQRCaribex from "./escanerQR";
 
@@ -611,7 +612,11 @@ const StageReceived: React.FC<StageReceivedProps> = ({
                   <td className="ga-table-text">
                     {isEs ? "No" : "No"}
                   </td>
-                  <td className="ga-table-text">{p.estado || "-"}</td>
+                  <td className="ga-table-text">
+                    <span className="ga-stage-status" style={tabColorStyle(SHIPMENT_STAGE_COLORS.RECEIVED)}>
+                      {isEs ? "Recibido" : "Received"}
+                    </span>
+                  </td>
                   <td className="ga-table-text">
                     {formatStaffDateTime(p.horaFecha, isEs ? "es-ES" : "en-US")}
                   </td>

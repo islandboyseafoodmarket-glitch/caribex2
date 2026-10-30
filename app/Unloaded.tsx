@@ -5,6 +5,7 @@ import React, { useState, useMemo } from "react";
 import { PackageOpen, Camera, Eye, Pencil, Trash2 } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
 import { formatStaffDateTime } from "../lib/staff-date-format";
+import { SHIPMENT_STAGE_COLORS, tabColorStyle } from "../lib/shipment-colors";
 
 type PackageCategoryId = "BOX" | "PACKAGE";
 
@@ -201,7 +202,11 @@ const UnloadedStage: React.FC<UnloadedProps> = ({
                   <td className="ga-table-text">
                     {isEs ? "No" : "No"}
                   </td>
-                  <td className="ga-table-text">{p.estado || "-"}</td>
+                  <td className="ga-table-text">
+                    <span className="ga-stage-status" style={tabColorStyle(SHIPMENT_STAGE_COLORS.UNLOADED)}>
+                      {isEs ? "Descargado" : "Unloaded"}
+                    </span>
+                  </td>
                   <td className="ga-table-text">
                     {formatStaffDateTime(p.horaFecha, isEs ? "es-ES" : "en-US")}
                   </td>

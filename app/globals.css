@@ -2229,14 +2229,15 @@ main {
 }
 
 .ga-stage-chip-active {
-  border-color: #e5e7eb;
-  box-shadow: none;
-  color: #4b5563;
+  border-color: var(--tab-border);
+  background-color: var(--tab-tint);
+  box-shadow: 0 0 0 1px var(--tab-border);
+  color: var(--tab-color);
 }
 
 .ga-stage-chip:hover .ga-stage-label,
 .ga-stage-chip-active .ga-stage-label {
-  border-bottom-color: var(--accent-green);
+  border-bottom-color: var(--tab-color);
 }
 
 .ga-stage-icon {
@@ -2245,6 +2246,10 @@ main {
   justify-content: center;
   margin-right: 0.25rem;
   color: #111827;
+}
+
+.ga-stage-chip-active .ga-stage-icon {
+  color: var(--tab-color);
 }
 
 .ga-stage-badge {
@@ -2416,6 +2421,20 @@ main {
   font-size: 0.65rem;
   font-weight: 700;
   text-transform: uppercase;
+}
+
+.ga-stage-status {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.6rem;
+  border: 1px solid var(--tab-border);
+  border-radius: 999px;
+  background-color: var(--tab-tint);
+  color: var(--tab-color);
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
 }
 
 .ga-table-actions {
