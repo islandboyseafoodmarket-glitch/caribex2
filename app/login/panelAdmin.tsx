@@ -21,7 +21,7 @@ import ContainersAdmin from "./ContainersAdmin";
 import ReportsAdmin from "./ReportsAdmin";
 import { formatStaffDateTime } from "../../lib/staff-date-format";
 import InvoicePreview, { type InvoicePreviewProps } from "../../components/InvoicePreview";
-import { BILLABLE_INVOICE_ITEMS, SALES_TAX_RATE, formatCatalogCharge, roundMoney } from "../../lib/invoice-pricing";
+import { BILLABLE_INVOICE_ITEMS, INVOICE_DISCOUNTS, SALES_TAX_RATE, formatCatalogCharge, parseInvoiceChargeLine, parseInvoiceDiscountLine, roundMoney, type InvoiceDiscountCode } from "../../lib/invoice-pricing";
 import { INVOICE_FILTER_COLORS, tabColorStyle } from "../../lib/shipment-colors";
 
 /**
@@ -69,6 +69,19 @@ const ADMIN_EXTRA_CHARGE_OPTIONS = [
   "Consolidation fee ($2.5)",
   "Honduran imposed duty",
 ];
+type ExistingInvoiceDiscount = { code: InvoiceDiscountCode | null; label: string; amount: number };
+function findExistingInvoiceDiscount(raw: unknown): ExistingInvoiceDiscount | null {
+  const lines = String(raw || "").split(",").map((item) => item.trim()).filter(Boolean);
+  for (const line of lines) {
+    const parsed = parseInvoiceDiscountLine(line);
+    if (parsed) return parsed;
+  }
+  const legacyDiscount = lines.map((line) => ({ line, parsed: parseInvoiceChargeLine(line) }))
+    .find(({ parsed }) => parsed.description === "Discount" && parsed.amount < 0);
+  return legacyDiscount
+    ? { code: null, label: legacyDiscount.parsed.description, amount: Math.abs(legacyDiscount.parsed.amount) }
+    : null;
+}
 const MANUAL_INVOICE_CHARGE_OPTIONS = [
   "Handling fees",
   "Forklift charge ($100)",
@@ -352,6 +365,9 @@ const App = () => {
   const [editingInvoiceAddOns, setEditingInvoiceAddOns] = useState<Factura | null>(null);
   const [invoiceAddOnType, setInvoiceAddOnType] = useState("");
   const [invoiceAddOnAmount, setInvoiceAddOnAmount] = useState("");
+  const [invoiceDiscountCode, setInvoiceDiscountCode] = useState<InvoiceDiscountCode | "">("");
+  const [existingInvoiceDiscount, setExistingInvoiceDiscount] = useState<ExistingInvoiceDiscount | null>(null);
+  const [isSavingInvoiceDiscount, setIsSavingInvoiceDiscount] = useState(false);
   const [invoiceSearch, setInvoiceSearch] = useState("");
   const [invoiceContainerFilter, setInvoiceContainerFilter] = useState("ALL");
   const [isManualInvoiceOpen, setIsManualInvoiceOpen] = useState(false);
@@ -1577,11 +1593,49 @@ const App = () => {
     if (!checkin) { alert("No check-in record exists for this invoice yet."); return; }
     setInvoiceAddOnType("");
     setInvoiceAddOnAmount("");
+    setInvoiceDiscountCode("");
+    setExistingInvoiceDiscount(findExistingInvoiceDiscount(checkin.cargos_adicionales));
     setEditingInvoiceAddOns(factura);
+  };
+
+  const saveAdminInvoiceDiscount = async (action: "apply" | "remove") => {
+    if (!editingInvoiceAddOns || (action === "apply" && !invoiceDiscountCode)) return;
+    setIsSavingInvoiceDiscount(true);
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const response = await fetch("/api/invoice-catalog", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${sessionData.session?.access_token || ""}` },
+        body: JSON.stringify({
+          shipment_id: editingInvoiceAddOns.id,
+          discount_action: action,
+          ...(action === "apply" ? { discount_code: invoiceDiscountCode } : {}),
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || "Could not update invoice discount");
+      updateFacturaEnEstado(editingInvoiceAddOns.id, { subtotal: Number(payload.subtotal), tax: Number(payload.tax), total: Number(payload.total) });
+      if (action === "apply" && payload.discountCode && INVOICE_DISCOUNTS[payload.discountCode as InvoiceDiscountCode]) {
+        const code = payload.discountCode as InvoiceDiscountCode;
+        setExistingInvoiceDiscount({ code, label: INVOICE_DISCOUNTS[code].label, amount: Number(payload.discountAmount) });
+      } else {
+        setExistingInvoiceDiscount(null);
+      }
+      setInvoiceDiscountCode("");
+      await cargarFacturas();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Could not update invoice discount");
+    } finally {
+      setIsSavingInvoiceDiscount(false);
+    }
   };
 
   const saveAdminInvoiceAddOn = async () => {
     if (!editingInvoiceAddOns || !invoiceAddOnType) return;
+    if (invoiceAddOnType === "Discount") {
+      alert("Select a percentage discount above.");
+      return;
+    }
     const amount = Number(invoiceAddOnAmount);
     if (!Number.isFinite(amount) || amount <= 0) { alert("Enter an amount greater than zero."); return; }
     const { data: checkin } = await supabase.from("paquetes_checkin").select("id, cargos_adicionales").eq("paquete_id", editingInvoiceAddOns.id).order("creado_en", { ascending: false }).limit(1).maybeSingle();
@@ -2432,7 +2486,7 @@ const App = () => {
 
       {/* Data view card */}
       <div className={`data-card ${activeTab === 'facturas' ? 'data-card--invoices' : ''}`}>
-        <div className="card-header-inner" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
+        <div className="card-header-inner" style={{ display: activeTab === 'pedidos' ? 'none' : 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
           <div>
             <h3>
               {activeTab === 'personal' ? <IconUsers /> : <IconBriefcase />}{' '}
@@ -2536,7 +2590,7 @@ const App = () => {
 
           {activeTab === 'reports' && <ReportsAdmin />}
 
-          {activeTab === 'finanzas' && (
+          {activeTab === 'prepaid' && (
             <div style={{ margin: '1rem 0', padding: '1rem 1.1rem', borderRadius: '0.9rem', border: '1px solid #f59e0b', background: '#fffbeb' }}>
               <strong style={{ color: '#92400e' }}>Prepaid allowance review</strong>
               <p style={{ margin: '0.35rem 0 0.8rem', color: '#78350f' }}>Shipments that exceed a customer’s cubic-foot allowance stay visible for Admin approval before operational completion.</p>
@@ -3529,13 +3583,44 @@ const App = () => {
                 {ADMIN_EXTRA_CHARGE_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
               </select>
             </div>
-            <div className="pa-field">
-              <label htmlFor="admin-invoice-charge-amount">Amount</label>
-              <input id="admin-invoice-charge-amount" className="pa-input" type="number" min="0.01" step="0.01" value={invoiceAddOnAmount} onChange={(event) => setInvoiceAddOnAmount(event.target.value)} placeholder="0.00" />
-            </div>
+            {invoiceAddOnType === "Discount" ? (
+              <div className="pa-field" style={{ paddingBottom: "1rem", marginBottom: "1rem", borderBottom: "1px solid #e2e8f0" }}>
+                <label htmlFor="admin-invoice-discount">Discount percentage</label>
+                {existingInvoiceDiscount ? (
+                  <>
+                    <p style={{ margin: "0.35rem 0 0.65rem", color: "#334155" }}>
+                      Applied: <strong>{existingInvoiceDiscount.label}</strong> — -${existingInvoiceDiscount.amount.toFixed(2)}
+                    </p>
+                    <button type="button" className="pa-secondary-btn" disabled={isSavingInvoiceDiscount} onClick={() => void saveAdminInvoiceDiscount("remove")}>
+                      {isSavingInvoiceDiscount ? "Saving…" : "Remove discount"}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <select id="admin-invoice-discount" className="pa-input" value={invoiceDiscountCode} onChange={(event) => setInvoiceDiscountCode(event.target.value as InvoiceDiscountCode | "")}>
+                      <option value="">Select a discount</option>
+                      {(Object.entries(INVOICE_DISCOUNTS) as [InvoiceDiscountCode, (typeof INVOICE_DISCOUNTS)[InvoiceDiscountCode]][]).map(([code, definition]) => (
+                        <option key={code} value={code}>{definition.label}</option>
+                      ))}
+                    </select>
+                    <p style={{ margin: "0.45rem 0", color: "#64748b", fontSize: "0.78rem" }}>
+                      Discounts apply before the existing handling fee, excluding consolidation and handling-fee amounts. Only one discount may be active.
+                    </p>
+                    <button type="button" className="pa-primary-btn" disabled={!invoiceDiscountCode || isSavingInvoiceDiscount} onClick={() => void saveAdminInvoiceDiscount("apply")}>
+                      {isSavingInvoiceDiscount ? "Saving…" : "Apply discount"}
+                    </button>
+                  </>
+                )}
+              </div>
+            ) : (
+              <div className="pa-field">
+                <label htmlFor="admin-invoice-charge-amount">Amount</label>
+                <input id="admin-invoice-charge-amount" className="pa-input" type="number" min="0.01" step="0.01" value={invoiceAddOnAmount} onChange={(event) => setInvoiceAddOnAmount(event.target.value)} placeholder="0.00" />
+              </div>
+            )}
             <div className="pa-modal-actions">
               <button type="button" className="pa-secondary-btn" onClick={() => setEditingInvoiceAddOns(null)}>Cancel</button>
-              <button type="button" className="pa-primary-btn" disabled={!invoiceAddOnType || !invoiceAddOnAmount} onClick={() => void saveAdminInvoiceAddOn()}>Save adjustment</button>
+              {invoiceAddOnType !== "Discount" && <button type="button" className="pa-primary-btn" disabled={!invoiceAddOnType || !invoiceAddOnAmount} onClick={() => void saveAdminInvoiceAddOn()}>Save adjustment</button>}
             </div>
           </div>
         </div>

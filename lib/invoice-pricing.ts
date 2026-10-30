@@ -8,9 +8,12 @@ export const CUBIC_FOOT_RATE = 18.5;
 export const CONSOLIDATION_UNIT_PRICE = 2.5;
 
 export const INVOICE_DISCOUNTS = {
-  business_discount: { label: "Business Discount (10%)", scope: "invoice" },
-  customer_appreciation: { label: "Customer Appreciation (10%)", scope: "invoice" },
-  ferry_charge_offset: { label: "Ferry Charge Offset (10%)", scope: "shipping" },
+  discount_10: { label: "Discount (10%)", scope: "invoice", rate: 0.10 },
+  discount_15: { label: "Discount (15%)", scope: "invoice", rate: 0.15 },
+  business_discount: { label: "Business Discount (10%)", scope: "invoice", rate: 0.10 },
+  vip_discount: { label: "VIP Discount (25%)", scope: "invoice", rate: 0.25 },
+  customer_appreciation: { label: "Customer Appreciation (10%)", scope: "invoice", rate: 0.10 },
+  ferry_charge_offset: { label: "Ferry Charge Offset (10%)", scope: "shipping", rate: 0.10 },
 } as const;
 
 export type InvoiceDiscountCode = keyof typeof INVOICE_DISCOUNTS;
@@ -101,7 +104,19 @@ export function formatInvoiceDiscountLine(code: InvoiceDiscountCode, amount: num
 export function parseInvoiceDiscountLine(label: string): { code: InvoiceDiscountCode; label: string; amount: number } | null {
   const parsed = parseInvoiceChargeLine(label);
   if (parsed.amount >= 0) return null;
-  const match = (Object.entries(INVOICE_DISCOUNTS) as [InvoiceDiscountCode, (typeof INVOICE_DISCOUNTS)[InvoiceDiscountCode]][])
-    .find(([, definition]) => definition.label === parsed.description);
+  const normalizedDescription = parsed.description.replace(/\s+/g, " ").trim().toLowerCase();
+  const legacyCodeByDescription: Partial<Record<string, InvoiceDiscountCode>> = {
+    discount: "discount_10",
+    "discount (10%)": "discount_10",
+    "business discount": "business_discount",
+    "customer appreciation": "customer_appreciation",
+    "ferry charge offset": "ferry_charge_offset",
+    "vip discount": "vip_discount",
+  };
+  const legacyCode = legacyCodeByDescription[normalizedDescription] || null;
+  const match = legacyCode
+    ? [legacyCode, INVOICE_DISCOUNTS[legacyCode]] as const
+    : (Object.entries(INVOICE_DISCOUNTS) as [InvoiceDiscountCode, (typeof INVOICE_DISCOUNTS)[InvoiceDiscountCode]][])
+      .find(([, definition]) => definition.label.toLowerCase() === normalizedDescription);
   return match ? { code: match[0], label: match[1].label, amount: roundMoney(Math.abs(parsed.amount)) } : null;
 }

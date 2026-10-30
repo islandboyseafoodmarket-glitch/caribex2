@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { BILLABLE_INVOICE_ITEMS, INVOICE_DISCOUNTS, INVOICE_DISCOUNT_RATE, HANDLING_FEE_RATE, formatCatalogCharge, formatInvoiceDiscountLine, parseInvoiceChargeLine, parseInvoiceDiscountLine, roundMoney, type InvoiceDiscountCode } from "@/lib/invoice-pricing";
+import { BILLABLE_INVOICE_ITEMS, INVOICE_DISCOUNTS, HANDLING_FEE_RATE, formatCatalogCharge, formatInvoiceDiscountLine, parseInvoiceChargeLine, parseInvoiceDiscountLine, roundMoney, type InvoiceDiscountCode } from "@/lib/invoice-pricing";
 import { calculateWorkflowBilling } from "@/lib/workflow-billing";
 
 function adminClient() {
@@ -211,7 +211,11 @@ async function updateInvoiceDiscount(
       const parsed = parseInvoiceChargeLine(label);
       return /consolidat/i.test(parsed.description) ? sum + Math.max(0, parsed.amount) : sum;
     }, 0));
-    const handlingAmount = roundMoney(workflow?.handlingCharge || 0);
+    const explicitHandlingAmount = roundMoney(priorCharges.reduce((sum, label) => {
+      const parsed = parseInvoiceChargeLine(label);
+      return /handling\s+fees?/i.test(parsed.description) ? sum + Math.max(0, parsed.amount) : sum;
+    }, 0));
+    const handlingAmount = roundMoney((workflow?.handlingCharge || 0) + explicitHandlingAmount);
     let eligibleSubtotal = Math.max(0, currentSubtotal - consolidationAmount - handlingAmount);
     if (INVOICE_DISCOUNTS[code!].scope === "shipping") {
       if (!workflow) return NextResponse.json({ error: "Shipping charges could not be calculated for this shipment" }, { status: 409 });
@@ -224,7 +228,7 @@ async function updateInvoiceDiscount(
       const unexplainedInvoiceAmount = currentSubtotal - workflow.subtotal;
       eligibleSubtotal = Math.min(eligibleSubtotal, Math.max(0, workflow.subtotal - merchandiseAmount - consolidationAmount - handlingAmount + Math.max(0, unexplainedInvoiceAmount)));
     }
-    discountAmount = roundMoney(Math.min(currentSubtotal, eligibleSubtotal) * INVOICE_DISCOUNT_RATE);
+    discountAmount = roundMoney(Math.min(currentSubtotal, eligibleSubtotal) * INVOICE_DISCOUNTS[code!].rate);
     if (discountAmount <= 0) return NextResponse.json({ error: "This invoice has no eligible amount for the selected discount" }, { status: 409 });
     nextCharges = [...priorCharges, formatInvoiceDiscountLine(code!, discountAmount)];
     resultCode = code!;

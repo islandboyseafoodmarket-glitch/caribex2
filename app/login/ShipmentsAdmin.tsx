@@ -7,12 +7,10 @@ import {
   ArrowUp,
   ArrowUpDown,
   CheckCircle2,
-  Eye,
+  MoreHorizontal,
   Package,
-  Pencil,
   RotateCcw,
   Search,
-  Trash2,
   Truck,
 } from "lucide-react";
 import { SHIPMENT_STAGE_COLORS, WORKFLOW_STAGE_COLORS } from "../../lib/shipment-colors";
@@ -108,14 +106,14 @@ export default function ShipmentsAdmin({
   onEdit,
   onDelete,
 }: ShipmentsAdminProps) {
-  const [trackingSearch, setTrackingSearch] = useState("");
-  const [customerSearch, setCustomerSearch] = useState("");
-  const [accountSearch, setAccountSearch] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const [appliedSearch, setAppliedSearch] = useState("");
   const [stageFilter, setStageFilter] = useState(ALL_STAGE);
   const [customerFilter, setCustomerFilter] = useState("");
   const [accountFilter, setAccountFilter] = useState("");
   const [carrierFilter, setCarrierFilter] = useState("");
   const [exceptionsOnly, setExceptionsOnly] = useState(false);
+  const [openActionId, setOpenActionId] = useState<string | null>(null);
   const [sort, setSort] = useState<SortState>({ key: "created", direction: "desc" });
 
   const issueSet = useMemo(() => new Set(issueIds), [issueIds]);
@@ -172,9 +170,7 @@ export default function ShipmentsAdmin({
   }, [getStage, issueSet, shipments]);
 
   const filteredShipments = useMemo(() => {
-    const trackingTerm = normalizedText(trackingSearch);
-    const customerTerm = normalizedText(customerSearch);
-    const accountTerm = normalizedText(accountSearch);
+    const searchTerm = normalizedText(appliedSearch);
 
     return shipments.filter((shipment) => {
       const tracking = normalizedText(shipment.tracking);
@@ -184,9 +180,7 @@ export default function ShipmentsAdmin({
       const carrier = normalizedText(shipment.carrier);
 
       return (
-        (!trackingTerm || tracking.includes(trackingTerm)) &&
-        (!customerTerm || customer.includes(customerTerm)) &&
-        (!accountTerm || account.includes(accountTerm)) &&
+        (!searchTerm || tracking.includes(searchTerm) || customer.includes(searchTerm) || account.includes(searchTerm)) &&
         (!stageFilter || stageFilter === ALL_STAGE || stage === stageFilter) &&
         (!customerFilter || customer === normalizedText(customerFilter)) &&
         (!accountFilter || accountValue(shipment) === accountFilter) &&
@@ -194,7 +188,7 @@ export default function ShipmentsAdmin({
         (!exceptionsOnly || issueSet.has(shipment.id))
       );
     });
-  }, [accountFilter, accountSearch, carrierFilter, customerFilter, customerSearch, exceptionsOnly, getStage, issueSet, shipments, stageFilter, trackingSearch]);
+  }, [appliedSearch, accountFilter, carrierFilter, customerFilter, exceptionsOnly, getStage, issueSet, shipments, stageFilter]);
 
   const sortedShipments = useMemo(() => {
     const rows = filteredShipments.map((shipment, index) => ({ shipment, index }));
@@ -259,15 +253,17 @@ export default function ShipmentsAdmin({
   };
 
   const resetFilters = () => {
-    setTrackingSearch("");
-    setCustomerSearch("");
-    setAccountSearch("");
+    setSearchInput("");
+    setAppliedSearch("");
     setStageFilter(ALL_STAGE);
     setCustomerFilter("");
     setAccountFilter("");
     setCarrierFilter("");
     setExceptionsOnly(false);
+    setOpenActionId(null);
   };
+
+  const applySearch = () => setAppliedSearch(searchInput.trim());
 
   const chooseSummary = (kind: "all" | "transit" | "delivered" | "exceptions") => {
     setExceptionsOnly(kind === "exceptions");
@@ -296,58 +292,52 @@ export default function ShipmentsAdmin({
       <style jsx>{`
         .shipments-admin {
           width: 100%;
-          color: #102a43;
+          color: #263746;
+          background: #fbfcfb;
+          padding: clamp(16px, 2vw, 28px);
+          border-radius: 8px;
         }
         .shipments-header {
-          display: flex;
-          align-items: flex-end;
-          justify-content: space-between;
-          gap: 1rem;
-          margin-bottom: 1rem;
-        }
-        .shipments-kicker {
-          margin: 0 0 0.3rem;
-          color: #2563eb;
-          font-size: 0.72rem;
-          font-weight: 800;
-          letter-spacing: 0.12em;
-          text-transform: uppercase;
+          margin-bottom: 1.5rem;
         }
         .shipments-title {
           margin: 0;
-          color: #123e63;
-          font-size: clamp(1.25rem, 2vw, 1.65rem);
-          line-height: 1.15;
+          color: #273746;
+          font-size: clamp(2rem, 3vw, 2.4rem);
+          font-weight: 700;
+          letter-spacing: -0.025em;
+          line-height: 1.12;
         }
         .shipments-subtitle {
-          margin: 0.35rem 0 0;
+          margin: 0.5rem 0 0;
           color: #64748b;
-          font-size: 0.88rem;
+          font-size: 0.95rem;
         }
         .shipments-summary {
           display: grid;
           grid-template-columns: repeat(4, minmax(0, 1fr));
-          gap: 0.7rem;
-          margin-bottom: 1rem;
+          gap: 1rem;
+          margin-bottom: 1.5rem;
         }
         .shipments-summary-card {
           display: flex;
           align-items: center;
-          gap: 0.7rem;
+          gap: 0.85rem;
           min-width: 0;
-          padding: 0.78rem 0.85rem;
-          border: 1px solid #dbeafe;
-          border-radius: 0.7rem;
-          background: #ffffff;
-          color: #123e63;
+          min-height: 5.6rem;
+          padding: 1rem 1.1rem;
+          border: 1px solid #e1e8e8;
+          border-radius: 0.5rem;
+          background: #fff;
+          color: #273746;
           text-align: left;
           cursor: pointer;
           transition: border-color 150ms ease, box-shadow 150ms ease, transform 150ms ease;
         }
         .shipments-summary-card:hover,
         .shipments-summary-card:focus-visible {
-          border-color: #60a5fa;
-          box-shadow: 0 5px 14px rgba(30, 64, 175, 0.1);
+          border-color: #8bcac4;
+          box-shadow: 0 5px 14px rgba(15, 118, 110, 0.09);
           outline: none;
           transform: translateY(-1px);
         }
@@ -356,138 +346,149 @@ export default function ShipmentsAdmin({
           flex: 0 0 auto;
           align-items: center;
           justify-content: center;
-          width: 2rem;
-          height: 2rem;
-          border-radius: 0.55rem;
-          background: #eff6ff;
-          color: #2563eb;
+          width: 2.75rem;
+          height: 2.75rem;
+          border-radius: 50%;
+          background: #278b88;
+          color: #ffffff;
         }
-        .summary-icon.transit { background: #ecfeff; color: #0f766e; }
-        .summary-icon.delivered { background: #ecfdf5; color: #15803d; }
-        .summary-icon.exceptions { background: #fff7ed; color: #c2410c; }
+        .summary-icon.transit,
+        .summary-icon.delivered,
+        .summary-icon.exceptions { background: #278b88; color: #ffffff; }
         .summary-copy { min-width: 0; }
         .summary-label {
           display: block;
           overflow: hidden;
           color: #64748b;
-          font-size: 0.74rem;
-          font-weight: 700;
+          font-size: 0.78rem;
+          font-weight: 600;
           text-overflow: ellipsis;
           white-space: nowrap;
         }
         .summary-value {
           display: block;
-          margin-top: 0.08rem;
-          color: #123e63;
-          font-size: 1.28rem;
+          margin-top: 0.18rem;
+          color: #273746;
+          font-size: 1.45rem;
+          font-weight: 700;
           line-height: 1;
         }
         .shipments-controls {
-          padding: 0.85rem;
-          border: 1px solid #d9e6f2;
-          border-radius: 0.75rem;
-          background: rgba(255, 255, 255, 0.82);
+          margin-bottom: 1.35rem;
         }
-        .shipments-search-grid,
-        .shipments-filter-grid {
+        .shipments-search-grid {
           display: grid;
-          grid-template-columns: repeat(3, minmax(0, 1fr));
-          gap: 0.65rem;
+          grid-template-columns: minmax(280px, 2.2fr) repeat(4, minmax(130px, 1fr));
+          gap: 0.75rem;
+          align-items: end;
         }
         .shipments-filter-grid {
-          grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
-          margin-top: 0.65rem;
-          align-items: end;
+          display: contents;
         }
         .shipments-field {
           display: grid;
           min-width: 0;
-          gap: 0.28rem;
+          gap: 0.35rem;
         }
         .shipments-field label {
-          color: #486581;
-          font-size: 0.72rem;
-          font-weight: 800;
+          color: #475569;
+          font-size: 0.76rem;
+          font-weight: 700;
         }
         .shipments-field input,
         .shipments-field select {
           width: 100%;
-          min-height: 2.25rem;
-          padding: 0.42rem 0.6rem;
-          border: 1px solid #bfd3e6;
-          border-radius: 0.48rem;
+          min-height: 2.55rem;
+          padding: 0.52rem 0.7rem;
+          border: 1px solid #cbd5d5;
+          border-radius: 0.42rem;
           background: #fff;
-          color: #123e63;
+          color: #273746;
           font: inherit;
-          font-size: 0.82rem;
+          font-size: 0.84rem;
         }
+        .shipments-field input::placeholder { color: #94a3b8; }
         .shipments-field input:focus,
         .shipments-field select:focus {
-          border-color: #2563eb;
-          outline: 2px solid #bfdbfe;
+          border-color: #0f9d92;
+          outline: 2px solid #b9e3df;
           outline-offset: 1px;
         }
+        .shipments-actions {
+          display: flex;
+          justify-content: flex-end;
+          gap: 0.55rem;
+          margin-top: 0.75rem;
+        }
+        .shipments-search,
         .shipments-reset {
           display: inline-flex;
-          min-height: 2.25rem;
+          min-height: 2.45rem;
           align-items: center;
           justify-content: center;
           gap: 0.35rem;
-          padding: 0.42rem 0.72rem;
-          border: 1px solid #93c5fd;
-          border-radius: 0.48rem;
-          background: #eff6ff;
-          color: #1d4ed8;
+          padding: 0.48rem 0.9rem;
+          border-radius: 0.42rem;
           cursor: pointer;
           font: inherit;
-          font-size: 0.78rem;
+          font-size: 0.82rem;
           font-weight: 700;
           white-space: nowrap;
         }
+        .shipments-search {
+          border: 1px solid #0f766e;
+          background: #0f766e;
+          color: #fff;
+        }
+        .shipments-search:hover,
+        .shipments-search:focus-visible { border-color: #0b625c; background: #0b625c; outline: 2px solid #b9e3df; outline-offset: 1px; }
+        .shipments-reset {
+          border: 1px solid #cbd5d5;
+          background: #fff;
+          color: #475569;
+        }
         .shipments-reset:hover,
-        .shipments-reset:focus-visible { background: #dbeafe; outline: none; }
+        .shipments-reset:focus-visible { border-color: #8bcac4; color: #0f766e; outline: 2px solid #d7efec; outline-offset: 1px; }
         .shipments-results-line {
           display: flex;
           align-items: center;
           justify-content: space-between;
           gap: 0.75rem;
-          margin: 0.9rem 0 0.5rem;
+          margin: 0 0 0.6rem;
           color: #64748b;
           font-size: 0.8rem;
         }
-        .shipments-results-line strong { color: #123e63; }
+        .shipments-results-line strong { color: #273746; }
         .shipments-table-wrap {
           overflow-x: auto;
-          border: 1px solid #d9e6f2;
-          border-radius: 0.75rem;
+          border: 1px solid #e1e8e8;
+          border-radius: 0.5rem;
           background: #fff;
         }
         .shipments-table {
           width: 100%;
           min-width: 900px;
           border-collapse: collapse;
-          font-size: 0.82rem;
+          font-size: 0.84rem;
         }
         .shipments-table th {
-          padding: 0.62rem 0.7rem;
-          border-bottom: 1px solid #cbd5e1;
-          background: #f4f8fc;
-          color: #486581;
-          font-size: 0.7rem;
-          font-weight: 800;
-          letter-spacing: 0.03em;
+          padding: 0.72rem 0.8rem;
+          border-bottom: 1px solid #dbe3e3;
+          background: #f5f7f7;
+          color: #475569;
+          font-size: 0.74rem;
+          font-weight: 700;
           text-align: left;
-          text-transform: uppercase;
           white-space: nowrap;
         }
         .shipments-table td {
-          padding: 0.68rem 0.7rem;
-          border-bottom: 1px solid #e5edf5;
-          color: #243b53;
+          padding: 0.76rem 0.8rem;
+          border-bottom: 1px solid #edf1f1;
+          color: #334155;
           vertical-align: middle;
         }
         .shipments-table tbody tr:last-child td { border-bottom: 0; }
-        .shipments-table tbody tr:hover { background: #f8fbff; }
+        .shipments-table tbody tr:hover { background: #fbfdfd; }
         .shipments-sort-button {
           display: inline-flex;
           align-items: center;
@@ -499,11 +500,10 @@ export default function ShipmentsAdmin({
           cursor: pointer;
           font: inherit;
           font-weight: inherit;
-          letter-spacing: inherit;
-          text-transform: inherit;
         }
+        .shipments-sort-button svg { color: #94a3b8; opacity: 0.85; }
         .shipments-sort-button:hover,
-        .shipments-sort-button:focus-visible { color: #1d4ed8; outline: none; }
+        .shipments-sort-button:focus-visible { color: #0f766e; outline: none; }
         .tracking-button {
           display: inline-flex;
           max-width: 16rem;
@@ -512,142 +512,181 @@ export default function ShipmentsAdmin({
           padding: 0;
           border: 0;
           background: transparent;
-          color: #1d4ed8;
+          color: #0f766e;
           cursor: pointer;
           font: inherit;
+          font-weight: 700;
           text-align: left;
+          text-decoration: underline;
+          text-decoration-thickness: 1px;
+          text-underline-offset: 3px;
         }
+        .tracking-button.tracking-paid { color: #15803d; }
         .tracking-button:hover,
-        .tracking-button:focus-visible { text-decoration: underline; text-underline-offset: 3px; outline: none; }
-        .tracking-main { overflow-wrap: anywhere; font-weight: 800; }
-        .tracking-secondary { margin-top: 0.18rem; color: #78909c; font-size: 0.7rem; font-weight: 600; }
-        .customer-name { font-weight: 700; }
-        .customer-unassigned, .table-muted { color: #829ab1; }
+        .tracking-button:focus-visible { color: #0b625c; outline: none; }
+        .tracking-button.tracking-paid:hover,
+        .tracking-button.tracking-paid:focus-visible { color: #166534; }
+        .tracking-main { overflow-wrap: anywhere; }
+        .tracking-secondary { margin-top: 0.18rem; color: #94a3b8; font-size: 0.7rem; font-weight: 500; text-decoration: none; }
+        .customer-name { font-weight: 600; }
+        .customer-unassigned, .table-muted { color: #94a3b8; }
         .account-number { font-variant-numeric: tabular-nums; }
         .stage-badge {
           display: inline-flex;
           max-width: 12rem;
           align-items: center;
-          padding: 0.24rem 0.48rem;
-          border: 1px solid #bfdbfe;
+          padding: 0.25rem 0.52rem;
+          border: 1px solid #cbd5e1;
           border-radius: 999px;
-          background: #eff6ff;
-          color: #1d4ed8;
           font-size: 0.72rem;
-          font-weight: 800;
+          font-weight: 700;
           white-space: nowrap;
         }
-        .action-group { display: flex; align-items: center; gap: 0.3rem; }
+        .action-cell { position: relative; }
+        .action-menu-wrap { position: relative; display: inline-flex; }
         .action-button {
           display: inline-flex;
           width: 2rem;
           height: 2rem;
           align-items: center;
           justify-content: center;
-          border: 1px solid #bfdbfe;
+          border: 1px solid #cbd5d5;
           border-radius: 0.42rem;
-          background: #eff6ff;
-          color: #1d4ed8;
+          background: #fff;
+          color: #64748b;
           cursor: pointer;
         }
         .action-button:hover,
-        .action-button:focus-visible { background: #dbeafe; outline: 2px solid #93c5fd; outline-offset: 1px; }
-        .action-button.delete { border-color: #fecaca; background: #fff1f2; color: #be123c; }
-        .action-button.delete:hover,
-        .action-button.delete:focus-visible { background: #ffe4e6; outline-color: #fda4af; }
+        .action-button:focus-visible { border-color: #8bcac4; color: #0f766e; outline: 2px solid #d7efec; outline-offset: 1px; }
+        .actions-menu {
+          position: absolute;
+          z-index: 10;
+          top: calc(100% + 0.35rem);
+          right: 0;
+          display: grid;
+          min-width: 7.5rem;
+          padding: 0.3rem;
+          border: 1px solid #e1e8e8;
+          border-radius: 0.42rem;
+          background: #fff;
+          box-shadow: 0 8px 20px rgba(39, 55, 70, 0.14);
+        }
+        .actions-menu button {
+          padding: 0.45rem 0.55rem;
+          border: 0;
+          border-radius: 0.25rem;
+          background: transparent;
+          color: #334155;
+          cursor: pointer;
+          font: inherit;
+          font-size: 0.8rem;
+          text-align: left;
+        }
+        .actions-menu button:hover,
+        .actions-menu button:focus-visible { background: #e5f5f3; color: #0f766e; outline: none; }
+        .actions-menu button.delete { color: #b91c1c; }
+        .actions-menu button.delete:hover,
+        .actions-menu button.delete:focus-visible { background: #fef2f2; color: #b91c1c; }
         .empty-state { padding: 2rem 1rem !important; color: #64748b !important; text-align: center; }
-        @media (max-width: 850px) {
+        @media (max-width: 1100px) {
+          .shipments-search-grid { grid-template-columns: minmax(250px, 1.6fr) repeat(4, minmax(115px, 1fr)); }
+        }
+        @media (max-width: 900px) {
           .shipments-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-          .shipments-search-grid { grid-template-columns: 1fr; }
-          .shipments-filter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-          .shipments-reset { width: 100%; }
+          .shipments-search-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+          .shipments-field:first-child { grid-column: 1 / -1; }
         }
         @media (max-width: 520px) {
-          .shipments-header { align-items: flex-start; }
-          .shipments-summary { gap: 0.5rem; }
-          .shipments-summary-card { padding: 0.65rem; }
-          .summary-icon { width: 1.8rem; height: 1.8rem; }
-          .summary-value { font-size: 1.1rem; }
-          .shipments-filter-grid { grid-template-columns: 1fr; }
+          .shipments-title { font-size: 2rem; }
+          .shipments-summary { gap: 0.65rem; }
+          .shipments-summary-card { padding: 0.8rem; }
+          .summary-icon { width: 2.4rem; height: 2.4rem; }
+          .shipments-search-grid { grid-template-columns: 1fr; }
+          .shipments-field:first-child { grid-column: auto; }
+          .shipments-actions { justify-content: stretch; }
+          .shipments-search, .shipments-reset { flex: 1; }
         }
       `}</style>
 
       <div className="shipments-header">
-        <div>
-          <p className="shipments-kicker">Caribex Admin</p>
-          <h2 id="shipments-admin-title" className="shipments-title">Shipments</h2>
-          <p className="shipments-subtitle">Review shipment activity and open a record for its existing detail workflow.</p>
-        </div>
+        <h2 id="shipments-admin-title" className="shipments-title">Shipments</h2>
+        <p className="shipments-subtitle">Track and manage all inbound and outbound shipments.</p>
       </div>
-
       <div className="shipments-summary" aria-label="Shipment summary">
         <button type="button" className="shipments-summary-card" onClick={() => chooseSummary("all")} aria-label={`Show all ${counts.total} shipments`}>
-          <span className="summary-icon"><Package aria-hidden="true" size={18} /></span>
-          <span className="summary-copy"><span className="summary-label">Total shipments</span><strong className="summary-value">{counts.total}</strong></span>
+          <span className="summary-icon"><Package aria-hidden="true" size={21} /></span>
+          <span className="summary-copy"><span className="summary-label">Total Shipments</span><strong className="summary-value">{counts.total}</strong></span>
         </button>
         <button type="button" className="shipments-summary-card" onClick={() => chooseSummary("transit")} aria-label={`Show ${counts.inTransit} shipments in transit`}>
-          <span className="summary-icon transit"><Truck aria-hidden="true" size={18} /></span>
-          <span className="summary-copy"><span className="summary-label">In transit</span><strong className="summary-value">{counts.inTransit}</strong></span>
+          <span className="summary-icon transit"><Truck aria-hidden="true" size={21} /></span>
+          <span className="summary-copy"><span className="summary-label">In Transit</span><strong className="summary-value">{counts.inTransit}</strong></span>
         </button>
         <button type="button" className="shipments-summary-card" onClick={() => chooseSummary("delivered")} aria-label={`Show ${counts.delivered} delivered shipments`}>
-          <span className="summary-icon delivered"><CheckCircle2 aria-hidden="true" size={18} /></span>
+          <span className="summary-icon delivered"><CheckCircle2 aria-hidden="true" size={21} /></span>
           <span className="summary-copy"><span className="summary-label">Delivered</span><strong className="summary-value">{counts.delivered}</strong></span>
         </button>
         <button type="button" className="shipments-summary-card" onClick={() => chooseSummary("exceptions")} aria-label={`Show ${counts.exceptions} shipments with exceptions`}>
-          <span className="summary-icon exceptions"><AlertTriangle aria-hidden="true" size={18} /></span>
+          <span className="summary-icon exceptions"><AlertTriangle aria-hidden="true" size={21} /></span>
           <span className="summary-copy"><span className="summary-label">Exceptions</span><strong className="summary-value">{counts.exceptions}</strong></span>
         </button>
       </div>
-
-      <div className="shipments-controls">
+      <form
+        className="shipments-controls"
+        onSubmit={(event) => {
+          event.preventDefault();
+          applySearch();
+        }}
+      >
         <div className="shipments-search-grid">
           <div className="shipments-field">
-            <label htmlFor="shipments-search-tracking">Search tracking</label>
-            <input id="shipments-search-tracking" type="search" value={trackingSearch} onChange={(event) => setTrackingSearch(event.target.value)} placeholder="Tracking number" />
+            <label htmlFor="shipments-search">Search</label>
+            <input
+              id="shipments-search"
+              type="search"
+              value={searchInput}
+              onChange={(event) => setSearchInput(event.target.value)}
+              placeholder="Search by tracking number, customer, or account #..."
+            />
           </div>
-          <div className="shipments-field">
-            <label htmlFor="shipments-search-customer">Search customer</label>
-            <input id="shipments-search-customer" type="search" value={customerSearch} onChange={(event) => setCustomerSearch(event.target.value)} placeholder="Customer name" />
-          </div>
-          <div className="shipments-field">
-            <label htmlFor="shipments-search-account">Search account</label>
-            <input id="shipments-search-account" type="search" value={accountSearch} onChange={(event) => setAccountSearch(event.target.value)} placeholder="Account number" inputMode="numeric" />
+          <div className="shipments-filter-grid">
+            <div className="shipments-field">
+              <label htmlFor="shipments-stage-filter">Stage</label>
+              <select id="shipments-stage-filter" value={stageFilter} onChange={(event) => setStageFilter(event.target.value)}>
+                {stages.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+              </select>
+            </div>
+            <div className="shipments-field">
+              <label htmlFor="shipments-customer-filter">Customer</label>
+              <select id="shipments-customer-filter" value={customerFilter} onChange={(event) => setCustomerFilter(event.target.value)}>
+                <option value="">All customers</option>
+                {customerOptions.map((customer) => <option key={customer} value={customer}>{customer}</option>)}
+              </select>
+            </div>
+            <div className="shipments-field">
+              <label htmlFor="shipments-account-filter">Account #</label>
+              <select id="shipments-account-filter" value={accountFilter} onChange={(event) => setAccountFilter(event.target.value)}>
+                <option value="">All accounts</option>
+                {accountOptions.map((account) => <option key={account} value={account}>#{account}</option>)}
+              </select>
+            </div>
+            <div className="shipments-field">
+              <label htmlFor="shipments-carrier-filter">Carrier</label>
+              <select id="shipments-carrier-filter" value={carrierFilter} onChange={(event) => setCarrierFilter(event.target.value)}>
+                <option value="">All carriers</option>
+                {carrierOptions.map((carrier) => <option key={carrier} value={carrier}>{carrier}</option>)}
+              </select>
+            </div>
           </div>
         </div>
-        <div className="shipments-filter-grid">
-          <div className="shipments-field">
-            <label htmlFor="shipments-stage-filter">Stage</label>
-            <select id="shipments-stage-filter" value={stageFilter} onChange={(event) => setStageFilter(event.target.value)}>
-              {stages.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-            </select>
-          </div>
-          <div className="shipments-field">
-            <label htmlFor="shipments-customer-filter">Customer</label>
-            <select id="shipments-customer-filter" value={customerFilter} onChange={(event) => setCustomerFilter(event.target.value)}>
-              <option value="">All customers</option>
-              {customerOptions.map((customer) => <option key={customer} value={customer}>{customer}</option>)}
-            </select>
-          </div>
-          <div className="shipments-field">
-            <label htmlFor="shipments-account-filter">Account #</label>
-            <select id="shipments-account-filter" value={accountFilter} onChange={(event) => setAccountFilter(event.target.value)}>
-              <option value="">All accounts</option>
-              {accountOptions.map((account) => <option key={account} value={account}>#{account}</option>)}
-            </select>
-          </div>
-          <div className="shipments-field">
-            <label htmlFor="shipments-carrier-filter">Carrier</label>
-            <select id="shipments-carrier-filter" value={carrierFilter} onChange={(event) => setCarrierFilter(event.target.value)}>
-              <option value="">All carriers</option>
-              {carrierOptions.map((carrier) => <option key={carrier} value={carrier}>{carrier}</option>)}
-            </select>
-          </div>
+        <div className="shipments-actions">
           <button type="button" className="shipments-reset" onClick={resetFilters} aria-label="Reset shipment filters">
             <RotateCcw aria-hidden="true" size={14} /> Reset
           </button>
+          <button type="submit" className="shipments-search">
+            <Search aria-hidden="true" size={14} /> Search
+          </button>
         </div>
-      </div>
-
+      </form>
       <div className="shipments-results-line" aria-live="polite">
         <span>Showing <strong>{sortedShipments.length}</strong> of <strong>{shipments.length}</strong> shipments</span>
         {exceptionsOnly && <span>Exceptions filter active</span>}
@@ -672,10 +711,11 @@ export default function ShipmentsAdmin({
             ) : sortedShipments.map((shipment) => {
               const manualInvoice = isManualInvoice(shipment);
               const shipmentStage = rowStage(shipment);
+              const isPaid = normalizedText(shipment.invoice_status) === "paid";
               return (
                 <tr key={shipment.id}>
                   <td>
-                    <button type="button" className="tracking-button" onClick={() => onView(shipment.id)} aria-label={`View shipment ${shipment.tracking}`}>
+                    <button type="button" className={`tracking-button${isPaid ? " tracking-paid" : ""}`} onClick={() => onView(shipment.id)} aria-label={`View shipment ${shipment.tracking}`}>
                       <span className="tracking-main">{shipment.tracking || "—"}</span>
                       <span className="tracking-secondary">{manualInvoice ? "Manual invoice" : compactText(shipment.tipo_paquete) || "Shipment"}</span>
                     </button>
@@ -687,11 +727,26 @@ export default function ShipmentsAdmin({
                   <td>{compactText(shipment.carrier) || <span className="table-muted">—</span>}</td>
                   <td><span className={`stage-badge ${stageClassName(shipmentStage)}`} style={stageBadgeStyle(shipmentStage)} title={stageLabel(shipment)}>{stageLabel(shipment)}</span></td>
                   <td>{formatCreatedDate(shipment.creado_en)}</td>
-                  <td>
-                    <div className="action-group" aria-label={`Actions for ${shipment.tracking}`}>
-                      <button type="button" className="action-button" onClick={() => onView(shipment.id)} aria-label={`View ${shipment.tracking}`} title="View"><Eye aria-hidden="true" size={15} /></button>
-                      {onEdit && <button type="button" className="action-button" onClick={() => onEdit(shipment)} aria-label={`Edit ${shipment.tracking}`} title="Edit"><Pencil aria-hidden="true" size={15} /></button>}
-                      {onDelete && <button type="button" className="action-button delete" onClick={() => onDelete(shipment.id)} aria-label={`Delete ${shipment.tracking}`} title="Delete"><Trash2 aria-hidden="true" size={15} /></button>}
+                  <td className="action-cell">
+                    <div className="action-menu-wrap">
+                      <button
+                        type="button"
+                        className="action-button"
+                        onClick={() => setOpenActionId((current) => current === shipment.id ? null : shipment.id)}
+                        aria-label={`Actions for ${shipment.tracking}`}
+                        aria-expanded={openActionId === shipment.id}
+                        aria-haspopup="menu"
+                        title="Actions"
+                      >
+                        <MoreHorizontal aria-hidden="true" size={17} />
+                      </button>
+                      {openActionId === shipment.id && (
+                        <div className="actions-menu" role="menu">
+                          <button type="button" role="menuitem" onClick={() => { setOpenActionId(null); onView(shipment.id); }}>View</button>
+                          {onEdit && <button type="button" role="menuitem" onClick={() => { setOpenActionId(null); onEdit(shipment); }}>Edit</button>}
+                          {onDelete && <button type="button" role="menuitem" className="delete" onClick={() => { setOpenActionId(null); onDelete(shipment.id); }}>Delete</button>}
+                        </div>
+                      )}
                     </div>
                   </td>
                 </tr>
