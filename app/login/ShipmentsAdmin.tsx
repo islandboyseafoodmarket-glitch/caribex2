@@ -7,18 +7,21 @@ import {
   ArrowUp,
   ArrowUpDown,
   CheckCircle2,
-  MoreHorizontal,
   Package,
+  Pencil,
   RotateCcw,
   Search,
+  Trash2,
   Truck,
 } from "lucide-react";
 import { SHIPMENT_STAGE_COLORS, WORKFLOW_STAGE_COLORS } from "../../lib/shipment-colors";
+import { formatPortName } from "../../lib/port-format";
 
 export type ShipmentRow = {
   id: string;
   tracking: string;
   clienteNombre?: string | null;
+  clientePuerto?: string | null;
   clienteNumero?: number | null;
   numero_cliente_id?: string | null;
   carrier?: string | null;
@@ -33,6 +36,7 @@ export type ShipmentRow = {
 export type ShipmentsAdminProps = {
   shipments: ShipmentRow[];
   issueIds?: string[];
+  ports?: readonly string[];
   stageOptions: readonly (readonly [string, string])[];
   getStage: (estado: string | null | undefined) => string;
   onView: (id: string) => void;
@@ -100,6 +104,7 @@ function SortIndicator({ active, direction }: { active: boolean; direction: Sort
 export default function ShipmentsAdmin({
   shipments,
   issueIds = [],
+  ports = [],
   stageOptions,
   getStage,
   onView,
@@ -109,11 +114,9 @@ export default function ShipmentsAdmin({
   const [searchInput, setSearchInput] = useState("");
   const [appliedSearch, setAppliedSearch] = useState("");
   const [stageFilter, setStageFilter] = useState(ALL_STAGE);
-  const [customerFilter, setCustomerFilter] = useState("");
-  const [accountFilter, setAccountFilter] = useState("");
+  const [portFilter, setPortFilter] = useState("");
   const [carrierFilter, setCarrierFilter] = useState("");
   const [exceptionsOnly, setExceptionsOnly] = useState(false);
-  const [openActionId, setOpenActionId] = useState<string | null>(null);
   const [sort, setSort] = useState<SortState>({ key: "created", direction: "desc" });
 
   const issueSet = useMemo(() => new Set(issueIds), [issueIds]);
@@ -128,24 +131,14 @@ export default function ShipmentsAdmin({
   const stageLabels = useMemo(() => new Map(stages), [stages]);
   const rowStage = (shipment: ShipmentRow) => shipment.insideBox && getStage(shipment.estado) !== "PICKED_UP" ? "INSIDE_BOX" : getStage(shipment.estado);
 
-  const customerOptions = useMemo(() => {
-    const values = new Set<string>();
+  const portOptions = useMemo(() => {
+    const values = new Set<string>(ports.map((port) => formatPortName(port, "")).filter(Boolean));
     shipments.forEach((shipment) => {
-      const customer = compactText(shipment.clienteNombre);
-      if (customer) values.add(customer);
+      const port = formatPortName(shipment.clientePuerto, "");
+      if (port) values.add(port);
     });
     return Array.from(values).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
-  }, [shipments]);
-
-  const accountOptions = useMemo(() => {
-    const values = new Set<number>();
-    shipments.forEach((shipment) => {
-      if (shipment.clienteNumero != null && Number.isFinite(Number(shipment.clienteNumero))) {
-        values.add(Number(shipment.clienteNumero));
-      }
-    });
-    return Array.from(values).sort((a, b) => a - b).map(String);
-  }, [shipments]);
+  }, [shipments, ports]);
 
   const carrierOptions = useMemo(() => {
     const values = new Map<string, string>();
@@ -175,6 +168,7 @@ export default function ShipmentsAdmin({
     return shipments.filter((shipment) => {
       const tracking = normalizedText(shipment.tracking);
       const customer = normalizedText(shipment.clienteNombre);
+      const port = normalizedText(formatPortName(shipment.clientePuerto, ""));
       const account = normalizedText(`${accountValue(shipment)} ${shipment.numero_cliente_id || ""}`);
       const stage = rowStage(shipment);
       const carrier = normalizedText(shipment.carrier);
@@ -182,13 +176,12 @@ export default function ShipmentsAdmin({
       return (
         (!searchTerm || tracking.includes(searchTerm) || customer.includes(searchTerm) || account.includes(searchTerm)) &&
         (!stageFilter || stageFilter === ALL_STAGE || stage === stageFilter) &&
-        (!customerFilter || customer === normalizedText(customerFilter)) &&
-        (!accountFilter || accountValue(shipment) === accountFilter) &&
+        (!portFilter || port === normalizedText(portFilter)) &&
         (!carrierFilter || carrier === normalizedText(carrierFilter)) &&
         (!exceptionsOnly || issueSet.has(shipment.id))
       );
     });
-  }, [appliedSearch, accountFilter, carrierFilter, customerFilter, exceptionsOnly, getStage, issueSet, shipments, stageFilter]);
+  }, [appliedSearch, carrierFilter, portFilter, exceptionsOnly, getStage, issueSet, shipments, stageFilter]);
 
   const sortedShipments = useMemo(() => {
     const rows = filteredShipments.map((shipment, index) => ({ shipment, index }));
@@ -256,11 +249,9 @@ export default function ShipmentsAdmin({
     setSearchInput("");
     setAppliedSearch("");
     setStageFilter(ALL_STAGE);
-    setCustomerFilter("");
-    setAccountFilter("");
+    setPortFilter("");
     setCarrierFilter("");
     setExceptionsOnly(false);
-    setOpenActionId(null);
   };
 
   const applySearch = () => setAppliedSearch(searchInput.trim());
@@ -292,11 +283,14 @@ export default function ShipmentsAdmin({
       <style jsx>{`
         .shipments-admin {
           width: 100%;
+          min-width: 0;
+          box-sizing: border-box;
           color: #263746;
           background: #fbfcfb;
           padding: clamp(16px, 2vw, 28px);
           border-radius: 8px;
         }
+        .shipments-admin * { box-sizing: border-box; }
         .shipments-header {
           margin-bottom: 1.5rem;
         }
@@ -378,7 +372,7 @@ export default function ShipmentsAdmin({
         }
         .shipments-search-grid {
           display: grid;
-          grid-template-columns: minmax(280px, 2.2fr) repeat(4, minmax(130px, 1fr));
+          grid-template-columns: minmax(280px, 2.2fr) repeat(3, minmax(130px, 1fr));
           gap: 0.75rem;
           align-items: end;
         }
@@ -460,6 +454,7 @@ export default function ShipmentsAdmin({
         }
         .shipments-results-line strong { color: #273746; }
         .shipments-table-wrap {
+          min-width: 0;
           overflow-x: auto;
           border: 1px solid #e1e8e8;
           border-radius: 0.5rem;
@@ -467,22 +462,28 @@ export default function ShipmentsAdmin({
         }
         .shipments-table {
           width: 100%;
-          min-width: 900px;
+          min-width: 850px;
+          table-layout: fixed;
           border-collapse: collapse;
           font-size: 0.84rem;
         }
+        .shipments-table th,
+        .shipments-table td {
+          overflow-wrap: anywhere;
+        }
         .shipments-table th {
-          padding: 0.72rem 0.8rem;
-          border-bottom: 1px solid #dbe3e3;
-          background: #f5f7f7;
-          color: #475569;
-          font-size: 0.74rem;
+          padding: 0.68rem 0.72rem;
+          border-bottom: 1px solid #173d61;
+          background: #1e4f7b;
+          color: #fff;
+          font-size: 0.78rem;
           font-weight: 700;
           text-align: left;
           white-space: nowrap;
         }
         .shipments-table td {
-          padding: 0.76rem 0.8rem;
+          height: 3.25rem;
+          padding: 0.58rem 0.72rem;
           border-bottom: 1px solid #edf1f1;
           color: #334155;
           vertical-align: middle;
@@ -503,12 +504,12 @@ export default function ShipmentsAdmin({
         }
         .shipments-sort-button svg { color: #94a3b8; opacity: 0.85; }
         .shipments-sort-button:hover,
-        .shipments-sort-button:focus-visible { color: #0f766e; outline: none; }
+        .shipments-sort-button:focus-visible { color: #fff; outline: none; }
         .tracking-button {
-          display: inline-flex;
-          max-width: 16rem;
-          flex-direction: column;
-          align-items: flex-start;
+          display: block;
+          width: 100%;
+          max-width: 100%;
+          overflow: hidden;
           padding: 0;
           border: 0;
           background: transparent;
@@ -517,18 +518,20 @@ export default function ShipmentsAdmin({
           font: inherit;
           font-weight: 700;
           text-align: left;
+          text-overflow: ellipsis;
           text-decoration: underline;
           text-decoration-thickness: 1px;
           text-underline-offset: 3px;
+          white-space: nowrap;
         }
         .tracking-button.tracking-paid { color: #15803d; }
         .tracking-button:hover,
         .tracking-button:focus-visible { color: #0b625c; outline: none; }
         .tracking-button.tracking-paid:hover,
         .tracking-button.tracking-paid:focus-visible { color: #166534; }
-        .tracking-main { overflow-wrap: anywhere; }
-        .tracking-secondary { margin-top: 0.18rem; color: #94a3b8; font-size: 0.7rem; font-weight: 500; text-decoration: none; }
-        .customer-name { font-weight: 600; }
+        .tracking-main { display: block; overflow: hidden; text-overflow: ellipsis; }
+        .customer-name { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+        .customer-account { display: block; margin-top: 0.18rem; color: #64748b; font-size: 0.72rem; font-variant-numeric: tabular-nums; }
         .customer-unassigned, .table-muted { color: #94a3b8; }
         .account-number { font-variant-numeric: tabular-nums; }
         .stage-badge {
@@ -542,8 +545,8 @@ export default function ShipmentsAdmin({
           font-weight: 700;
           white-space: nowrap;
         }
-        .action-cell { position: relative; }
-        .action-menu-wrap { position: relative; display: inline-flex; }
+        .action-cell { white-space: nowrap; }
+        .action-buttons { display: flex; align-items: center; justify-content: flex-end; gap: 0.35rem; }
         .action-button {
           display: inline-flex;
           width: 2rem;
@@ -555,41 +558,16 @@ export default function ShipmentsAdmin({
           background: #fff;
           color: #64748b;
           cursor: pointer;
+          flex: 0 0 auto;
         }
         .action-button:hover,
         .action-button:focus-visible { border-color: #8bcac4; color: #0f766e; outline: 2px solid #d7efec; outline-offset: 1px; }
-        .actions-menu {
-          position: absolute;
-          z-index: 10;
-          top: calc(100% + 0.35rem);
-          right: 0;
-          display: grid;
-          min-width: 7.5rem;
-          padding: 0.3rem;
-          border: 1px solid #e1e8e8;
-          border-radius: 0.42rem;
-          background: #fff;
-          box-shadow: 0 8px 20px rgba(39, 55, 70, 0.14);
-        }
-        .actions-menu button {
-          padding: 0.45rem 0.55rem;
-          border: 0;
-          border-radius: 0.25rem;
-          background: transparent;
-          color: #334155;
-          cursor: pointer;
-          font: inherit;
-          font-size: 0.8rem;
-          text-align: left;
-        }
-        .actions-menu button:hover,
-        .actions-menu button:focus-visible { background: #e5f5f3; color: #0f766e; outline: none; }
-        .actions-menu button.delete { color: #b91c1c; }
-        .actions-menu button.delete:hover,
-        .actions-menu button.delete:focus-visible { background: #fef2f2; color: #b91c1c; }
+        .action-button.delete { color: #b91c1c; }
+        .action-button.delete:hover,
+        .action-button.delete:focus-visible { border-color: #fecaca; background: #fef2f2; color: #b91c1c; outline-color: #fee2e2; }
         .empty-state { padding: 2rem 1rem !important; color: #64748b !important; text-align: center; }
         @media (max-width: 1100px) {
-          .shipments-search-grid { grid-template-columns: minmax(250px, 1.6fr) repeat(4, minmax(115px, 1fr)); }
+          .shipments-search-grid { grid-template-columns: minmax(250px, 1.6fr) repeat(3, minmax(115px, 1fr)); }
         }
         @media (max-width: 900px) {
           .shipments-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -656,17 +634,10 @@ export default function ShipmentsAdmin({
               </select>
             </div>
             <div className="shipments-field">
-              <label htmlFor="shipments-customer-filter">Customer</label>
-              <select id="shipments-customer-filter" value={customerFilter} onChange={(event) => setCustomerFilter(event.target.value)}>
-                <option value="">All customers</option>
-                {customerOptions.map((customer) => <option key={customer} value={customer}>{customer}</option>)}
-              </select>
-            </div>
-            <div className="shipments-field">
-              <label htmlFor="shipments-account-filter">Account #</label>
-              <select id="shipments-account-filter" value={accountFilter} onChange={(event) => setAccountFilter(event.target.value)}>
-                <option value="">All accounts</option>
-                {accountOptions.map((account) => <option key={account} value={account}>#{account}</option>)}
+              <label htmlFor="shipments-port-filter">Port</label>
+              <select id="shipments-port-filter" value={portFilter} onChange={(event) => setPortFilter(event.target.value)}>
+                <option value="">All ports</option>
+                {portOptions.map((port) => <option key={port} value={port}>{port}</option>)}
               </select>
             </div>
             <div className="shipments-field">
@@ -694,14 +665,21 @@ export default function ShipmentsAdmin({
 
       <div className="shipments-table-wrap">
         <table className="shipments-table">
+          <colgroup>
+            <col style={{ width: "22%" }} />
+            <col style={{ width: "25%" }} />
+            <col style={{ width: "14%" }} />
+            <col style={{ width: "14%" }} />
+            <col style={{ width: "15%" }} />
+            <col style={{ width: "10%" }} />
+          </colgroup>
           <thead>
             <tr>
               <th scope="col" aria-sort={sort.key === "tracking" ? (sort.direction === "asc" ? "ascending" : "descending") : "none"}>{sortButton("tracking", "Tracking")}</th>
-              <th scope="col" aria-sort={sort.key === "customer" ? (sort.direction === "asc" ? "ascending" : "descending") : "none"}>{sortButton("customer", "Customer name")}</th>
-              <th scope="col" aria-sort={sort.key === "account" ? (sort.direction === "asc" ? "ascending" : "descending") : "none"}>{sortButton("account", "Account #")}</th>
+              <th scope="col" aria-sort={sort.key === "customer" ? (sort.direction === "asc" ? "ascending" : "descending") : "none"}>{sortButton("customer", "Customer / Account")}</th>
               <th scope="col" aria-sort={sort.key === "carrier" ? (sort.direction === "asc" ? "ascending" : "descending") : "none"}>{sortButton("carrier", "Carrier")}</th>
+              <th scope="col">Package type</th>
               <th scope="col" aria-sort={sort.key === "stage" ? (sort.direction === "asc" ? "ascending" : "descending") : "none"}>{sortButton("stage", "Stage")}</th>
-              <th scope="col" aria-sort={sort.key === "created" ? (sort.direction === "asc" ? "ascending" : "descending") : "none"}>{sortButton("created", "Created")}</th>
               <th scope="col">Actions</th>
             </tr>
           </thead>
@@ -715,38 +693,36 @@ export default function ShipmentsAdmin({
               return (
                 <tr key={shipment.id}>
                   <td>
-                    <button type="button" className={`tracking-button${isPaid ? " tracking-paid" : ""}`} onClick={() => onView(shipment.id)} aria-label={`View shipment ${shipment.tracking}`}>
+                    <button
+                      type="button"
+                      className={`tracking-button${isPaid ? " tracking-paid" : ""}`}
+                      onClick={() => onView(shipment.id)}
+                      aria-label={`View shipment ${shipment.tracking}`}
+                      title={manualInvoice ? "Manual invoice" : shipment.tracking || "No tracking number"}
+                    >
                       <span className="tracking-main">{shipment.tracking || "—"}</span>
-                      <span className="tracking-secondary">{manualInvoice ? "Manual invoice" : compactText(shipment.tipo_paquete) || "Shipment"}</span>
                     </button>
                   </td>
                   <td>
                     {compactText(shipment.clienteNombre) ? <span className="customer-name">{shipment.clienteNombre}</span> : <span className="customer-unassigned">Unassigned</span>}
+                    <span className="customer-account">{shipment.clienteNumero != null ? `Account #${shipment.clienteNumero}` : "No account"}</span>
                   </td>
-                  <td className="account-number">{shipment.clienteNumero != null ? `#${shipment.clienteNumero}` : <span className="table-muted">—</span>}</td>
                   <td>{compactText(shipment.carrier) || <span className="table-muted">—</span>}</td>
+                  <td>{manualInvoice ? "Manual invoice" : compactText(shipment.tipo_paquete) || <span className="table-muted">—</span>}</td>
                   <td><span className={`stage-badge ${stageClassName(shipmentStage)}`} style={stageBadgeStyle(shipmentStage)} title={stageLabel(shipment)}>{stageLabel(shipment)}</span></td>
-                  <td>{formatCreatedDate(shipment.creado_en)}</td>
                   <td className="action-cell">
-                    <div className="action-menu-wrap">
+                    <div className="action-buttons">
                       <button
                         type="button"
                         className="action-button"
-                        onClick={() => setOpenActionId((current) => current === shipment.id ? null : shipment.id)}
-                        aria-label={`Actions for ${shipment.tracking}`}
-                        aria-expanded={openActionId === shipment.id}
-                        aria-haspopup="menu"
-                        title="Actions"
+                        onClick={() => onView(shipment.id)}
+                        aria-label={`View shipment ${shipment.tracking}`}
+                        title="View shipment"
                       >
-                        <MoreHorizontal aria-hidden="true" size={17} />
+                        <Search aria-hidden="true" size={15} />
                       </button>
-                      {openActionId === shipment.id && (
-                        <div className="actions-menu" role="menu">
-                          <button type="button" role="menuitem" onClick={() => { setOpenActionId(null); onView(shipment.id); }}>View</button>
-                          {onEdit && <button type="button" role="menuitem" onClick={() => { setOpenActionId(null); onEdit(shipment); }}>Edit</button>}
-                          {onDelete && <button type="button" role="menuitem" className="delete" onClick={() => { setOpenActionId(null); onDelete(shipment.id); }}>Delete</button>}
-                        </div>
-                      )}
+                      {onEdit && <button type="button" className="action-button" onClick={() => onEdit(shipment)} aria-label={`Edit shipment ${shipment.tracking}`} title="Edit shipment"><Pencil aria-hidden="true" size={15} /></button>}
+                      {onDelete && <button type="button" className="action-button delete" onClick={() => onDelete(shipment.id)} aria-label={`Delete shipment ${shipment.tracking}`} title="Delete shipment"><Trash2 aria-hidden="true" size={15} /></button>}
                     </div>
                   </td>
                 </tr>

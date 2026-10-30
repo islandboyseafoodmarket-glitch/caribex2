@@ -253,3 +253,19 @@
     margin-left: 0;
   }
 }
+
+/* Track Package uses distinct solid header and search-panel colors. */
+.dashboard-root .data-card--track .card-header-inner {
+  background: #173f64;
+  color: #fff;
+  padding: 16px 18px;
+  margin-bottom: 12px;
+  border: 1px solid #234f75;
+  border-radius: 12px;
+}
+.dashboard-root .data-card--track .card-header-inner h3 {
+  color: #fff;
+}
+.dashboard-root .data-card--track .card-header-inner > div > span {
+  color: #dbeafe;
+}

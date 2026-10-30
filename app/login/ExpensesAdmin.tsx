@@ -36,6 +36,19 @@ type Lang = "en" | "es";
 type FormState = { expense_date: string; category: string; payee: string; amount: string; status: "PAID" | "UNPAID"; payment_method: string; notes: string };
 
 const PAYMENT_METHODS = ["Zelle", "PayPal", "Cash", "Bank Transfer", "Wire", "Credit granted"];
+const OTHER_CATEGORY = "__OTHER__";
+const CATEGORY_OPTIONS = [
+  { value: "Freight & shipping", en: "Freight & shipping", es: "Flete y envío" },
+  { value: "Ferry charges", en: "Ferry charges", es: "Cargos de ferry" },
+  { value: "Fuel", en: "Fuel", es: "Combustible" },
+  { value: "Payroll", en: "Payroll", es: "Nómina" },
+  { value: "Rent", en: "Rent", es: "Alquiler" },
+  { value: "Utilities", en: "Utilities", es: "Servicios públicos" },
+  { value: "Customs & duties", en: "Customs & duties", es: "Aduanas e impuestos" },
+  { value: "Vehicle maintenance", en: "Vehicle maintenance", es: "Mantenimiento de vehículos" },
+  { value: "Office supplies", en: "Office supplies", es: "Suministros de oficina" },
+  { value: "Insurance", en: "Insurance", es: "Seguros" },
+] as const;
 const today = () => {
   const date = new Date();
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
@@ -55,12 +68,10 @@ const MONEY_FIELDS: Array<[keyof Metrics, string, string]> = [
 
 const COPY = {
   en: {
-    title: "Admin expenses", subtitle: "Append-only expense register. Entries can only be voided with a reason.",
-    loading: "Loading expenses…", retry: "Retry", language: "Español", addTitle: "Record an expense", date: "Date", category: "Category", payee: "Payee", amount: "Amount (USD)", status: "Status", paid: "Paid", unpaid: "Unpaid", method: "Payment method", notes: "Notes", optional: "Optional", save: "Record expense", saving: "Recording…", entries: "Expense entries", allEntries: "{n} total", empty: "No expenses recorded yet.", prev: "Previous", next: "Next", page: "Page {n}", void: "Void", voided: "Voided", reason: "Void reason", reasonHelp: "This is permanently recorded; existing entries cannot be edited or deleted.", cancel: "Cancel", confirmVoid: "Void expense", voiding: "Voiding…", actions: "Actions", dateCol: "Date", amountCol: "Amount", methodCol: "Payment", notesCol: "Notes", statusCol: "Status", payeeCol: "Payee", categoryCol: "Category", required: "Complete the required fields.", session: "Your admin session has expired.", unknown: "The request could not be completed. Try again.", done: "Expense recorded.", voidDone: "Expense voided.", pagination: "Showing {from}–{to} of {total}",
+    title: "Admin expenses", subtitle: "Append-only expense register. Entries can only be voided with a reason.", loading: "Loading expenses…", retry: "Retry", language: "Español", addTitle: "Record an expense", date: "Date", category: "Category", customCategory: "Custom category", selectCategory: "Select a category", otherCategory: "Other", payee: "Payee", amount: "Amount (USD)", status: "Status", paid: "Paid", unpaid: "Unpaid", method: "Payment method", notes: "Notes", optional: "Optional", save: "Record expense", saving: "Recording…", entries: "Expense entries", allEntries: "{n} total", empty: "No expenses recorded yet.", prev: "Previous", next: "Next", page: "Page {n}", void: "Void", voided: "Voided", reason: "Void reason", reasonHelp: "This is permanently recorded; existing entries cannot be edited or deleted.", cancel: "Cancel", confirmVoid: "Void expense", voiding: "Voiding…", actions: "Actions", dateCol: "Date", amountCol: "Amount", methodCol: "Payment", notesCol: "Notes", statusCol: "Status", payeeCol: "Payee", categoryCol: "Category", required: "Complete the required fields.", session: "Your admin session has expired.", unknown: "The request could not be completed. Try again.", done: "Expense recorded.", voidDone: "Expense voided.", pagination: "Showing {from}–{to} of {total}",
   },
   es: {
-    title: "Gastos de administración", subtitle: "Registro de gastos de solo anexado. Las entradas solo se pueden anular con un motivo.",
-    loading: "Cargando gastos…", retry: "Reintentar", language: "English", addTitle: "Registrar un gasto", date: "Fecha", category: "Categoría", payee: "Beneficiario", amount: "Importe (USD)", status: "Estado", paid: "Pagado", unpaid: "Pendiente", method: "Método de pago", notes: "Notas", optional: "Opcional", save: "Registrar gasto", saving: "Registrando…", entries: "Entradas de gastos", allEntries: "{n} en total", empty: "Aún no hay gastos registrados.", prev: "Anterior", next: "Siguiente", page: "Página {n}", void: "Anular", voided: "Anulado", reason: "Motivo de anulación", reasonHelp: "Se registra de forma permanente; las entradas existentes no se pueden editar ni eliminar.", cancel: "Cancelar", confirmVoid: "Anular gasto", voiding: "Anulando…", actions: "Acciones", dateCol: "Fecha", amountCol: "Importe", methodCol: "Pago", notesCol: "Notas", statusCol: "Estado", payeeCol: "Beneficiario", categoryCol: "Categoría", required: "Complete los campos obligatorios.", session: "La sesión de administrador venció.", unknown: "No se pudo completar la solicitud. Inténtelo de nuevo.", done: "Gasto registrado.", voidDone: "Gasto anulado.", pagination: "Mostrando {from}–{to} de {total}",
+    title: "Gastos de administración", subtitle: "Registro de gastos de solo anexado. Las entradas solo se pueden anular con un motivo.", loading: "Cargando gastos…", retry: "Reintentar", language: "English", addTitle: "Registrar un gasto", date: "Fecha", category: "Categoría", customCategory: "Categoría personalizada", selectCategory: "Seleccione una categoría", otherCategory: "Otro", payee: "Beneficiario", amount: "Importe (USD)", status: "Estado", paid: "Pagado", unpaid: "Pendiente", method: "Método de pago", notes: "Notas", optional: "Opcional", save: "Registrar gasto", saving: "Registrando…", entries: "Entradas de gastos", allEntries: "{n} en total", empty: "Aún no hay gastos registrados.", prev: "Anterior", next: "Siguiente", page: "Página {n}", void: "Anular", voided: "Anulado", reason: "Motivo de anulación", reasonHelp: "Se registra de forma permanente; las entradas existentes no se pueden editar ni eliminar.", cancel: "Cancelar", confirmVoid: "Anular gasto", voiding: "Anulando…", actions: "Acciones", dateCol: "Fecha", amountCol: "Importe", methodCol: "Pago", notesCol: "Notas", statusCol: "Estado", payeeCol: "Beneficiario", categoryCol: "Categoría", required: "Complete los campos obligatorios.", session: "La sesión de administrador venció.", unknown: "No se pudo completar la solicitud. Inténtelo de nuevo.", done: "Gasto registrado.", voidDone: "Gasto anulado.", pagination: "Mostrando {from}–{to} de {total}",
   },
 } as const;
 
@@ -106,6 +117,8 @@ export default function ExpensesAdmin() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [form, setForm] = useState<FormState>(initialForm);
+  const [categorySelection, setCategorySelection] = useState("");
+  const [customCategory, setCustomCategory] = useState("");
   const [voidTarget, setVoidTarget] = useState<Expense | null>(null);
   const [voidReason, setVoidReason] = useState("");
   const pageSize = 25;
@@ -143,6 +156,15 @@ export default function ExpensesAdmin() {
   useEffect(() => { void load(); }, [load]);
 
   const updateForm = (key: keyof FormState, value: string) => setForm((previous) => ({ ...previous, [key]: value }));
+  const selectCategory = (value: string) => {
+    setCategorySelection(value);
+    setCustomCategory("");
+    updateForm("category", value === OTHER_CATEGORY ? "" : value);
+  };
+  const updateCustomCategory = (value: string) => {
+    setCustomCategory(value);
+    updateForm("category", value);
+  };
   const metricCards = useMemo(() => MONEY_FIELDS.map(([key, english, spanish]) => ({
     label: lang === "en" ? english : spanish,
     value: money(metrics[key]),
@@ -162,6 +184,8 @@ export default function ExpensesAdmin() {
         body: JSON.stringify({ action: "record", ...form, payment_method: form.status === "PAID" ? form.payment_method : null, idempotency_key: crypto.randomUUID() }),
       });
       setForm(initialForm());
+      setCategorySelection("");
+      setCustomCategory("");
       setOffset(0);
       setNotice(copy.done);
       if (offset !== 0) setOffset(0); else await load();
@@ -191,7 +215,7 @@ export default function ExpensesAdmin() {
         .expenses-admin{--navy:#103b5c;--blue:#0f4c81;--ink:#172b3a;--muted:#64748b;--line:#dce5ec;display:grid;gap:16px;color:var(--ink)}
         .expense-head{display:flex;justify-content:space-between;align-items:flex-start;gap:14px}.expense-head h1{margin:0;color:var(--navy);font-size:1.35rem}.expense-head p{margin:5px 0 0;color:var(--muted);font-size:.84rem;max-width:650px}
         .expense-lang{border:1px solid var(--line);border-radius:8px;background:#fff;padding:7px 10px;color:var(--blue);font-weight:700;cursor:pointer;white-space:nowrap}
-        .expense-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}.expense-metric{border:1px solid var(--line);border-radius:10px;background:#f8fafc;padding:11px 12px;min-width:0}.expense-metric strong{display:block;color:var(--blue);font-size:1.08rem;overflow:hidden;text-overflow:ellipsis}.expense-metric span{display:block;margin-top:3px;color:var(--muted);font-size:.76rem}
+        .expense-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;background:#173f64;border:1px solid #234f75;border-radius:12px;padding:16px}.expense-metric{border:1px solid #3b6588;border-radius:9px;background:#173f64;padding:14px 15px;min-width:0}.expense-metric strong{display:block;color:#fff;font-size:1.3rem;font-weight:750;overflow-wrap:anywhere;line-height:1.2}.expense-metric span{display:block;margin-top:6px;color:#dbeafe;font-size:.81rem;line-height:1.4}
         .expense-panel{border:1px solid var(--line);border-radius:12px;background:#fff;padding:15px}.expense-panel h2{margin:0 0 12px;color:var(--navy);font-size:1rem}.expense-form{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.expense-field{display:grid;gap:5px;min-width:0}.expense-field label{font-size:.77rem;font-weight:700;color:#405567}.expense-field input,.expense-field select,.expense-field textarea{width:100%;min-height:38px;box-sizing:border-box;border:1px solid #cad6df;border-radius:8px;background:#fff;padding:8px 10px;color:var(--ink);font:inherit;font-size:.86rem}.expense-field textarea{resize:vertical;min-height:38px}.expense-span-2{grid-column:span 2}.expense-span-4{grid-column:span 4}.expense-button{border:0;border-radius:8px;background:var(--blue);color:#fff;padding:9px 13px;font-weight:750;cursor:pointer}.expense-button:disabled{opacity:.6;cursor:not-allowed}.expense-button.secondary{background:#e9eff4;color:var(--ink)}.expense-button.danger{background:#a52d2d;padding:6px 9px;font-size:.78rem}.expense-submit{justify-self:start}
         .expense-notice,.expense-error{border-radius:9px;padding:10px 12px;font-size:.86rem}.expense-notice{background:#effaf3;color:#166534}.expense-error{background:#fef2f2;color:#991b1b}
         .expense-table-wrap{overflow:auto;border:1px solid var(--line);border-radius:10px}.expense-table{width:100%;min-width:1050px;border-collapse:collapse;font-size:.82rem}.expense-table th,.expense-table td{padding:9px 10px;border-bottom:1px solid #e9eef2;text-align:left;vertical-align:top}.expense-table th{background:#f7fafc;color:#4d6272;text-transform:uppercase;letter-spacing:.035em;font-size:.69rem;white-space:nowrap}.expense-table tr:last-child td{border-bottom:0}.expense-status{display:inline-block;border-radius:999px;padding:3px 8px;background:#e8f5ee;color:#21623c;font-size:.72rem;font-weight:750;white-space:nowrap}.expense-status.unpaid{background:#fff4dd;color:#875b00}.expense-status.voided{background:#fce8e8;color:#a12d2d}.expense-muted{color:var(--muted);font-size:.78rem;margin-top:4px;max-width:240px;white-space:pre-wrap}.expense-pagination{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:11px;color:var(--muted);font-size:.8rem}.expense-pagination-controls{display:flex;gap:7px}.expense-empty,.expense-loading{padding:24px;text-align:center;color:var(--muted)}
@@ -216,7 +240,7 @@ export default function ExpensesAdmin() {
         <h2>{copy.addTitle}</h2>
         <form className="expense-form" onSubmit={record}>
           <div className="expense-field"><label htmlFor="expense-date">{copy.date}</label><input id="expense-date" type="date" required value={form.expense_date} onChange={(event) => updateForm("expense_date", event.target.value)} /></div>
-          <div className="expense-field"><label htmlFor="expense-category">{copy.category}</label><input id="expense-category" maxLength={120} required value={form.category} onChange={(event) => updateForm("category", event.target.value)} /></div>
+          <div className="expense-field"><label htmlFor="expense-category">{copy.category}</label><select id="expense-category" required value={categorySelection} onChange={(event) => selectCategory(event.target.value)}><option value="">{copy.selectCategory}</option>{CATEGORY_OPTIONS.map((option) => <option key={option.value} value={option.value}>{lang === "en" ? option.en : option.es}</option>)}<option value={OTHER_CATEGORY}>{copy.otherCategory}</option></select>{categorySelection === OTHER_CATEGORY && <input id="expense-custom-category" maxLength={120} required value={customCategory} placeholder={copy.customCategory} aria-label={copy.customCategory} onChange={(event) => updateCustomCategory(event.target.value)} />}</div>
           <div className="expense-field"><label htmlFor="expense-payee">{copy.payee}</label><input id="expense-payee" maxLength={240} required value={form.payee} onChange={(event) => updateForm("payee", event.target.value)} /></div>
           <div className="expense-field"><label htmlFor="expense-amount">{copy.amount}</label><input id="expense-amount" type="number" min="0.01" step="0.01" required value={form.amount} onChange={(event) => updateForm("amount", event.target.value)} /></div>
           <div className="expense-field"><label htmlFor="expense-status">{copy.status}</label><select id="expense-status" value={form.status} onChange={(event) => setForm((state) => ({ ...state, status: event.target.value as FormState["status"], payment_method: event.target.value === "PAID" ? state.payment_method || "Cash" : "" }))}><option value="PAID">{copy.paid}</option><option value="UNPAID">{copy.unpaid}</option></select></div>

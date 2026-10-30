@@ -8,6 +8,8 @@ import { BrowserMultiFormatReader } from "@zxing/browser";
 import { Pencil, Trash2, Unlock, LogOut, Image as ImageIcon, Check, AlertCircle, Send, DollarSign, ChevronDown, Package, ScanLine, AlertTriangle, QrCode, BarChart3, UserPlus, Bell, Receipt, Ship, Container, UserCog, Plus } from "lucide-react";
 import FerryManifestAdmin from "./FerryManifestAdmin";
 import Client360Admin from "./Client360Admin";
+import AdminInvoiceActions from "../../components/AdminInvoiceActions";
+import { auditActorName, auditActorRole } from "../../lib/audit-actor";
 import PaymentsAdmin, { type PaymentBalance } from "./PaymentsAdmin";
 import ExpensesAdmin from "./ExpensesAdmin";
 import ShipmentsAdmin from "./ShipmentsAdmin";
@@ -182,9 +184,42 @@ const TRACK_STAGE_STYLES: Record<string, { color: string; background: string; bo
   REGISTERED: { color: '#15803d', background: '#f0fdf4', border: '#86efac' },
   INSIDE_BOX: { color: '#7c3aed', background: '#f5f3ff', border: '#c4b5fd' },
   IN_TRANSIT: { color: '#0f766e', background: '#f0fdfa', border: '#5eead4' },
-  UNLOADED: { color: '#15803d', background: '#f0fdf4', border: '#86efac' },
+  UNLOADED: { color: '#1d4ed8', background: '#eff6ff', border: '#93c5fd' },
   PICKED_UP: { color: '#7e22ce', background: '#faf5ff', border: '#d8b4fe' },
 };
+
+type AdminBadgeTab = 'leads' | 'portal';
+type AdminBadgeSeenState = Record<AdminBadgeTab, string | null | undefined>;
+const ADMIN_BADGE_STORAGE_PREFIX = 'caribex-admin-badge-seen-v1';
+
+const adminBadgeStorageKey = (adminUserId: string, tab: AdminBadgeTab) =>
+  `${ADMIN_BADGE_STORAGE_PREFIX}:${adminUserId}:${tab}`;
+
+const readAdminBadgeSeen = (adminUserId: string, tab: AdminBadgeTab) => {
+  try {
+    return window.localStorage.getItem(adminBadgeStorageKey(adminUserId, tab));
+  } catch {
+    return null;
+  }
+};
+
+const writeAdminBadgeSeen = (adminUserId: string, tab: AdminBadgeTab, timestamp: string) => {
+  try {
+    window.localStorage.setItem(adminBadgeStorageKey(adminUserId, tab), timestamp);
+  } catch {
+    // Badge persistence is best-effort; the current session still tracks the cursor.
+  }
+};
+
+const latestBadgeTimestamp = (values: Array<{ created_at?: string | null }>) =>
+  values.reduce<string | null>((latest, value) => {
+    const timestamp = value.created_at && !Number.isNaN(Date.parse(value.created_at)) ? value.created_at : null;
+    if (!timestamp) return latest;
+    return !latest || Date.parse(timestamp) > Date.parse(latest) ? timestamp : latest;
+  }, null);
+
+const badgeTimestampIsAfter = (createdAt: string | null | undefined, seenAt: string | null | undefined) =>
+  Boolean(createdAt && seenAt && !Number.isNaN(Date.parse(createdAt)) && !Number.isNaN(Date.parse(seenAt)) && Date.parse(createdAt) > Date.parse(seenAt));
 
 const App = () => {
   const router = useRouter();
@@ -222,6 +257,7 @@ const App = () => {
     tracking: string;
     clienteNumero: number | null;
     clienteNombre: string | null;
+  clientePuerto?: string | null;
     estado: string | null;
     carrier?: string | null;
     tipo_paquete?: string | null;
@@ -268,6 +304,7 @@ const App = () => {
     tracking: string;
     clienteNumero: number | null;
     clienteNombre: string | null;
+  clientePuerto?: string | null;
     clienteEmail: string | null;
     carrier: string | null;
     tipo_paquete: string | null;
@@ -303,9 +340,21 @@ const App = () => {
   const [leads, setLeads] = useState<Lead[]>([]);
   type PortalEvent = { id: string; customer_name: string | null; account_number: number | null; email: string; event_type: string; success: boolean; reason: string | null; created_at: string };
   const [portalEvents, setPortalEvents] = useState<PortalEvent[]>([]);
+  const [adminUserId, setAdminUserId] = useState<string | null>(null);
+  const [badgeTrackingReady, setBadgeTrackingReady] = useState(false);
+  const [badgeDataLoaded, setBadgeDataLoaded] = useState<Record<AdminBadgeTab, boolean>>({ leads: false, portal: false });
+  const [badgeLastSeen, setBadgeLastSeen] = useState<AdminBadgeSeenState>({ leads: undefined, portal: undefined });
+  const badgeIdentityRef = useRef<string | null>(null);
   const cargarPortalEvents = useCallback(async () => {
-    const { data } = await supabase.from("customer_portal_login_events").select("id, customer_name, account_number, email, event_type, success, reason, created_at").order("created_at", { ascending: false }).limit(100);
-    if (data) setPortalEvents(data as PortalEvent[]);
+    const { data, error } = await supabase.from("customer_portal_login_events").select("id, customer_name, account_number, email, event_type, success, reason, created_at").order("created_at", { ascending: false }).limit(100);
+    if (error) {
+      console.error("Error cargarPortalEvents", error);
+      return;
+    }
+    if (data) {
+      setPortalEvents(data as PortalEvent[]);
+      setBadgeDataLoaded((current) => ({ ...current, portal: true }));
+    }
   }, []);
   type StaffActionLog = { id: string; actor_name: string | null; actor_email: string | null; actor_role: string; action: string; entity_type: string; entity_id: string | null; tracking: string | null; customer_name: string | null; customer_account_number: number | null; success: boolean; error_message: string | null; details: Record<string, unknown> | null; created_at: string };
   const [staffActionLogs, setStaffActionLogs] = useState<StaffActionLog[]>([]);
@@ -337,10 +386,14 @@ const App = () => {
   const [confirmAdminPassword, setConfirmAdminPassword] = useState("");
   const [passwordSaving, setPasswordSaving] = useState(false);
   const cargarLeads = useCallback(async () => {
-    const [{ data: contactData }, { data: customerData }] = await Promise.all([
+    const [{ data: contactData, error: contactError }, { data: customerData, error: customerError }] = await Promise.all([
       supabase.from('contact_submissions').select('id, nombre, email, telefono, mensaje, service_type, status, admin_notes, created_at').order('created_at', { ascending: false }),
       supabase.from('customer_leads').select('id, nombre, email, mensaje, asunto, estado, creado_en').order('creado_en', { ascending: false }),
     ]);
+    if (contactError || customerError) {
+      console.error("Error cargarLeads", contactError || customerError);
+      return;
+    }
     const legacy = (contactData || []) as Lead[];
     const newer = (customerData || []).map((lead: any): Lead => ({
       id: lead.id,
@@ -355,6 +408,7 @@ const App = () => {
     }));
     const seen = new Set<string>();
     setLeads([...newer, ...legacy].filter((lead) => { const key = `${lead.email}|${lead.mensaje}`; if (seen.has(key)) return false; seen.add(key); return true; }));
+    setBadgeDataLoaded((current) => ({ ...current, leads: true }));
   }, []);
 
   type InvoiceTab = 'sinAprobar' | 'aprobadas' | 'todas' | 'problemas' | 'enviadas' | 'pagadas';
@@ -528,6 +582,7 @@ const App = () => {
   const [clienteSaving, setClienteSaving] = useState(false);
   const [clienteModalError, setClienteModalError] = useState<string | null>(null);
   const [prepaidCustomerId, setPrepaidCustomerId] = useState("");
+  const [prepaidReportEmailCustomerId, setPrepaidReportEmailCustomerId] = useState<string | null>(null);
   const [prepaidAllowanceToAdd, setPrepaidAllowanceToAdd] = useState("");
   const [prepaidAllowanceSaving, setPrepaidAllowanceSaving] = useState(false);
 
@@ -1188,6 +1243,31 @@ const App = () => {
     setPrepaidAllowanceSaving(false);
   };
 
+  const emailPrepaidUsageReport = async (customer: Cliente) => {
+    if (prepaidReportEmailCustomerId) return;
+    const email = customer.email?.trim();
+    if (!email) { alert('This customer has no saved email address. Add one before emailing the report.'); return; }
+    if (!window.confirm(`Email the prepaid usage PDF report for ${customer.nombre} (Account #${customer.numero_cliente}) to ${email}?\n\nThe PDF includes their allowance, usage, remaining cubic feet, and shipment details.`)) return;
+    setPrepaidReportEmailCustomerId(customer.id);
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+      if (!token) throw new Error('Please sign in again before emailing the usage report.');
+      const response = await fetch('/api/admin/prepaid-usage-report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ customerId: customer.id, expectedEmail: email, idempotencyKey: crypto.randomUUID() }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || 'Could not email the PDF usage report.');
+      alert(`The PDF usage report was sent to ${payload.recipient || email}.${payload.warning ? `\n\n${payload.warning}` : ""}`);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Could not email the PDF usage report.');
+    } finally {
+      setPrepaidReportEmailCustomerId(null);
+    }
+  };
+
   const printPrepaidUsageReport = (customer: Cliente) => {
     if (customer.tipo_cuenta !== 'Developer / Builder — Prepaid') {
       alert('Cubic-foot usage reports are available only for prepaid Developer / Builder accounts.');
@@ -1222,7 +1302,7 @@ const App = () => {
     const { data, error } = await supabase
       .from("paquetes_registro")
       .select(
-        "id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, notas_imagenes, estado, issue_status, cubic_feet, prepaid_review_required, prepaid_review_status, numero_cliente:numero_cliente_id (id, numero_cliente, nombre), numero_cliente_id, creado_en, registro, descargado, entregado_por, hora_fecha, fecha_descargado, hora_descargado, fecha_entregado, hora_entregado",
+        "id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, notas_imagenes, estado, issue_status, cubic_feet, prepaid_review_required, prepaid_review_status, numero_cliente:numero_cliente_id (id, numero_cliente, nombre, puerto), numero_cliente_id, creado_en, registro, descargado, entregado_por, hora_fecha, fecha_descargado, hora_descargado, fecha_entregado, hora_entregado",
       )
       .order("creado_en", { ascending: false });
 
@@ -1259,6 +1339,7 @@ const App = () => {
         tracking: (row.tracking as string) || "-",
         clienteNumero: row.numero_cliente?.numero_cliente ?? null,
         clienteNombre: row.numero_cliente?.nombre ?? null,
+        clientePuerto: row.numero_cliente?.puerto ?? null,
         estado: (row.estado as string) || null,
         carrier: row.nombre_paqueteria || null,
         tipo_paquete: row.tipo_paquete || null,
@@ -1481,11 +1562,81 @@ const App = () => {
   };
 
   useEffect(() => {
+    let cancelled = false;
+    const initializeBadgeUser = (userId: string | null) => {
+      if (cancelled) return;
+      if (!userId) {
+        badgeIdentityRef.current = null;
+        setAdminUserId(null);
+        setBadgeTrackingReady(false);
+        setBadgeDataLoaded({ leads: false, portal: false });
+        setBadgeLastSeen({ leads: undefined, portal: undefined });
+        return;
+      }
+      if (badgeIdentityRef.current !== userId) {
+        badgeIdentityRef.current = userId;
+        setBadgeDataLoaded({ leads: false, portal: false });
+      }
+      setAdminUserId(userId);
+      setBadgeLastSeen({ leads: readAdminBadgeSeen(userId, 'leads'), portal: readAdminBadgeSeen(userId, 'portal') });
+      setBadgeTrackingReady(true);
+    };
+
+    void supabase.auth.getSession().then(({ data }) => {
+      initializeBadgeUser(data.session?.user?.id || null);
+    });
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+      initializeBadgeUser(session?.user?.id || null);
+    });
+    return () => {
+      cancelled = true;
+      authListener.subscription.unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!adminUserId || !badgeTrackingReady) return;
+    (['leads', 'portal'] as const).forEach((tab) => {
+      if (!badgeDataLoaded[tab] || badgeLastSeen[tab] !== null) return;
+      const records = tab === 'leads' ? leads : portalEvents;
+      const latest = latestBadgeTimestamp(records);
+      const latestMilliseconds = latest ? Date.parse(latest) : 0;
+      const baseline = new Date(Math.max(Date.now(), latestMilliseconds)).toISOString();
+      setBadgeLastSeen((current) => current[tab] === null ? { ...current, [tab]: baseline } : current);
+      writeAdminBadgeSeen(adminUserId, tab, baseline);
+    });
+  }, [adminUserId, badgeTrackingReady, badgeDataLoaded, badgeLastSeen, leads, portalEvents]);
+
+  useEffect(() => {
+    if (!adminUserId || !badgeTrackingReady) return;
+    const tab: AdminBadgeTab | null = activeTab === 'leads' || activeTab === 'portal' ? activeTab : null;
+    if (!tab || !badgeDataLoaded[tab] || !badgeLastSeen[tab]) return;
+    const records = tab === 'leads' ? leads : portalEvents;
+    const latest = latestBadgeTimestamp(records);
+    if (!latest || !badgeTimestampIsAfter(latest, badgeLastSeen[tab])) return;
+    setBadgeLastSeen((current) => {
+      const currentSeen = current[tab];
+      if (!currentSeen || !badgeTimestampIsAfter(latest, currentSeen)) return current;
+      const next = { ...current, [tab]: latest };
+      writeAdminBadgeSeen(adminUserId, tab, latest);
+      return next;
+    });
+  }, [activeTab, adminUserId, badgeTrackingReady, badgeDataLoaded, badgeLastSeen, leads, portalEvents]);
+
+  const leadsBadgeCount = badgeTrackingReady && badgeDataLoaded.leads && typeof badgeLastSeen.leads === 'string'
+    ? leads.filter((lead) => lead.status === 'NEW' && badgeTimestampIsAfter(lead.created_at, badgeLastSeen.leads)).length
+    : null;
+  const portalBadgeCount = badgeTrackingReady && badgeDataLoaded.portal && typeof badgeLastSeen.portal === 'string'
+    ? portalEvents.filter((event) => !event.success && badgeTimestampIsAfter(event.created_at, badgeLastSeen.portal)).length
+    : null;
+
+  useEffect(() => {
     cargarPersonal();
     cargarClientes();
     cargarPedidos();
     cargarFacturas();
     cargarLeads();
+    cargarPortalEvents();
 
     const pedidoSubscription = supabase
       .channel("realtime-pedidos")
@@ -1510,8 +1661,17 @@ const App = () => {
       )
       .subscribe();
     const leadSubscription = supabase.channel('realtime-contact-leads').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'contact_submissions' }, (payload) => {
-      setLeads((prev) => [payload.new as Lead, ...prev]);
+      void cargarLeads();
       setAdminNotice(`New customer lead received from ${(payload.new as Lead).nombre}`);
+    }).subscribe();
+    const customerLeadSubscription = supabase.channel('realtime-customer-leads').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'customer_leads' }, (payload) => {
+      void cargarLeads();
+      setAdminNotice(`New customer lead received from ${(payload.new as any).nombre || 'website visitor'}`);
+    }).subscribe();
+    const portalSubscription = supabase.channel('realtime-portal-alerts').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'customer_portal_login_events' }, (payload) => {
+      void cargarPortalEvents();
+      const event = payload.new as PortalEvent;
+      if (!event.success) setAdminNotice(`New portal alert for ${event.customer_name || event.email || 'customer'}`);
     }).subscribe();
     const signupSubscription = supabase.channel('realtime-customer-signups').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'numero_cliente' }, (payload) => {
       setAdminNotice(`New customer account created: ${(payload.new as any).nombre || 'customer'}`);
@@ -1521,13 +1681,29 @@ const App = () => {
       supabase.removeChannel(pedidoSubscription);
       supabase.removeChannel(clienteSubscription);
       supabase.removeChannel(leadSubscription);
+      supabase.removeChannel(customerLeadSubscription);
+      supabase.removeChannel(portalSubscription);
       supabase.removeChannel(signupSubscription);
     };
-  }, [cargarPersonal, cargarClientes, cargarPedidos, cargarFacturas, cargarLeads]);
+  }, [cargarPersonal, cargarClientes, cargarPedidos, cargarFacturas, cargarLeads, cargarPortalEvents]);
 
   useEffect(() => {
     if (activeTab === "portal") void cargarPortalEvents();
   }, [activeTab, cargarPortalEvents]);
+
+  useEffect(() => {
+    const refreshBadgeData = () => {
+      if (document.visibilityState === 'hidden') return;
+      void cargarLeads();
+      void cargarPortalEvents();
+    };
+    const interval = window.setInterval(refreshBadgeData, 30000);
+    document.addEventListener('visibilitychange', refreshBadgeData);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', refreshBadgeData);
+    };
+  }, [cargarLeads, cargarPortalEvents]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -1535,15 +1711,11 @@ const App = () => {
         cargarPedidos();
       } else if (activeTab === "facturas") {
         cargarFacturas();
-      } else if (activeTab === "leads") {
-        cargarLeads();
-      } else if (activeTab === "portal") {
-        cargarPortalEvents();
       }
     }, 10000);
 
     return () => clearInterval(interval);
-  }, [activeTab, cargarPedidos, cargarFacturas, cargarLeads, cargarPortalEvents]);
+  }, [activeTab, cargarPedidos, cargarFacturas]);
 
   const actualizarLead = async (id: string, changes: Partial<Lead>) => {
     const { data: legacyRows } = await supabase.from('contact_submissions').update(changes).eq('id', id).select('id');
@@ -2461,8 +2633,8 @@ const App = () => {
           {expandedNavGroups.customers && <div className="admin-sidebar-items">
             <button className={`admin-sidebar-item admin-sidebar-item--customers ${activeTab === 'clientes' ? 'active' : ''}`} onClick={() => setActiveTab('clientes')}><UserPlus /> Customer # <span className="count-badge">{clientes.length}</span></button>
             <button className={`admin-sidebar-item admin-sidebar-item--customers ${activeTab === 'prepaid' ? 'active' : ''}`} onClick={() => setActiveTab('prepaid')}><DollarSign /> Prepaid accounts <span className="count-badge">{clientes.filter((customer) => customer.tipo_cuenta === 'Developer / Builder — Prepaid').length}</span></button>
-            <button className={`admin-sidebar-item admin-sidebar-item--customers ${activeTab === 'leads' ? 'active' : ''}`} onClick={() => setActiveTab('leads')}><UserPlus /> Leads <span className="count-badge">{leads.filter((lead) => lead.status === 'NEW').length}</span></button>
-            <button className={`admin-sidebar-item admin-sidebar-item--customers ${activeTab === 'portal' ? 'active' : ''}`} onClick={() => setActiveTab('portal')}><Bell /> Portal alerts <span className="count-badge">{portalEvents.filter((event) => !event.success).length}</span></button>
+            <button className={`admin-sidebar-item admin-sidebar-item--customers ${activeTab === 'leads' ? 'active' : ''}`} onClick={() => setActiveTab('leads')}><UserPlus /> Leads {leadsBadgeCount !== null && leadsBadgeCount > 0 && <span className="count-badge">{leadsBadgeCount}</span>}</button>
+            <button className={`admin-sidebar-item admin-sidebar-item--customers ${activeTab === 'portal' ? 'active' : ''}`} onClick={() => setActiveTab('portal')}><Bell /> Portal alerts {portalBadgeCount !== null && portalBadgeCount > 0 && <span className="count-badge">{portalBadgeCount}</span>}</button>
           </div>}
         </div>
         <div className="admin-sidebar-group">
@@ -2485,7 +2657,7 @@ const App = () => {
       </aside>
 
       {/* Data view card */}
-      <div className={`data-card ${activeTab === 'facturas' ? 'data-card--invoices' : ''}`}>
+      <div className={`data-card ${activeTab === 'facturas' ? 'data-card--invoices' : ''} ${activeTab === 'track' ? 'data-card--track' : ''}`}>
         <div className="card-header-inner" style={{ display: activeTab === 'pedidos' ? 'none' : 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
           <div>
             <h3>
@@ -2705,7 +2877,7 @@ const App = () => {
             </select>
             <button type="button" className="pa-primary-btn" onClick={() => void cargarStaffActionLogs()} disabled={staffLogsLoading}>{staffLogsLoading ? 'Loading…' : 'Refresh logs'}</button>
           </div>
-          {staffActionLogs.length === 0 ? <p style={{ padding: '1.5rem', color: '#64748b' }}>{staffLogsLoading ? 'Loading staff activity…' : 'No staff activity has been recorded yet.'}</p> : <div style={{ overflowX: 'auto' }}><table className="admin-table" style={{ minWidth: 1180, width: '100%' }}><thead><tr><th>Date</th><th>Staff Member</th><th>Action</th><th>Area</th><th>Shipment / Customer</th><th>Result</th><th>What Changed</th></tr></thead><tbody>{staffActionLogs.map((log) => { const changes = auditChangeLines(log); const actor = log.actor_name || log.actor_email || 'Unknown Staff'; const role = log.actor_role ? String(log.actor_role).replace(/^./, (letter) => letter.toUpperCase()) : 'Unknown Role'; return <tr key={log.id}><td>{formatStaffDateTime(log.created_at)}</td><td><strong>{actor}</strong><br /><small>{role}</small>{log.actor_email && <><br /><small>{log.actor_email}</small></>}</td><td>{auditActionLabel(log.action)}</td><td>{log.entity_type}</td><td>{log.tracking || log.customer_name || log.entity_id || '-'}</td><td><span style={{ color: log.success ? '#166534' : '#b91c1c', fontWeight: 700 }}>{log.success ? 'Success' : 'Failed'}</span>{log.error_message && <><br /><small>{log.error_message}</small></>}</td><td>{changes.length ? changes.map((change) => <div key={change} style={{ whiteSpace: 'pre-wrap' }}>{change}</div>) : <span style={{ color: '#64748b' }}>No tracked field changes</span>}</td></tr>; })}</tbody></table></div>}
+          {staffActionLogs.length === 0 ? <p style={{ padding: '1.5rem', color: '#64748b' }}>{staffLogsLoading ? 'Loading staff activity…' : 'No staff activity has been recorded yet.'}</p> : <div style={{ overflowX: 'auto' }}><table className="admin-table" style={{ minWidth: 1180, width: '100%' }}><thead><tr><th>Date</th><th>Staff Member</th><th>Action</th><th>Area</th><th>Shipment / Customer</th><th>Result</th><th>What Changed</th></tr></thead><tbody>{staffActionLogs.map((log) => { const changes = auditChangeLines(log); const actor = auditActorName(log); const role = auditActorRole(log.actor_role); return <tr key={log.id}><td>{formatStaffDateTime(log.created_at)}</td><td><strong>{actor}</strong><br /><small>{role}</small>{log.actor_email && log.actor_email.toLowerCase() !== actor.toLowerCase() && <><br /><small>{log.actor_email}</small></>}</td><td>{auditActionLabel(log.action)}</td><td>{log.entity_type}</td><td>{log.tracking || log.customer_name || log.entity_id || '-'}</td><td><span style={{ color: log.success ? '#166534' : '#b91c1c', fontWeight: 700 }}>{log.success ? 'Success' : 'Failed'}</span>{log.error_message && <><br /><small>{log.error_message}</small></>}</td><td>{changes.length ? changes.map((change) => <div key={change} style={{ whiteSpace: 'pre-wrap' }}>{change}</div>) : <span style={{ color: '#64748b' }}>No tracked field changes</span>}</td></tr>; })}</tbody></table></div>}
         </div>}
 
         {activeTab === 'ferry' && <FerryManifestAdmin />}
@@ -2877,13 +3049,17 @@ const App = () => {
             <div
               style={{
                 display: 'grid',
-                gridTemplateColumns: 'minmax(220px, 2fr) 200px 150px 100px 140px 140px 280px',
+                gridTemplateColumns: 'minmax(220px, 2fr) 200px 150px 100px 140px 140px 220px',
                 columnGap: '0.75rem',
-                padding: '0.4rem 0',
+                padding: '0.7rem 0',
+                background: '#1e4f7b',
+                position: 'sticky',
+                top: 0,
+                zIndex: 2,
                 fontSize: '0.8rem',
-                color: '#64748b',
-                borderBottom: '1px solid #e2e8f0',
-                fontWeight: 600,
+                color: '#ffffff',
+                borderBottom: '1px solid #173f64',
+                fontWeight: 700,
                 minWidth: 1280,
               }}
             >
@@ -2893,7 +3069,7 @@ const App = () => {
               <span style={{ minWidth: 90 }}>Total</span>
               <span style={{ minWidth: 150 }}>Approval</span>
               <span style={{ minWidth: 150 }}>Invoice status</span>
-              <span style={{ textAlign: 'left', minWidth: 260 }}>Actions</span>
+              <span style={{ textAlign: 'left', minWidth: 220 }}>Actions</span>
             </div>
 
             <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
@@ -2936,7 +3112,7 @@ const App = () => {
                       borderBottom: '1px solid #e2e8f0',
                       fontSize: '0.9rem',
                       display: 'grid',
-                      gridTemplateColumns: 'minmax(220px, 2fr) 200px 150px 100px 140px 140px 280px',
+                      gridTemplateColumns: 'minmax(220px, 2fr) 200px 150px 100px 140px 140px 220px',
                       columnGap: '0.75rem',
                       alignItems: 'center',
                       minWidth: 1280,
@@ -2961,7 +3137,7 @@ const App = () => {
                     >
                       <span style={{ display: 'block', fontWeight: 600 }}>{f.clienteNombre || '-'}</span>
                       <span style={{ display: 'block', marginTop: '0.2rem', color: '#64748b', fontSize: '0.8rem' }}>
-                        Cuenta: {f.clienteNumero != null ? `#${f.clienteNumero}` : '-'}
+                        Account: {f.clienteNumero != null ? `#${f.clienteNumero}` : '-'}
                       </span>
                     </span>
                     <span
@@ -3002,122 +3178,18 @@ const App = () => {
                     >
                       {invoiceLabel}
                     </span>
-                    <div
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'flex-start',
-                        flexWrap: 'wrap',
-                        gap: '0.35rem',
-                        minWidth: 260,
-                        position: 'static',
-                        zIndex: 1,
-                        background: 'transparent',
-                        paddingLeft: '0.35rem',
-                      }}
-                    >
-                      <button
-                        type="button"
-                        title="Open invoice details"
-                        className="pa-secondary-btn"
-                        style={{ padding: '0.3rem 0.55rem', fontSize: '0.72rem', whiteSpace: 'nowrap' }}
-                        onClick={() => void abrirDetallePedido(f.id)}
-                      >
-                        View
-                      </button>
-                      <button
-                        type="button"
-                        title="Edit invoice add-ons"
-                        style={{ width: 28, height: 28, borderRadius: '999px', border: '1px solid #cbd5e1', backgroundColor: '#f8fafc', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                        onClick={() => void handleAdminEditInvoiceAddOns(f)}
-                      >
-                        <Pencil size={14} />
-                      </button>
-                      <button
-                        type="button"
-                        title="Aprobar factura"
-                        style={{
-                          width: 28,
-                          height: 28,
-                          borderRadius: '999px',
-                          border: '1px solid #bbf7d0',
-                          backgroundColor: '#dcfce7',
-                          fontSize: '0.75rem',
-                          cursor: isApproved ? 'default' : 'pointer',
-                          opacity: isApproved ? 0.5 : 1,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                        }}
-                        disabled={isApproved}
-                        onClick={() => !isApproved && handleAdminChangeApproval(f, 'APPROVED')}
-                      >
-                        <Check size={14} />
-                      </button>
-                      <button
-                        type="button"
-                        title="Marcar para revisión"
-                        style={{
-                          width: 28,
-                          height: 28,
-                          borderRadius: '999px',
-                          border: '1px solid #fed7aa',
-                          backgroundColor: '#ffedd5',
-                          fontSize: '0.75rem',
-                          cursor: isPendingApproval ? 'default' : 'pointer',
-                          opacity: isPendingApproval ? 0.5 : 1,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                        }}
-                        disabled={isPendingApproval}
-                        onClick={() => !isPendingApproval && handleAdminChangeApproval(f, 'PENDING')}
-                      >
-                        <AlertCircle size={14} />
-                      </button>
-                      <button
-                        type="button"
-                        title={isSent ? 'Reenviar factura' : 'Enviar factura'}
-                        style={{
-                          minWidth: 28,
-                          height: 28,
-                          borderRadius: '999px',
-                          border: '1px solid #bfdbfe',
-                          backgroundColor: '#eff6ff',
-                          fontSize: '0.75rem',
-                          cursor: isPaid ? 'default' : 'pointer',
-                          opacity: isPaid ? 0.5 : 1,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                        }}
-                        disabled={isPaid}
-                        onClick={() => !isPaid && void handleAdminSendInvoice(f)}
-                      >
-                        <Send size={14} /> <span style={{ fontSize: '0.72rem' }}>{isSent ? 'Resend' : 'Send'}</span>
-                      </button>
-                      <button type="button" title="PDF / Print invoice" className="pa-secondary-btn" style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', whiteSpace: 'nowrap' }} onClick={() => void printInvoice(f)}>PDF / Print</button>
-                      <button
-                        type="button"
-                        title="Marcar como pagada"
-                        style={{
-                          width: 28,
-                          height: 28,
-                          borderRadius: '999px',
-                          border: '1px solid #bbf7d0',
-                          backgroundColor: '#dcfce7',
-                          fontSize: '0.75rem',
-                          cursor: isPaid ? 'default' : 'pointer',
-                          opacity: isPaid ? 0.5 : 1,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                        }}
-                        disabled={isPaid}
-                        onClick={() => !isPaid && openConfirmPayInvoice(f)}
-                      >
-                        <DollarSign size={14} />
-                      </button>
-                    </div>
+                    <AdminInvoiceActions
+                      tracking={f.tracking}
+                      onView={() => void abrirDetallePedido(f.id)}
+                      actions={[
+                        { id: 'edit', label: 'Edit charges / discounts', group: 'Invoice', onSelect: () => handleAdminEditInvoiceAddOns(f) },
+                        { id: 'send', label: isSent ? 'Resend invoice' : 'Send invoice', group: 'Invoice', disabled: isPaid, onSelect: () => handleAdminSendInvoice(f) },
+                        { id: 'print', label: 'PDF / Print invoice', group: 'Invoice', onSelect: () => printInvoice(f) },
+                        { id: 'approve', label: 'Approve invoice', group: 'Approval', disabled: isApproved, onSelect: () => handleAdminChangeApproval(f, 'APPROVED') },
+                        { id: 'review', label: 'Mark for review', group: 'Approval', disabled: isPendingApproval, onSelect: () => handleAdminChangeApproval(f, 'PENDING') },
+                        { id: 'payment', label: 'Record payment', group: 'Payments', disabled: isPaid, onSelect: () => openConfirmPayInvoice(f) },
+                      ]}
+                    />
                   </li>
                 );
               })}
@@ -3283,7 +3355,7 @@ const App = () => {
                 </>; })()}
                 <label style={{ display: 'grid', gap: '0.25rem', minWidth: 155 }}><span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#475569' }}>Add cubic feet</span><input type="number" min="0.01" step="0.01" value={prepaidAllowanceToAdd} onChange={(event) => setPrepaidAllowanceToAdd(event.target.value)} placeholder="e.g. 100" style={{ padding: '0.6rem 0.7rem', border: '1px solid #cbd5e1', borderRadius: '0.55rem' }} /></label>
                 <button type="button" className="pa-primary-btn" onClick={() => void addPrepaidAllowance()} disabled={prepaidAllowanceSaving || !prepaidCustomerId}>{prepaidAllowanceSaving ? 'Saving…' : 'Add allowance'}</button>
-                {(() => { const customer = clientes.find((item) => item.id === prepaidCustomerId); return customer?.tipo_cuenta === 'Developer / Builder — Prepaid' ? <button type="button" className="pa-secondary-btn" onClick={() => printPrepaidUsageReport(customer)}>PDF usage report</button> : null; })()}
+                {(() => { const customer = clientes.find((item) => item.id === prepaidCustomerId); return customer?.tipo_cuenta === 'Developer / Builder — Prepaid' ? <><button type="button" className="pa-secondary-btn" onClick={() => printPrepaidUsageReport(customer)}>PDF usage report</button><button type="button" className="pa-primary-btn" onClick={() => void emailPrepaidUsageReport(customer)} disabled={!customer.email || prepaidReportEmailCustomerId !== null} title={customer.email ? `Email the PDF report to ${customer.email}` : 'Add a saved email address for this customer first'}>{prepaidReportEmailCustomerId === customer.id ? 'Sending…' : 'Email PDF usage report'}</button></> : null; })()}
               </div>
             </section>}
             <div
@@ -3400,18 +3472,18 @@ const App = () => {
         )}
 
         {activeTab === 'track' && (
-          <div style={{ width: '100%', minHeight: 520, borderRadius: '0.85rem', background: 'linear-gradient(145deg, #2d78b7 0%, #8fc7e8 100%)', padding: '2rem clamp(1rem, 8vw, 6rem)', boxSizing: 'border-box' }}>
+          <div style={{ width: '100%', minHeight: 520, borderRadius: '0.85rem', background: '#b8d9ef', padding: '2rem clamp(1rem, 8vw, 6rem)', boxSizing: 'border-box' }}>
             <div style={{ maxWidth: 1120, margin: '0 auto' }}>
               <label htmlFor="track-customer-search" style={{ display: 'block', marginBottom: '0.9rem' }}>
                 <span style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>Search customer</span>
                 <input id="track-customer-search" type="search" value={trackCustomerQuery} onChange={(event) => setTrackCustomerQuery(event.target.value)} placeholder="Customer name, account number, phone or email" style={{ width: '100%', boxSizing: 'border-box', padding: '1rem 1.1rem', border: '1px solid #e2e8f0', borderRadius: '0.35rem', background: '#fff', color: '#334155', fontSize: '1.05rem', outline: 'none' }} />
               </label>
-              <p style={{ color: '#fff', fontWeight: 700, margin: '0.3rem 0 0.45rem', fontSize: '0.95rem' }}>or find a package by its tracking number</p>
+              <p style={{ color: '#173f64', fontWeight: 700, margin: '0.3rem 0 0.45rem', fontSize: '0.95rem' }}>or find a package by its tracking number</p>
               <label htmlFor="track-number-search" style={{ display: 'block' }}>
                 <span style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>Search tracking number</span>
                 <input id="track-number-search" type="search" value={trackTrackingQuery} onChange={(event) => setTrackTrackingQuery(event.target.value)} placeholder="Enter or scan any tracking number" style={{ width: '100%', boxSizing: 'border-box', padding: '1rem 1.1rem', border: '1px solid #e2e8f0', borderRadius: '0.35rem', background: '#fff', color: '#334155', fontSize: '1.05rem', outline: 'none' }} />
               </label>
-              <p style={{ color: '#fff', textAlign: 'center', margin: '1.4rem 0 0', fontSize: '0.9rem' }}>Searches the customer’s complete package history.</p>
+              <p style={{ color: '#173f64', textAlign: 'center', margin: '1.4rem 0 0', fontSize: '0.9rem' }}>Searches the customer’s complete package history.</p>
               {(trackCustomerQuery.trim() || trackTrackingQuery.trim()) && <div style={{ marginTop: '1.25rem', background: '#fff', borderRadius: '0.65rem', padding: '1rem' }}>
                 {!trackResults.length ? <p style={{ color: '#64748b', margin: '0.75rem 0' }}>No shipments found for this search.</p> : <>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem', paddingBottom: '0.85rem', borderBottom: '1px solid #e2e8f0' }}>
@@ -3444,6 +3516,7 @@ const App = () => {
         {activeTab === 'pedidos' && (
           <ShipmentsAdmin
             shipments={pedidos}
+            ports={clientes.map((customer) => customer.puerto || "").filter(Boolean)}
             issueIds={pedidosConIncidencia.filter((shipment) => shipment.issue_status !== "RESOLVED").map((shipment) => shipment.id)}
             stageOptions={SHIPMENT_STAGE_OPTIONS}
             getStage={shipmentStage}
@@ -3814,7 +3887,7 @@ const App = () => {
                 </section>
                 <section style={{ borderTop: "1px solid #e2e8f0", paddingTop: "0.75rem" }}>
                   <h4 style={{ margin: 0, fontSize: "1rem", color: "#1e293b" }}>↗ History - every touch ({activity.length}) <span title="A flagged event means a failed operation or a package problem was recorded. Normal updates are not flagged." style={{ color: flaggedCount ? "#b91c1c" : "#64748b", fontSize: "0.82rem", marginLeft: "0.35rem" }}>⚑ {flaggedCount ? `${flaggedCount} flagged` : "No flagged events"}</span></h4>
-                  {activity.length ? <div style={{ marginTop: "0.55rem", display: "flex", flexDirection: "column", gap: "0.5rem" }}>{activity.map((event: any) => { const changes = describeChanges(event); const actor = event.actor_name || event.actor_email || "Unknown staff"; const role = event.actor_role ? ` (${String(event.actor_role).replace(/^./, (letter) => letter.toUpperCase())})` : ""; return <div key={event.id} style={{ display: "grid", gridTemplateColumns: "115px 1fr", gap: "0.7rem", fontSize: "0.82rem" }}><time style={{ color: "#64748b" }}>{formatStaffDateTime(event.created_at)}</time><div style={{ borderLeft: `3px solid ${isFlaggedEvent(event) ? "#dc2626" : "#2563eb"}`, paddingLeft: "0.65rem" }}><strong style={{ color: isFlaggedEvent(event) ? "#991b1b" : "#334155" }}>{auditActionLabel(event.action)}</strong><span style={{ color: "#64748b" }}> by {actor}{role}</span>{event.error_message && <div style={{ color: "#991b1b" }}>{event.error_message}</div>}{changes.length > 0 && <div style={{ color: "#475569", marginTop: "0.18rem" }}>{changes.map((change: string, index: number) => <div key={`${event.id}-change-${index}`}>{change}</div>)}</div>}{event.details?.source === "database_trigger" && changes.length === 0 && <div style={{ color: "#64748b" }}>No tracked field changes</div>}</div></div>; })}</div> : <p style={{ color: "#94a3b8", margin: "0.5rem 0" }}>No activity history has been recorded.</p>}
+                  {activity.length ? <div style={{ marginTop: "0.55rem", display: "flex", flexDirection: "column", gap: "0.5rem" }}>{activity.map((event: any) => { const changes = describeChanges(event); const actor = auditActorName(event); const role = ` (${auditActorRole(event.actor_role)})`; return <div key={event.id} style={{ display: "grid", gridTemplateColumns: "115px 1fr", gap: "0.7rem", fontSize: "0.82rem" }}><time style={{ color: "#64748b" }}>{formatStaffDateTime(event.created_at)}</time><div style={{ borderLeft: `3px solid ${isFlaggedEvent(event) ? "#dc2626" : "#2563eb"}`, paddingLeft: "0.65rem" }}><strong style={{ color: isFlaggedEvent(event) ? "#991b1b" : "#334155" }}>{auditActionLabel(event.action)}</strong><span style={{ color: "#64748b" }}> by {actor}{role}</span>{event.error_message && <div style={{ color: "#991b1b" }}>{event.error_message}</div>}{changes.length > 0 && <div style={{ color: "#475569", marginTop: "0.18rem" }}>{changes.map((change: string, index: number) => <div key={`${event.id}-change-${index}`}>{change}</div>)}</div>}{event.details?.source === "database_trigger" && changes.length === 0 && <div style={{ color: "#64748b" }}>No tracked field changes</div>}</div></div>; })}</div> : <p style={{ color: "#94a3b8", margin: "0.5rem 0" }}>No activity history has been recorded.</p>}
                 </section>
                 <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem", marginTop: "1rem", paddingTop: "0.75rem", borderTop: "1px solid #e2e8f0" }}><button type="button" className="pa-secondary-btn" onClick={() => setIsPedidoDetalleOpen(false)}>Close</button></div>
               </>;
