@@ -25,6 +25,7 @@ import { formatStaffDateTime } from "../../lib/staff-date-format";
 import InvoicePreview, { type InvoicePreviewProps } from "../../components/InvoicePreview";
 import { BILLABLE_INVOICE_ITEMS, INVOICE_DISCOUNTS, SALES_TAX_RATE, formatCatalogCharge, parseInvoiceChargeLine, parseInvoiceDiscountLine, roundMoney, type InvoiceDiscountCode } from "../../lib/invoice-pricing";
 import { INVOICE_FILTER_COLORS, tabColorStyle } from "../../lib/shipment-colors";
+import { fetchPagedShipmentRows, loadShipmentContainerLookup, latestCheckinsByPackage } from "../../lib/shipment-container-labels";
 
 /**
  * DASHBOARD OPERATIVO - VERSIÓN VISUAL PURA
@@ -1299,80 +1300,89 @@ const App = () => {
   };
 
   const cargarPedidos = useCallback(async () => {
-    const { data, error } = await supabase
-      .from("paquetes_registro")
-      .select(
-        "id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, notas_imagenes, estado, issue_status, cubic_feet, prepaid_review_required, prepaid_review_status, numero_cliente:numero_cliente_id (id, numero_cliente, nombre, puerto), numero_cliente_id, creado_en, registro, descargado, entregado_por, hora_fecha, fecha_descargado, hora_descargado, fecha_entregado, hora_entregado",
-      )
-      .order("creado_en", { ascending: false });
-
-    if (error) {
-      alert("Error cargando pedidos: " + (error.message || ""));
-      console.error("Error cargarPedidos", error);
-      return;
-    }
-
-    if (data) {
-      const rows = data as any[];
-      const packageIds = rows.map((row) => row.id).filter(Boolean);
-      const [{ data: containerLinks }, { data: containers }, { data: checkins }] = packageIds.length
-        ? await Promise.all([
-            supabase.from("contenedor_paquetes").select("paquete_id, contenedor_id").in("paquete_id", packageIds),
-            supabase.from("contenedores").select("id, codigo"),
-            supabase.from("paquetes_checkin").select("paquete_id, parent_box_id, consolidacion, alto, ancho, largo, peso, problema, problema_notas, creado_en").in("paquete_id", packageIds).order("creado_en", { ascending: false }),
-          ])
-        : [{ data: [] }, { data: [] }, { data: [] }];
-      const containerById = new Map((containers || []).map((container: any) => [String(container.id), String(container.codigo || container.id)]));
-      const labelsByPackage = new Map<string, string[]>();
-      (containerLinks || []).forEach((link: any) => {
-        const labels = labelsByPackage.get(String(link.paquete_id)) || [];
-        labels.push(containerById.get(String(link.contenedor_id)) || String(link.contenedor_id));
-        labelsByPackage.set(String(link.paquete_id), labels);
+    try {
+      const rows = await fetchPagedShipmentRows<any>((offset, limit) => supabase
+        .from("paquetes_registro")
+        .select(
+          "id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, notas_imagenes, estado, issue_status, cubic_feet, prepaid_review_required, prepaid_review_status, numero_cliente:numero_cliente_id (id, numero_cliente, nombre, puerto), numero_cliente_id, creado_en, registro, descargado, entregado_por, hora_fecha, fecha_descargado, hora_descargado, fecha_entregado, hora_entregado",
+        )
+        .order("creado_en", { ascending: false })
+        .order("id", { ascending: false })
+        .range(offset, offset + limit - 1));
+      const packageIds = rows.map((row) => row.id).filter(Boolean).map((id) => String(id));
+      const lookup = packageIds.length
+        ? await loadShipmentContainerLookup(packageIds, {
+            fetchLinks: (ids, offset, limit) => supabase
+              .from("contenedor_paquetes")
+              .select("paquete_id, contenedor_id")
+              .in("paquete_id", ids)
+              .order("paquete_id", { ascending: true })
+              .order("contenedor_id", { ascending: true })
+              .range(offset, offset + limit - 1),
+            fetchCheckins: (ids, offset, limit) => supabase
+              .from("paquetes_checkin")
+              .select("id, paquete_id, parent_box_id, consolidacion, alto, ancho, largo, peso, problema, problema_notas, cargos_adicionales, creado_en")
+              .in("paquete_id", ids)
+              .order("paquete_id", { ascending: true })
+              .order("creado_en", { ascending: false })
+              .order("id", { ascending: false })
+              .range(offset, offset + limit - 1),
+            fetchContainers: (ids, offset, limit) => supabase
+              .from("contenedores")
+              .select("id, codigo")
+              .in("id", ids)
+              .order("id", { ascending: true })
+              .range(offset, offset + limit - 1),
+          })
+        : { labelsByPackage: new Map<string, string[]>(), insideBoxIds: new Set<string>(), checkins: [] };
+      const checkinByPackage = latestCheckinsByPackage(lookup.checkins);
+      const mapped = rows.map((row) => {
+        const checkin = checkinByPackage.get(String(row.id));
+        return {
+          id: row.id as string,
+          tracking: (row.tracking as string) || "-",
+          clienteNumero: row.numero_cliente?.numero_cliente ?? null,
+          clienteNombre: row.numero_cliente?.nombre ?? null,
+          clientePuerto: row.numero_cliente?.puerto ?? null,
+          estado: (row.estado as string) || null,
+          carrier: row.nombre_paqueteria || null,
+          tipo_paquete: row.tipo_paquete || null,
+          remitente: null,
+          destinatario: null,
+          contenido: row.contenido || null,
+          notas: row.notas || null,
+          notas_imagenes: row.notas_imagenes || null,
+          issue_status: row.issue_status || null,
+          problema: checkin?.problema ?? null,
+          problema_notas: checkin?.problema_notas ?? null,
+          cargos_adicionales: checkin?.cargos_adicionales ?? null,
+          consolidacion: checkin?.consolidacion ?? null,
+          cubic_feet: row.cubic_feet ?? null,
+          alto: checkin?.alto ?? null,
+          ancho: checkin?.ancho ?? null,
+          largo: checkin?.largo ?? null,
+          peso: checkin?.peso ?? null,
+          prepaid_review_required: Boolean(row.prepaid_review_required),
+          prepaid_review_status: row.prepaid_review_status || null,
+          numero_cliente_id: row.numero_cliente_id || row.numero_cliente?.id || null,
+          creado_en: row.creado_en || null,
+          registro: row.registro || null,
+          descargado: row.descargado || null,
+          entregado_por: row.entregado_por || null,
+          hora_fecha: row.hora_fecha || null,
+          fecha_descargado: row.fecha_descargado || null,
+          hora_descargado: row.hora_descargado || null,
+          fecha_entregado: row.fecha_entregado || null,
+          hora_entregado: row.hora_entregado || null,
+          insideBox: lookup.insideBoxIds.has(String(row.id)),
+          containerLabels: lookup.labelsByPackage.get(String(row.id)) || [],
+        };
       });
-      const insideBoxIds = new Set((checkins || []).filter((row: any) => row.parent_box_id).map((row: any) => String(row.paquete_id)));
-      const checkinByPackage = new Map<string, any>();
-      (checkins || []).forEach((row: any) => {
-        if (!checkinByPackage.has(String(row.paquete_id))) checkinByPackage.set(String(row.paquete_id), row);
-      });
-      const mapped = rows.map((row) => ({
-        id: row.id as string,
-        tracking: (row.tracking as string) || "-",
-        clienteNumero: row.numero_cliente?.numero_cliente ?? null,
-        clienteNombre: row.numero_cliente?.nombre ?? null,
-        clientePuerto: row.numero_cliente?.puerto ?? null,
-        estado: (row.estado as string) || null,
-        carrier: row.nombre_paqueteria || null,
-        tipo_paquete: row.tipo_paquete || null,
-        remitente: null,
-        destinatario: null,
-        contenido: row.contenido || null,
-        notas: row.notas || null,
-        notas_imagenes: row.notas_imagenes || null,
-        issue_status: row.issue_status || null,
-        problema: checkinByPackage.get(String(row.id))?.problema ?? null,
-        problema_notas: checkinByPackage.get(String(row.id))?.problema_notas ?? null,
-        cubic_feet: row.cubic_feet ?? null,
-        alto: checkinByPackage.get(String(row.id))?.alto ?? null,
-        ancho: checkinByPackage.get(String(row.id))?.ancho ?? null,
-        largo: checkinByPackage.get(String(row.id))?.largo ?? null,
-        peso: checkinByPackage.get(String(row.id))?.peso ?? null,
-        prepaid_review_required: Boolean(row.prepaid_review_required),
-        prepaid_review_status: row.prepaid_review_status || null,
-        numero_cliente_id: row.numero_cliente_id || row.numero_cliente?.id || null,
-        creado_en: row.creado_en || null,
-        registro: row.registro || null,
-        descargado: row.descargado || null,
-        entregado_por: row.entregado_por || null,
-        hora_fecha: row.hora_fecha || null,
-        fecha_descargado: row.fecha_descargado || null,
-        hora_descargado: row.hora_descargado || null,
-        fecha_entregado: row.fecha_entregado || null,
-        hora_entregado: row.hora_entregado || null,
-        insideBox: insideBoxIds.has(String(row.id)),
-        containerLabels: labelsByPackage.get(String(row.id)) || [],
-      }));
 
       setPedidos(mapped);
+    } catch (error) {
+      alert("Error cargando pedidos: " + (error instanceof Error ? error.message : String(error || "")));
+      console.error("Error cargarPedidos", error);
     }
   }, []);
 
@@ -1690,6 +1700,10 @@ const App = () => {
   useEffect(() => {
     if (activeTab === "portal") void cargarPortalEvents();
   }, [activeTab, cargarPortalEvents]);
+
+  useEffect(() => {
+    if (activeTab === "client360") void cargarPedidos();
+  }, [activeTab, cargarPedidos]);
 
   useEffect(() => {
     const refreshBadgeData = () => {
@@ -2877,7 +2891,7 @@ const App = () => {
             </select>
             <button type="button" className="pa-primary-btn" onClick={() => void cargarStaffActionLogs()} disabled={staffLogsLoading}>{staffLogsLoading ? 'Loading…' : 'Refresh logs'}</button>
           </div>
-          {staffActionLogs.length === 0 ? <p style={{ padding: '1.5rem', color: '#64748b' }}>{staffLogsLoading ? 'Loading staff activity…' : 'No staff activity has been recorded yet.'}</p> : <div style={{ overflowX: 'auto' }}><table className="admin-table" style={{ minWidth: 1180, width: '100%' }}><thead><tr><th>Date</th><th>Staff Member</th><th>Action</th><th>Area</th><th>Shipment / Customer</th><th>Result</th><th>What Changed</th></tr></thead><tbody>{staffActionLogs.map((log) => { const changes = auditChangeLines(log); const actor = auditActorName(log); const role = auditActorRole(log.actor_role); return <tr key={log.id}><td>{formatStaffDateTime(log.created_at)}</td><td><strong>{actor}</strong><br /><small>{role}</small>{log.actor_email && log.actor_email.toLowerCase() !== actor.toLowerCase() && <><br /><small>{log.actor_email}</small></>}</td><td>{auditActionLabel(log.action)}</td><td>{log.entity_type}</td><td>{log.tracking || log.customer_name || log.entity_id || '-'}</td><td><span style={{ color: log.success ? '#166534' : '#b91c1c', fontWeight: 700 }}>{log.success ? 'Success' : 'Failed'}</span>{log.error_message && <><br /><small>{log.error_message}</small></>}</td><td>{changes.length ? changes.map((change) => <div key={change} style={{ whiteSpace: 'pre-wrap' }}>{change}</div>) : <span style={{ color: '#64748b' }}>No tracked field changes</span>}</td></tr>; })}</tbody></table></div>}
+          {staffActionLogs.length === 0 ? <p style={{ padding: '1.5rem', color: '#64748b' }}>{staffLogsLoading ? 'Loading staff activity…' : 'No staff activity has been recorded yet.'}</p> : <div style={{ overflowX: 'auto' }}><table className="admin-table admin-table--blue-header" style={{ minWidth: 1180, width: '100%' }}><thead><tr><th>Date</th><th>Staff Member</th><th>Action</th><th>Area</th><th>Shipment / Customer</th><th>Result</th><th>What Changed</th></tr></thead><tbody>{staffActionLogs.map((log) => { const changes = auditChangeLines(log); const actor = auditActorName(log); const role = auditActorRole(log.actor_role); return <tr key={log.id}><td>{formatStaffDateTime(log.created_at)}</td><td><strong>{actor}</strong><br /><small>{role}</small>{log.actor_email && log.actor_email.toLowerCase() !== actor.toLowerCase() && <><br /><small>{log.actor_email}</small></>}</td><td>{auditActionLabel(log.action)}</td><td>{log.entity_type}</td><td>{log.tracking || log.customer_name || log.entity_id || '-'}</td><td><span style={{ color: log.success ? '#166534' : '#b91c1c', fontWeight: 700 }}>{log.success ? 'Success' : 'Failed'}</span>{log.error_message && <><br /><small>{log.error_message}</small></>}</td><td>{changes.length ? changes.map((change) => <div key={change} style={{ whiteSpace: 'pre-wrap' }}>{change}</div>) : <span style={{ color: '#64748b' }}>No tracked field changes</span>}</td></tr>; })}</tbody></table></div>}
         </div>}
 
         {activeTab === 'ferry' && <FerryManifestAdmin />}
@@ -3363,13 +3377,13 @@ const App = () => {
                 display: 'grid',
                 gridTemplateColumns: '0.7fr 1.5fr 1.8fr 1.2fr 1.1fr 1fr 0.8fr',
                 columnGap: '1rem',
-                padding: activeTab === 'prepaid' ? '0.7rem 0' : '0.4rem 0',
-                background: activeTab === 'prepaid' ? '#1e4f7b' : undefined,
-                borderRadius: activeTab === 'prepaid' ? '8px 8px 0 0' : undefined,
+                padding: '0.7rem 0',
+                background: '#1e4f7b',
+                borderRadius: '8px 8px 0 0',
                 fontSize: '0.8rem',
-                color: activeTab === 'prepaid' ? '#fff' : '#64748b',
+                color: '#fff',
                 borderBottom: '1px solid #e2e8f0',
-                fontWeight: activeTab === 'prepaid' ? 700 : 600,
+                fontWeight: 700,
                 minWidth: 960,
               }}
             >

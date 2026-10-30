@@ -136,7 +136,7 @@ export default function PaymentsAdmin<T extends PaymentInvoice>({
   return (
     <section className="payments-workspace" aria-labelledby="payments-workspace-title">
       <style>{`
-        .payments-workspace { color: #0f172a; }
+        .payments-workspace { color: #0f172a; width:100%; min-width:0; max-width:none; }
         .payments-workspace-heading { display:flex; justify-content:space-between; gap:1rem; align-items:flex-start; margin-bottom:1rem; }
         .payments-workspace-heading h2 { margin:0; font-size:1.15rem; }
         .payments-workspace-heading p { margin:.3rem 0 0; color:#64748b; font-size:.88rem; }
@@ -152,10 +152,14 @@ export default function PaymentsAdmin<T extends PaymentInvoice>({
         .payments-workspace-summary-card.invoiced strong { color:#1d4ed8; }
         .payments-workspace-summary-card.paid strong { color:#166534; }
         .payments-workspace-summary-card.outstanding strong { color:#b45309; }
-        .payments-workspace-table-wrap { overflow-x:auto; border:1px solid #e2e8f0; border-radius:.8rem; background:#fff; }
+        .payments-workspace-table-wrap { position:relative; width:100%; max-width:100%; box-sizing:border-box; overflow-x:auto; border:1px solid #e2e8f0; border-radius:.8rem; background:#fff; }
         .payments-workspace table { width:100%; min-width:1040px; border-collapse:collapse; }
         .payments-workspace th { padding:.72rem .8rem; background:#f8fafc; color:#475569; font-size:.74rem; letter-spacing:.02em; text-align:left; white-space:nowrap; }
         .payments-workspace td { padding:.78rem .8rem; border-top:1px solid #eef2f7; vertical-align:middle; font-size:.85rem; }
+        .payments-workspace th:last-child, .payments-workspace td:last-child { position:sticky; right:0; min-width:10.5rem; box-sizing:border-box; border-left:1px solid #dbe4ed; box-shadow:-4px 0 8px rgba(15,23,42,.05); white-space:normal; }
+        .payments-workspace th:last-child { z-index:3; background:#f8fafc; }
+        .payments-workspace td:last-child { z-index:2; background:#fff; }
+        .payments-workspace tbody tr:hover td:last-child { background:#fff7ed; }
         .payments-workspace tbody tr { cursor:pointer; transition:background .15s ease; }
         .payments-workspace tbody tr:hover { background:#fff7ed; }
         .payments-workspace .customer-name { font-weight:700; }
@@ -206,7 +210,7 @@ export default function PaymentsAdmin<T extends PaymentInvoice>({
         <div className="payments-workspace-summary-card outstanding"><span>Outstanding</span><strong>{balancesReady ? money(roundMoney(totals.outstanding)) : "—"}</strong></div>
       </div>
 
-      <div className="payments-workspace-table-wrap">
+      <div className="payments-workspace-table-wrap" tabIndex={0} role="region" aria-label="Invoice table. Scroll horizontally to view all columns; payment actions remain visible.">
         {!balancesReady ? <div className="payments-workspace-empty" role="status">Verified payment balances are unavailable. Paid amounts, balances, and payment recording remain hidden until they can be loaded.</div> : displayedInvoices.length > 0 ? (
           <table>
             <thead>
