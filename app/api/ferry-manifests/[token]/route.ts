@@ -35,7 +35,7 @@ async function getManifest(token: string) {
       .eq("manifiesto_id", manifest.id)
       .order("puerto", { ascending: true })
       .order("nombre_cliente", { ascending: true }),
-    supabaseAdmin.from("contenedores").select("codigo").eq("id", manifest.contenedor_id).maybeSingle(),
+    supabaseAdmin.from("contenedores").select("codigo, creado_en").eq("id", manifest.contenedor_id).maybeSingle(),
   ]);
   if (entriesError) throw entriesError;
   if (containerError) throw containerError;
@@ -62,7 +62,7 @@ async function getManifest(token: string) {
   Array.from(grouped.values()).forEach((entry) => {
     entry.etiqueta_cantidad = `BOX= ${entry.package_count}`;
   });
-  return { manifest: { ...manifest, container_codigo: container?.codigo || null }, entries: Array.from(grouped.values()) };
+  return { manifest: { ...manifest, container_codigo: container?.codigo || null, container_creado_en: container?.creado_en || null }, entries: Array.from(grouped.values()) };
 }
 
 export async function GET(_request: Request, { params }: { params: { token: string } }) {

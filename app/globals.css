@@ -3097,6 +3097,7 @@ main {
 .ferry-booking-saved { display: inline-flex; align-items: center; gap: .35rem; color: #166534; font-weight: 800; white-space: nowrap; }
 .ferry-print-only { display: none; }
 .ferry-print-signature-line { display: none; }
+.ferry-print-heading, .ferry-booking-print { display: none; }
 .ferry-status-locked { background: #f1f5f9; color: #64748b; }
 .ferry-actions { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin: 18px auto 0; padding: 16px; border-top: 1px solid #e2e8f0; }
 .ferry-actions p { margin: 0; color: #64748b; font-size: .8rem; }
@@ -3115,38 +3116,42 @@ main {
 .ferry-instructions strong { color: #0f172a; }
 @media (max-width: 720px) { .ferry-export-actions { width: 100%; margin-left: 0; } .ferry-export-actions button { flex: 1; justify-content: center; } }
 @media print {
-  @page { size: landscape; margin: 10mm; }
-  .ferry-page { width: 100%; max-width: none; margin: 0 !important; }
-  .ferry-page { padding: 0; background: #fff; }
+  @page ferryReceiver { size: letter portrait; margin: 12mm; }
+  .ferry-page { page: ferryReceiver; width: 100%; max-width: none; margin: 0 !important; padding: 0; background: #fff; color: #000; font-family: Arial, sans-serif; }
   .ferry-header, .ferry-hero, .ferry-meta, .ferry-instructions, .ferry-footer, .ferry-notice, .ferry-error, .ferry-actions { display: none !important; }
-  .ferry-section { width: 100%; margin: 0 0 18px; padding: 0; border: 0; box-shadow: none; }
-  .ferry-table-wrap { overflow: visible; }
-  .ferry-table { width: 100%; min-width: 0; table-layout: fixed; font-size: 12pt; color: #0f172a; }
-  .ferry-table th, .ferry-table td, .ferry-table input, .ferry-table span, .ferry-table strong, .ferry-table svg { font-size: 12pt !important; font-weight: 400 !important; }
-  .ferry-table th, .ferry-table td { overflow-wrap: anywhere; }
+  .ferry-print-heading { display: flow-root; margin: 0 0 18px; color: #000; font: 11pt/1.35 Arial, sans-serif; }
+  .ferry-print-logo { float: right; width: 140px; height: 60px; object-fit: contain; margin: 0 0 8px 16px; }
+  .ferry-print-heading h1 { margin: 0 0 5px; font-size: 14pt; }
+  .ferry-print-heading p { margin: 3px 0; font-size: 11pt; }
+  .ferry-booking-screen { display: none !important; }
+  .ferry-booking-print { display: inline; }
+  .ferry-section { width: 100%; margin: 0 0 22px; padding: 0; border: 0; box-shadow: none; background: #fff; }
+  .ferry-section-heading { display: block; padding: 0; margin: 0 0 8px; border: 0; background: #fff; break-after: avoid; }
+  .ferry-section-heading h2 { width: 100%; color: #000; text-align: center; text-transform: uppercase; text-decoration: underline; font-size: 13pt; font-weight: 700; }
+  .ferry-section-heading span { display: none; }
+  .ferry-table-wrap { overflow: visible; border: 0; border-radius: 0; }
+  .ferry-table thead { display: table-header-group; }
+  .ferry-table tr { break-inside: avoid; }
+  .ferry-table { width: 100%; min-width: 0; table-layout: fixed; border-collapse: collapse; font-size: 11pt; color: #000; }
+  .ferry-table th, .ferry-table td, .ferry-table input, .ferry-table span, .ferry-table strong { font-size: 11pt !important; color: #000 !important; }
+  .ferry-table th, .ferry-table td { padding: 7px 5px; border: 1px solid #000; overflow-wrap: anywhere; background: #fff !important; vertical-align: middle; }
+  .ferry-table th { font-size: 10pt !important; font-weight: 700; text-align: left; white-space: normal; letter-spacing: 0; padding: 7px 3px; }
+  .ferry-table td { font-weight: 400; height: 30px; }
+  .ferry-table td.ferry-acct { font-weight: 700; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  .ferry-table td.ferry-acct-la_ceiba { color: #2563eb !important; }
+  .ferry-table td.ferry-acct-utila { color: #dc2626 !important; }
+  .ferry-table td.ferry-acct-guanaja { color: #16a34a !important; }
   .ferry-table th:nth-child(1), .ferry-table td:nth-child(1) { width: 5%; }
-  .ferry-table th:nth-child(2), .ferry-table td:nth-child(2) { width: 13%; }
-  .ferry-table th:nth-child(3), .ferry-table td:nth-child(3) { width: 23%; }
+  .ferry-table th:nth-child(2), .ferry-table td:nth-child(2) { width: 11%; }
+  .ferry-table th:nth-child(3), .ferry-table td:nth-child(3) { width: 29%; }
   .ferry-table th:nth-child(4), .ferry-table td:nth-child(4) { width: 12%; }
-  .ferry-table th:nth-child(5), .ferry-table td:nth-child(5) { width: 20%; }
+  .ferry-table th:nth-child(5), .ferry-table td:nth-child(5) { width: 16%; }
   .ferry-table th:nth-child(6), .ferry-table td:nth-child(6) { width: 27%; }
-  .ferry-table th { background: #123b5d; color: #fff; border-bottom-color: #08263d; }
-  .ferry-table th:nth-child(1) { background: #0f4c81; }
-  .ferry-table th:nth-child(2) { background: #14532d; }
-  .ferry-table th:nth-child(3) { background: #7c2d12; }
-  .ferry-table th:nth-child(4) { background: #5b21b6; }
-  .ferry-table th:nth-child(5) { background: #0f766e; }
-  .ferry-table th:nth-child(6) { background: #7f1d1d; }
-  .ferry-table tbody tr:nth-child(even) { background: #eef5fb; }
-  .ferry-table td { border-bottom-color: #94a3b8; color: #0f172a; }
-  .ferry-table td.ferry-acct-la_ceiba { color: #2563eb; }
-  .ferry-table td.ferry-acct-utila { color: #dc2626; }
-  .ferry-table td.ferry-acct-guanaja { color: #16a34a; }
-  .ferry-table td:nth-child(3) { font-size: 12pt; font-weight: 400; }
+  .ferry-table tbody tr:last-child td { border-bottom: 1px solid #000; }
+  .ferry-table tbody tr:nth-child(even), .ferry-row-locked { background: #fff !important; }
   .ferry-table input { border: 0; padding: 0; }
   .ferry-print-only { display: table-cell; }
-  .ferry-print-only { border-bottom: 0 !important; }
-  .ferry-print-signature-line { display: block; width: 100%; margin-top: 8px; border-bottom: 2px solid #0f172a; }
+  .ferry-print-signature-line { display: block; width: 100%; min-height: 18px; }
 }
 
 /* CLIENT 360 */
@@ -3284,7 +3289,7 @@ main {
 @media print {
   @page { size: landscape; margin: 10mm; }
   body { background: #fff !important; }
-  body * { visibility: hidden !important; }
+  .portal-page * { visibility: hidden !important; }
   .portal-print-report, .portal-print-report * { visibility: visible !important; }
   .portal-page { min-height: 0 !important; padding: 0 !important; background: #fff !important; }
   .portal-print-report { position: absolute; inset: 0 auto auto 0; display: block !important; width: 100%; color: #0f172a; font: 10pt/1.4 Arial, sans-serif; }

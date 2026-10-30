@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { CheckCircle2, ClipboardList, Download, Loader2, Printer, Send, Ship, XCircle } from "lucide-react";
-import { formatPortName } from "../../../lib/port-format";
+import { downloadFerryManifestExcel, formatFerryAccountNumber } from "../../../lib/ferry-manifest-export";
 
 type Entry = {
   id: string;
@@ -16,7 +16,7 @@ type Entry = {
   enviado_en: string | null;
 };
 type ManifestData = {
-  manifest: { semana_inicio: string; semana_fin: string; estado: string; container_codigo: string | null };
+  manifest: { semana_inicio: string; semana_fin: string; estado: string; container_codigo: string | null; container_creado_en?: string | null };
   entries: Entry[];
 };
 type Draft = { booking: string };
@@ -32,6 +32,7 @@ export default function FerryManifestPage({ params }: { params: { token: string 
   const [notice, setNotice] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [submitting, setSubmitting] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -98,17 +99,38 @@ export default function FerryManifestPage({ params }: { params: { token: string 
 
   const exportCsv = () => {
     if (!data) return;
-    const rows = [["PORT", "NO.", "ACCOUNT", "CUSTOMER NAME", "QUANTITY", "BOOKING #"], ...data.entries.map((entry, index) => [
-      formatPortName(entry.puerto), String(index + 1), entry.numero_cuenta, entry.nombre_cliente,
-      entry.etiqueta_cantidad, entry.numero_reserva || "",
-    ])];
-    const csv = rows.map((row) => row.map((value) => `"${String(value).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const ports = { la_ceiba: "La Ceiba", utila: "Utila", guanaja: "Guanaja" } as const;
+    const rows = [["PORT", "NO.", "ACCT", "CUSTOMER NAME", "QUANTITY", "BOOKING #", "RECEIVER NAME"]];
+    for (const port of ["la_ceiba", "utila", "guanaja"] as const) {
+      data.entries.filter((entry) => entry.puerto === port).forEach((entry, index) => {
+        rows.push([ports[port], String(index + 1), formatFerryAccountNumber(entry.numero_cuenta, port), entry.nombre_cliente, entry.etiqueta_cantidad, entry.numero_reserva || "", entry.nombre_receptor || ""]);
+      });
+    }
+    const csv = "\uFEFF" + rows.map((row) => row.map((value) => {
+      const safe = /^\s*[=+@-]/.test(value) ? "'" + value : value;
+      return '"' + safe.replace(/"/g, '""') + '"';
+    }).join(",")).join("\r\n");
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
     const link = document.createElement("a");
     link.href = url;
-    link.download = `caribex-ferry-manifest-${data.manifest.container_codigo || "export"}.csv`;
+    link.download = `caribex-ferry-manifest-${(data.manifest.container_codigo || "export").replace(/[^a-zA-Z0-9._-]+/g, "-")}.csv`;
+    document.body.appendChild(link);
     link.click();
-    URL.revokeObjectURL(url);
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 0);
+  };
+
+  const exportExcel = async () => {
+    if (!data || exporting) return;
+    setExporting(true);
+    setError(null);
+    try {
+      await downloadFerryManifestExcel(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not export the ferry manifest.");
+    } finally {
+      setExporting(false);
+    }
   };
 
   if (loading) return <main className="ferry-page ferry-centered"><Loader2 className="ferry-spin" size={32} /><p>Loading ferry manifest…</p></main>;
@@ -122,14 +144,14 @@ export default function FerryManifestPage({ params }: { params: { token: string 
     if (!entries.length) return null;
     return <section className="ferry-section" key={port}>
       <div className="ferry-section-heading"><h2>{title}</h2><span>{entries.length} shipment{entries.length === 1 ? "" : "s"}</span></div>
-      <div className="ferry-table-wrap"><table className="ferry-table"><thead><tr><th>No.</th><th>Acct</th><th>Customer name</th><th>Quantity</th><th>Booking #</th><th className="ferry-print-only">Receiver / pickup signer</th></tr></thead><tbody>
+      <div className="ferry-table-wrap"><table className="ferry-table"><thead><tr><th>No.</th><th>Acct</th><th>Customer Name</th><th>Quantity</th><th className="ferry-booking-column">Booking #</th><th className="ferry-print-only">Receiver Name</th></tr></thead><tbody>
         {entries.map((entry, index) => {
           const locked = Boolean(entry.enviado_en) || readOnly;
           const draft = drafts[entry.id] || { booking: "" };
           return <tr className={locked ? "ferry-row-locked" : ""} key={entry.id}>
-            <td>{index + 1}</td><td className={`ferry-acct ferry-acct-${entry.puerto}`}>{entry.numero_cuenta}</td><td><strong>{entry.nombre_cliente}</strong></td><td>{entry.etiqueta_cantidad}</td>
-            <td>{locked ? <span className="ferry-booking-saved">{entry.numero_reserva || "—"} <CheckCircle2 size={15} /></span> : <input value={draft.booking} maxLength={100} placeholder="Booking #" onChange={(event) => updateDraft(entry.id, "booking", event.target.value)} />}</td>
-            <td className="ferry-print-only"><span className="ferry-print-signature-line" aria-hidden="true" /></td>
+            <td>{index + 1}</td><td className={`ferry-acct ferry-acct-${entry.puerto}`}>{formatFerryAccountNumber(entry.numero_cuenta, entry.puerto)}</td><td><strong>{entry.nombre_cliente}</strong></td><td>{entry.etiqueta_cantidad}</td>
+            <td className="ferry-booking-column"><span className="ferry-booking-screen">{locked ? <span className="ferry-booking-saved">{entry.numero_reserva || "—"} <CheckCircle2 size={15} /></span> : <input value={draft.booking} maxLength={100} placeholder="Booking #" onChange={(event) => updateDraft(entry.id, "booking", event.target.value)} />}</span><span className="ferry-booking-print">{entry.numero_reserva || "—"}</span></td>
+            <td className="ferry-print-only">{entry.nombre_receptor || <span className="ferry-print-signature-line" aria-hidden="true" />}</td>
           </tr>;
         })}
       </tbody></table></div>
@@ -137,15 +159,16 @@ export default function FerryManifestPage({ params }: { params: { token: string 
   };
 
   return <main className="ferry-page">
+    <div className="ferry-print-heading"><Image className="ferry-print-logo" src="/imagenes/logo-pages.png" alt="Caribex Logistics Group" width={140} height={60} priority unoptimized /><h1>Caribex Ferry Report</h1><p>Container: <strong>{data.manifest.container_codigo || "—"}</strong></p><p>Date created: {data.manifest.container_creado_en ? dateLabel(data.manifest.container_creado_en) : "Not recorded"}</p></div>
     <header className="ferry-header"><div className="ferry-brand"><Image src="/imagenes/logo-pages.png" alt="Caribex Logistics Group" width={190} height={81} /><span>Ferry manifest</span></div><div className={`ferry-status ${readOnly ? "ferry-status-locked" : ""}`}>{readOnly ? "Read-only" : `${submittedCount} of ${data.entries.length} submitted`}</div></header>
     <div className="ferry-hero"><div className="ferry-icon"><Ship size={25} /></div><div><p className="ferry-eyebrow">Ferry operations</p><h1>Weekly shipment manifest</h1><p>Enter the booking number for each customer who has shipped. Blank rows remain open for the next ferry.</p></div></div>
-    <div className="ferry-meta"><span><ClipboardList size={16} /> Week: {dateLabel(data.manifest.semana_inicio)} – {dateLabel(data.manifest.semana_fin)}</span><span>Container: <strong>{data.manifest.container_codigo || "—"}</strong></span><div className="ferry-export-actions"><button type="button" onClick={exportCsv}><Download size={15} /> Export CSV</button><button type="button" onClick={() => window.print()}><Printer size={15} /> Print receiver sheet</button></div></div>
+    <div className="ferry-meta"><span><ClipboardList size={16} /> Week: {dateLabel(data.manifest.semana_inicio)} – {dateLabel(data.manifest.semana_fin)}</span><span>Container: <strong>{data.manifest.container_codigo || "—"}</strong></span><div className="ferry-export-actions"><button type="button" onClick={exportCsv}><Download size={15} /> Export CSV</button><button type="button" onClick={() => void exportExcel()} disabled={exporting}><Download size={15} /> {exporting ? "Exporting…" : "Export Excel"}</button><button type="button" onClick={() => window.print()}><Printer size={15} /> Print receiver sheet</button></div></div>
     {error && <div className="ferry-error"><XCircle size={18} />{error}</div>}
     {notice && <div className="ferry-notice"><CheckCircle2 size={18} />{notice}</div>}
     <form onSubmit={submitAll}>
-      {renderSection("la_ceiba", "LA CEIBA")}
-      {renderSection("utila", "UTILA")}
-      {renderSection("guanaja", "GUANAJA")}
+      {renderSection("la_ceiba", "La Ceiba Customers")}
+      {renderSection("utila", "Utila Customers")}
+      {renderSection("guanaja", "Guanaja Customers")}
       {!readOnly && <div className="ferry-actions"><p>Submitted rows turn grey and lock automatically. Blank rows can be completed later using this same link.</p><button type="submit" className="ferry-submit-all" disabled={submitting}>{submitting ? <Loader2 className="ferry-spin" size={18} /> : <Send size={18} />} {submitting ? "Saving…" : "Submit to Caribex"}</button></div>}
     </form>
     <footer className="ferry-footer">Caribex Logistics Group · The submitted list is visible to anyone with this manifest link.</footer>
