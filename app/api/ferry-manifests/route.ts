@@ -17,7 +17,7 @@ function getAdminClient() {
   });
 }
 
-async function requireAdmin(request: Request) {
+async function requireFerryAccess(request: Request) {
   const authorization = request.headers.get("authorization");
   if (!authorization?.startsWith("Bearer ")) {
     throw new Error("Authentication is required");
@@ -32,7 +32,21 @@ async function requireAdmin(request: Request) {
     .select("id")
     .eq("id", data.user.id)
     .maybeSingle();
-  if (adminError || !admin) throw new Error("Administrator access is required");
+  if (adminError) throw adminError;
+  if (!admin) {
+    const { data: staff, error: staffError } = await supabaseAdmin
+      .from("personal")
+      .select("permissions")
+      .eq("id", data.user.id)
+      .maybeSingle();
+    if (staffError) throw staffError;
+    const permissions = staff?.permissions && typeof staff.permissions === "object"
+      ? staff.permissions as { ferry_manifests?: unknown }
+      : {};
+    if (permissions.ferry_manifests !== true) {
+      throw new Error("Ferry manifest access is not enabled for this staff account");
+    }
+  }
 
   return { supabaseAdmin, userId: data.user.id };
 }
@@ -50,7 +64,7 @@ function getWeekBounds(date = new Date()) {
 
 export async function GET(request: Request) {
   try {
-    const { supabaseAdmin } = await requireAdmin(request);
+    const { supabaseAdmin } = await requireFerryAccess(request);
     const [{ data: manifests, error: manifestError }, { data: containers, error: containerError }] =
       await Promise.all([
         supabaseAdmin
@@ -85,13 +99,13 @@ export async function GET(request: Request) {
     });
   } catch (error: any) {
     const message = error?.message || "Could not load ferry manifests";
-    return NextResponse.json({ error: message }, { status: message.includes("required") || message.includes("Administrator") ? 403 : 500 });
+    return NextResponse.json({ error: message }, { status: message.includes("required") || message.includes("Administrator") || message.includes("access") ? 403 : 500 });
   }
 }
 
 export async function POST(request: Request) {
   try {
-    const { supabaseAdmin, userId } = await requireAdmin(request);
+    const { supabaseAdmin, userId } = await requireFerryAccess(request);
     const body = await request.json();
     const containerId = String(body?.contenedor_id || "");
     if (!containerId) return NextResponse.json({ error: "A container is required" }, { status: 400 });
@@ -171,13 +185,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ manifest }, { status: 201 });
   } catch (error: any) {
     const message = error?.message || "Could not create ferry manifest";
-    return NextResponse.json({ error: message }, { status: message.includes("required") || message.includes("Administrator") ? 403 : 500 });
+    return NextResponse.json({ error: message }, { status: message.includes("required") || message.includes("Administrator") || message.includes("access") ? 403 : 500 });
   }
 }
 
 export async function PATCH(request: Request) {
   try {
-    const { supabaseAdmin } = await requireAdmin(request);
+    const { supabaseAdmin } = await requireFerryAccess(request);
     const body = await request.json();
     const manifestId = String(body?.id || "");
     if (!manifestId) return NextResponse.json({ error: "Manifest id is required" }, { status: 400 });
@@ -189,6 +203,6 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ ok: true });
   } catch (error: any) {
     const message = error?.message || "Could not archive ferry manifest";
-    return NextResponse.json({ error: message }, { status: message.includes("required") || message.includes("Administrator") ? 403 : 500 });
+    return NextResponse.json({ error: message }, { status: message.includes("required") || message.includes("Administrator") || message.includes("access") ? 403 : 500 });
   }
 }

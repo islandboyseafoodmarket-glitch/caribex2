@@ -18,6 +18,32 @@ function getAdminClient() {
   return createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
 }
 
+async function requireManifestEditor(request: Request, supabaseAdmin: ReturnType<typeof getAdminClient>) {
+  const bearer = request.headers.get("authorization") || "";
+  const token = bearer.replace(/^Bearer\s+/i, "");
+  const { data: authData, error: authError } = await supabaseAdmin.auth.getUser(token);
+  if (authError || !authData.user) throw new Error("Authentication required");
+
+  const { data: admin, error: adminError } = await supabaseAdmin
+    .from("administradores")
+    .select("id")
+    .eq("id", authData.user.id)
+    .maybeSingle();
+  if (adminError) throw adminError;
+  if (admin) return;
+
+  const { data: staff, error: staffError } = await supabaseAdmin
+    .from("personal")
+    .select("permissions")
+    .eq("id", authData.user.id)
+    .maybeSingle();
+  if (staffError) throw staffError;
+  const permissions = staff?.permissions && typeof staff.permissions === "object"
+    ? staff.permissions as { ferry_manifests?: unknown }
+    : {};
+  if (permissions.ferry_manifests !== true) throw new Error("Ferry manifest access is not enabled for this staff account");
+}
+
 async function getManifest(token: string) {
   const supabaseAdmin = getAdminClient();
   const { data: manifest, error: manifestError } = await supabaseAdmin
@@ -89,11 +115,12 @@ export async function PATCH(request: Request, { params }: { params: { token: str
 
     const supabaseAdmin = getAdminClient();
     if (adminEdit) {
-      const bearer = request.headers.get("authorization") || "";
-      const { data: authData, error: authError } = await supabaseAdmin.auth.getUser(bearer.replace(/^Bearer\s+/i, ""));
-      if (authError || !authData.user) return NextResponse.json({ error: "Authentication required" }, { status: 401 });
-      const { data: admin } = await supabaseAdmin.from("administradores").select("id").eq("id", authData.user.id).maybeSingle();
-      if (!admin) return NextResponse.json({ error: "Administrator access required" }, { status: 403 });
+      try {
+        await requireManifestEditor(request, supabaseAdmin);
+      } catch (error: any) {
+        const message = error?.message || "Ferry manifest access is not enabled for this staff account";
+        return NextResponse.json({ error: message }, { status: message.includes("Authentication") ? 401 : 403 });
+      }
     }
     const { data: manifest, error: manifestError } = await supabaseAdmin
       .from("ferry_manifests")

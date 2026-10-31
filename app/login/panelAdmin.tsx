@@ -2028,7 +2028,7 @@ const App = () => {
     <div className={`dashboard-root ${activeTab === 'facturas' ? 'dashboard-root--invoices' : ''}`}>
       <style suppressHydrationWarning>{`
         :root {
-          --bg-main: #75a9cf;
+          --bg-main: #eaf4fb;
           --primary-blue: #2563eb;
           --success-green: #166534;
           --success-bg: #dcfce7;
@@ -2049,6 +2049,7 @@ const App = () => {
 
         .dashboard-root {
           min-height: 100vh;
+          background: #eaf4fb;
           padding: 32px clamp(18px, 4vw, 56px) 56px 310px;
           max-width: 1480px;
           margin: 0 auto;

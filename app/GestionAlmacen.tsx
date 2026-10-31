@@ -36,6 +36,7 @@ import {
   MapPin,
   CalendarDays,
   ScanLine,
+  Ship,
 } from "lucide-react";
 
 import StageReceived from "./StageReceived";
@@ -47,6 +48,7 @@ import InvoicesStage from "./InvoicesStage";
 import InvoicePreview from "../components/InvoicePreview";
 import CaribexLabelPrint, { type CaribexLabelSize } from "../components/CaribexLabelPrint";
 import CaribexBatchLabelPrint, { BatchBoxLabel } from "../components/CaribexBatchLabelPrint";
+import FerryManifestAdmin from "./login/FerryManifestAdmin";
 import { calculateWorkflowBilling, isBox } from "../lib/workflow-billing";
 import { DATABASE_STATUS } from "../lib/shipping-rules";
 
@@ -364,7 +366,7 @@ export default function GestionAlmacen() {
   const [packages, setPackages] = useState<Package[]>([]);
 
   const [activeStage, setActiveStage] = useState<StageId>("RECIBIDO_FLORIDA");
-  const [activeWarehouseTab, setActiveWarehouseTab] = useState<"stages" | "client360" | "labels">("stages");
+  const [activeWarehouseTab, setActiveWarehouseTab] = useState<"stages" | "client360" | "labels" | "ferry">("stages");
   const [client360Search, setClient360Search] = useState("");
   const [client360StatusFilter, setClient360StatusFilter] = useState("ALL");
   const [client360BalanceFilter, setClient360BalanceFilter] = useState("ALL");
@@ -3882,11 +3884,26 @@ const handlePackageCreated = (pkg: Package) => {
             <Barcode size={16} />
             <span>{isEs ? "Imprimir etiquetas" : "Print Labels"}</span>
           </button>
+          {(isAdmin || staffPermissions.ferry_manifests === true) && <button
+            type="button"
+            className={"ga-workspace-tab" + (activeWarehouseTab === "ferry" ? " ga-workspace-tab-active" : "")}
+            data-workspace="ferry"
+            style={tabColorStyle(NAV_SECTION_COLORS.billing)}
+            aria-current={activeWarehouseTab === "ferry" ? "page" : undefined}
+            onClick={() => setActiveWarehouseTab("ferry")}
+          >
+            <Ship size={16} />
+            <span>{isEs ? "Manifiestos de ferry" : "Ferry Manifest"}</span>
+          </button>}
         </nav>
       </header>
 
       <main className={"ga-main" + (activeWarehouseTab === "stages" && activeStage === "FACTURAS" ? " ga-main--invoices" : "")}>
-        {activeWarehouseTab === "labels" ? (
+        {activeWarehouseTab === "ferry" ? (
+          <section className="ga-state-card ga-ferry-workspace">
+            <FerryManifestAdmin />
+          </section>
+        ) : activeWarehouseTab === "labels" ? (
           <section className="ga-state-card" style={{ padding: "1.5rem" }}>
             <h2 style={{ marginTop: 0 }}>{isEs ? "Generar etiquetas para cajas nuevas" : "Generate labels for new boxes"}</h2>
             <p style={{ color: "#64748b" }}>{isEs ? "Estas etiquetas no están vinculadas a envíos existentes y son compatibles con el escáner QR de Caribex." : "These labels are independent of existing shipments and are compatible with the Caribex QR scanner."}</p>

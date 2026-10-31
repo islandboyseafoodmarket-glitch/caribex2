@@ -7,8 +7,8 @@
 .ga-page-wrapper .ga-state-card-header,
 .ga-page-wrapper .ga-state-header,
 .ga-page-wrapper .invoice-panel-header {
-  background: #173f64;
-  border: 1px solid #315d86;
+  background: #2f6f9d;
+  border: 1px solid #5b97bf;
   border-radius: 12px;
   padding: 16px 20px;
   color: #ffffff;
@@ -36,7 +36,7 @@
 .invoice-workspace .invoice-table-header,
 .ga-page-wrapper table thead,
 .ga-page-wrapper table thead th {
-  background: #173f64 !important;
+  background: #2f6f9d !important;
   color: #ffffff !important;
 }
 .invoice-workspace .invoice-table-header > span,
@@ -47,7 +47,7 @@
 .dashboard-root .admin-table thead th,
 .ga-page-wrapper table thead th {
   padding: 12px 14px;
-  border-bottom: 1px solid #315d86;
+  border-bottom: 1px solid #5b97bf;
 }
 .invoice-workspace .invoice-table-header {
   padding: 12px 0;
