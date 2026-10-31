@@ -1,5 +1,7 @@
 import "./globals.css";
 import "./admin-leads.css";
+import "./workspace-theme.css";
+import "./invoice-workspace.css";
 import type { Metadata } from "next";
 import React from "react";
 import { I18nProvider } from "../lib/I18nProvider";
