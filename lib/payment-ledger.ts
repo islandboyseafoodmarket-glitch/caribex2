@@ -2,8 +2,7 @@ export const PAYMENT_METHODS = [
   "Zelle",
   "PayPal",
   "Cash",
-  "Bank Transfer",
-  "Wire",
+  "Bank Transfer / Wire",
   "Credit granted",
 ] as const;
 

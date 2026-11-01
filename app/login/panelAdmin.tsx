@@ -8,24 +8,14 @@ import { BrowserMultiFormatReader } from "@zxing/browser";
 import { Pencil, Trash2, Unlock, LogOut, Image as ImageIcon, Check, AlertCircle, Send, DollarSign, ChevronDown, Package, ScanLine, AlertTriangle, QrCode, BarChart3, UserPlus, Bell, Receipt, Ship, Container, UserCog, Plus } from "lucide-react";
 import FerryManifestAdmin from "./FerryManifestAdmin";
 import Client360Admin from "./Client360Admin";
-import AdminInvoiceActions from "../../components/AdminInvoiceActions";
-import { auditActorName, auditActorRole } from "../../lib/audit-actor";
-import PaymentsAdmin, { type PaymentBalance } from "./PaymentsAdmin";
-import ExpensesAdmin from "./ExpensesAdmin";
-import ShipmentsAdmin from "./ShipmentsAdmin";
-import InvoiceStatusTabs from "../../components/InvoiceStatusTabs";
-import PaymentLedgerDialog from "../../components/PaymentLedgerDialog";
-import type { PaymentSummary } from "../../lib/payment-ledger";
-import { isReferralSource, REFERRAL_SOURCE_LABELS } from "../../lib/referral-source";
 import CaribexBatchLabelPrint, { BatchBoxLabel } from "../../components/CaribexBatchLabelPrint";
 import type { CaribexLabelSize } from "../../components/CaribexLabelPrint";
 import ContainersAdmin from "./ContainersAdmin";
 import ReportsAdmin from "./ReportsAdmin";
 import { formatStaffDateTime } from "../../lib/staff-date-format";
 import InvoicePreview, { type InvoicePreviewProps } from "../../components/InvoicePreview";
-import { BILLABLE_INVOICE_ITEMS, INVOICE_DISCOUNTS, SALES_TAX_RATE, formatCatalogCharge, parseInvoiceChargeLine, parseInvoiceDiscountLine, roundMoney, type InvoiceDiscountCode } from "../../lib/invoice-pricing";
+import { BILLABLE_INVOICE_ITEMS, SALES_TAX_RATE, formatCatalogCharge, roundMoney } from "../../lib/invoice-pricing";
 import { INVOICE_FILTER_COLORS, tabColorStyle } from "../../lib/shipment-colors";
-import { fetchPagedShipmentRows, loadShipmentContainerLookup, latestCheckinsByPackage } from "../../lib/shipment-container-labels";
 
 /**
  * DASHBOARD OPERATIVO - VERSIÓN VISUAL PURA
@@ -72,32 +62,12 @@ const ADMIN_EXTRA_CHARGE_OPTIONS = [
   "Consolidation fee ($2.5)",
   "Honduran imposed duty",
 ];
-type ExistingInvoiceDiscount = { code: InvoiceDiscountCode | null; label: string; amount: number };
-function findExistingInvoiceDiscount(raw: unknown): ExistingInvoiceDiscount | null {
-  const lines = String(raw || "").split(",").map((item) => item.trim()).filter(Boolean);
-  for (const line of lines) {
-    const parsed = parseInvoiceDiscountLine(line);
-    if (parsed) return parsed;
-  }
-  const legacyDiscount = lines.map((line) => ({ line, parsed: parseInvoiceChargeLine(line) }))
-    .find(({ parsed }) => parsed.description === "Discount" && parsed.amount < 0);
-  return legacyDiscount
-    ? { code: null, label: legacyDiscount.parsed.description, amount: Math.abs(legacyDiscount.parsed.amount) }
-    : null;
-}
 const MANUAL_INVOICE_CHARGE_OPTIONS = [
   "Handling fees",
   "Forklift charge ($100)",
   "Miscellaneous fee ($10)",
   "Consolidation fee ($2.5)",
 ] as const;
-const MANUAL_INVOICE_NOTE_MARKER = "MANUAL INVOICE CREATED BY STAFF";
-const cleanIssueNotes = (value: unknown) =>
-  String(value ?? "")
-    .split(/\r?\n/)
-    .filter((line) => line.trim().toLowerCase() !== MANUAL_INVOICE_NOTE_MARKER.toLowerCase())
-    .join("\n")
-    .trim();
 const PORTAL_EVENT_LABELS: Record<string, string> = {
   account_created: "Customer account created",
   portal_access_provisioned: "Portal access provisioned",
@@ -185,47 +155,14 @@ const TRACK_STAGE_STYLES: Record<string, { color: string; background: string; bo
   REGISTERED: { color: '#15803d', background: '#f0fdf4', border: '#86efac' },
   INSIDE_BOX: { color: '#7c3aed', background: '#f5f3ff', border: '#c4b5fd' },
   IN_TRANSIT: { color: '#0f766e', background: '#f0fdfa', border: '#5eead4' },
-  UNLOADED: { color: '#1d4ed8', background: '#eff6ff', border: '#93c5fd' },
+  UNLOADED: { color: '#15803d', background: '#f0fdf4', border: '#86efac' },
   PICKED_UP: { color: '#7e22ce', background: '#faf5ff', border: '#d8b4fe' },
 };
-
-type AdminBadgeTab = 'leads' | 'portal';
-type AdminBadgeSeenState = Record<AdminBadgeTab, string | null | undefined>;
-const ADMIN_BADGE_STORAGE_PREFIX = 'caribex-admin-badge-seen-v1';
-
-const adminBadgeStorageKey = (adminUserId: string, tab: AdminBadgeTab) =>
-  `${ADMIN_BADGE_STORAGE_PREFIX}:${adminUserId}:${tab}`;
-
-const readAdminBadgeSeen = (adminUserId: string, tab: AdminBadgeTab) => {
-  try {
-    return window.localStorage.getItem(adminBadgeStorageKey(adminUserId, tab));
-  } catch {
-    return null;
-  }
-};
-
-const writeAdminBadgeSeen = (adminUserId: string, tab: AdminBadgeTab, timestamp: string) => {
-  try {
-    window.localStorage.setItem(adminBadgeStorageKey(adminUserId, tab), timestamp);
-  } catch {
-    // Badge persistence is best-effort; the current session still tracks the cursor.
-  }
-};
-
-const latestBadgeTimestamp = (values: Array<{ created_at?: string | null }>) =>
-  values.reduce<string | null>((latest, value) => {
-    const timestamp = value.created_at && !Number.isNaN(Date.parse(value.created_at)) ? value.created_at : null;
-    if (!timestamp) return latest;
-    return !latest || Date.parse(timestamp) > Date.parse(latest) ? timestamp : latest;
-  }, null);
-
-const badgeTimestampIsAfter = (createdAt: string | null | undefined, seenAt: string | null | undefined) =>
-  Boolean(createdAt && seenAt && !Number.isNaN(Date.parse(createdAt)) && !Number.isNaN(Date.parse(seenAt)) && Date.parse(createdAt) > Date.parse(seenAt));
 
 const App = () => {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<
-    'personal' | 'clientes' | 'prepaid' | 'client360' | 'pedidos' | 'track' | 'incidencias' | 'facturas' | 'finanzas' | 'expenses' | 'leads' | 'portal' | 'ferry' | 'containers' | 'labels' | 'reports' | 'activityLogs'
+    'personal' | 'clientes' | 'prepaid' | 'client360' | 'pedidos' | 'track' | 'incidencias' | 'facturas' | 'finanzas' | 'leads' | 'portal' | 'ferry' | 'containers' | 'labels' | 'reports' | 'activityLogs'
   >('personal');
   const [incidenciaFiltro, setIncidenciaFiltro] = useState('');
   const [expandedNavGroups, setExpandedNavGroups] = useState<Record<string, boolean>>({
@@ -258,7 +195,6 @@ const App = () => {
     tracking: string;
     clienteNumero: number | null;
     clienteNombre: string | null;
-  clientePuerto?: string | null;
     estado: string | null;
     carrier?: string | null;
     tipo_paquete?: string | null;
@@ -269,7 +205,6 @@ const App = () => {
     notas_imagenes?: string | string[] | null;
     numero_cliente_id?: string | null;
     // Campos de auditoría y tiempos
-    creado_en?: string | null;
     registro?: string | null;
     descargado?: string | null;
     entregado_por?: string | null;
@@ -293,19 +228,13 @@ const App = () => {
     consolidacion?: boolean | null;
     insideBox?: boolean;
     containerLabels?: string[];
-    last_scanned_at?: string | null;
   };
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
-  const isManualInvoiceShipment = (shipment: Pick<Pedido, "tipo_paquete" | "carrier">) =>
-    String(shipment.tipo_paquete || "").trim().toUpperCase() === "MANUAL_INVOICE" ||
-    String(shipment.carrier || "").trim().toLowerCase() === "manual invoice";
-  const [pickupScanLookupStarted, setPickupScanLookupStarted] = useState<Record<string, boolean>>({});
   type Factura = {
     id: string;
     tracking: string;
     clienteNumero: number | null;
     clienteNombre: string | null;
-  clientePuerto?: string | null;
     clienteEmail: string | null;
     carrier: string | null;
     tipo_paquete: string | null;
@@ -317,8 +246,6 @@ const App = () => {
     total: number | null;
     approval_status: string | null;
     invoice_status: string | null;
-    invoice_sent_at: string | null;
-    late_fee_applied: boolean;
     notas: string | null;
     problema?: boolean | null;
     problema_notas?: string | null;
@@ -341,21 +268,9 @@ const App = () => {
   const [leads, setLeads] = useState<Lead[]>([]);
   type PortalEvent = { id: string; customer_name: string | null; account_number: number | null; email: string; event_type: string; success: boolean; reason: string | null; created_at: string };
   const [portalEvents, setPortalEvents] = useState<PortalEvent[]>([]);
-  const [adminUserId, setAdminUserId] = useState<string | null>(null);
-  const [badgeTrackingReady, setBadgeTrackingReady] = useState(false);
-  const [badgeDataLoaded, setBadgeDataLoaded] = useState<Record<AdminBadgeTab, boolean>>({ leads: false, portal: false });
-  const [badgeLastSeen, setBadgeLastSeen] = useState<AdminBadgeSeenState>({ leads: undefined, portal: undefined });
-  const badgeIdentityRef = useRef<string | null>(null);
   const cargarPortalEvents = useCallback(async () => {
-    const { data, error } = await supabase.from("customer_portal_login_events").select("id, customer_name, account_number, email, event_type, success, reason, created_at").order("created_at", { ascending: false }).limit(100);
-    if (error) {
-      console.error("Error cargarPortalEvents", error);
-      return;
-    }
-    if (data) {
-      setPortalEvents(data as PortalEvent[]);
-      setBadgeDataLoaded((current) => ({ ...current, portal: true }));
-    }
+    const { data } = await supabase.from("customer_portal_login_events").select("id, customer_name, account_number, email, event_type, success, reason, created_at").order("created_at", { ascending: false }).limit(100);
+    if (data) setPortalEvents(data as PortalEvent[]);
   }, []);
   type StaffActionLog = { id: string; actor_name: string | null; actor_email: string | null; actor_role: string; action: string; entity_type: string; entity_id: string | null; tracking: string | null; customer_name: string | null; customer_account_number: number | null; success: boolean; error_message: string | null; details: Record<string, unknown> | null; created_at: string };
   const [staffActionLogs, setStaffActionLogs] = useState<StaffActionLog[]>([]);
@@ -387,16 +302,13 @@ const App = () => {
   const [confirmAdminPassword, setConfirmAdminPassword] = useState("");
   const [passwordSaving, setPasswordSaving] = useState(false);
   const cargarLeads = useCallback(async () => {
-    const [{ data: contactData, error: contactError }, { data: customerData, error: customerError }] = await Promise.all([
-      supabase.from('contact_submissions').select('id, nombre, email, telefono, mensaje, service_type, status, admin_notes, created_at').order('created_at', { ascending: false }),
-      supabase.from('customer_leads').select('id, nombre, email, mensaje, asunto, estado, creado_en').order('creado_en', { ascending: false }),
-    ]);
-    if (contactError || customerError) {
-      console.error("Error cargarLeads", contactError || customerError);
-      return;
-    }
-    const legacy = (contactData || []) as Lead[];
-    const newer = (customerData || []).map((lead: any): Lead => ({
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData.session?.access_token;
+    if (!token) return;
+    const response = await fetch('/api/admin/leads', { headers: { Authorization: `Bearer ${token}` } });
+    if (!response.ok) throw new Error('Unable to load customer leads');
+    const payload = await response.json();
+    const newer = (payload.leads || []).map((lead: any): Lead => ({
       id: lead.id,
       nombre: lead.nombre,
       email: lead.email,
@@ -408,21 +320,22 @@ const App = () => {
       created_at: lead.creado_en,
     }));
     const seen = new Set<string>();
-    setLeads([...newer, ...legacy].filter((lead) => { const key = `${lead.email}|${lead.mensaje}`; if (seen.has(key)) return false; seen.add(key); return true; }));
-    setBadgeDataLoaded((current) => ({ ...current, leads: true }));
+    setLeads(newer.filter((lead: Lead) => { const key = `${lead.email}|${lead.mensaje}`; if (seen.has(key)) return false; seen.add(key); return true; }));
   }, []);
 
   type InvoiceTab = 'sinAprobar' | 'aprobadas' | 'todas' | 'problemas' | 'enviadas' | 'pagadas';
   const [activeInvoiceTab, setActiveInvoiceTab] = useState<InvoiceTab>('sinAprobar');
 
-  const [paymentDialogInvoice, setPaymentDialogInvoice] = useState<Factura | null>(null);
-  const [paymentDialogMode, setPaymentDialogMode] = useState<"record" | "history">("record");
+  // Modal de confirmación para marcar factura como pagada
+  const [pendingPayInvoice, setPendingPayInvoice] = useState<Factura | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState("");
+  const [paymentNotes, setPaymentNotes] = useState("");
+  const [paymentReference, setPaymentReference] = useState("");
+  const [paymentDate, setPaymentDate] = useState("");
+  const [customerInvoiceNote, setCustomerInvoiceNote] = useState("");
   const [editingInvoiceAddOns, setEditingInvoiceAddOns] = useState<Factura | null>(null);
   const [invoiceAddOnType, setInvoiceAddOnType] = useState("");
   const [invoiceAddOnAmount, setInvoiceAddOnAmount] = useState("");
-  const [invoiceDiscountCode, setInvoiceDiscountCode] = useState<InvoiceDiscountCode | "">("");
-  const [existingInvoiceDiscount, setExistingInvoiceDiscount] = useState<ExistingInvoiceDiscount | null>(null);
-  const [isSavingInvoiceDiscount, setIsSavingInvoiceDiscount] = useState(false);
   const [invoiceSearch, setInvoiceSearch] = useState("");
   const [invoiceContainerFilter, setInvoiceContainerFilter] = useState("ALL");
   const [isManualInvoiceOpen, setIsManualInvoiceOpen] = useState(false);
@@ -431,6 +344,7 @@ const App = () => {
   const [manualInvoiceForm, setManualInvoiceForm] = useState({
     customerId: "",
     tracking: "",
+    type: "PACKAGE" as "PACKAGE" | "BOX",
     description: "",
     height: "",
     width: "",
@@ -495,49 +409,21 @@ const App = () => {
   const [financeContainer, setFinanceContainer] = useState("ALL");
   const [financeStatusFilter, setFinanceStatusFilter] = useState<"ALL" | "PAID" | "OUTSTANDING">("ALL");
   const financeRows = useMemo(() => facturas.filter((invoice) => {
-    const date = invoice.payment_date ? invoice.payment_date.slice(0, 10) : "";
+    const date = invoice.creado_en ? invoice.creado_en.slice(0, 10) : "";
     const search = financeCustomer.trim().toLowerCase();
     const customerMatches = !search || [invoice.clienteNombre, invoice.clienteEmail, invoice.clienteNumero, invoice.tracking].some((value) => String(value ?? "").toLowerCase().includes(search));
-    return customerMatches && (financePort === "ALL" || (invoice.puerto || "Unknown") === financePort) && (financeContainer === "ALL" || invoice.containerIds.includes(financeContainer)) && (!financeDateFrom || (date !== "" && date >= financeDateFrom)) && (!financeDateTo || (date !== "" && date <= financeDateTo));
+    return customerMatches && (financePort === "ALL" || (invoice.puerto || "Unknown") === financePort) && (financeContainer === "ALL" || invoice.containerIds.includes(financeContainer)) && (!financeDateFrom || date >= financeDateFrom) && (!financeDateTo || date <= financeDateTo);
   }), [facturas, financeCustomer, financePort, financeContainer, financeDateFrom, financeDateTo]);
-  const [paymentBalances, setPaymentBalances] = useState<Record<string, PaymentBalance>>({});
-  const [paymentsReady, setPaymentsReady] = useState(false);
-  const [paymentsLoading, setPaymentsLoading] = useState(false);
-  const [paymentsError, setPaymentsError] = useState<string | null>(null);
-  const [paymentReload, setPaymentReload] = useState(0);
   const financeTotals = useMemo(() => ({
-    invoiced: roundMoney(financeRows.reduce((sum, invoice) => sum + Number(invoice.total || 0), 0)),
-    paid: roundMoney(financeRows.reduce((sum, invoice) => sum + (paymentBalances[invoice.id]?.paid ?? 0), 0)),
-    outstanding: roundMoney(financeRows.reduce((sum, invoice) => sum + (paymentBalances[invoice.id]?.balance ?? 0), 0)),
-  }), [financeRows, paymentBalances]);
+    invoiced: financeRows.reduce((sum, invoice) => sum + Number(invoice.total || 0), 0),
+    paid: financeRows.filter((invoice) => invoice.invoice_status === "PAID").reduce((sum, invoice) => sum + Number(invoice.total || 0), 0),
+    outstanding: financeRows.filter((invoice) => invoice.invoice_status !== "PAID").reduce((sum, invoice) => sum + Number(invoice.total || 0), 0),
+  }), [financeRows]);
+  const financeDisplayedRows = useMemo(
+    () => financeRows.filter((invoice) => financeStatusFilter === "ALL" || (financeStatusFilter === "PAID" ? invoice.invoice_status === "PAID" : invoice.invoice_status !== "PAID")),
+    [financeRows, financeStatusFilter],
+  );
   const financePorts = useMemo(() => Array.from(new Set(facturas.map((invoice) => invoice.puerto || "Unknown"))).sort(), [facturas]);
-  const paymentRows = useMemo(() => financeRows.map((invoice) => ({ ...invoice, contenido: pedidos.find((shipment) => shipment.id === invoice.id)?.contenido || null })), [financeRows, pedidos]);
-
-  useEffect(() => {
-    if (activeTab !== "finanzas") return;
-    const controller = new AbortController();
-    setPaymentsReady(false);
-    setPaymentsError(null);
-    if (financeRows.length === 0) { setPaymentsLoading(false); return () => controller.abort(); }
-    setPaymentsLoading(true);
-    const load = async () => {
-      const { data } = await supabase.auth.getSession();
-      const token = data.session?.access_token;
-      if (!token) throw new Error("Your Admin session has expired. Please sign in again.");
-      const next: Record<string, PaymentBalance> = {};
-      for (let offset = 0; offset < financeRows.length; offset += 200) {
-        const ids = financeRows.slice(offset, offset + 200).map((invoice) => invoice.id);
-        const response = await fetch(`/api/admin/payments?invoice_ids=${encodeURIComponent(ids.join(","))}`, { headers: { Authorization: `Bearer ${token}` }, signal: controller.signal, cache: "no-store" });
-        const payload = await response.json();
-        if (!response.ok) throw new Error(payload.error || "Could not load payment balances.");
-        Object.entries(payload.summaries || {}).forEach(([id, raw]) => { const summary = raw as PaymentSummary; next[id] = { paid: Number(summary.paid), balance: Number(summary.balance) }; });
-      }
-      if (financeRows.some((invoice) => !next[invoice.id] || !Number.isFinite(next[invoice.id].paid) || !Number.isFinite(next[invoice.id].balance))) throw new Error("Some invoice balances could not be verified.");
-      if (!controller.signal.aborted) { setPaymentBalances(next); setPaymentsReady(true); }
-    };
-    void load().catch((failure) => { if (!controller.signal.aborted) setPaymentsError(failure instanceof Error ? failure.message : "Could not load payment balances."); }).finally(() => { if (!controller.signal.aborted) setPaymentsLoading(false); });
-    return () => controller.abort();
-  }, [activeTab, financeRows, paymentReload]);
 
   const [pedidoFiltro, setPedidoFiltro] = useState("");
   const [pedidoEtapa, setPedidoEtapa] = useState("ALL");
@@ -583,7 +469,6 @@ const App = () => {
   const [clienteSaving, setClienteSaving] = useState(false);
   const [clienteModalError, setClienteModalError] = useState<string | null>(null);
   const [prepaidCustomerId, setPrepaidCustomerId] = useState("");
-  const [prepaidReportEmailCustomerId, setPrepaidReportEmailCustomerId] = useState<string | null>(null);
   const [prepaidAllowanceToAdd, setPrepaidAllowanceToAdd] = useState("");
   const [prepaidAllowanceSaving, setPrepaidAllowanceSaving] = useState(false);
 
@@ -727,21 +612,15 @@ const App = () => {
   };
 
   const pedidosConIncidencia = useMemo(
-    () => pedidos.filter((p) => {
-      const issueStatus = String(p.issue_status || "").toUpperCase();
-      const hasProblemPhotos = Array.isArray(p.notas_imagenes)
-        ? p.notas_imagenes.length > 0
-        : typeof p.notas_imagenes === "string" && p.notas_imagenes.trim() !== "";
-      return Boolean(
-        !p.numero_cliente_id ||
-        cleanIssueNotes(p.notas) ||
-        hasProblemPhotos ||
-        p.problema ||
-        cleanIssueNotes(p.problema_notas) ||
-        issueStatus === "OPEN" ||
-        issueStatus === "RESOLVED",
-      );
-    }),
+    () =>
+      pedidos.filter(
+        (p) =>
+          !p.numero_cliente_id ||
+          (p.notas && p.notas.trim() !== "") ||
+          (Array.isArray(p.notas_imagenes)
+            ? p.notas_imagenes.length > 0
+            : typeof p.notas_imagenes === "string" && p.notas_imagenes.trim() !== ""),
+      ),
     [pedidos],
   );
   const incidenciasFiltradas = useMemo(() => {
@@ -1244,31 +1123,6 @@ const App = () => {
     setPrepaidAllowanceSaving(false);
   };
 
-  const emailPrepaidUsageReport = async (customer: Cliente) => {
-    if (prepaidReportEmailCustomerId) return;
-    const email = customer.email?.trim();
-    if (!email) { alert('This customer has no saved email address. Add one before emailing the report.'); return; }
-    if (!window.confirm(`Email the prepaid usage PDF report for ${customer.nombre} (Account #${customer.numero_cliente}) to ${email}?\n\nThe PDF includes their allowance, usage, remaining cubic feet, and shipment details.`)) return;
-    setPrepaidReportEmailCustomerId(customer.id);
-    try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const token = sessionData.session?.access_token;
-      if (!token) throw new Error('Please sign in again before emailing the usage report.');
-      const response = await fetch('/api/admin/prepaid-usage-report', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ customerId: customer.id, expectedEmail: email, idempotencyKey: crypto.randomUUID() }),
-      });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload.error || 'Could not email the PDF usage report.');
-      alert(`The PDF usage report was sent to ${payload.recipient || email}.${payload.warning ? `\n\n${payload.warning}` : ""}`);
-    } catch (error) {
-      alert(error instanceof Error ? error.message : 'Could not email the PDF usage report.');
-    } finally {
-      setPrepaidReportEmailCustomerId(null);
-    }
-  };
-
   const printPrepaidUsageReport = (customer: Cliente) => {
     if (customer.tipo_cuenta !== 'Developer / Builder — Prepaid') {
       alert('Cubic-foot usage reports are available only for prepaid Developer / Builder accounts.');
@@ -1279,157 +1133,95 @@ const App = () => {
     const rate = Number(customer.prepaid_rate_per_cubic_foot || 18.5);
     const remaining = Math.max(0, allowance - used);
     const shipments = pedidos.filter((shipment) => shipment.numero_cliente_id === customer.id);
-    const cubicFeetFor = (shipment: Pedido) => {
-      const stored = Number(shipment.cubic_feet || 0);
-      if (stored > 0) return stored;
-      const dimensions = [shipment.largo, shipment.ancho, shipment.alto].map(Number);
-      return dimensions.every((value) => value > 0) ? Number(((dimensions[0] * dimensions[1] * dimensions[2]) / 1728).toFixed(2)) : 0;
-    };
     const reportWindow = window.open('', '_blank', 'width=900,height=900');
     if (!reportWindow) { alert('Please allow pop-ups to generate the prepaid usage report.'); return; }
     const grouped = new Map<string, typeof shipments>();
     shipments.forEach((shipment) => { const key = shipment.containerLabels?.[0] || 'No container assigned'; grouped.set(key, [...(grouped.get(key) || []), shipment]); });
     const groupedSections = Array.from(grouped.entries()).map(([container, containerShipments]) => {
-      const containerTotal = containerShipments.reduce((sum, shipment) => sum + cubicFeetFor(shipment), 0);
-      const rows = containerShipments.map((shipment) => { const cubicFeet = cubicFeetFor(shipment); return `<tr><td>${String(shipment.tracking || '-')}</td><td>${String(shipment.carrier || '-')}</td><td>${String(shipment.tipo_paquete || '-')}</td><td>${String(shipment.estado || '-')}</td><td>${String(shipment.contenido || '-')}</td><td>${[shipment.largo, shipment.ancho, shipment.alto].every((value) => Number(value) > 0) ? `${shipment.largo} × ${shipment.ancho} × ${shipment.alto} in` : '-'}</td><td>${cubicFeet.toFixed(2)} ft³</td><td>$${(cubicFeet * rate).toFixed(2)}</td><td>${formatStaffDateTime(shipment.hora_fecha || '')}</td></tr>`; }).join('');
+      const containerTotal = containerShipments.reduce((sum, shipment) => sum + Number(shipment.cubic_feet || 0), 0);
+      const rows = containerShipments.map((shipment) => `<tr><td>${String(shipment.tracking || '-')}</td><td>${String(shipment.carrier || '-')}</td><td>${String(shipment.tipo_paquete || '-')}</td><td>${String(shipment.estado || '-')}</td><td>${String(shipment.contenido || '-')}</td><td>${[shipment.largo, shipment.ancho, shipment.alto].every((value) => Number(value) > 0) ? `${shipment.largo} × ${shipment.ancho} × ${shipment.alto} in` : '-'}</td><td>${Number(shipment.cubic_feet || 0).toFixed(2)} ft³</td><td>$${(Number(shipment.cubic_feet || 0) * rate).toFixed(2)}</td><td>${formatStaffDateTime(shipment.hora_fecha || '')}</td></tr>`).join('');
       return `<section><h2>${container} <span>(${containerShipments.length} shipment${containerShipments.length === 1 ? '' : 's'} · ${containerTotal.toFixed(2)} ft³)</span></h2><table><thead><tr><th>Tracking</th><th>Carrier</th><th>Type</th><th>Stage</th><th>Contents</th><th>Dimensions</th><th>Cubic feet</th><th>Usage value</th><th>Date</th></tr></thead><tbody>${rows}</tbody></table></section>`;
     }).join('') || '<p>No shipments recorded for this prepaid account.</p>';
-    const reportTotal = shipments.reduce((sum, shipment) => sum + cubicFeetFor(shipment), 0);
-    reportWindow.document.write(`<!doctype html><html><head><title>Prepaid Cubic-Foot Usage — ${customer.nombre}</title><style>body{font-family:Arial,sans-serif;color:#111827;padding:28px}h1{margin:0 0 6px}h2{margin:24px 0 8px;color:#1e3a8a;font-size:16px}h2 span{font-size:12px;color:#64748b;font-weight:400}p{margin:4px 0 16px;color:#475569}.summary{display:grid;grid-template-columns:repeat(5,minmax(120px,1fr));gap:12px;margin:20px 0}.card{border:1px solid #bfdbfe;border-radius:8px;padding:12px}.card strong{display:block;font-size:20px}.card.allowance{border-color:#93c5fd;background:#eff6ff}.card.allowance strong{color:#2563eb}.card.used{border-color:#fca5a5;background:#fef2f2}.card.used strong{color:#dc2626}.card.remaining{border-color:#86efac;background:#f0fdf4}.card.remaining strong{color:#15803d}.card.rate{border-color:#fcd34d;background:#fffbeb}.card.rate strong{color:#b45309}.card.report-total{border-color:#c4b5fd;background:#f5f3ff}.card.report-total strong{color:#6d28d9}table{width:100%;border-collapse:collapse;margin-top:8px;font-size:10px}th,td{text-align:left;border-bottom:1px solid #e2e8f0;padding:6px;vertical-align:top}button{padding:8px 14px;border:0;border-radius:6px;background:#2563eb;color:#fff}@media print{button{display:none}.summary{grid-template-columns:repeat(5,1fr)}section{break-inside:avoid}}@media(max-width:800px){.summary{grid-template-columns:repeat(2,1fr)}table{font-size:9px}}</style></head><body><h1>Prepaid Cubic-Foot Usage</h1><p>${customer.nombre} · Account #${customer.numero_cliente} · ${customer.puerto || 'Port not provided'}</p><div class="summary"><div class="card allowance">Allowance<strong>${allowance.toFixed(2)} ft³</strong></div><div class="card used">Used<strong>${used.toFixed(2)} ft³</strong></div><div class="card remaining">Remaining<strong>${remaining.toFixed(2)} ft³</strong></div><div class="card rate">Rate<strong>$${rate.toFixed(2)}/ft³</strong></div><div class="card report-total">Report total<strong>${reportTotal.toFixed(2)} ft³</strong></div></div><button onclick="window.print()">Print / Save as PDF</button>${groupedSections}<script>window.onload=function(){window.focus();}</script></body></html>`);
+    const reportTotal = shipments.reduce((sum, shipment) => sum + Number(shipment.cubic_feet || 0), 0);
+    reportWindow.document.write(`<!doctype html><html><head><title>Prepaid Cubic-Foot Usage — ${customer.nombre}</title><style>body{font-family:Arial,sans-serif;color:#111827;padding:28px}h1{margin:0 0 6px}h2{margin:24px 0 8px;color:#1e3a8a;font-size:16px}h2 span{font-size:12px;color:#64748b;font-weight:400}p{margin:4px 0 16px;color:#475569}.summary{display:grid;grid-template-columns:repeat(5,minmax(120px,1fr));gap:12px;margin:20px 0}.card{border:1px solid #bfdbfe;border-radius:8px;padding:12px}.card strong{display:block;font-size:20px;color:#1d4ed8}table{width:100%;border-collapse:collapse;margin-top:8px;font-size:10px}th,td{text-align:left;border-bottom:1px solid #e2e8f0;padding:6px;vertical-align:top}button{padding:8px 14px;border:0;border-radius:6px;background:#2563eb;color:#fff}@media print{button{display:none}.summary{grid-template-columns:repeat(5,1fr)}section{break-inside:avoid}}@media(max-width:800px){.summary{grid-template-columns:repeat(2,1fr)}table{font-size:9px}}</style></head><body><h1>Prepaid Cubic-Foot Usage</h1><p>${customer.nombre} · Account #${customer.numero_cliente} · ${customer.puerto || 'Port not provided'}</p><div class="summary"><div class="card">Allowance<strong>${allowance.toFixed(2)} ft³</strong></div><div class="card">Used<strong>${used.toFixed(2)} ft³</strong></div><div class="card">Remaining<strong>${remaining.toFixed(2)} ft³</strong></div><div class="card">Rate<strong>$${rate.toFixed(2)}/ft³</strong></div><div class="card">Report total<strong>${reportTotal.toFixed(2)} ft³</strong></div></div><button onclick="window.print()">Print / Save as PDF</button>${groupedSections}<script>window.onload=function(){window.focus();}</script></body></html>`);
     reportWindow.document.close();
   };
 
   const cargarPedidos = useCallback(async () => {
-    try {
-      const rows = await fetchPagedShipmentRows<any>((offset, limit) => supabase
-        .from("paquetes_registro")
-        .select(
-          "id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, notas_imagenes, estado, issue_status, cubic_feet, prepaid_review_required, prepaid_review_status, numero_cliente:numero_cliente_id (id, numero_cliente, nombre, puerto), numero_cliente_id, creado_en, registro, descargado, entregado_por, hora_fecha, fecha_descargado, hora_descargado, fecha_entregado, hora_entregado",
-        )
-        .order("creado_en", { ascending: false })
-        .order("id", { ascending: false })
-        .range(offset, offset + limit - 1));
-      const packageIds = rows.map((row) => row.id).filter(Boolean).map((id) => String(id));
-      const lookup = packageIds.length
-        ? await loadShipmentContainerLookup(packageIds, {
-            fetchLinks: (ids, offset, limit) => supabase
-              .from("contenedor_paquetes")
-              .select("paquete_id, contenedor_id")
-              .in("paquete_id", ids)
-              .order("paquete_id", { ascending: true })
-              .order("contenedor_id", { ascending: true })
-              .range(offset, offset + limit - 1),
-            fetchCheckins: (ids, offset, limit) => supabase
-              .from("paquetes_checkin")
-              .select("id, paquete_id, parent_box_id, consolidacion, alto, ancho, largo, peso, problema, problema_notas, cargos_adicionales, creado_en")
-              .in("paquete_id", ids)
-              .order("paquete_id", { ascending: true })
-              .order("creado_en", { ascending: false })
-              .order("id", { ascending: false })
-              .range(offset, offset + limit - 1),
-            fetchContainers: (ids, offset, limit) => supabase
-              .from("contenedores")
-              .select("id, codigo")
-              .in("id", ids)
-              .order("id", { ascending: true })
-              .range(offset, offset + limit - 1),
-          })
-        : { labelsByPackage: new Map<string, string[]>(), insideBoxIds: new Set<string>(), checkins: [] };
-      const checkinByPackage = latestCheckinsByPackage(lookup.checkins);
-      const mapped = rows.map((row) => {
-        const checkin = checkinByPackage.get(String(row.id));
-        return {
-          id: row.id as string,
-          tracking: (row.tracking as string) || "-",
-          clienteNumero: row.numero_cliente?.numero_cliente ?? null,
-          clienteNombre: row.numero_cliente?.nombre ?? null,
-          clientePuerto: row.numero_cliente?.puerto ?? null,
-          estado: (row.estado as string) || null,
-          carrier: row.nombre_paqueteria || null,
-          tipo_paquete: row.tipo_paquete || null,
-          remitente: null,
-          destinatario: null,
-          contenido: row.contenido || null,
-          notas: row.notas || null,
-          notas_imagenes: row.notas_imagenes || null,
-          issue_status: row.issue_status || null,
-          problema: checkin?.problema ?? null,
-          problema_notas: checkin?.problema_notas ?? null,
-          cargos_adicionales: checkin?.cargos_adicionales ?? null,
-          consolidacion: checkin?.consolidacion ?? null,
-          cubic_feet: row.cubic_feet ?? null,
-          alto: checkin?.alto ?? null,
-          ancho: checkin?.ancho ?? null,
-          largo: checkin?.largo ?? null,
-          peso: checkin?.peso ?? null,
-          prepaid_review_required: Boolean(row.prepaid_review_required),
-          prepaid_review_status: row.prepaid_review_status || null,
-          numero_cliente_id: row.numero_cliente_id || row.numero_cliente?.id || null,
-          creado_en: row.creado_en || null,
-          registro: row.registro || null,
-          descargado: row.descargado || null,
-          entregado_por: row.entregado_por || null,
-          hora_fecha: row.hora_fecha || null,
-          fecha_descargado: row.fecha_descargado || null,
-          hora_descargado: row.hora_descargado || null,
-          fecha_entregado: row.fecha_entregado || null,
-          hora_entregado: row.hora_entregado || null,
-          insideBox: lookup.insideBoxIds.has(String(row.id)),
-          containerLabels: lookup.labelsByPackage.get(String(row.id)) || [],
-        };
-      });
-
-      setPedidos(mapped);
-    } catch (error) {
-      alert("Error cargando pedidos: " + (error instanceof Error ? error.message : String(error || "")));
-      console.error("Error cargarPedidos", error);
-    }
-  }, []);
-
-  const loadPickupContainerLastScans = async (shipments: Pedido[]) => {
-    const shipmentIds = shipments.map((shipment) => shipment.id).filter(Boolean);
-    const notLoaded = shipmentIds.filter((id) => !pickupScanLookupStarted[id]);
-    if (!notLoaded.length) return;
-
-    setPickupScanLookupStarted((current) => ({
-      ...current,
-      ...Object.fromEntries(notLoaded.map((id) => [id, true])),
-    }));
-
     const { data, error } = await supabase
-      .from("staff_action_logs")
-      .select("entity_id, created_at")
-      .eq("entity_type", "paquetes_registro")
-      .eq("action", "package_scanned")
-      .in("entity_id", notLoaded)
-      .order("created_at", { ascending: false })
-      .limit(5000);
+      .from("paquetes_registro")
+      .select(
+        "id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, notas_imagenes, estado, issue_status, cubic_feet, alto, ancho, largo, peso, prepaid_review_required, prepaid_review_status, numero_cliente:numero_cliente_id (id, numero_cliente, nombre), numero_cliente_id, registro, descargado, entregado_por, hora_fecha, fecha_descargado, hora_descargado, fecha_entregado, hora_entregado",
+      )
+      .order("creado_en", { ascending: false });
 
     if (error) {
-      console.error("Error loading pickup container scan times", error);
-      setPickupScanLookupStarted((current) => {
-        const next = { ...current };
-        notLoaded.forEach((id) => { delete next[id]; });
-        return next;
-      });
+      alert("Error cargando pedidos: " + (error.message || ""));
+      console.error("Error cargarPedidos", error);
       return;
     }
 
-    const latestByShipment = new Map<string, string>();
-    (data || []).forEach((event) => {
-      const id = String(event.entity_id || "");
-      if (id && event.created_at && !latestByShipment.has(id)) latestByShipment.set(id, event.created_at);
-    });
-    setPedidos((current) => current.map((shipment) => latestByShipment.has(shipment.id)
-      ? { ...shipment, last_scanned_at: latestByShipment.get(shipment.id) || null }
-      : shipment));
-  };
+    if (data) {
+      const rows = data as any[];
+      const packageIds = rows.map((row) => row.id).filter(Boolean);
+      const [{ data: containerLinks }, { data: containers }, { data: checkins }] = packageIds.length
+        ? await Promise.all([
+            supabase.from("contenedor_paquetes").select("paquete_id, contenedor_id").in("paquete_id", packageIds),
+            supabase.from("contenedores").select("id, codigo"),
+            supabase.from("paquetes_checkin").select("paquete_id, parent_box_id, consolidacion").in("paquete_id", packageIds),
+          ])
+        : [{ data: [] }, { data: [] }, { data: [] }];
+      const containerById = new Map((containers || []).map((container: any) => [String(container.id), String(container.codigo || container.id)]));
+      const labelsByPackage = new Map<string, string[]>();
+      (containerLinks || []).forEach((link: any) => {
+        const labels = labelsByPackage.get(String(link.paquete_id)) || [];
+        labels.push(containerById.get(String(link.contenedor_id)) || String(link.contenedor_id));
+        labelsByPackage.set(String(link.paquete_id), labels);
+      });
+      const insideBoxIds = new Set((checkins || []).filter((row: any) => row.parent_box_id).map((row: any) => String(row.paquete_id)));
+      const mapped = rows.map((row) => ({
+        id: row.id as string,
+        tracking: (row.tracking as string) || "-",
+        clienteNumero: row.numero_cliente?.numero_cliente ?? null,
+        clienteNombre: row.numero_cliente?.nombre ?? null,
+        estado: (row.estado as string) || null,
+        carrier: row.nombre_paqueteria || null,
+        tipo_paquete: row.tipo_paquete || null,
+        remitente: null,
+        destinatario: null,
+        contenido: row.contenido || null,
+        notas: row.notas || null,
+        notas_imagenes: row.notas_imagenes || null,
+        issue_status: row.issue_status || null,
+        cubic_feet: row.cubic_feet ?? null,
+        alto: row.alto ?? null,
+        ancho: row.ancho ?? null,
+        largo: row.largo ?? null,
+        peso: row.peso ?? null,
+        prepaid_review_required: Boolean(row.prepaid_review_required),
+        prepaid_review_status: row.prepaid_review_status || null,
+        numero_cliente_id: row.numero_cliente_id || row.numero_cliente?.id || null,
+        registro: row.registro || null,
+        descargado: row.descargado || null,
+        entregado_por: row.entregado_por || null,
+        hora_fecha: row.hora_fecha || null,
+        fecha_descargado: row.fecha_descargado || null,
+        hora_descargado: row.hora_descargado || null,
+        fecha_entregado: row.fecha_entregado || null,
+        hora_entregado: row.hora_entregado || null,
+        insideBox: insideBoxIds.has(String(row.id)),
+        containerLabels: labelsByPackage.get(String(row.id)) || [],
+      }));
+
+      setPedidos(mapped);
+    }
+  }, []);
 
   const cargarFacturas = useCallback(async () => {
     const { data, error } = await supabase
       .from("paquetes_registro")
       .select(
-        "id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, notas_imagenes, issue_status, billing_subtotal, billing_tax, billing_total, approval_status, invoice_status, invoice_sent_at, payment_method, payment_notes, payment_reference, payment_date, customer_invoice_note, cubic_feet, prepaid_review_required, prepaid_review_status, creado_en, numero_cliente:numero_cliente_id (id, numero_cliente, nombre, email, puerto)",
+        "id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, notas_imagenes, issue_status, billing_subtotal, billing_tax, billing_total, approval_status, invoice_status, payment_method, payment_notes, payment_reference, payment_date, customer_invoice_note, cubic_feet, prepaid_review_required, prepaid_review_status, creado_en, numero_cliente:numero_cliente_id (id, numero_cliente, nombre, email, puerto)",
       )
       .or("estado.ilike.%descargado%,estado.ilike.%entregado%")
       .order("creado_en", { ascending: false });
@@ -1445,7 +1237,7 @@ const App = () => {
         ? await Promise.all([
             supabase.from("contenedor_paquetes").select("paquete_id, contenedor_id").in("paquete_id", packageIds),
             supabase.from("contenedores").select("id, codigo"),
-            supabase.from("paquetes_checkin").select("paquete_id, problema, problema_notas, cargos_adicionales, creado_en").in("paquete_id", packageIds).order("creado_en", { ascending: false }),
+            supabase.from("paquetes_checkin").select("paquete_id, problema, problema_notas, creado_en").in("paquete_id", packageIds).order("creado_en", { ascending: false }),
           ])
         : [{ data: [] }, { data: [] }, { data: [] }];
       const containerById = new Map((containers || []).map((container: any) => [container.id, container.codigo]));
@@ -1456,7 +1248,7 @@ const App = () => {
         current.labels.push(containerById.get(link.contenedor_id) || link.contenedor_id);
         containersByPackage.set(link.paquete_id, current);
       });
-      const checkinByPackage = new Map<string, { problema?: boolean | null; problema_notas?: string | null; cargos_adicionales?: string | null }>();
+      const checkinByPackage = new Map<string, { problema?: boolean | null; problema_notas?: string | null }>();
       (checkins || []).forEach((checkin: any) => {
         if (!checkinByPackage.has(checkin.paquete_id)) {
           checkinByPackage.set(checkin.paquete_id, checkin);
@@ -1478,8 +1270,6 @@ const App = () => {
         total: (row.billing_total as number | null) ?? null,
         approval_status: (row.approval_status as string | null) ?? null,
         invoice_status: (row.invoice_status as string | null) ?? null,
-        invoice_sent_at: (row.invoice_sent_at as string | null) ?? null,
-        late_fee_applied: /late\s+fee\s*\(\s*5\s*%\s*\)/i.test(String(checkinByPackage.get(row.id)?.cargos_adicionales || "")),
         notas: (row.notas as string | null) ?? null,
         problema: Boolean(checkinByPackage.get(row.id)?.problema),
         problema_notas: (checkinByPackage.get(row.id)?.problema_notas as string | null) ?? null,
@@ -1505,7 +1295,7 @@ const App = () => {
     setIsManualInvoiceOpen(false);
     setManualInvoiceError(null);
     setManualInvoiceSaving(false);
-    setManualInvoiceForm({ customerId: "", tracking: "", description: "", height: "", width: "", length: "", weight: "", charges: [], taxEnabled: true });
+    setManualInvoiceForm({ customerId: "", tracking: "", type: "PACKAGE", description: "", height: "", width: "", length: "", weight: "", charges: [], taxEnabled: true });
     setManualInvoiceCatalogItem("");
     setManualInvoiceCatalogQuantity("1");
     setManualInvoiceCatalogLines([]);
@@ -1572,81 +1362,11 @@ const App = () => {
   };
 
   useEffect(() => {
-    let cancelled = false;
-    const initializeBadgeUser = (userId: string | null) => {
-      if (cancelled) return;
-      if (!userId) {
-        badgeIdentityRef.current = null;
-        setAdminUserId(null);
-        setBadgeTrackingReady(false);
-        setBadgeDataLoaded({ leads: false, portal: false });
-        setBadgeLastSeen({ leads: undefined, portal: undefined });
-        return;
-      }
-      if (badgeIdentityRef.current !== userId) {
-        badgeIdentityRef.current = userId;
-        setBadgeDataLoaded({ leads: false, portal: false });
-      }
-      setAdminUserId(userId);
-      setBadgeLastSeen({ leads: readAdminBadgeSeen(userId, 'leads'), portal: readAdminBadgeSeen(userId, 'portal') });
-      setBadgeTrackingReady(true);
-    };
-
-    void supabase.auth.getSession().then(({ data }) => {
-      initializeBadgeUser(data.session?.user?.id || null);
-    });
-    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
-      initializeBadgeUser(session?.user?.id || null);
-    });
-    return () => {
-      cancelled = true;
-      authListener.subscription.unsubscribe();
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!adminUserId || !badgeTrackingReady) return;
-    (['leads', 'portal'] as const).forEach((tab) => {
-      if (!badgeDataLoaded[tab] || badgeLastSeen[tab] !== null) return;
-      const records = tab === 'leads' ? leads : portalEvents;
-      const latest = latestBadgeTimestamp(records);
-      const latestMilliseconds = latest ? Date.parse(latest) : 0;
-      const baseline = new Date(Math.max(Date.now(), latestMilliseconds)).toISOString();
-      setBadgeLastSeen((current) => current[tab] === null ? { ...current, [tab]: baseline } : current);
-      writeAdminBadgeSeen(adminUserId, tab, baseline);
-    });
-  }, [adminUserId, badgeTrackingReady, badgeDataLoaded, badgeLastSeen, leads, portalEvents]);
-
-  useEffect(() => {
-    if (!adminUserId || !badgeTrackingReady) return;
-    const tab: AdminBadgeTab | null = activeTab === 'leads' || activeTab === 'portal' ? activeTab : null;
-    if (!tab || !badgeDataLoaded[tab] || !badgeLastSeen[tab]) return;
-    const records = tab === 'leads' ? leads : portalEvents;
-    const latest = latestBadgeTimestamp(records);
-    if (!latest || !badgeTimestampIsAfter(latest, badgeLastSeen[tab])) return;
-    setBadgeLastSeen((current) => {
-      const currentSeen = current[tab];
-      if (!currentSeen || !badgeTimestampIsAfter(latest, currentSeen)) return current;
-      const next = { ...current, [tab]: latest };
-      writeAdminBadgeSeen(adminUserId, tab, latest);
-      return next;
-    });
-  }, [activeTab, adminUserId, badgeTrackingReady, badgeDataLoaded, badgeLastSeen, leads, portalEvents]);
-
-  const leadsBadgeCount = badgeTrackingReady && badgeDataLoaded.leads && typeof badgeLastSeen.leads === 'string'
-    ? leads.filter((lead) => lead.status === 'NEW' && badgeTimestampIsAfter(lead.created_at, badgeLastSeen.leads)).length
-    : null;
-  const portalBadgeCount = badgeTrackingReady && badgeDataLoaded.portal && typeof badgeLastSeen.portal === 'string'
-    ? portalEvents.filter((event) => !event.success && badgeTimestampIsAfter(event.created_at, badgeLastSeen.portal)).length
-    : null;
-
-  useEffect(() => {
     cargarPersonal();
     cargarClientes();
     cargarPedidos();
     cargarFacturas();
     cargarLeads();
-    cargarPortalEvents();
 
     const pedidoSubscription = supabase
       .channel("realtime-pedidos")
@@ -1670,19 +1390,6 @@ const App = () => {
         },
       )
       .subscribe();
-    const leadSubscription = supabase.channel('realtime-contact-leads').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'contact_submissions' }, (payload) => {
-      void cargarLeads();
-      setAdminNotice(`New customer lead received from ${(payload.new as Lead).nombre}`);
-    }).subscribe();
-    const customerLeadSubscription = supabase.channel('realtime-customer-leads').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'customer_leads' }, (payload) => {
-      void cargarLeads();
-      setAdminNotice(`New customer lead received from ${(payload.new as any).nombre || 'website visitor'}`);
-    }).subscribe();
-    const portalSubscription = supabase.channel('realtime-portal-alerts').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'customer_portal_login_events' }, (payload) => {
-      void cargarPortalEvents();
-      const event = payload.new as PortalEvent;
-      if (!event.success) setAdminNotice(`New portal alert for ${event.customer_name || event.email || 'customer'}`);
-    }).subscribe();
     const signupSubscription = supabase.channel('realtime-customer-signups').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'numero_cliente' }, (payload) => {
       setAdminNotice(`New customer account created: ${(payload.new as any).nombre || 'customer'}`);
     }).subscribe();
@@ -1690,34 +1397,13 @@ const App = () => {
     return () => {
       supabase.removeChannel(pedidoSubscription);
       supabase.removeChannel(clienteSubscription);
-      supabase.removeChannel(leadSubscription);
-      supabase.removeChannel(customerLeadSubscription);
-      supabase.removeChannel(portalSubscription);
       supabase.removeChannel(signupSubscription);
     };
-  }, [cargarPersonal, cargarClientes, cargarPedidos, cargarFacturas, cargarLeads, cargarPortalEvents]);
+  }, [cargarPersonal, cargarClientes, cargarPedidos, cargarFacturas, cargarLeads]);
 
   useEffect(() => {
     if (activeTab === "portal") void cargarPortalEvents();
   }, [activeTab, cargarPortalEvents]);
-
-  useEffect(() => {
-    if (activeTab === "client360") void cargarPedidos();
-  }, [activeTab, cargarPedidos]);
-
-  useEffect(() => {
-    const refreshBadgeData = () => {
-      if (document.visibilityState === 'hidden') return;
-      void cargarLeads();
-      void cargarPortalEvents();
-    };
-    const interval = window.setInterval(refreshBadgeData, 30000);
-    document.addEventListener('visibilitychange', refreshBadgeData);
-    return () => {
-      window.clearInterval(interval);
-      document.removeEventListener('visibilitychange', refreshBadgeData);
-    };
-  }, [cargarLeads, cargarPortalEvents]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -1725,18 +1411,23 @@ const App = () => {
         cargarPedidos();
       } else if (activeTab === "facturas") {
         cargarFacturas();
+      } else if (activeTab === "leads") {
+        cargarLeads();
+      } else if (activeTab === "portal") {
+        cargarPortalEvents();
       }
     }, 10000);
 
     return () => clearInterval(interval);
-  }, [activeTab, cargarPedidos, cargarFacturas]);
+  }, [activeTab, cargarPedidos, cargarFacturas, cargarLeads, cargarPortalEvents]);
 
   const actualizarLead = async (id: string, changes: Partial<Lead>) => {
-    const { data: legacyRows } = await supabase.from('contact_submissions').update(changes).eq('id', id).select('id');
-    if (!legacyRows?.length) {
-      const estado = changes.status === 'CONTACTED' ? 'contactado' : changes.status === 'CLOSED' ? 'cerrado' : changes.status === 'CONVERTED' ? 'contactado' : 'nuevo';
-      await supabase.from('customer_leads').update({ estado }).eq('id', id);
-    }
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData.session?.access_token;
+    if (!token) return;
+    const estado = changes.status === 'CONTACTED' ? 'contactado' : changes.status === 'CLOSED' ? 'cerrado' : changes.status === 'CONVERTED' ? 'contactado' : 'nuevo';
+    const response = await fetch('/api/admin/leads', { method: 'PATCH', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ id, estado }) });
+    if (!response.ok) { setAdminNotice('Unable to update customer lead'); return; }
     setLeads((prev) => prev.map((lead) => lead.id === id ? { ...lead, ...changes } : lead));
   };
 
@@ -1779,49 +1470,11 @@ const App = () => {
     if (!checkin) { alert("No check-in record exists for this invoice yet."); return; }
     setInvoiceAddOnType("");
     setInvoiceAddOnAmount("");
-    setInvoiceDiscountCode("");
-    setExistingInvoiceDiscount(findExistingInvoiceDiscount(checkin.cargos_adicionales));
     setEditingInvoiceAddOns(factura);
-  };
-
-  const saveAdminInvoiceDiscount = async (action: "apply" | "remove") => {
-    if (!editingInvoiceAddOns || (action === "apply" && !invoiceDiscountCode)) return;
-    setIsSavingInvoiceDiscount(true);
-    try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const response = await fetch("/api/invoice-catalog", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${sessionData.session?.access_token || ""}` },
-        body: JSON.stringify({
-          shipment_id: editingInvoiceAddOns.id,
-          discount_action: action,
-          ...(action === "apply" ? { discount_code: invoiceDiscountCode } : {}),
-        }),
-      });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload.error || "Could not update invoice discount");
-      updateFacturaEnEstado(editingInvoiceAddOns.id, { subtotal: Number(payload.subtotal), tax: Number(payload.tax), total: Number(payload.total) });
-      if (action === "apply" && payload.discountCode && INVOICE_DISCOUNTS[payload.discountCode as InvoiceDiscountCode]) {
-        const code = payload.discountCode as InvoiceDiscountCode;
-        setExistingInvoiceDiscount({ code, label: INVOICE_DISCOUNTS[code].label, amount: Number(payload.discountAmount) });
-      } else {
-        setExistingInvoiceDiscount(null);
-      }
-      setInvoiceDiscountCode("");
-      await cargarFacturas();
-    } catch (error) {
-      alert(error instanceof Error ? error.message : "Could not update invoice discount");
-    } finally {
-      setIsSavingInvoiceDiscount(false);
-    }
   };
 
   const saveAdminInvoiceAddOn = async () => {
     if (!editingInvoiceAddOns || !invoiceAddOnType) return;
-    if (invoiceAddOnType === "Discount") {
-      alert("Select a percentage discount above.");
-      return;
-    }
     const amount = Number(invoiceAddOnAmount);
     if (!Number.isFinite(amount) || amount <= 0) { alert("Enter an amount greater than zero."); return; }
     const { data: checkin } = await supabase.from("paquetes_checkin").select("id, cargos_adicionales").eq("paquete_id", editingInvoiceAddOns.id).order("creado_en", { ascending: false }).limit(1).maybeSingle();
@@ -1847,7 +1500,7 @@ const App = () => {
     const { data: checkin } = await supabase.from("paquetes_checkin").select("cargos_adicionales, consolidacion").eq("paquete_id", factura.id).order("creado_en", { ascending: false }).limit(1).maybeSingle();
     const extraCharges = String(checkin?.cargos_adicionales || "").split(",").map((item) => item.trim()).filter(Boolean);
     const { data: sessionData } = await supabase.auth.getSession();
-    const response = await fetch("/api/send-invoice", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${sessionData.session?.access_token || ""}` }, body: JSON.stringify({ to: factura.clienteEmail, subject: `Invoice for ${factura.clienteNombre || factura.tracking}`, clientName: factura.clienteNombre, clientNumber: factura.clienteNumero, tracking: factura.tracking, typeLabel: factura.carrier === "Manual Invoice" ? "Manual invoice" : factura.tipo_paquete || "Shipment", contents: factura.contenido, customerInvoiceNote: factura.customer_invoice_note, subtotal: factura.subtotal || 0, tax: factura.tax || 0, total: factura.total || 0, extraCharges, isConsolidationBox: Boolean(checkin?.consolidacion) }) });
+    const response = await fetch("/api/send-invoice", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${sessionData.session?.access_token || ""}` }, body: JSON.stringify({ to: factura.clienteEmail, subject: `Invoice for ${factura.clienteNombre || factura.tracking}`, clientName: factura.clienteNombre, clientNumber: factura.clienteNumero, tracking: factura.tracking, typeLabel: factura.tipo_paquete || "Shipment", contents: factura.contenido, customerInvoiceNote: factura.customer_invoice_note, subtotal: factura.subtotal || 0, tax: factura.tax || 0, total: factura.total || 0, extraCharges, isConsolidationBox: Boolean(checkin?.consolidacion) }) });
     const body = await response.json().catch(() => ({}));
     if (!response.ok) { alert(body.error || "Could not send invoice"); return; }
     await handleAdminChangeInvoiceStatus(factura, "SENT");
@@ -1898,31 +1551,50 @@ const App = () => {
   };
 
   const openConfirmPayInvoice = (factura: Factura) => {
-    setPaymentDialogMode("record");
-    setPaymentDialogInvoice(factura);
+    setPaymentMethod(factura.payment_method || "");
+    setPaymentNotes(factura.payment_notes || "");
+    setPaymentReference(factura.payment_reference || "");
+    setPaymentDate(factura.payment_date || new Date().toISOString().slice(0, 10));
+    setCustomerInvoiceNote(factura.customer_invoice_note || "");
+    setPendingPayInvoice(factura);
   };
 
-  const handleApplyLateFee = async (invoice: Factura) => {
-    if (!window.confirm(`Apply a one-time 5% late fee to ${invoice.tracking}? Requires a verified send date at least 30 days ago and an outstanding balance.`)) return;
-    try {
-      const { data } = await supabase.auth.getSession();
-      const response = await fetch("/api/admin/invoice-late-fee", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${data.session?.access_token || ""}` },
-        body: JSON.stringify({ invoice_id: invoice.id }),
-      });
-      const payload = await response.json();
-      if (response.ok || payload.applied) { await cargarFacturas(); setPaymentReload((current) => current + 1); }
-      if (!response.ok) throw new Error(payload.error || "Could not apply late fee.");
-      alert("Late fee recorded.");
-    } catch (error) { alert(error instanceof Error ? error.message : "Could not apply late fee."); }
-  };
-
-  const handlePaymentChanged = (summary: PaymentSummary) => {
-    setPaymentBalances((current) => ({ ...current, [summary.invoice_id]: { paid: Number(summary.paid), balance: Number(summary.balance) } }));
-    updateFacturaEnEstado(summary.invoice_id, { invoice_status: summary.invoice_status });
-    setPaymentReload((current) => current + 1);
-    void cargarFacturas();
+  const handleConfirmPayInvoice = async () => {
+    if (!pendingPayInvoice) return;
+    if (!paymentMethod) {
+      alert("Select a payment method.");
+      return;
+    }
+    const target = pendingPayInvoice;
+    const { error } = await supabase
+      .from("paquetes_registro")
+      .update({
+        invoice_status: "PAID",
+        payment_method: paymentMethod,
+        payment_notes: paymentNotes.trim() || null,
+        payment_reference: paymentReference.trim() || null,
+        payment_date: paymentDate || null,
+        customer_invoice_note: customerInvoiceNote.trim() || null,
+      })
+      .eq("id", target.id);
+    if (error) {
+      alert(error.message || "Could not record payment details.");
+      return;
+    }
+    updateFacturaEnEstado(target.id, {
+      invoice_status: "PAID",
+      payment_method: paymentMethod,
+      payment_notes: paymentNotes.trim() || null,
+      payment_reference: paymentReference.trim() || null,
+      payment_date: paymentDate || null,
+      customer_invoice_note: customerInvoiceNote.trim() || null,
+    });
+    setPendingPayInvoice(null);
+    setPaymentMethod("");
+    setPaymentNotes("");
+    setPaymentReference("");
+    setPaymentDate("");
+    setCustomerInvoiceNote("");
   };
 
   const handleRemoveAccess = async (id: string) => {
@@ -1973,35 +1645,21 @@ const App = () => {
     if (!window.confirm("¿Eliminar este cliente y todos sus pedidos?")) return;
 
     try {
-      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-      const token = sessionData.session?.access_token;
-      if (sessionError || !token) {
-        alert(sessionError?.message || "La sesión de Administrador expiró. Inicia sesión nuevamente.");
-        return;
-      }
+      await supabase.from("paquetes_checkin").delete().eq("numero_cliente_id", clienteId);
+      await supabase.from("paquetes_registro").delete().eq("numero_cliente_id", clienteId);
 
-      const response = await fetch("/api/admin/customer-delete", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ customer_id: clienteId }),
-      });
-      let payload: { error?: string; warning?: string } = {};
-      try {
-        payload = await response.json();
-      } catch {
-        payload = {};
-      }
-      if (!response.ok) {
-        alert(payload.error || "No se pudo eliminar el cliente. Ningún resultado se confirmó como exitoso.");
+      const { error } = await supabase
+        .from("numero_cliente")
+        .delete()
+        .eq("id", clienteId);
+
+      if (error) {
+        alert(error.message || "No se pudo eliminar el cliente");
         return;
       }
 
       await cargarClientes();
       await cargarPedidos();
-      if (payload.warning) alert(payload.warning);
     } catch (err: any) {
       alert(err?.message || "Error de red al eliminar el cliente");
     }
@@ -2028,7 +1686,7 @@ const App = () => {
     <div className={`dashboard-root ${activeTab === 'facturas' ? 'dashboard-root--invoices' : ''}`}>
       <style suppressHydrationWarning>{`
         :root {
-          --bg-main: #eaf4fb;
+          --bg-main: #8fc5e6;
           --primary-blue: #2563eb;
           --success-green: #166534;
           --success-bg: #dcfce7;
@@ -2049,7 +1707,6 @@ const App = () => {
 
         .dashboard-root {
           min-height: 100vh;
-          background: #eaf4fb;
           padding: 32px clamp(18px, 4vw, 56px) 56px 310px;
           max-width: 1480px;
           margin: 0 auto;
@@ -2617,7 +2274,7 @@ const App = () => {
               alignItems: 'center',
               justifyContent: 'center',
             }}
-            title="Sign out"
+            title="Cerrar sesión"
           >
             <LogOut size={16} />
           </button>
@@ -2648,8 +2305,8 @@ const App = () => {
           {expandedNavGroups.customers && <div className="admin-sidebar-items">
             <button className={`admin-sidebar-item admin-sidebar-item--customers ${activeTab === 'clientes' ? 'active' : ''}`} onClick={() => setActiveTab('clientes')}><UserPlus /> Customer # <span className="count-badge">{clientes.length}</span></button>
             <button className={`admin-sidebar-item admin-sidebar-item--customers ${activeTab === 'prepaid' ? 'active' : ''}`} onClick={() => setActiveTab('prepaid')}><DollarSign /> Prepaid accounts <span className="count-badge">{clientes.filter((customer) => customer.tipo_cuenta === 'Developer / Builder — Prepaid').length}</span></button>
-            <button className={`admin-sidebar-item admin-sidebar-item--customers ${activeTab === 'leads' ? 'active' : ''}`} onClick={() => setActiveTab('leads')}><UserPlus /> Leads {leadsBadgeCount !== null && leadsBadgeCount > 0 && <span className="count-badge">{leadsBadgeCount}</span>}</button>
-            <button className={`admin-sidebar-item admin-sidebar-item--customers ${activeTab === 'portal' ? 'active' : ''}`} onClick={() => setActiveTab('portal')}><Bell /> Portal alerts {portalBadgeCount !== null && portalBadgeCount > 0 && <span className="count-badge">{portalBadgeCount}</span>}</button>
+            <button className={`admin-sidebar-item admin-sidebar-item--customers ${activeTab === 'leads' ? 'active' : ''}`} onClick={() => setActiveTab('leads')}><UserPlus /> Leads <span className="count-badge">{leads.filter((lead) => lead.status === 'NEW').length}</span></button>
+            <button className={`admin-sidebar-item admin-sidebar-item--customers ${activeTab === 'portal' ? 'active' : ''}`} onClick={() => setActiveTab('portal')}><Bell /> Portal alerts <span className="count-badge">{portalEvents.filter((event) => !event.success).length}</span></button>
           </div>}
         </div>
         <div className="admin-sidebar-group">
@@ -2657,7 +2314,6 @@ const App = () => {
           {expandedNavGroups.billing && <div className="admin-sidebar-items">
             <button className={`admin-sidebar-item admin-sidebar-item--billing ${activeTab === 'facturas' ? 'active' : ''}`} onClick={() => setActiveTab('facturas')}><Receipt /> Invoices <span className="count-badge">{facturasCount}</span></button>
             <button className={`admin-sidebar-item admin-sidebar-item--billing ${activeTab === 'finanzas' ? 'active' : ''}`} onClick={() => setActiveTab('finanzas')}><DollarSign /> Finances</button>
-            <button className={`admin-sidebar-item admin-sidebar-item--billing ${activeTab === 'expenses' ? 'active' : ''}`} onClick={() => setActiveTab('expenses')}><DollarSign /> Expenses</button>
             <button className={`admin-sidebar-item admin-sidebar-item--billing ${activeTab === 'ferry' ? 'active' : ''}`} onClick={() => setActiveTab('ferry')}><Ship /> Ferry manifests</button>
             <button className={`admin-sidebar-item admin-sidebar-item--billing ${activeTab === 'containers' ? 'active' : ''}`} onClick={() => setActiveTab('containers')}><Container /> Containers</button>
           </div>}
@@ -2671,34 +2327,32 @@ const App = () => {
         </div>
       </aside>
 
-      {/* Data view card */}
-      <div className={`data-card ${activeTab === 'facturas' ? 'data-card--invoices' : ''} ${activeTab === 'track' ? 'data-card--track' : ''}`}>
-        <div className="card-header-inner" style={{ display: activeTab === 'pedidos' ? 'none' : 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
+      {/* Card de Visualización de Datos */}
+      <div className={`data-card ${activeTab === 'facturas' ? 'data-card--invoices' : ''}`}>
+        <div className="card-header-inner" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
           <div>
             <h3>
               {activeTab === 'personal' ? <IconUsers /> : <IconBriefcase />}{' '}
               {activeTab === 'personal'
-                ? 'Staff'
+                ? 'Listado de Personal'
                 : activeTab === 'activityLogs'
                   ? 'Staff Activity Logs'
                 : activeTab === 'clientes'
-                  ? 'Customers'
+                  ? 'Listado de Clientes'
                 : activeTab === 'prepaid'
                   ? 'Prepaid Accounts'
                   : activeTab === 'client360'
                     ? 'Client 360'
                   : activeTab === 'pedidos'
-                    ? 'Shipments'
+                    ? 'Listado de Pedidos'
                   : activeTab === 'track'
                     ? 'Track Package'
                   : activeTab === 'incidencias'
-                    ? 'Issues'
+                    ? 'Paquetes con problemas'
                   : activeTab === 'facturas'
-                      ? 'Invoices'
+                      ? 'Panel de Facturas'
                       : activeTab === 'finanzas'
-                        ? 'Payments'
-                      : activeTab === 'expenses'
-                        ? 'Expenses'
+                        ? 'Finances'
                       : activeTab === 'leads'
                         ? 'Customer leads'
                       : activeTab === 'portal'
@@ -2713,27 +2367,25 @@ const App = () => {
             </h3>
             <span>
               {activeTab === 'personal'
-                  ? `${personal.length} staff member${personal.length === 1 ? '' : 's'}`
+                ? `${personal.length} registro${personal.length === 1 ? '' : 's'} en esta categoría`
                 : activeTab === 'activityLogs'
                   ? `${staffActionLogs.length} recent staff events`
                 : activeTab === 'clientes'
-                  ? `${clientes.length} customer${clientes.length === 1 ? '' : 's'}`
+                  ? `${clientes.length} registro${clientes.length === 1 ? '' : 's'} en esta categoría`
                 : activeTab === 'prepaid'
                   ? `${clientes.filter((customer) => customer.tipo_cuenta === 'Developer / Builder — Prepaid').length} prepaid customer accounts`
                   : activeTab === 'client360'
                     ? 'Complete customer profile and operational history'
                   : activeTab === 'pedidos'
-                  ? `${pedidos.length} shipment${pedidos.length === 1 ? '' : 's'}`
+                    ? `${pedidos.length} registro${pedidos.length === 1 ? '' : 's'} en esta categoría`
                   : activeTab === 'track'
                     ? `${pedidos.length} shipments with complete history`
                   : activeTab === 'incidencias'
-                    ? `${pedidosConIncidencia.length} issue${pedidosConIncidencia.length === 1 ? '' : 's'}`
+                    ? `${pedidosConIncidencia.length} registro${pedidosConIncidencia.length === 1 ? '' : 's'} en esta categoría`
                       : activeTab === 'facturas'
-                        ? `${facturasFiltradas.length} invoice${facturasFiltradas.length === 1 ? '' : 's'}`
+                        ? `${facturasFiltradas.length} registro${facturasFiltradas.length === 1 ? '' : 's'} en esta categoría`
                       : activeTab === 'finanzas'
-                        ? `${financeRows.length} invoices across all ports — switch Owing only to show outstanding bills`
-                      : activeTab === 'expenses'
-                        ? 'Record, review, and void operating expenses'
+                        ? `${financeDisplayedRows.length} ${financeStatusFilter === 'ALL' ? 'revenue records' : financeStatusFilter === 'PAID' ? 'paid invoices' : 'outstanding invoices'} across all ports`
                       : activeTab === 'leads'
                         ? `${leads.length} leads received from the website`
                       : activeTab === 'portal'
@@ -2777,7 +2429,7 @@ const App = () => {
 
           {activeTab === 'reports' && <ReportsAdmin />}
 
-          {activeTab === 'prepaid' && (
+          {activeTab === 'finanzas' && (
             <div style={{ margin: '1rem 0', padding: '1rem 1.1rem', borderRadius: '0.9rem', border: '1px solid #f59e0b', background: '#fffbeb' }}>
               <strong style={{ color: '#92400e' }}>Prepaid allowance review</strong>
               <p style={{ margin: '0.35rem 0 0.8rem', color: '#78350f' }}>Shipments that exceed a customer’s cubic-foot allowance stay visible for Admin approval before operational completion.</p>
@@ -2843,41 +2495,27 @@ const App = () => {
 
         {activeTab === 'client360' && <Client360Admin clientes={clientes} pedidos={pedidos} facturas={facturas} />}
 
-        {activeTab === 'leads' && <div className="data-card--leads" style={{ width: '100%', overflowX: 'auto' }}>
+        {activeTab === 'leads' && <div style={{ width: '100%', overflowX: 'auto' }}>
           {leads.length === 0 ? <p style={{ padding: '1.5rem', color: '#64748b' }}>No customer leads have been received yet.</p> : <table className="admin-table" style={{ minWidth: 980, width: '100%' }}><thead><tr><th>Date</th><th>Customer</th><th>Contact</th><th>Message</th><th>Status</th><th>Admin notes</th></tr></thead><tbody>{leads.map((lead) => <tr key={lead.id}><td>{formatStaffDateTime(lead.created_at)}</td><td><strong>{lead.nombre}</strong><br /><small>{lead.service_type || 'Website contact'}</small></td><td><a href={`mailto:${lead.email}`}>{lead.email}</a><br />{lead.telefono || '-'}</td><td style={{ maxWidth: 320, whiteSpace: 'pre-wrap' }}>{lead.mensaje}</td><td><select value={lead.status} onChange={(event) => actualizarLead(lead.id, { status: event.target.value as Lead['status'] })}><option value="NEW">New</option><option value="CONTACTED">Contacted</option><option value="CONVERTED">Converted</option><option value="CLOSED">Closed</option></select></td><td><textarea defaultValue={lead.admin_notes || ''} rows={2} placeholder="Add notes" onBlur={(event) => { const notes = event.target.value; if (notes !== (lead.admin_notes || '')) actualizarLead(lead.id, { admin_notes: notes }); }} /></td></tr>)}</tbody></table>}
         </div>}
 
         {activeTab === 'portal' && <div style={{ width: '100%', overflowX: 'auto' }}>
-          {portalEvents.length === 0 ? <p style={{ padding: '1.5rem', color: '#64748b' }}>No customer portal or account events have been recorded yet.</p> : <table className="admin-table admin-table--blue-header" style={{ minWidth: 980, width: '100%' }}><thead><tr><th>Date</th><th>Customer</th><th>Email</th><th>Result</th><th>Reason</th><th>Event</th></tr></thead><tbody>{portalEvents.map((event) => <tr key={event.id}><td>{formatStaffDateTime(event.created_at)}</td><td>{event.customer_name || '-'}{event.account_number != null && <><br /><small>Account #{event.account_number}</small></>}</td><td>{event.email}</td><td><span style={{ color: event.success ? '#166534' : '#b91c1c', fontWeight: 700 }}>{event.success ? (event.event_type === 'login_attempt' ? 'Successful' : 'Completed') : 'Problem'}</span></td><td>{event.reason || '-'}</td><td>{portalEventLabel(event.event_type)}</td></tr>)}</tbody></table>}
+          {portalEvents.length === 0 ? <p style={{ padding: '1.5rem', color: '#64748b' }}>No customer portal or account events have been recorded yet.</p> : <table className="admin-table" style={{ minWidth: 980, width: '100%' }}><thead><tr><th>Date</th><th>Customer</th><th>Email</th><th>Result</th><th>Reason</th><th>Event</th></tr></thead><tbody>{portalEvents.map((event) => <tr key={event.id}><td>{formatStaffDateTime(event.created_at)}</td><td>{event.customer_name || '-'}{event.account_number != null && <><br /><small>Account #{event.account_number}</small></>}</td><td>{event.email}</td><td><span style={{ color: event.success ? '#166534' : '#b91c1c', fontWeight: 700 }}>{event.success ? (event.event_type === 'login_attempt' ? 'Successful' : 'Completed') : 'Problem'}</span></td><td>{event.reason || '-'}</td><td>{portalEventLabel(event.event_type)}</td></tr>)}</tbody></table>}
         </div>}
 
         {activeTab === 'finanzas' && <div style={{ width: '100%' }}>
-          {paymentsLoading && <p role="status" style={{ color: '#64748b' }}>Loading recorded payments and balances…</p>}
-          {paymentsError && <div role="alert" style={{ padding: '.8rem', marginBottom: '1rem', border: '1px solid #fcd34d', background: '#fffbeb', color: '#92400e', borderRadius: '.7rem' }}>{paymentsError} Payment recording is disabled until balances can be verified. <button type="button" className="pa-secondary-btn" onClick={() => setPaymentReload((current) => current + 1)}>Retry</button></div>}
-          <PaymentsAdmin
-            invoices={paymentRows}
-            totals={financeTotals}
-            balances={paymentBalances}
-            recordingEnabled={paymentsReady && !paymentsLoading}
-            balancesReady={paymentsReady}
-            filters={{ dateFrom: financeDateFrom, dateTo: financeDateTo, customer: financeCustomer, port: financePort, container: financeContainer }}
-            onFiltersChange={(patch) => { if (patch.dateFrom !== undefined) setFinanceDateFrom(patch.dateFrom); if (patch.dateTo !== undefined) setFinanceDateTo(patch.dateTo); if (patch.customer !== undefined) setFinanceCustomer(patch.customer); if (patch.port !== undefined) setFinancePort(patch.port); if (patch.container !== undefined) setFinanceContainer(patch.container); }}
-            statusFilter={financeStatusFilter}
-            onStatusFilterChange={setFinanceStatusFilter}
-            ports={financePorts}
-            containers={invoiceContainerOptions}
-            onRecordPayment={openConfirmPayInvoice}
-            onApplyLateFee={(invoice) => void handleApplyLateFee(invoice)}
-            onViewPaymentHistory={(invoice) => { setPaymentDialogMode("history"); setPaymentDialogInvoice(invoice); }}
-            onEditInvoice={(invoice) => {
-              const record = facturas.find((candidate) => candidate.id === invoice.id);
-              if (record) void handleAdminEditInvoiceAddOns(record);
-              else alert("Invoice details are no longer available. Refresh the invoice list and try again.");
-            }}
-          />
+          <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', alignItems: 'center', marginBottom: '1rem' }}>
+            <input type="date" value={financeDateFrom} onChange={(event) => setFinanceDateFrom(event.target.value)} aria-label="Finance start date" style={{ padding: '0.55rem', border: '1px solid #cbd5e1', borderRadius: '0.55rem' }} />
+            <input type="date" value={financeDateTo} onChange={(event) => setFinanceDateTo(event.target.value)} aria-label="Finance end date" style={{ padding: '0.55rem', border: '1px solid #cbd5e1', borderRadius: '0.55rem' }} />
+            <input type="search" value={financeCustomer} onChange={(event) => setFinanceCustomer(event.target.value)} placeholder="Customer, account, email, or tracking" style={{ flex: '1 1 260px', padding: '0.55rem 0.75rem', border: '1px solid #cbd5e1', borderRadius: '0.55rem' }} />
+            <select value={financePort} onChange={(event) => setFinancePort(event.target.value)} aria-label="Revenue by port" style={{ padding: '0.55rem', border: '1px solid #cbd5e1', borderRadius: '0.55rem', background: '#fff' }}><option value="ALL">All ports</option>{financePorts.map((port) => <option key={port} value={port}>{port}</option>)}</select>
+            <select value={financeContainer} onChange={(event) => setFinanceContainer(event.target.value)} aria-label="Revenue by container" style={{ padding: '0.55rem', border: '1px solid #cbd5e1', borderRadius: '0.55rem', background: '#fff' }}><option value="ALL">All containers</option>{invoiceContainerOptions.map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: '0.75rem', marginBottom: '1rem' }}>
+            {([['Invoiced', financeTotals.invoiced, '#1d4ed8', 'ALL'], ['Paid', financeTotals.paid, '#166534', 'PAID'], ['Outstanding', financeTotals.outstanding, '#b45309', 'OUTSTANDING']] as const).map(([label, value, color, filter]) => <button key={label} type="button" onClick={() => setFinanceStatusFilter(filter)} aria-pressed={financeStatusFilter === filter} style={{ textAlign: 'left', border: financeStatusFilter === filter ? `2px solid ${color}` : '1px solid #e2e8f0', borderRadius: '0.8rem', padding: '0.9rem', background: financeStatusFilter === filter ? '#ffffff' : '#f8fafc', cursor: 'pointer' }}><span style={{ color: '#64748b', fontSize: '0.82rem' }}>{label}</span><strong style={{ display: 'block', color, fontSize: '1.35rem', marginTop: '0.2rem' }}>${Number(value).toFixed(2)}</strong><small style={{ color: '#64748b' }}>Show {label.toLowerCase()}</small></button>)}
+          </div>
+          <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '0.7rem' }}><table className="admin-table" style={{ minWidth: 980, width: '100%' }}><thead><tr><th>Date</th><th>Port</th><th>Customer</th><th>Tracking</th><th>Container</th><th>Total</th><th>Payment</th></tr></thead><tbody>{financeDisplayedRows.map((invoice) => <tr key={invoice.id}><td>{invoice.creado_en ? formatStaffDateTime(invoice.creado_en) : '-'}</td><td>{invoice.puerto || 'Unknown'}</td><td>{invoice.clienteNombre || '-'}<br /><small>#{invoice.clienteNumero ?? '-'}</small></td><td><button type="button" className="ga-client360-tracking" onClick={() => void abrirDetallePedido(invoice.id)}>{invoice.tracking}</button></td><td>{invoice.containerLabels.join(', ') || '-'}</td><td>${Number(invoice.total || 0).toFixed(2)}</td><td style={{ color: invoice.invoice_status === 'PAID' ? '#166534' : '#b45309', fontWeight: 700 }}>{invoice.invoice_status === 'PAID' ? 'Paid' : 'Unpaid'}</td></tr>)}</tbody></table>{financeDisplayedRows.length === 0 && <p style={{ padding: '1rem', color: '#64748b' }}>No revenue records match these filters.</p>}</div>
         </div>}
-
-        {activeTab === 'expenses' && <ExpensesAdmin />}
 
         {activeTab === 'activityLogs' && <div style={{ width: '100%' }}>
           <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap', marginBottom: '1rem' }}>
@@ -2892,7 +2530,7 @@ const App = () => {
             </select>
             <button type="button" className="pa-primary-btn" onClick={() => void cargarStaffActionLogs()} disabled={staffLogsLoading}>{staffLogsLoading ? 'Loading…' : 'Refresh logs'}</button>
           </div>
-          {staffActionLogs.length === 0 ? <p style={{ padding: '1.5rem', color: '#64748b' }}>{staffLogsLoading ? 'Loading staff activity…' : 'No staff activity has been recorded yet.'}</p> : <div style={{ overflowX: 'auto' }}><table className="admin-table admin-table--blue-header" style={{ minWidth: 1180, width: '100%' }}><thead><tr><th>Date</th><th>Staff Member</th><th>Action</th><th>Area</th><th>Shipment / Customer</th><th>Result</th><th>What Changed</th></tr></thead><tbody>{staffActionLogs.map((log) => { const changes = auditChangeLines(log); const actor = auditActorName(log); const role = auditActorRole(log.actor_role); return <tr key={log.id}><td>{formatStaffDateTime(log.created_at)}</td><td><strong>{actor}</strong><br /><small>{role}</small>{log.actor_email && log.actor_email.toLowerCase() !== actor.toLowerCase() && <><br /><small>{log.actor_email}</small></>}</td><td>{auditActionLabel(log.action)}</td><td>{log.entity_type}</td><td>{log.tracking || log.customer_name || log.entity_id || '-'}</td><td><span style={{ color: log.success ? '#166534' : '#b91c1c', fontWeight: 700 }}>{log.success ? 'Success' : 'Failed'}</span>{log.error_message && <><br /><small>{log.error_message}</small></>}</td><td>{changes.length ? changes.map((change) => <div key={change} style={{ whiteSpace: 'pre-wrap' }}>{change}</div>) : <span style={{ color: '#64748b' }}>No tracked field changes</span>}</td></tr>; })}</tbody></table></div>}
+          {staffActionLogs.length === 0 ? <p style={{ padding: '1.5rem', color: '#64748b' }}>{staffLogsLoading ? 'Loading staff activity…' : 'No staff activity has been recorded yet.'}</p> : <div style={{ overflowX: 'auto' }}><table className="admin-table" style={{ minWidth: 1180, width: '100%' }}><thead><tr><th>Date</th><th>Staff Member</th><th>Action</th><th>Area</th><th>Shipment / Customer</th><th>Result</th><th>What Changed</th></tr></thead><tbody>{staffActionLogs.map((log) => { const changes = auditChangeLines(log); const actor = log.actor_name || log.actor_email || 'Unknown Staff'; const role = log.actor_role ? String(log.actor_role).replace(/^./, (letter) => letter.toUpperCase()) : 'Unknown Role'; return <tr key={log.id}><td>{formatStaffDateTime(log.created_at)}</td><td><strong>{actor}</strong><br /><small>{role}</small>{log.actor_email && <><br /><small>{log.actor_email}</small></>}</td><td>{auditActionLabel(log.action)}</td><td>{log.entity_type}</td><td>{log.tracking || log.customer_name || log.entity_id || '-'}</td><td><span style={{ color: log.success ? '#166534' : '#b91c1c', fontWeight: 700 }}>{log.success ? 'Success' : 'Failed'}</span>{log.error_message && <><br /><small>{log.error_message}</small></>}</td><td>{changes.length ? changes.map((change) => <div key={change} style={{ whiteSpace: 'pre-wrap' }}>{change}</div>) : <span style={{ color: '#64748b' }}>No tracked field changes</span>}</td></tr>; })}</tbody></table></div>}
         </div>}
 
         {activeTab === 'ferry' && <FerryManifestAdmin />}
@@ -3029,7 +2667,7 @@ const App = () => {
                 style={{ ...tabColorStyle(INVOICE_FILTER_COLORS.pending), ...(activeInvoiceTab === 'sinAprobar' ? { color: INVOICE_FILTER_COLORS.pending.color, backgroundColor: INVOICE_FILTER_COLORS.pending.background, borderColor: INVOICE_FILTER_COLORS.pending.border } : {}), minWidth: 120, fontSize: '0.8rem' }}
                 onClick={() => setActiveInvoiceTab('sinAprobar')}
               >
-                Pending approval
+                Sin aprobar
               </button>
               <button
                 type="button"
@@ -3037,7 +2675,7 @@ const App = () => {
                 style={{ ...tabColorStyle(INVOICE_FILTER_COLORS.approved), ...(activeInvoiceTab === 'aprobadas' ? { color: INVOICE_FILTER_COLORS.approved.color, backgroundColor: INVOICE_FILTER_COLORS.approved.background, borderColor: INVOICE_FILTER_COLORS.approved.border } : {}), minWidth: 120, fontSize: '0.8rem' }}
                 onClick={() => setActiveInvoiceTab('aprobadas')}
               >
-                Approved
+                Aprobadas
               </button>
               <button type="button" className={`tab-pill ${activeInvoiceTab === 'todas' ? 'active' : ''}`} style={{ ...tabColorStyle(INVOICE_FILTER_COLORS.all), ...(activeInvoiceTab === 'todas' ? { color: INVOICE_FILTER_COLORS.all.color, backgroundColor: INVOICE_FILTER_COLORS.all.background, borderColor: INVOICE_FILTER_COLORS.all.border } : {}), minWidth: 100, fontSize: '0.8rem' }} onClick={() => setActiveInvoiceTab('todas')}>All</button>
               <button type="button" className={`tab-pill ${activeInvoiceTab === 'problemas' ? 'active' : ''}`} style={{ ...tabColorStyle(INVOICE_FILTER_COLORS.problems), ...(activeInvoiceTab === 'problemas' ? { color: INVOICE_FILTER_COLORS.problems.color, backgroundColor: INVOICE_FILTER_COLORS.problems.background, borderColor: INVOICE_FILTER_COLORS.problems.border } : {}), minWidth: 110, fontSize: '0.8rem' }} onClick={() => setActiveInvoiceTab('problemas')}>Problems</button>
@@ -3047,7 +2685,7 @@ const App = () => {
                 style={{ ...tabColorStyle(INVOICE_FILTER_COLORS.sent), ...(activeInvoiceTab === 'enviadas' ? { color: INVOICE_FILTER_COLORS.sent.color, backgroundColor: INVOICE_FILTER_COLORS.sent.background, borderColor: INVOICE_FILTER_COLORS.sent.border } : {}), minWidth: 120, fontSize: '0.8rem' }}
                 onClick={() => setActiveInvoiceTab('enviadas')}
               >
-                Sent
+                Enviadas
               </button>
               <button
                 type="button"
@@ -3055,7 +2693,7 @@ const App = () => {
                 style={{ ...tabColorStyle(INVOICE_FILTER_COLORS.paid), ...(activeInvoiceTab === 'pagadas' ? { color: INVOICE_FILTER_COLORS.paid.color, backgroundColor: INVOICE_FILTER_COLORS.paid.background, borderColor: INVOICE_FILTER_COLORS.paid.border } : {}), minWidth: 120, fontSize: '0.8rem' }}
                 onClick={() => setActiveInvoiceTab('pagadas')}
               >
-                Paid
+                Pagadas
               </button>
             </div>
 
@@ -3064,27 +2702,23 @@ const App = () => {
             <div
               style={{
                 display: 'grid',
-                gridTemplateColumns: 'minmax(220px, 2fr) 200px 150px 100px 140px 140px 220px',
+                gridTemplateColumns: 'minmax(220px, 2fr) 200px 150px 100px 140px 140px 280px',
                 columnGap: '0.75rem',
-                padding: '0.7rem 0',
-                background: '#1e4f7b',
-                position: 'sticky',
-                top: 0,
-                zIndex: 2,
+                padding: '0.4rem 0',
                 fontSize: '0.8rem',
-                color: '#ffffff',
-                borderBottom: '1px solid #173f64',
-                fontWeight: 700,
+                color: '#64748b',
+                borderBottom: '1px solid #e2e8f0',
+                fontWeight: 600,
                 minWidth: 1280,
               }}
             >
               <span style={{ minWidth: 180 }}>Tracking</span>
-              <span style={{ minWidth: 180 }}>Client / account</span>
+              <span style={{ minWidth: 180 }}>Cliente / cuenta</span>
               <span style={{ minWidth: 140 }}>Carrier</span>
               <span style={{ minWidth: 90 }}>Total</span>
-              <span style={{ minWidth: 150 }}>Approval</span>
-              <span style={{ minWidth: 150 }}>Invoice status</span>
-              <span style={{ textAlign: 'left', minWidth: 220 }}>Actions</span>
+              <span style={{ minWidth: 150 }}>Aprobación</span>
+              <span style={{ minWidth: 150 }}>Estado factura</span>
+              <span style={{ textAlign: 'left', minWidth: 260 }}>Acciones</span>
             </div>
 
             <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
@@ -3095,19 +2729,19 @@ const App = () => {
 
                 const approvalLabel =
                   approval === 'APPROVED'
-                    ? 'Approved'
+                    ? 'Aprobada'
                     : approval === 'REJECTED'
-                      ? 'Rejected'
-                      : 'Pending / Review';
+                      ? 'Rechazada'
+                      : 'Sin aprobar / Revisión';
 
                 const invoiceLabel =
                   invoice === 'PAID'
-                    ? 'Paid'
+                    ? 'Pagada'
                     : invoice === 'SENT'
-                      ? 'Sent'
+                      ? 'Enviada'
                       : invoice === 'OVERDUE'
-                        ? 'Overdue'
-                        : 'Pending';
+                        ? 'Vencida'
+                        : 'Pendiente';
 
                 const formatMoney = (v: number | null) => {
                   if (typeof v !== 'number' || Number.isNaN(v)) return '$0.00';
@@ -3127,7 +2761,7 @@ const App = () => {
                       borderBottom: '1px solid #e2e8f0',
                       fontSize: '0.9rem',
                       display: 'grid',
-                      gridTemplateColumns: 'minmax(220px, 2fr) 200px 150px 100px 140px 140px 220px',
+                      gridTemplateColumns: 'minmax(220px, 2fr) 200px 150px 100px 140px 140px 280px',
                       columnGap: '0.75rem',
                       alignItems: 'center',
                       minWidth: 1280,
@@ -3152,7 +2786,7 @@ const App = () => {
                     >
                       <span style={{ display: 'block', fontWeight: 600 }}>{f.clienteNombre || '-'}</span>
                       <span style={{ display: 'block', marginTop: '0.2rem', color: '#64748b', fontSize: '0.8rem' }}>
-                        Account: {f.clienteNumero != null ? `#${f.clienteNumero}` : '-'}
+                        Cuenta: {f.clienteNumero != null ? `#${f.clienteNumero}` : '-'}
                       </span>
                     </span>
                     <span
@@ -3193,18 +2827,122 @@ const App = () => {
                     >
                       {invoiceLabel}
                     </span>
-                    <AdminInvoiceActions
-                      tracking={f.tracking}
-                      onView={() => void abrirDetallePedido(f.id)}
-                      actions={[
-                        { id: 'edit', label: 'Edit charges / discounts', group: 'Invoice', onSelect: () => handleAdminEditInvoiceAddOns(f) },
-                        { id: 'send', label: isSent ? 'Resend invoice' : 'Send invoice', group: 'Invoice', disabled: isPaid, onSelect: () => handleAdminSendInvoice(f) },
-                        { id: 'print', label: 'PDF / Print invoice', group: 'Invoice', onSelect: () => printInvoice(f) },
-                        { id: 'approve', label: 'Approve invoice', group: 'Approval', disabled: isApproved, onSelect: () => handleAdminChangeApproval(f, 'APPROVED') },
-                        { id: 'review', label: 'Mark for review', group: 'Approval', disabled: isPendingApproval, onSelect: () => handleAdminChangeApproval(f, 'PENDING') },
-                        { id: 'payment', label: 'Record payment', group: 'Payments', disabled: isPaid, onSelect: () => openConfirmPayInvoice(f) },
-                      ]}
-                    />
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'flex-start',
+                        flexWrap: 'wrap',
+                        gap: '0.35rem',
+                        minWidth: 260,
+                        position: 'static',
+                        zIndex: 1,
+                        background: 'transparent',
+                        paddingLeft: '0.35rem',
+                      }}
+                    >
+                      <button
+                        type="button"
+                        title="Open invoice details"
+                        className="pa-secondary-btn"
+                        style={{ padding: '0.3rem 0.55rem', fontSize: '0.72rem', whiteSpace: 'nowrap' }}
+                        onClick={() => void abrirDetallePedido(f.id)}
+                      >
+                        View
+                      </button>
+                      <button
+                        type="button"
+                        title="Edit invoice add-ons"
+                        style={{ width: 28, height: 28, borderRadius: '999px', border: '1px solid #cbd5e1', backgroundColor: '#f8fafc', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                        onClick={() => void handleAdminEditInvoiceAddOns(f)}
+                      >
+                        <Pencil size={14} />
+                      </button>
+                      <button
+                        type="button"
+                        title="Aprobar factura"
+                        style={{
+                          width: 28,
+                          height: 28,
+                          borderRadius: '999px',
+                          border: '1px solid #bbf7d0',
+                          backgroundColor: '#dcfce7',
+                          fontSize: '0.75rem',
+                          cursor: isApproved ? 'default' : 'pointer',
+                          opacity: isApproved ? 0.5 : 1,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                        disabled={isApproved}
+                        onClick={() => !isApproved && handleAdminChangeApproval(f, 'APPROVED')}
+                      >
+                        <Check size={14} />
+                      </button>
+                      <button
+                        type="button"
+                        title="Marcar para revisión"
+                        style={{
+                          width: 28,
+                          height: 28,
+                          borderRadius: '999px',
+                          border: '1px solid #fed7aa',
+                          backgroundColor: '#ffedd5',
+                          fontSize: '0.75rem',
+                          cursor: isPendingApproval ? 'default' : 'pointer',
+                          opacity: isPendingApproval ? 0.5 : 1,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                        disabled={isPendingApproval}
+                        onClick={() => !isPendingApproval && handleAdminChangeApproval(f, 'PENDING')}
+                      >
+                        <AlertCircle size={14} />
+                      </button>
+                      <button
+                        type="button"
+                        title={isSent ? 'Reenviar factura' : 'Enviar factura'}
+                        style={{
+                          minWidth: 28,
+                          height: 28,
+                          borderRadius: '999px',
+                          border: '1px solid #bfdbfe',
+                          backgroundColor: '#eff6ff',
+                          fontSize: '0.75rem',
+                          cursor: isPaid ? 'default' : 'pointer',
+                          opacity: isPaid ? 0.5 : 1,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                        disabled={isPaid}
+                        onClick={() => !isPaid && void handleAdminSendInvoice(f)}
+                      >
+                        <Send size={14} /> <span style={{ fontSize: '0.72rem' }}>{isSent ? 'Resend' : 'Send'}</span>
+                      </button>
+                      <button type="button" title="PDF / Print invoice" className="pa-secondary-btn" style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', whiteSpace: 'nowrap' }} onClick={() => void printInvoice(f)}>PDF / Print</button>
+                      <button
+                        type="button"
+                        title="Marcar como pagada"
+                        style={{
+                          width: 28,
+                          height: 28,
+                          borderRadius: '999px',
+                          border: '1px solid #bbf7d0',
+                          backgroundColor: '#dcfce7',
+                          fontSize: '0.75rem',
+                          cursor: isPaid ? 'default' : 'pointer',
+                          opacity: isPaid ? 0.5 : 1,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                        disabled={isPaid}
+                        onClick={() => !isPaid && openConfirmPayInvoice(f)}
+                      >
+                        <DollarSign size={14} />
+                      </button>
+                    </div>
                   </li>
                 );
               })}
@@ -3231,21 +2969,21 @@ const App = () => {
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "minmax(140px, 1.2fr) minmax(160px, 1.4fr) minmax(240px, 2.4fr) minmax(110px, 0.9fr) minmax(160px, 1.2fr)",
+                gridTemplateColumns: "1.4fr 2fr 2.6fr 1.1fr 1fr",
                 columnGap: "1rem",
                 padding: "0.4rem 0",
                 fontSize: "0.8rem",
                 color: "#64748b",
                 borderBottom: "1px solid #e2e8f0",
                 fontWeight: 600,
-                minWidth: 960,
+                minWidth: 640,
               }}
             >
-              <span>Tracking</span>
-              <span>Client</span>
-              <span>Problem description</span>
-              <span>Issue status</span>
-              <span style={{ textAlign: "right" }}>Actions</span>
+              <span style={{ minWidth: 100 }}>Tracking</span>
+              <span style={{ minWidth: 140 }}>Cliente</span>
+              <span style={{ minWidth: 220 }}>Descripción del problema</span>
+              <span>Estado de incidencia</span>
+              <span style={{ textAlign: "right", minWidth: 120 }}>Acciones</span>
             </div>
 
             <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
@@ -3254,18 +2992,12 @@ const App = () => {
                   p.clienteNumero != null && p.clienteNombre
                     ? `#${p.clienteNumero} - ${p.clienteNombre}`
                     : "Unknown owner / pending identification";
+                const descripcion = (p.notas || "")
+                  .split(/\r?\n/)
+                  .filter((line) => !(p.numero_cliente_id && /^unknown owner\s*-\s*pending customer identification$/i.test(line.trim())))
+                  .join("\n")
+                  .trim() || (!p.numero_cliente_id ? "Shipment has no assigned customer." : "Sin descripción");
                 const urls = obtenerUrlsIncidencia(p);
-                const descripcion = [cleanIssueNotes(p.notas), cleanIssueNotes(p.problema_notas)]
-                  .filter(Boolean)
-                  .join("\n") || (p.problema
-                    ? "Check-in problem recorded."
-                    : urls.length
-                      ? "Problem photos attached."
-                      : !p.numero_cliente_id
-                        ? "Shipment has no assigned customer."
-                        : p.issue_status
-                          ? "Issue status recorded."
-                          : "No problem description.");
 
                 return (
                   <li
@@ -3275,22 +3007,47 @@ const App = () => {
                       borderBottom: "1px solid #e2e8f0",
                       fontSize: "0.9rem",
                       display: "grid",
-                      gridTemplateColumns: "minmax(140px, 1.2fr) minmax(160px, 1.4fr) minmax(240px, 2.4fr) minmax(110px, 0.9fr) minmax(160px, 1.2fr)",
-                      columnGap: "1rem",
+                      gridTemplateColumns: "1.4fr 2fr 2.6fr 1.1fr 1fr",
+                      columnGap: "0.75rem",
                       alignItems: "center",
-                      minWidth: 960,
+                      minWidth: 640,
                     }}
                   >
-                    <span style={{ fontWeight: 600, overflowWrap: "anywhere" }}>
-                      <button type="button" className="ga-client360-tracking" onClick={() => void abrirDetallePedido(p.id)} title="Open shipment details">
-                        #{p.tracking}
-                      </button>
-                      {isManualInvoiceShipment(p) && <span style={{ display: "block", marginTop: "0.2rem", color: "#92400e", fontSize: "0.72rem", fontWeight: 700 }}>Manual invoice</span>}
+                    <span
+                      style={{
+                        fontWeight: 600,
+                        minWidth: 100,
+                        maxWidth: 140,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      #{p.tracking}
                     </span>
-                    <span style={{ color: "#0f172a", overflowWrap: "anywhere" }}>
+                    <span
+                      style={{
+                        color: "#0f172a",
+                        minWidth: 140,
+                        maxWidth: 200,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
                       {clienteLabel}
                     </span>
-                    <span style={{ color: "#475569", fontSize: "0.85rem", whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
+                    <span
+                      style={{
+                        color: "#475569",
+                        fontSize: "0.85rem",
+                        minWidth: 220,
+                        maxWidth: 260,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
                       {descripcion}
                     </span>
                     <span
@@ -3307,7 +3064,6 @@ const App = () => {
                         display: "flex",
                         justifyContent: "flex-end",
                         gap: "0.35rem",
-                        flexWrap: "wrap",
                       }}
                     >
                       <button
@@ -3370,7 +3126,7 @@ const App = () => {
                 </>; })()}
                 <label style={{ display: 'grid', gap: '0.25rem', minWidth: 155 }}><span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#475569' }}>Add cubic feet</span><input type="number" min="0.01" step="0.01" value={prepaidAllowanceToAdd} onChange={(event) => setPrepaidAllowanceToAdd(event.target.value)} placeholder="e.g. 100" style={{ padding: '0.6rem 0.7rem', border: '1px solid #cbd5e1', borderRadius: '0.55rem' }} /></label>
                 <button type="button" className="pa-primary-btn" onClick={() => void addPrepaidAllowance()} disabled={prepaidAllowanceSaving || !prepaidCustomerId}>{prepaidAllowanceSaving ? 'Saving…' : 'Add allowance'}</button>
-                {(() => { const customer = clientes.find((item) => item.id === prepaidCustomerId); return customer?.tipo_cuenta === 'Developer / Builder — Prepaid' ? <><button type="button" className="pa-secondary-btn" onClick={() => printPrepaidUsageReport(customer)}>PDF usage report</button><button type="button" className="pa-primary-btn" onClick={() => void emailPrepaidUsageReport(customer)} disabled={!customer.email || prepaidReportEmailCustomerId !== null} title={customer.email ? `Email the PDF report to ${customer.email}` : 'Add a saved email address for this customer first'}>{prepaidReportEmailCustomerId === customer.id ? 'Sending…' : 'Email PDF usage report'}</button></> : null; })()}
+                {(() => { const customer = clientes.find((item) => item.id === prepaidCustomerId); return customer?.tipo_cuenta === 'Developer / Builder — Prepaid' ? <button type="button" className="pa-secondary-btn" onClick={() => printPrepaidUsageReport(customer)}>PDF usage report</button> : null; })()}
               </div>
             </section>}
             <div
@@ -3378,23 +3134,21 @@ const App = () => {
                 display: 'grid',
                 gridTemplateColumns: '0.7fr 1.5fr 1.8fr 1.2fr 1.1fr 1fr 0.8fr',
                 columnGap: '1rem',
-                padding: '0.7rem 0',
-                background: '#1e4f7b',
-                borderRadius: '8px 8px 0 0',
+                padding: '0.4rem 0',
                 fontSize: '0.8rem',
-                color: '#fff',
+                color: '#64748b',
                 borderBottom: '1px solid #e2e8f0',
-                fontWeight: 700,
+                fontWeight: 600,
                 minWidth: 960,
               }}
             >
-              <span style={{ minWidth: 80 }}>Account #</span>
-              <span style={{ minWidth: 140 }}>Name</span>
+              <span style={{ minWidth: 80 }}>Número</span>
+              <span style={{ minWidth: 140 }}>Nombre</span>
               <span style={{ minWidth: 220 }}>Email</span>
-              <span style={{ minWidth: 120 }}>Phone</span>
-              <span style={{ minWidth: 110 }}>Port</span>
-              <span style={{ minWidth: 120 }}>Account type</span>
-              <div style={{ display: 'flex', justifyContent: 'flex-end', minWidth: 80 }}>Actions</div>
+              <span style={{ minWidth: 120 }}>Teléfono</span>
+              <span style={{ minWidth: 110 }}>Puerto</span>
+              <span style={{ minWidth: 120 }}>Tipo cuenta</span>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', minWidth: 80 }}>Acciones</div>
             </div>
 
             <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
@@ -3445,7 +3199,7 @@ const App = () => {
                   <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.35rem' }}>
                     <button
                       type="button"
-                      title="Edit customer"
+                      title="Editar cliente"
                       onClick={() => handleEditarCliente(c)}
                       style={{
                         width: '28px',
@@ -3464,7 +3218,7 @@ const App = () => {
                     </button>
                     <button
                       type="button"
-                      title="Delete customer"
+                      title="Eliminar cliente"
                       onClick={() => handleEliminarCliente(c.id)}
                       style={{
                         width: '28px',
@@ -3489,18 +3243,18 @@ const App = () => {
         )}
 
         {activeTab === 'track' && (
-          <div style={{ width: '100%', minHeight: 520, borderRadius: '0.85rem', background: '#b8d9ef', padding: '2rem clamp(1rem, 8vw, 6rem)', boxSizing: 'border-box' }}>
+          <div style={{ width: '100%', minHeight: 520, borderRadius: '0.85rem', background: 'linear-gradient(145deg, #2d78b7 0%, #8fc7e8 100%)', padding: '2rem clamp(1rem, 8vw, 6rem)', boxSizing: 'border-box' }}>
             <div style={{ maxWidth: 1120, margin: '0 auto' }}>
               <label htmlFor="track-customer-search" style={{ display: 'block', marginBottom: '0.9rem' }}>
                 <span style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>Search customer</span>
                 <input id="track-customer-search" type="search" value={trackCustomerQuery} onChange={(event) => setTrackCustomerQuery(event.target.value)} placeholder="Customer name, account number, phone or email" style={{ width: '100%', boxSizing: 'border-box', padding: '1rem 1.1rem', border: '1px solid #e2e8f0', borderRadius: '0.35rem', background: '#fff', color: '#334155', fontSize: '1.05rem', outline: 'none' }} />
               </label>
-              <p style={{ color: '#173f64', fontWeight: 700, margin: '0.3rem 0 0.45rem', fontSize: '0.95rem' }}>or find a package by its tracking number</p>
+              <p style={{ color: '#fff', fontWeight: 700, margin: '0.3rem 0 0.45rem', fontSize: '0.95rem' }}>or find a package by its tracking number</p>
               <label htmlFor="track-number-search" style={{ display: 'block' }}>
                 <span style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>Search tracking number</span>
                 <input id="track-number-search" type="search" value={trackTrackingQuery} onChange={(event) => setTrackTrackingQuery(event.target.value)} placeholder="Enter or scan any tracking number" style={{ width: '100%', boxSizing: 'border-box', padding: '1rem 1.1rem', border: '1px solid #e2e8f0', borderRadius: '0.35rem', background: '#fff', color: '#334155', fontSize: '1.05rem', outline: 'none' }} />
               </label>
-              <p style={{ color: '#173f64', textAlign: 'center', margin: '1.4rem 0 0', fontSize: '0.9rem' }}>Searches the customer’s complete package history.</p>
+              <p style={{ color: '#fff', textAlign: 'center', margin: '1.4rem 0 0', fontSize: '0.9rem' }}>Searches the customer’s complete package history.</p>
               {(trackCustomerQuery.trim() || trackTrackingQuery.trim()) && <div style={{ marginTop: '1.25rem', background: '#fff', borderRadius: '0.65rem', padding: '1rem' }}>
                 {!trackResults.length ? <p style={{ color: '#64748b', margin: '0.75rem 0' }}>No shipments found for this search.</p> : <>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem', paddingBottom: '0.85rem', borderBottom: '1px solid #e2e8f0' }}>
@@ -3521,7 +3275,7 @@ const App = () => {
                         <span>{label}</span>
                         <span>({shipments.length})</span>
                       </div>
-                      {!shipments.length ? <p style={{ margin: '0.4rem 0 0 1rem', color: '#64748b', fontSize: '0.86rem' }}>Nothing at this stage</p> : groupedByContainer ? Object.entries(groupedByContainer).map(([container, containerShipments]) => <details key={container} style={{ margin: '0.55rem 0 0 1rem', border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden' }}><summary style={{ cursor: 'pointer', padding: '0.65rem 0.8rem', background: '#f8fafc', color: '#334155', fontWeight: 700 }}>{container} <span style={{ color: '#64748b', fontWeight: 500 }}>({containerShipments.length} package{containerShipments.length === 1 ? '' : 's'})</span></summary>{containerShipments.map((shipment) => <button key={shipment.id} type="button" onClick={() => void abrirDetallePedido(shipment.id)} style={{ width: '100%', display: 'flex', justifyContent: 'space-between', gap: '0.75rem', textAlign: 'left', padding: '0.65rem 0.8rem', border: 0, borderTop: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer' }}><strong style={{ color: style.color, overflowWrap: 'anywhere' }}>{shipment.tracking}</strong><span style={{ color: '#475569' }}>{shipment.clienteNombre || 'Unassigned'}{shipment.clienteNumero != null ? ` (#${shipment.clienteNumero})` : ''}</span></button>)}</details>) : shipments.map((shipment) => <button key={shipment.id} type="button" onClick={() => void abrirDetallePedido(shipment.id)} style={{ width: '100%', display: 'flex', justifyContent: 'space-between', gap: '0.75rem', textAlign: 'left', margin: '0.45rem 0 0 1rem', padding: '0.65rem 0.8rem', border: '1px solid #e2e8f0', borderRadius: 8, background: '#fff', cursor: 'pointer' }}><strong style={{ color: style.color, overflowWrap: 'anywhere' }}>{shipment.tracking}</strong><span style={{ color: '#475569' }}>{shipment.clienteNombre || 'Unassigned'}{shipment.clienteNumero != null ? ` (#${shipment.clienteNumero})` : ''}</span></button>)}
+                      {!shipments.length ? <p style={{ margin: '0.4rem 0 0 1rem', color: '#64748b', fontSize: '0.86rem' }}>Nothing at this stage</p> : groupedByContainer ? Object.entries(groupedByContainer).map(([container, containerShipments]) => <details key={container} open style={{ margin: '0.55rem 0 0 1rem', border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden' }}><summary style={{ cursor: 'pointer', padding: '0.65rem 0.8rem', background: '#f8fafc', color: '#334155', fontWeight: 700 }}>{container} <span style={{ color: '#64748b', fontWeight: 500 }}>({containerShipments.length} package{containerShipments.length === 1 ? '' : 's'})</span></summary>{containerShipments.map((shipment) => <button key={shipment.id} type="button" onClick={() => void abrirDetallePedido(shipment.id)} style={{ width: '100%', display: 'flex', justifyContent: 'space-between', gap: '0.75rem', textAlign: 'left', padding: '0.65rem 0.8rem', border: 0, borderTop: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer' }}><strong style={{ color: style.color, overflowWrap: 'anywhere' }}>{shipment.tracking}</strong><span style={{ color: '#475569' }}>{shipment.clienteNombre || 'Unassigned'}{shipment.clienteNumero != null ? ` (#${shipment.clienteNumero})` : ''}</span></button>)}</details>) : shipments.map((shipment) => <button key={shipment.id} type="button" onClick={() => void abrirDetallePedido(shipment.id)} style={{ width: '100%', display: 'flex', justifyContent: 'space-between', gap: '0.75rem', textAlign: 'left', margin: '0.45rem 0 0 1rem', padding: '0.65rem 0.8rem', border: '1px solid #e2e8f0', borderRadius: 8, background: '#fff', cursor: 'pointer' }}><strong style={{ color: style.color, overflowWrap: 'anywhere' }}>{shipment.tracking}</strong><span style={{ color: '#475569' }}>{shipment.clienteNombre || 'Unassigned'}{shipment.clienteNumero != null ? ` (#${shipment.clienteNumero})` : ''}</span></button>)}
                     </section>;
                   })}
                 </>}
@@ -3530,20 +3284,166 @@ const App = () => {
           </div>
         )}
 
-        {activeTab === 'pedidos' && (
-          <ShipmentsAdmin
-            shipments={pedidos}
-            ports={clientes.map((customer) => customer.puerto || "").filter(Boolean)}
-            issueIds={pedidosConIncidencia.filter((shipment) => shipment.issue_status !== "RESOLVED").map((shipment) => shipment.id)}
-            stageOptions={SHIPMENT_STAGE_OPTIONS}
-            getStage={shipmentStage}
-            onView={(id) => void abrirDetallePedido(id)}
-            onEdit={(shipment) => {
-              const record = pedidos.find((item) => item.id === shipment.id);
-              if (record) abrirEditarPedido(record);
-            }}
-            onDelete={(id) => void handleDeletePedido(id)}
-          />
+        {activeTab === 'pedidos' && pedidos.length > 0 && (
+          <div style={{ width: '100%', overflowX: 'auto' }}>
+            {/* Filtro por tracking, número de cuenta o nombre de cliente */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                <input
+                  type="text"
+                  placeholder="Search tracking, customer account, or name..."
+                  value={pedidoFiltro}
+                  onChange={(e) => setPedidoFiltro(e.target.value)}
+                  style={{
+                    width: '100%',
+                    maxWidth: '320px',
+                    padding: '0.45rem 0.75rem',
+                    borderRadius: '999px',
+                    border: '1px solid #e2e8f0',
+                    fontSize: '0.85rem',
+                    outline: 'none',
+                  }}
+                />
+                <select value={pedidoEtapa} onChange={(e) => setPedidoEtapa(e.target.value)} style={{ padding: '0.45rem 0.7rem', borderRadius: '999px', border: '1px solid #e2e8f0', background: '#fff', fontSize: '0.85rem' }} aria-label="Filter shipments by stage">
+                  {SHIPMENT_STAGE_OPTIONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                </select>
+              </div>
+              <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', width: '100%' }}>
+                {SHIPMENT_STAGE_OPTIONS.map(([value, label]) => <button key={value} type="button" onClick={() => setPedidoEtapa(value)} style={{ border: pedidoEtapa === value ? '1px solid #2563eb' : '1px solid #e2e8f0', background: pedidoEtapa === value ? '#eff6ff' : '#fff', color: pedidoEtapa === value ? '#1d4ed8' : '#475569', borderRadius: '999px', padding: '0.25rem 0.55rem', fontSize: '0.74rem', cursor: 'pointer' }}>{label}{value !== 'ALL' ? ` (${pedidos.filter((p) => shipmentStage(p.estado) === value).length})` : ` (${pedidos.length})`}</button>)}
+              </div>
+            </div>
+
+            {/* Encabezados de la tabla de pedidos */}
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '2fr 2fr 1.2fr 1.2fr',
+                columnGap: '0.75rem',
+                padding: '0.4rem 0',
+                fontSize: '0.8rem',
+                color: '#64748b',
+                borderBottom: '1px solid #e2e8f0',
+                fontWeight: 600,
+                minWidth: 760,
+              }}
+            >
+              <span style={{ minWidth: 200 }}>Tracking</span>
+              <span style={{ minWidth: 140 }}>Cliente</span>
+              <span style={{ minWidth: 120 }}>Estado</span>
+              <span style={{ textAlign: 'right', minWidth: 80 }}>Acciones</span>
+            </div>
+
+            <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+              {pedidos
+                .filter((p) => {
+                  const term = pedidoFiltro.trim().toLowerCase();
+                  const num = p.clienteNumero != null ? String(p.clienteNumero) : "";
+                  const name = p.clienteNombre ? p.clienteNombre.toLowerCase() : "";
+                  const tracking = p.tracking ? String(p.tracking).toLowerCase() : "";
+                  const matchesCustomer = !term || tracking.includes(term) || num.includes(term) || name.includes(term);
+                  const matchesStage = pedidoEtapa === "ALL" || shipmentStage(p.estado) === pedidoEtapa;
+                  return matchesCustomer && matchesStage;
+                })
+                .map((p) => {
+                const clienteLabel =
+                  p.clienteNumero != null && p.clienteNombre
+                    ? `#${p.clienteNumero} - ${p.clienteNombre}`
+                    : '';
+
+                return (
+                  <li
+                    key={p.id}
+                    style={{
+                      padding: '0.8rem 0',
+                      borderBottom: '1px solid #e2e8f0',
+                      fontSize: '0.9rem',
+                      display: 'grid',
+                      gridTemplateColumns: '2fr 2fr 1.2fr 1.2fr',
+                      columnGap: '0.75rem',
+                      alignItems: 'center',
+                      minWidth: 760,
+                      cursor: 'default',
+                    }}
+                  >
+                    <span style={{ fontWeight: 600, minWidth: 200, overflowWrap: 'anywhere' }}>
+                      #{p.tracking}
+                    </span>
+                    <span
+                      style={{
+                        color: '#0f172a',
+                        minWidth: 140,
+                        maxWidth: 200,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {clienteLabel}
+                    </span>
+                    <span
+                      style={{
+                        color: p.estado === 'Check In' ? '#16a34a' : '#0f172a',
+                        background: 'transparent',
+                        border: '0',
+                        borderRadius: '0',
+                        fontWeight: 700,
+                        textTransform: 'capitalize',
+                        minWidth: 120,
+                        maxWidth: 160,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        padding: 0,
+                        display: 'inline-block',
+                      }}
+                    >
+                      {p.estado || '-'}
+                    </span>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.35rem' }} onClick={(event) => event.stopPropagation()}>
+                      <button
+                        type="button"
+                        title="Editar pedido"
+                        style={{
+                          width: '28px',
+                          height: '28px',
+                          borderRadius: '999px',
+                          border: '1px solid #bfdbfe',
+                          backgroundColor: '#eff6ff',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: '#1d4ed8',
+                        }}
+                        onClick={() => abrirEditarPedido(p)}
+                      >
+                        <Pencil size={16} />
+                      </button>
+                      <button
+                        type="button"
+                        title="Eliminar pedido"
+                        style={{
+                          width: '28px',
+                          height: '28px',
+                          borderRadius: '999px',
+                          border: '1px solid #fecaca',
+                          backgroundColor: '#fee2e2',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: '#b91c1c',
+                        }}
+                        onClick={() => handleDeletePedido(p.id)}
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
         )}
       </div>
 
@@ -3576,7 +3476,7 @@ const App = () => {
                   marginRight: "0.5rem",
                 }}
               >
-                {incidenciaTitulo || "Issue photos"}
+                {incidenciaTitulo || "Imágenes de incidencia"}
               </h4>
               <button
                 type="button"
@@ -3673,44 +3573,13 @@ const App = () => {
                 {ADMIN_EXTRA_CHARGE_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
               </select>
             </div>
-            {invoiceAddOnType === "Discount" ? (
-              <div className="pa-field" style={{ paddingBottom: "1rem", marginBottom: "1rem", borderBottom: "1px solid #e2e8f0" }}>
-                <label htmlFor="admin-invoice-discount">Discount percentage</label>
-                {existingInvoiceDiscount ? (
-                  <>
-                    <p style={{ margin: "0.35rem 0 0.65rem", color: "#334155" }}>
-                      Applied: <strong>{existingInvoiceDiscount.label}</strong> — -${existingInvoiceDiscount.amount.toFixed(2)}
-                    </p>
-                    <button type="button" className="pa-secondary-btn" disabled={isSavingInvoiceDiscount} onClick={() => void saveAdminInvoiceDiscount("remove")}>
-                      {isSavingInvoiceDiscount ? "Saving…" : "Remove discount"}
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <select id="admin-invoice-discount" className="pa-input" value={invoiceDiscountCode} onChange={(event) => setInvoiceDiscountCode(event.target.value as InvoiceDiscountCode | "")}>
-                      <option value="">Select a discount</option>
-                      {(Object.entries(INVOICE_DISCOUNTS) as [InvoiceDiscountCode, (typeof INVOICE_DISCOUNTS)[InvoiceDiscountCode]][]).map(([code, definition]) => (
-                        <option key={code} value={code}>{definition.label}</option>
-                      ))}
-                    </select>
-                    <p style={{ margin: "0.45rem 0", color: "#64748b", fontSize: "0.78rem" }}>
-                      Discounts apply before the existing handling fee, excluding consolidation and handling-fee amounts. Only one discount may be active.
-                    </p>
-                    <button type="button" className="pa-primary-btn" disabled={!invoiceDiscountCode || isSavingInvoiceDiscount} onClick={() => void saveAdminInvoiceDiscount("apply")}>
-                      {isSavingInvoiceDiscount ? "Saving…" : "Apply discount"}
-                    </button>
-                  </>
-                )}
-              </div>
-            ) : (
-              <div className="pa-field">
-                <label htmlFor="admin-invoice-charge-amount">Amount</label>
-                <input id="admin-invoice-charge-amount" className="pa-input" type="number" min="0.01" step="0.01" value={invoiceAddOnAmount} onChange={(event) => setInvoiceAddOnAmount(event.target.value)} placeholder="0.00" />
-              </div>
-            )}
+            <div className="pa-field">
+              <label htmlFor="admin-invoice-charge-amount">Amount</label>
+              <input id="admin-invoice-charge-amount" className="pa-input" type="number" min="0.01" step="0.01" value={invoiceAddOnAmount} onChange={(event) => setInvoiceAddOnAmount(event.target.value)} placeholder="0.00" />
+            </div>
             <div className="pa-modal-actions">
               <button type="button" className="pa-secondary-btn" onClick={() => setEditingInvoiceAddOns(null)}>Cancel</button>
-              {invoiceAddOnType !== "Discount" && <button type="button" className="pa-primary-btn" disabled={!invoiceAddOnType || !invoiceAddOnAmount} onClick={() => void saveAdminInvoiceAddOn()}>Save adjustment</button>}
+              <button type="button" className="pa-primary-btn" disabled={!invoiceAddOnType || !invoiceAddOnAmount} onClick={() => void saveAdminInvoiceAddOn()}>Save adjustment</button>
             </div>
           </div>
         </div>
@@ -3805,7 +3674,89 @@ const App = () => {
         </div>
       )}
 
-      {paymentDialogInvoice && <PaymentLedgerDialog key={paymentDialogInvoice.id} invoice={paymentDialogInvoice} mode={paymentDialogMode} onClose={() => setPaymentDialogInvoice(null)} onChanged={handlePaymentChanged} />}
+      {pendingPayInvoice && (
+        <div className="ga-modal-backdrop" role="dialog" aria-modal="true">
+          <div className="ga-modal" style={{ maxWidth: 420 }}>
+            <div className="ga-modal-header">
+              <h4>Confirmar pago</h4>
+              <button
+                type="button"
+                className="ga-icon-button ga-icon-button-light"
+                onClick={() => setPendingPayInvoice(null)}
+                aria-label="Cerrar"
+              >
+                <span style={{ lineHeight: 1 }}>×</span>
+              </button>
+            </div>
+            <div className="ga-modal-body">
+              <p style={{ marginBottom: '0.5rem', fontSize: '0.9rem' }}>
+                {`¿Marcar como PAGADA la factura del tracking ${pendingPayInvoice.tracking}?`}
+              </p>
+              {pendingPayInvoice.clienteNombre && (
+                <p style={{ margin: 0, fontSize: '0.85rem', color: '#6b7280' }}>
+                  Cliente: #{pendingPayInvoice.clienteNumero ?? '-'} - {pendingPayInvoice.clienteNombre}
+                </p>
+              )}
+              <div className="pa-field" style={{ marginTop: '1rem' }}>
+                <label htmlFor="admin-payment-method">Payment method</label>
+                <select
+                  id="admin-payment-method"
+                  className="pa-input"
+                  value={paymentMethod}
+                  onChange={(event) => setPaymentMethod(event.target.value)}
+                >
+                  <option value="">Select a payment method</option>
+                  <option value="Zelle">Zelle</option>
+                  <option value="PayPal">PayPal</option>
+                  <option value="Cash">Cash</option>
+                  <option value="Bank Transfer / Wire">Bank Transfer / Wire</option>
+                  <option value="Credit granted">Credit granted</option>
+                </select>
+              </div>
+              <div className="pa-field">
+                <label htmlFor="admin-payment-reference">Bank / payment reference</label>
+                <input id="admin-payment-reference" className="pa-input" value={paymentReference} onChange={(event) => setPaymentReference(event.target.value)} placeholder="Reference number" />
+              </div>
+              <div className="pa-field">
+                <label htmlFor="admin-payment-date">Payment date</label>
+                <input id="admin-payment-date" className="pa-input" type="date" value={paymentDate} onChange={(event) => setPaymentDate(event.target.value)} />
+              </div>
+              <div className="pa-field">
+                <label htmlFor="admin-payment-notes">Payment details / notes</label>
+                <textarea
+                  id="admin-payment-notes"
+                  className="pa-input"
+                  rows={3}
+                  value={paymentNotes}
+                  onChange={(event) => setPaymentNotes(event.target.value)}
+                  placeholder="Reference number, payer, or other payment details"
+                />
+              </div>
+              <div className="pa-field">
+                <label htmlFor="admin-customer-invoice-note">Customer-facing invoice note (optional)</label>
+                <textarea id="admin-customer-invoice-note" className="pa-input" rows={2} value={customerInvoiceNote} onChange={(event) => setCustomerInvoiceNote(event.target.value)} placeholder="Only this note is shown to the customer." />
+              </div>
+            </div>
+            <div className="ga-modal-actions" style={{ justifyContent: 'flex-end', gap: '0.5rem' }}>
+              <button
+                type="button"
+                className="ga-secondary-button"
+                onClick={() => setPendingPayInvoice(null)}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="ga-primary-button"
+                onClick={handleConfirmPayInvoice}
+              >
+                Confirmar pago
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {isPedidoDetalleOpen && pedidoDetalle?.activity !== undefined && (
         <div className="pa-modal-overlay" onClick={() => setIsPedidoDetalleOpen(false)}>
           <div
@@ -3822,9 +3773,6 @@ const App = () => {
               const payment = String(pedidoDetalle.invoice_status || "").toUpperCase();
               const invoiceApproval = String(pedidoDetalle.approval_status || "").toUpperCase();
               const activity = Array.isArray(pedidoDetalle.activity) ? pedidoDetalle.activity : [];
-              const latestScan = activity
-                .filter((event: any) => String(event.action || "").toLowerCase() === "package_scanned")
-                .sort((a: any, b: any) => Date.parse(b.created_at || "") - Date.parse(a.created_at || ""))[0]?.created_at;
               const children = Array.isArray(pedidoDetalle.consolidates) ? pedidoDetalle.consolidates : [];
               const containers = Array.isArray(pedidoDetalle.contenedores) ? pedidoDetalle.contenedores : [];
               const pickupSignatures = Array.isArray(pedidoDetalle.pickupSignatures) ? pedidoDetalle.pickupSignatures : [];
@@ -3858,7 +3806,7 @@ const App = () => {
                 <div style={{ display: "flex", alignItems: "center", gap: "0.65rem", borderBottom: "1px solid #e2e8f0", padding: "0.1rem 0 0.8rem" }}>
                   <span style={{ color: "#64748b", fontSize: "1.1rem" }}>▧</span>
                   <strong style={{ flex: 1, fontSize: "1.08rem", letterSpacing: "0.01em", overflowWrap: "anywhere" }}>{pedidoDetalle.tracking || "Shipment"}</strong>
-                  <span style={{ background: "#fbbf24", color: "#78350f", borderRadius: "0.35rem", padding: "0.45rem 0.7rem", fontWeight: 800 }}>{pedidoDetalle.nombre_paqueteria === "Manual Invoice" ? "Manual invoice" : pedidoDetalle.tipo_paquete || "Shipment"} {pedidoDetalle.invoice_id ? pedidoDetalle.invoice_id : ""}</span>
+                  <span style={{ background: "#fbbf24", color: "#78350f", borderRadius: "0.35rem", padding: "0.45rem 0.7rem", fontWeight: 800 }}>{pedidoDetalle.tipo_paquete || "Package"} {pedidoDetalle.invoice_id ? pedidoDetalle.invoice_id : ""}</span>
                   {invoiceIndex >= 0 && <div style={{ display: "flex", gap: "0.3rem", alignItems: "center" }}><button type="button" className="pa-secondary-btn" disabled={invoiceIndex <= 0} onClick={() => openAdjacentInvoice(-1)} style={{ padding: "0.25rem 0.45rem", fontSize: "0.72rem" }}>‹ Previous</button><span style={{ color: "#64748b", fontSize: "0.75rem", whiteSpace: "nowrap" }}>{invoiceIndex + 1} of {facturasFiltradas.length}</span><button type="button" className="pa-secondary-btn" disabled={invoiceIndex >= facturasFiltradas.length - 1} onClick={() => openAdjacentInvoice(1)} style={{ padding: "0.25rem 0.45rem", fontSize: "0.72rem" }}>Next ›</button></div>}
                   <span style={{ color: stageColor, fontWeight: 800, whiteSpace: "nowrap" }}>{status}</span>
                   <button type="button" onClick={() => setIsPedidoDetalleOpen(false)} aria-label="Close shipment details" style={{ border: 0, background: "transparent", color: "#64748b", fontSize: "1.5rem", lineHeight: 1, cursor: "pointer" }}>×</button>
@@ -3867,12 +3815,12 @@ const App = () => {
                   {detailRow("Client", customer.nombre ? <span style={{ color: "#2563eb", textDecoration: "underline" }}>{customer.nombre} (#{customer.numero_cliente ?? "—"})</span> : "Unassigned", "client")}
                   {detailRow("Carrier", pedidoDetalle.nombre_paqueteria || "—", "carrier")}
                   {detailRow("Note", <span style={{ color: pedidoDetalle.notas ? "#334155" : "#94a3b8", fontWeight: 500 }}>{pedidoDetalle.notas || "No note"} <small style={{ color: "#94a3b8", marginLeft: "0.4rem" }}>(staff/admin only)</small></span>, "note")}
-                  {detailRow("Item", `${pedidoDetalle.nombre_paqueteria === "Manual Invoice" ? "Manual invoice" : pedidoDetalle.tipo_paquete || "Shipment"}${pedidoDetalle.billing_subtotal != null ? ` ($${Number(pedidoDetalle.billing_subtotal).toFixed(2)})` : ""}`, "item")}
+                  {detailRow("Item", `${pedidoDetalle.tipo_paquete || "Shipment"}${pedidoDetalle.billing_subtotal != null ? ` ($${Number(pedidoDetalle.billing_subtotal).toFixed(2)})` : ""}`, "item")}
                   {detailRow("Charges", checkin.cargos_adicionales || "—", "charges")}
                   {detailRow("Container", containers.map((container: any) => container.codigo || container.id).join(", ") || "Not assigned", "container")}
                   {detailRow("Invoice", <span>Invoice <strong style={{ color: invoiceApproval === "APPROVED" ? "#166534" : "#64748b" }}>{invoiceApproval || "PENDING"}</strong> <span style={{ marginLeft: "0.7rem" }}>Payment: <strong style={{ color: payment === "PAID" ? "#166534" : "#b45309" }}>{payment || "UNPAID"}</strong></span></span>, "invoice")}
                   {detailRow("Received", formatStaffDateTime(pedidoDetalle.hora_fecha || pedidoDetalle.creado_en), "received")}
-                  {detailRow("Last scanned", latestScan ? formatStaffDateTime(latestScan) : "—", "scanned")}
+                  {detailRow("Last scanned", formatStaffDateTime(activity[activity.length - 1]?.created_at || pedidoDetalle.updated_at || pedidoDetalle.hora_fecha), "scanned")}
                 </div>
                 {problemPhotos.length > 0 && <section style={{ borderTop: "1px solid #e2e8f0", paddingTop: "0.75rem", marginTop: "0.25rem" }}>
                   <h4 style={{ margin: 0, fontSize: "1rem", color: "#1e293b" }}>Problem photos ({problemPhotos.length})</h4>
@@ -3904,7 +3852,7 @@ const App = () => {
                 </section>
                 <section style={{ borderTop: "1px solid #e2e8f0", paddingTop: "0.75rem" }}>
                   <h4 style={{ margin: 0, fontSize: "1rem", color: "#1e293b" }}>↗ History - every touch ({activity.length}) <span title="A flagged event means a failed operation or a package problem was recorded. Normal updates are not flagged." style={{ color: flaggedCount ? "#b91c1c" : "#64748b", fontSize: "0.82rem", marginLeft: "0.35rem" }}>⚑ {flaggedCount ? `${flaggedCount} flagged` : "No flagged events"}</span></h4>
-                  {activity.length ? <div style={{ marginTop: "0.55rem", display: "flex", flexDirection: "column", gap: "0.5rem" }}>{activity.map((event: any) => { const changes = describeChanges(event); const actor = auditActorName(event); const role = ` (${auditActorRole(event.actor_role)})`; return <div key={event.id} style={{ display: "grid", gridTemplateColumns: "115px 1fr", gap: "0.7rem", fontSize: "0.82rem" }}><time style={{ color: "#64748b" }}>{formatStaffDateTime(event.created_at)}</time><div style={{ borderLeft: `3px solid ${isFlaggedEvent(event) ? "#dc2626" : "#2563eb"}`, paddingLeft: "0.65rem" }}><strong style={{ color: isFlaggedEvent(event) ? "#991b1b" : "#334155" }}>{auditActionLabel(event.action)}</strong><span style={{ color: "#64748b" }}> by {actor}{role}</span>{event.error_message && <div style={{ color: "#991b1b" }}>{event.error_message}</div>}{changes.length > 0 && <div style={{ color: "#475569", marginTop: "0.18rem" }}>{changes.map((change: string, index: number) => <div key={`${event.id}-change-${index}`}>{change}</div>)}</div>}{event.details?.source === "database_trigger" && changes.length === 0 && <div style={{ color: "#64748b" }}>No tracked field changes</div>}</div></div>; })}</div> : <p style={{ color: "#94a3b8", margin: "0.5rem 0" }}>No activity history has been recorded.</p>}
+                  {activity.length ? <div style={{ marginTop: "0.55rem", display: "flex", flexDirection: "column", gap: "0.5rem" }}>{activity.map((event: any) => { const changes = describeChanges(event); const actor = event.actor_name || event.actor_email || "Unknown staff"; const role = event.actor_role ? ` (${String(event.actor_role).replace(/^./, (letter) => letter.toUpperCase())})` : ""; return <div key={event.id} style={{ display: "grid", gridTemplateColumns: "115px 1fr", gap: "0.7rem", fontSize: "0.82rem" }}><time style={{ color: "#64748b" }}>{formatStaffDateTime(event.created_at)}</time><div style={{ borderLeft: `3px solid ${isFlaggedEvent(event) ? "#dc2626" : "#2563eb"}`, paddingLeft: "0.65rem" }}><strong style={{ color: isFlaggedEvent(event) ? "#991b1b" : "#334155" }}>{auditActionLabel(event.action)}</strong><span style={{ color: "#64748b" }}> by {actor}{role}</span>{event.error_message && <div style={{ color: "#991b1b" }}>{event.error_message}</div>}{changes.length > 0 && <div style={{ color: "#475569", marginTop: "0.18rem" }}>{changes.map((change: string, index: number) => <div key={`${event.id}-change-${index}`}>{change}</div>)}</div>}{event.details?.source === "database_trigger" && changes.length === 0 && <div style={{ color: "#64748b" }}>No tracked field changes</div>}</div></div>; })}</div> : <p style={{ color: "#94a3b8", margin: "0.5rem 0" }}>No activity history has been recorded.</p>}
                 </section>
                 <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem", marginTop: "1rem", paddingTop: "0.75rem", borderTop: "1px solid #e2e8f0" }}><button type="button" className="pa-secondary-btn" onClick={() => setIsPedidoDetalleOpen(false)}>Close</button></div>
               </>;
@@ -4131,7 +4079,7 @@ const App = () => {
         <div className="pa-modal-overlay">
           <div className="pa-modal" style={{ maxWidth: "640px" }}>
             <div className="pa-modal-header">
-              <h4 className="pa-modal-title">Edit shipment</h4>
+              <h4 className="pa-modal-title">Editar pedido</h4>
               <button type="button" className="pa-close-btn" onClick={cerrarModalEditarPedido}>
                 ×
               </button>
@@ -4169,18 +4117,18 @@ const App = () => {
                   />
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
-                  <label>Package type</label>
+                  <label>Tipo de paquete</label>
                   <select
                     className="pa-input"
                     value={pedidoForm.tipo_paquete}
                     onChange={(e) => handlePedidoFormChange("tipo_paquete", e.target.value)}
                   >
-                    <option value="BOX">Box</option>
-                    <option value="PACKAGE">Package</option>
+                    <option value="BOX">Caja</option>
+                    <option value="PACKAGE">Paquete</option>
                   </select>
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
-                  <label>Stage</label>
+                  <label>Estado</label>
                   <select
                     className="pa-input"
                     value={pedidoForm.estado}
@@ -4195,13 +4143,12 @@ const App = () => {
                         "Entregado",
                       ];
                       const current = pedidoForm.estado || "";
-                      const statusLabels: Record<string, string> = { Recibido: "Received", Registro: "Registered / Check In", "En transito": "In transit", Descargado: "Unloaded", Entregado: "Delivered" };
                       const options =
                         current && !BASE.includes(current) ? [current, ...BASE] : BASE;
 
                       return options.map((opt) => (
                         <option key={opt} value={opt}>
-                          {statusLabels[opt] || opt}
+                          {opt}
                         </option>
                       ));
                     })()}
@@ -4216,7 +4163,7 @@ const App = () => {
                   />
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
-                  <label>Notes</label>
+                  <label>Notas</label>
                   <input
                     className="pa-input"
                     value={pedidoForm.notas}
@@ -4231,7 +4178,7 @@ const App = () => {
                     onChange={(e) => {
                       handlePedidoFormChange("numero_cliente_id", e.target.value);
                       const selected = clientes.find((cliente) => cliente.id === e.target.value);
-                      setPedidoClienteLabel(selected ? `#${selected.numero_cliente} - ${selected.nombre}` : "No customer assigned");
+                      setPedidoClienteLabel(selected ? `#${selected.numero_cliente} - ${selected.nombre}` : "Sin cliente asignado");
                     }}
                   >
                     <option value="">Unassigned / owner unknown</option>
@@ -4267,29 +4214,29 @@ const App = () => {
                   }}
                 >
                   <div>
-                    <div style={{ fontWeight: 600, color: "#4b5563" }}>Registered by</div>
+                    <div style={{ fontWeight: 600, color: "#4b5563" }}>Registrado por</div>
                     <div style={{ color: "#111827" }}>{pedidoForm.registro || "-"}</div>
                   </div>
                   <div>
-                    <div style={{ fontWeight: 600, color: "#4b5563" }}>Received date/time</div>
+                    <div style={{ fontWeight: 600, color: "#4b5563" }}>Hora/fecha recibido</div>
                     <div style={{ color: "#111827" }}>{formatStaffDateTime(pedidoForm.hora_fecha)}</div>
                   </div>
                   <div>
-                    <div style={{ fontWeight: 600, color: "#4b5563" }}>Unloaded by</div>
+                    <div style={{ fontWeight: 600, color: "#4b5563" }}>Descargado por</div>
                     <div style={{ color: "#111827" }}>{pedidoForm.descargado || "-"}</div>
                   </div>
                   <div>
-                    <div style={{ fontWeight: 600, color: "#4b5563" }}>Unloaded date/time</div>
+                    <div style={{ fontWeight: 600, color: "#4b5563" }}>Fecha/hora descargado</div>
                     <div style={{ color: "#111827" }}>
                       {pedidoForm.fecha_descargado || "-"} {pedidoForm.hora_descargado ? formatStaffDateTime(pedidoForm.hora_descargado) : ""}
                     </div>
                   </div>
                   <div>
-                    <div style={{ fontWeight: 600, color: "#4b5563" }}>Delivered by</div>
+                    <div style={{ fontWeight: 600, color: "#4b5563" }}>Entregado por</div>
                     <div style={{ color: "#111827" }}>{pedidoForm.entregado_por || "-"}</div>
                   </div>
                   <div>
-                    <div style={{ fontWeight: 600, color: "#4b5563" }}>Delivered date/time</div>
+                    <div style={{ fontWeight: 600, color: "#4b5563" }}>Fecha/hora entregado</div>
                     <div style={{ color: "#111827" }}>
                       {pedidoForm.fecha_entregado || "-"} {pedidoForm.hora_entregado ? formatStaffDateTime(pedidoForm.hora_entregado) : ""}
                     </div>
@@ -4324,7 +4271,7 @@ const App = () => {
                         color: "#374151",
                       }}
                     >
-                      Check-in data
+                      Datos de Check In
                     </div>
                     <div
                       style={{
@@ -4335,7 +4282,7 @@ const App = () => {
                       }}
                     >
                       <div>
-                        <div style={{ fontWeight: 600, color: "#4b5563" }}>Height</div>
+                        <div style={{ fontWeight: 600, color: "#4b5563" }}>Alto</div>
                         <input
                           className="pa-input"
                           type="number"
@@ -4346,7 +4293,7 @@ const App = () => {
                         />
                       </div>
                       <div>
-                        <div style={{ fontWeight: 600, color: "#4b5563" }}>Width</div>
+                        <div style={{ fontWeight: 600, color: "#4b5563" }}>Ancho</div>
                         <input
                           className="pa-input"
                           type="number"
@@ -4357,7 +4304,7 @@ const App = () => {
                         />
                       </div>
                       <div>
-                        <div style={{ fontWeight: 600, color: "#4b5563" }}>Length</div>
+                        <div style={{ fontWeight: 600, color: "#4b5563" }}>Largo</div>
                         <input
                           className="pa-input"
                           type="number"
@@ -4368,7 +4315,7 @@ const App = () => {
                         />
                       </div>
                       <div>
-                        <div style={{ fontWeight: 600, color: "#4b5563" }}>Weight</div>
+                        <div style={{ fontWeight: 600, color: "#4b5563" }}>Peso</div>
                         <input
                           className="pa-input"
                           type="number"
@@ -4379,7 +4326,7 @@ const App = () => {
                         />
                       </div>
                       <div>
-                        <div style={{ fontWeight: 600, color: "#4b5563" }}>Problem</div>
+                        <div style={{ fontWeight: 600, color: "#4b5563" }}>Problema</div>
                         <label style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
                           <input
                             type="checkbox"
@@ -4389,12 +4336,12 @@ const App = () => {
                             }
                           />
                           <span style={{ color: "#111827" }}>
-                            {pedidoCheckinForm.problema ? "Yes" : "No"}
+                            {pedidoCheckinForm.problema ? "Sí" : "No"}
                           </span>
                         </label>
                       </div>
                       <div>
-                        <div style={{ fontWeight: 600, color: "#4b5563" }}>Consolidation</div>
+                        <div style={{ fontWeight: 600, color: "#4b5563" }}>Consolidación</div>
                         <label style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
                           <input
                             type="checkbox"
@@ -4404,12 +4351,12 @@ const App = () => {
                             }
                           />
                           <span style={{ color: "#111827" }}>
-                            {pedidoCheckinForm.consolidacion ? "Yes" : "No"}
+                            {pedidoCheckinForm.consolidacion ? "Sí" : "No"}
                           </span>
                         </label>
                       </div>
                       <div style={{ gridColumn: "1 / -1" }}>
-                        <div style={{ fontWeight: 600, color: "#4b5563" }}>Problem notes</div>
+                        <div style={{ fontWeight: 600, color: "#4b5563" }}>Notas de problema</div>
                         <textarea
                           className="pa-input"
                           rows={2}
@@ -4420,7 +4367,7 @@ const App = () => {
                         />
                       </div>
                       <div style={{ gridColumn: "1 / -1" }}>
-                        <div style={{ fontWeight: 600, color: "#4b5563" }}>Additional charges</div>
+                        <div style={{ fontWeight: 600, color: "#4b5563" }}>Cargos adicionales</div>
                         <textarea
                           className="pa-input"
                           rows={2}
@@ -4444,7 +4391,7 @@ const App = () => {
                 }}
               >
                 <div style={{ display: "grid", gap: "0.35rem" }}>
-                  <label>Unloaded date</label>
+                  <label>Fecha descargado</label>
                   <input
                     type="date"
                     className="pa-input"
@@ -4453,7 +4400,7 @@ const App = () => {
                   />
                 </div>
                 <div style={{ display: "grid", gap: "0.35rem" }}>
-                  <label>Unloaded time</label>
+                  <label>Hora descargado</label>
                   <input
                     type="time"
                     className="pa-input"
@@ -4462,7 +4409,7 @@ const App = () => {
                   />
                 </div>
                 <div style={{ display: "grid", gap: "0.35rem" }}>
-                  <label>Delivered date</label>
+                  <label>Fecha entregado</label>
                   <input
                     type="date"
                     className="pa-input"
@@ -4471,7 +4418,7 @@ const App = () => {
                   />
                 </div>
                 <div style={{ display: "grid", gap: "0.35rem" }}>
-                  <label>Delivered time</label>
+                  <label>Hora entregado</label>
                   <input
                     type="time"
                     className="pa-input"
@@ -4488,14 +4435,14 @@ const App = () => {
                     className="pa-secondary-btn"
                     onClick={generarQrDesdeFormulario}
                   >
-                    Generate QR
+                    Generar QR
                   </button>
                 </div>
                 {pedidoQrUrl && (
                   <div style={{ textAlign: "center" }}>
                     <Image
                       src={pedidoQrUrl}
-                      alt="Shipment QR"
+                      alt="QR pedido"
                       width={200}
                       height={200}
                       unoptimized
