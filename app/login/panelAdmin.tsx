@@ -302,25 +302,29 @@ const App = () => {
   const [confirmAdminPassword, setConfirmAdminPassword] = useState("");
   const [passwordSaving, setPasswordSaving] = useState(false);
   const cargarLeads = useCallback(async () => {
-    const { data: sessionData } = await supabase.auth.getSession();
-    const token = sessionData.session?.access_token;
-    if (!token) return;
-    const response = await fetch('/api/admin/leads', { headers: { Authorization: `Bearer ${token}` } });
-    if (!response.ok) throw new Error('Unable to load customer leads');
-    const payload = await response.json();
-    const newer = (payload.leads || []).map((lead: any): Lead => ({
-      id: lead.id,
-      nombre: lead.nombre,
-      email: lead.email,
-      telefono: null,
-      mensaje: lead.mensaje,
-      service_type: lead.asunto || 'Landing page lead',
-      status: lead.estado === 'contactado' ? 'CONTACTED' : lead.estado === 'cerrado' ? 'CLOSED' : lead.estado === 'spam' ? 'CLOSED' : 'NEW',
-      admin_notes: null,
-      created_at: lead.creado_en,
-    }));
-    const seen = new Set<string>();
-    setLeads(newer.filter((lead: Lead) => { const key = `${lead.email}|${lead.mensaje}`; if (seen.has(key)) return false; seen.add(key); return true; }));
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+      if (!token) return;
+      const response = await fetch('/api/admin/leads', { headers: { Authorization: `Bearer ${token}` } });
+      if (!response.ok) throw new Error('Unable to load customer leads');
+      const payload = await response.json();
+      const newer = (payload.leads || []).map((lead: any): Lead => ({
+        id: lead.id,
+        nombre: lead.nombre,
+        email: lead.email,
+        telefono: null,
+        mensaje: lead.mensaje,
+        service_type: lead.asunto || 'Landing page lead',
+        status: lead.estado === 'contactado' ? 'CONTACTED' : lead.estado === 'cerrado' ? 'CLOSED' : lead.estado === 'spam' ? 'CLOSED' : 'NEW',
+        admin_notes: null,
+        created_at: lead.creado_en,
+      }));
+      const seen = new Set<string>();
+      setLeads(newer.filter((lead: Lead) => { const key = `${lead.email}|${lead.mensaje}`; if (seen.has(key)) return false; seen.add(key); return true; }));
+    } catch (error) {
+      setAdminNotice(error instanceof Error ? error.message : 'Unable to load customer leads');
+    }
   }, []);
 
   type InvoiceTab = 'sinAprobar' | 'aprobadas' | 'todas' | 'problemas' | 'enviadas' | 'pagadas';
@@ -1393,17 +1397,22 @@ const App = () => {
     const signupSubscription = supabase.channel('realtime-customer-signups').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'numero_cliente' }, (payload) => {
       setAdminNotice(`New customer account created: ${(payload.new as any).nombre || 'customer'}`);
     }).subscribe();
+    const leadSubscription = supabase.channel('realtime-customer-leads').on('postgres_changes', { event: '*', schema: 'public', table: 'customer_leads' }, () => {
+      void cargarLeads();
+    }).subscribe();
 
     return () => {
       supabase.removeChannel(pedidoSubscription);
       supabase.removeChannel(clienteSubscription);
       supabase.removeChannel(signupSubscription);
+      supabase.removeChannel(leadSubscription);
     };
   }, [cargarPersonal, cargarClientes, cargarPedidos, cargarFacturas, cargarLeads]);
 
   useEffect(() => {
     if (activeTab === "portal") void cargarPortalEvents();
-  }, [activeTab, cargarPortalEvents]);
+    if (activeTab === "leads") void cargarLeads();
+  }, [activeTab, cargarLeads, cargarPortalEvents]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -2048,14 +2057,14 @@ const App = () => {
           color: var(--success-green);
         }
 
-        .tab-pill--operations.active { color: #2563eb; border-color: #bfdbfe; background: #eff6ff; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.14); }
-        .tab-pill--customers.active { color: #7c3aed; border-color: #ddd6fe; background: #f5f3ff; box-shadow: 0 4px 12px rgba(124, 58, 237, 0.14); }
-        .tab-pill--billing.active { color: #b45309; border-color: #fde68a; background: #fffbeb; box-shadow: 0 4px 12px rgba(180, 83, 9, 0.14); }
-        .tab-pill--admin.active { color: #be185d; border-color: #fbcfe8; background: #fdf2f8; box-shadow: 0 4px 12px rgba(190, 24, 93, 0.14); }
+        .tab-pill--operations.active { color: #1d4ed8; border-color: #93c5fd; background: #eff6ff; box-shadow: 0 4px 12px rgba(29, 78, 216, 0.18); }
+        .tab-pill--customers.active { color: #15803d; border-color: #86efac; background: #f0fdf4; box-shadow: 0 4px 12px rgba(21, 128, 61, 0.18); }
+        .tab-pill--billing.active { color: #b45309; border-color: #fcd34d; background: #fffbeb; box-shadow: 0 4px 12px rgba(180, 83, 9, 0.18); }
+        .tab-pill--admin.active { color: #7e22ce; border-color: #d8b4fe; background: #faf5ff; box-shadow: 0 4px 12px rgba(126, 34, 206, 0.18); }
         .tab-pill--operations.active .count-badge { background: #dbeafe; color: #1d4ed8; }
-        .tab-pill--customers.active .count-badge { background: #ede9fe; color: #6d28d9; }
+        .tab-pill--customers.active .count-badge { background: #dcfce7; color: #15803d; }
         .tab-pill--billing.active .count-badge { background: #fef3c7; color: #92400e; }
-        .tab-pill--admin.active .count-badge { background: #fce7f3; color: #9d174d; }
+        .tab-pill--admin.active .count-badge { background: #f3e8ff; color: #7e22ce; }
 
         @media (max-width: 1100px) {
           .tabs-container { grid-template-columns: repeat(2, minmax(0, 1fr)); }

@@ -4,7 +4,7 @@ export type ShipmentStageColor = { color: string; background: string; border: st
 
 // Track Package is the canonical palette for stage and selected-tab colors.
 export const SHIPMENT_STAGE_COLORS: Record<string, ShipmentStageColor> = {
-  RECEIVED: { color: "#475569", background: "#f1f5f9", border: "#cbd5e1" },
+  RECEIVED: { color: "#1d4ed8", background: "#eff6ff", border: "#93c5fd" },
   REGISTERED: { color: "#15803d", background: "#f0fdf4", border: "#86efac" },
   IN_TRANSIT: { color: "#0f766e", background: "#f0fdfa", border: "#5eead4" },
   UNLOADED: { color: "#b45309", background: "#fffbeb", border: "#fcd34d" },

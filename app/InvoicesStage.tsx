@@ -43,6 +43,8 @@ type InvoicesStageProps = {
     status: "PENDING" | "SENT" | "PAID" | "OVERDUE",
   ) => void | Promise<void>;
   onDeleteInvoice?: (pkg: PackageForInvoice) => void | Promise<void>;
+  canReversePayments?: boolean;
+  onApplyLateFee?: (pkg: PackageForInvoice) => void | Promise<void>;
   onCreateManualInvoice?: (input: { customer_id: string; tracking: string; description: string; additional_charges: string | null; tax_enabled: boolean }) => void | Promise<void>;
 };
 

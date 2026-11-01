@@ -1,8 +1,21 @@
-/* Consistent opaque workspace surfaces, with readable light data/form areas. */
-.dashboard-root .data-card,
-.ga-page-wrapper .ga-state-card {
-  background: #eaf3fb;
+/* Shared high-contrast workspace surfaces for both Admin and Staff. */
+.dashboard-root,
+.ga-page-wrapper {
+  background: #ffffff !important;
 }
+
+.dashboard-root .data-card,
+.ga-page-wrapper .ga-state-card,
+.ga-page-wrapper .ga-table-card {
+  background: #ffffff;
+  border: 1px solid #94a3b8;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+}
+
+.dashboard-root .data-card {
+  border: 1px solid #94a3b8;
+}
+
 .dashboard-root .data-card .card-header-inner,
 .ga-page-wrapper .ga-state-card-header,
 .ga-page-wrapper .ga-state-header,
@@ -13,6 +26,7 @@
   padding: 16px 20px;
   color: #ffffff;
 }
+
 .dashboard-root .data-card .card-header-inner h3,
 .dashboard-root .data-card .card-header-inner svg,
 .ga-page-wrapper .ga-state-card-header h2,
@@ -23,12 +37,14 @@
 .ga-page-wrapper .invoice-panel-header svg {
   color: #ffffff;
 }
+
 .dashboard-root .data-card .card-header-inner span,
 .ga-page-wrapper .ga-state-card-header p,
 .ga-page-wrapper .ga-state-header p,
 .ga-page-wrapper .invoice-panel-header p {
   color: #dbeafe;
 }
+
 .dashboard-root .admin-table thead,
 .dashboard-root .admin-table thead th,
 .dashboard-root .data-card table thead,
@@ -39,17 +55,39 @@
   background: #2f6f9d !important;
   color: #ffffff !important;
 }
+
 .invoice-workspace .invoice-table-header > span,
 .dashboard-root .data-card table thead th > span,
 .dashboard-root .data-card table thead th > button {
   color: #ffffff !important;
 }
+
 .dashboard-root .admin-table thead th,
 .ga-page-wrapper table thead th {
   padding: 12px 14px;
   border-bottom: 1px solid #5b97bf;
 }
+
 .invoice-workspace .invoice-table-header {
   padding: 12px 0;
 }
+
+.dashboard-root .data-card table tbody td,
+.dashboard-root .admin-table tbody td,
+.ga-page-wrapper table tbody td,
+.ga-page-wrapper .ga-table-text {
+  color: #1f2937;
+}
+
+.dashboard-root .data-card table tbody tr,
+.dashboard-root .admin-table tbody tr,
+.ga-page-wrapper table tbody tr,
+.ga-page-wrapper .ga-table-row {
+  border-color: #cbd5e1;
+}
+
+.ga-page-wrapper .ga-table thead {
+  color: #334155;
+}
+
 /* Keep existing rows, form controls, validation colors, and billing actions intact. */
