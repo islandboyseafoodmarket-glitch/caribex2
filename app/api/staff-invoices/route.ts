@@ -28,7 +28,9 @@ export async function POST(request: Request) {
     const customerId = String(body?.customer_id || "").trim() || null;
     const tracking = String(body?.tracking || `MANUAL-${Date.now()}`).trim().toUpperCase();
     const chargeLines = String(body?.additional_charges || "").split(",").map((line) => line.trim()).filter(Boolean);
-    const description = String(body?.description || chargeLines.map((line) => parseInvoiceChargeLine(line).description).join(", ") || "Manual invoice").trim();
+    const invoiceNote = String(body?.description ?? "").trim();
+    const description = invoiceNote || chargeLines.map((line) => parseInvoiceChargeLine(line).description).join(", ") || "Manual invoice";
+    const approvalStatus = invoiceNote ? "PENDING" : "APPROVED";
     if (!customerId) return NextResponse.json({ error: "Select a customer" }, { status: 400 });
     if (!chargeLines.length) return NextResponse.json({ error: "Select a catalog item or operational extra" }, { status: 400 });
     const customer = customerId ? (await supabase.from("numero_cliente").select("id, numero_cliente, nombre").eq("id", customerId).maybeSingle()).data : null;
@@ -38,7 +40,7 @@ export async function POST(request: Request) {
     const taxEnabled = staff.role === "admin" && typeof body?.tax_enabled === "boolean" ? body.tax_enabled : true;
     const finalTax = taxEnabled ? roundMoney(finalSubtotal * HANDLING_FEE_RATE) : 0;
     const finalTotal = roundMoney(finalSubtotal + finalTax);
-    const { data: shipment, error } = await supabase.from("paquetes_registro").insert({ tracking, nombre_paqueteria: "Manual Invoice", tipo_paquete: "MANUAL_INVOICE", contenido: description, notas: "MANUAL INVOICE CREATED BY STAFF", numero_cliente_id: customerId, registro: staff.name, estado: "Descargado", billing_subtotal: finalSubtotal, billing_tax: finalTax, billing_total: finalTotal, approval_status: "PENDING", invoice_status: "PENDING" }).select("id, tracking, tipo_paquete, contenido, numero_cliente_id, billing_subtotal, billing_tax, billing_total, approval_status, invoice_status").single();
+    const { data: shipment, error } = await supabase.from("paquetes_registro").insert({ tracking, nombre_paqueteria: "Manual Invoice", tipo_paquete: "MANUAL_INVOICE", contenido: description, numero_cliente_id: customerId, registro: staff.name, estado: "Descargado", billing_subtotal: finalSubtotal, billing_tax: finalTax, billing_total: finalTotal, approval_status: approvalStatus, invoice_status: "PENDING" }).select("id, tracking, tipo_paquete, contenido, numero_cliente_id, billing_subtotal, billing_tax, billing_total, approval_status, invoice_status").single();
     if (error) throw new Error(`Could not create manual invoice shipment: ${error.message}`);
     const { error: checkinError } = await supabase.from("paquetes_checkin").insert({ paquete_id: shipment.id, numero_cliente_id: customerId, cargos_adicionales: body?.additional_charges || null });
     if (checkinError) {

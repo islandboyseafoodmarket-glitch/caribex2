@@ -5,11 +5,12 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { supabase } from "../../lib/supabaseClient";
 import { BrowserMultiFormatReader } from "@zxing/browser";
-import { Pencil, Trash2, Unlock, LogOut, Image as ImageIcon, Check, AlertCircle, Send, DollarSign, ChevronDown, Package, ScanLine, AlertTriangle, QrCode, BarChart3, UserPlus, Bell, Receipt, Ship, Container, UserCog, Plus } from "lucide-react";
+import { Pencil, Trash2, Unlock, LogOut, Image as ImageIcon, Check, Send, DollarSign, ChevronDown, Package, ScanLine, AlertTriangle, QrCode, BarChart3, UserPlus, Bell, Receipt, Ship, Container, UserCog, Plus } from "lucide-react";
 import FerryManifestAdmin from "./FerryManifestAdmin";
 import Client360Admin from "./Client360Admin";
 import PaymentsAdmin, { type PaymentBalance } from "./PaymentsAdmin";
 import PaymentLedgerDialog from "../../components/PaymentLedgerDialog";
+import AdminInvoiceActions, { type AdminInvoiceAction } from "../../components/AdminInvoiceActions";
 import type { PaymentSummary } from "../../lib/payment-ledger";
 import CaribexBatchLabelPrint, { BatchBoxLabel } from "../../components/CaribexBatchLabelPrint";
 import type { CaribexLabelSize } from "../../components/CaribexLabelPrint";
@@ -659,15 +660,15 @@ const App = () => {
   };
 
   const pedidosConIncidencia = useMemo(
-    () =>
-      pedidos.filter(
-        (p) =>
-          !p.numero_cliente_id ||
-          (p.notas && p.notas.trim() !== "") ||
-          (Array.isArray(p.notas_imagenes)
-            ? p.notas_imagenes.length > 0
-            : typeof p.notas_imagenes === "string" && p.notas_imagenes.trim() !== ""),
-      ),
+    () => pedidos.filter((p) => {
+      const hasProblemPhotos = Array.isArray(p.notas_imagenes)
+        ? p.notas_imagenes.some((photo) => typeof photo === "string" && photo.trim() !== "")
+        : typeof p.notas_imagenes === "string" && p.notas_imagenes.trim() !== "";
+      return Boolean(p.problema)
+        || Boolean(p.problema_notas?.trim())
+        || String(p.issue_status || "").toUpperCase() === "OPEN"
+        || hasProblemPhotos;
+    }),
     [pedidos],
   );
   const incidenciasFiltradas = useMemo(() => {
@@ -1215,7 +1216,7 @@ const App = () => {
         ? await Promise.all([
             supabase.from("contenedor_paquetes").select("paquete_id, contenedor_id").in("paquete_id", packageIds),
             supabase.from("contenedores").select("id, codigo"),
-            supabase.from("paquetes_checkin").select("paquete_id, parent_box_id, consolidacion").in("paquete_id", packageIds),
+            supabase.from("paquetes_checkin").select("paquete_id, parent_box_id, consolidacion, problema, problema_notas, creado_en").in("paquete_id", packageIds).order("creado_en", { ascending: false }),
           ])
         : [{ data: [] }, { data: [] }, { data: [] }];
       const containerById = new Map((containers || []).map((container: any) => [String(container.id), String(container.codigo || container.id)]));
@@ -1226,6 +1227,11 @@ const App = () => {
         labelsByPackage.set(String(link.paquete_id), labels);
       });
       const insideBoxIds = new Set((checkins || []).filter((row: any) => row.parent_box_id).map((row: any) => String(row.paquete_id)));
+      const checkinByPackage = new Map<string, { problema?: boolean | null; problema_notas?: string | null }>();
+      (checkins || []).forEach((row: any) => {
+        const packageId = String(row.paquete_id);
+        if (!checkinByPackage.has(packageId)) checkinByPackage.set(packageId, row);
+      });
       const mapped = rows.map((row) => ({
         id: row.id as string,
         tracking: (row.tracking as string) || "-",
@@ -1239,6 +1245,8 @@ const App = () => {
         contenido: row.contenido || null,
         notas: row.notas || null,
         notas_imagenes: row.notas_imagenes || null,
+        problema: Boolean(checkinByPackage.get(String(row.id))?.problema),
+        problema_notas: checkinByPackage.get(String(row.id))?.problema_notas || null,
         issue_status: row.issue_status || null,
         cubic_feet: row.cubic_feet ?? null,
         alto: row.alto ?? null,
@@ -1394,7 +1402,7 @@ const App = () => {
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.error || "Could not create invoice.");
       await cargarFacturas();
-      setActiveInvoiceTab("sinAprobar");
+      setActiveInvoiceTab(manualInvoiceForm.description.trim() ? "sinAprobar" : "aprobadas");
       closeManualInvoice();
     } catch (error) {
       setManualInvoiceError(error instanceof Error ? error.message : "Could not create invoice.");
@@ -2738,14 +2746,14 @@ const App = () => {
             <div
               style={{
                 display: 'grid',
-                gridTemplateColumns: 'minmax(220px, 2fr) 200px 150px 100px 140px 140px 280px',
+                gridTemplateColumns: 'minmax(220px, 2fr) 200px 150px 100px 140px 140px 500px',
                 columnGap: '0.75rem',
                 padding: '0.4rem 0',
                 fontSize: '0.8rem',
                 color: '#64748b',
                 borderBottom: '1px solid #e2e8f0',
                 fontWeight: 600,
-                minWidth: 1280,
+                minWidth: 1520,
               }}
             >
               <span style={{ minWidth: 180 }}>Tracking</span>
@@ -2754,7 +2762,7 @@ const App = () => {
               <span style={{ minWidth: 90 }}>Total</span>
               <span style={{ minWidth: 150 }}>Aprobación</span>
               <span style={{ minWidth: 150 }}>Estado factura</span>
-              <span style={{ textAlign: 'left', minWidth: 260 }}>Acciones</span>
+              <span style={{ textAlign: 'left', minWidth: 500 }}>Acciones</span>
             </div>
 
             <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
@@ -2788,6 +2796,12 @@ const App = () => {
                 const isPendingApproval = !approval || approval === 'PENDING';
                 const isSent = invoice === 'SENT';
                 const isPaid = invoice === 'PAID';
+                const invoiceActions: AdminInvoiceAction[] = [
+                  { id: 'edit-add-ons', label: 'Edit invoice add-ons', group: 'Invoice', onSelect: () => handleAdminEditInvoiceAddOns(f) },
+                  { id: 'print-invoice', label: 'PDF / Print invoice', group: 'Invoice', onSelect: () => printInvoice(f) },
+                  { id: 'approve-invoice', label: 'Approve invoice', group: 'Approval', disabled: isApproved, onSelect: () => handleAdminChangeApproval(f, 'APPROVED') },
+                  { id: 'mark-for-review', label: 'Mark for review', group: 'Approval', disabled: isPendingApproval, onSelect: () => handleAdminChangeApproval(f, 'PENDING') },
+                ];
 
                 return (
                   <li
@@ -2797,10 +2811,10 @@ const App = () => {
                       borderBottom: '1px solid #e2e8f0',
                       fontSize: '0.9rem',
                       display: 'grid',
-                      gridTemplateColumns: 'minmax(220px, 2fr) 200px 150px 100px 140px 140px 280px',
+                      gridTemplateColumns: 'minmax(220px, 2fr) 200px 150px 100px 140px 140px 500px',
                       columnGap: '0.75rem',
                       alignItems: 'center',
-                      minWidth: 1280,
+                      minWidth: 1520,
                     }}
                   >
                     <span
@@ -2863,121 +2877,17 @@ const App = () => {
                     >
                       {invoiceLabel}
                     </span>
-                    <div
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'flex-start',
-                        flexWrap: 'wrap',
-                        gap: '0.35rem',
-                        minWidth: 260,
-                        position: 'static',
-                        zIndex: 1,
-                        background: 'transparent',
-                        paddingLeft: '0.35rem',
-                      }}
-                    >
-                      <button
-                        type="button"
-                        title="Open invoice details"
-                        className="pa-secondary-btn"
-                        style={{ padding: '0.3rem 0.55rem', fontSize: '0.72rem', whiteSpace: 'nowrap' }}
-                        onClick={() => void abrirDetallePedido(f.id)}
-                      >
-                        View
-                      </button>
-                      <button
-                        type="button"
-                        title="Edit invoice add-ons"
-                        style={{ width: 28, height: 28, borderRadius: '999px', border: '1px solid #cbd5e1', backgroundColor: '#f8fafc', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                        onClick={() => void handleAdminEditInvoiceAddOns(f)}
-                      >
-                        <Pencil size={14} />
-                      </button>
-                      <button
-                        type="button"
-                        title="Aprobar factura"
-                        style={{
-                          width: 28,
-                          height: 28,
-                          borderRadius: '999px',
-                          border: '1px solid #bbf7d0',
-                          backgroundColor: '#dcfce7',
-                          fontSize: '0.75rem',
-                          cursor: isApproved ? 'default' : 'pointer',
-                          opacity: isApproved ? 0.5 : 1,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                        }}
-                        disabled={isApproved}
-                        onClick={() => !isApproved && handleAdminChangeApproval(f, 'APPROVED')}
-                      >
-                        <Check size={14} />
-                      </button>
-                      <button
-                        type="button"
-                        title="Marcar para revisión"
-                        style={{
-                          width: 28,
-                          height: 28,
-                          borderRadius: '999px',
-                          border: '1px solid #fed7aa',
-                          backgroundColor: '#ffedd5',
-                          fontSize: '0.75rem',
-                          cursor: isPendingApproval ? 'default' : 'pointer',
-                          opacity: isPendingApproval ? 0.5 : 1,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                        }}
-                        disabled={isPendingApproval}
-                        onClick={() => !isPendingApproval && handleAdminChangeApproval(f, 'PENDING')}
-                      >
-                        <AlertCircle size={14} />
-                      </button>
-                      <button
-                        type="button"
-                        title={isSent ? 'Reenviar factura' : 'Enviar factura'}
-                        style={{
-                          minWidth: 28,
-                          height: 28,
-                          borderRadius: '999px',
-                          border: '1px solid #bfdbfe',
-                          backgroundColor: '#eff6ff',
-                          fontSize: '0.75rem',
-                          cursor: isPaid ? 'default' : 'pointer',
-                          opacity: isPaid ? 0.5 : 1,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                        }}
-                        disabled={isPaid}
-                        onClick={() => !isPaid && void handleAdminSendInvoice(f)}
-                      >
-                        <Send size={14} /> <span style={{ fontSize: '0.72rem' }}>{isSent ? 'Resend' : 'Send'}</span>
-                      </button>
-                      <button type="button" title="PDF / Print invoice" className="pa-secondary-btn" style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', whiteSpace: 'nowrap' }} onClick={() => void printInvoice(f)}>PDF / Print</button>
-                      <button
-                        type="button"
-                        title="Marcar como pagada"
-                        style={{
-                          width: 28,
-                          height: 28,
-                          borderRadius: '999px',
-                          border: '1px solid #bbf7d0',
-                          backgroundColor: '#dcfce7',
-                          fontSize: '0.75rem',
-                          cursor: isPaid ? 'default' : 'pointer',
-                          opacity: isPaid ? 0.5 : 1,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                        }}
-                        disabled={isPaid}
-                        onClick={() => !isPaid && openConfirmPayInvoice(f)}
-                      >
-                        <DollarSign size={14} />
-                      </button>
+                    <div style={{ minWidth: 500, paddingLeft: '0.35rem' }}>
+                      <AdminInvoiceActions
+                        tracking={f.tracking}
+                        onView={() => void abrirDetallePedido(f.id)}
+                        sendLabel={isSent ? 'Resend invoice' : 'Send invoice'}
+                        onSend={() => void handleAdminSendInvoice(f)}
+                        sendDisabled={isPaid}
+                        onRecordPayment={() => openConfirmPayInvoice(f)}
+                        recordPaymentDisabled={isPaid}
+                        actions={invoiceActions}
+                      />
                     </div>
                   </li>
                 );
@@ -3028,12 +2938,15 @@ const App = () => {
                   p.clienteNumero != null && p.clienteNombre
                     ? `#${p.clienteNumero} - ${p.clienteNombre}`
                     : "Unknown owner / pending identification";
-                const descripcion = (p.notas || "")
-                  .split(/\r?\n/)
-                  .filter((line) => !(p.numero_cliente_id && /^unknown owner\s*-\s*pending customer identification$/i.test(line.trim())))
-                  .join("\n")
-                  .trim() || (!p.numero_cliente_id ? "Shipment has no assigned customer." : "Sin descripción");
                 const urls = obtenerUrlsIncidencia(p);
+                const descripcion = p.problema_notas?.trim()
+                  || (p.problema
+                    ? "Problema marcado"
+                    : p.issue_status === "OPEN"
+                      ? "Incidencia abierta"
+                      : urls.length > 0
+                        ? "Fotos de problema adjuntas"
+                        : "Problema reportado");
 
                 return (
                   <li
@@ -3402,7 +3315,9 @@ const App = () => {
                     }}
                   >
                     <span style={{ fontWeight: 600, minWidth: 200, overflowWrap: 'anywhere' }}>
-                      #{p.tracking}
+                      <button type="button" className="ga-client360-tracking" onClick={() => void abrirDetallePedido(p.id)} title="Open shipment details">
+                        #{p.tracking}
+                      </button>
                     </span>
                     <span
                       style={{
