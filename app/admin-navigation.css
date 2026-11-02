@@ -226,12 +226,12 @@
   }
 }
 
-/* Restore the earlier solid-blue Admin canvas with transparent surrounding surfaces. */
+/* Use a dark Admin canvas with a readable white content surface. */
 .dashboard-root .page-header,
 .dashboard-root .data-card {
-  background: transparent !important;
-  box-shadow: none !important;
-  border-color: transparent !important;
+  background: #ffffff !important;
+  box-shadow: 0 10px 28px rgba(2, 18, 36, 0.22) !important;
+  border-color: #94a3b8 !important;
 }
 
 .dashboard-root .page-header {
@@ -241,11 +241,21 @@
 
 .dashboard-root .data-card {
   padding: 14px 0 28px;
-  border-radius: 0;
+  border-radius: 14px;
 }
 
 .dashboard-root .data-card--invoices {
   padding: 14px 0 28px;
+}
+
+/* FerryManifestAdmin renders its own shared branded header in both Staff and Admin. */
+.dashboard-root .data-card--ferry {
+  padding: 0 !important;
+  background: #ffffff !important;
+}
+
+.dashboard-root .data-card--ferry > .card-header-inner {
+  display: none;
 }
 
 @media (max-width: 899px) {

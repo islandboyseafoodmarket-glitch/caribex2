@@ -12,6 +12,7 @@ import CaribexBatchLabelPrint, { BatchBoxLabel } from "../../components/CaribexB
 import type { CaribexLabelSize } from "../../components/CaribexLabelPrint";
 import ContainersAdmin from "./ContainersAdmin";
 import ReportsAdmin from "./ReportsAdmin";
+import ExpensesAdmin from "./ExpensesAdmin";
 import { formatStaffDateTime } from "../../lib/staff-date-format";
 import InvoicePreview, { type InvoicePreviewProps } from "../../components/InvoicePreview";
 import { BILLABLE_INVOICE_ITEMS, SALES_TAX_RATE, formatCatalogCharge, roundMoney } from "../../lib/invoice-pricing";
@@ -162,7 +163,7 @@ const TRACK_STAGE_STYLES: Record<string, { color: string; background: string; bo
 const App = () => {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<
-    'personal' | 'clientes' | 'prepaid' | 'client360' | 'pedidos' | 'track' | 'incidencias' | 'facturas' | 'finanzas' | 'leads' | 'portal' | 'ferry' | 'containers' | 'labels' | 'reports' | 'activityLogs'
+    'personal' | 'clientes' | 'prepaid' | 'client360' | 'pedidos' | 'track' | 'incidencias' | 'facturas' | 'finanzas' | 'expenses' | 'leads' | 'portal' | 'ferry' | 'containers' | 'labels' | 'reports' | 'activityLogs'
   >('personal');
   const [incidenciaFiltro, setIncidenciaFiltro] = useState('');
   const [expandedNavGroups, setExpandedNavGroups] = useState<Record<string, boolean>>({
@@ -1695,7 +1696,7 @@ const App = () => {
     <div className={`dashboard-root ${activeTab === 'facturas' ? 'dashboard-root--invoices' : ''}`}>
       <style suppressHydrationWarning>{`
         :root {
-          --bg-main: #8fc5e6;
+          --bg-main: #102a43;
           --primary-blue: #2563eb;
           --success-green: #166534;
           --success-bg: #dcfce7;
@@ -2323,6 +2324,7 @@ const App = () => {
           {expandedNavGroups.billing && <div className="admin-sidebar-items">
             <button className={`admin-sidebar-item admin-sidebar-item--billing ${activeTab === 'facturas' ? 'active' : ''}`} onClick={() => setActiveTab('facturas')}><Receipt /> Invoices <span className="count-badge">{facturasCount}</span></button>
             <button className={`admin-sidebar-item admin-sidebar-item--billing ${activeTab === 'finanzas' ? 'active' : ''}`} onClick={() => setActiveTab('finanzas')}><DollarSign /> Finances</button>
+            <button className={`admin-sidebar-item admin-sidebar-item--billing ${activeTab === 'expenses' ? 'active' : ''}`} onClick={() => setActiveTab('expenses')}><Receipt /> Expenses</button>
             <button className={`admin-sidebar-item admin-sidebar-item--billing ${activeTab === 'ferry' ? 'active' : ''}`} onClick={() => setActiveTab('ferry')}><Ship /> Ferry manifests</button>
             <button className={`admin-sidebar-item admin-sidebar-item--billing ${activeTab === 'containers' ? 'active' : ''}`} onClick={() => setActiveTab('containers')}><Container /> Containers</button>
           </div>}
@@ -2337,7 +2339,7 @@ const App = () => {
       </aside>
 
       {/* Card de Visualización de Datos */}
-      <div className={`data-card ${activeTab === 'facturas' ? 'data-card--invoices' : ''}`}>
+      <div className={`data-card ${activeTab === 'facturas' ? 'data-card--invoices' : ''} ${activeTab === 'ferry' ? 'data-card--ferry' : ''}`}>
         <div className="card-header-inner" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
           <div>
             <h3>
@@ -2362,6 +2364,8 @@ const App = () => {
                       ? 'Panel de Facturas'
                       : activeTab === 'finanzas'
                         ? 'Finances'
+                      : activeTab === 'expenses'
+                        ? 'Expenses'
                       : activeTab === 'leads'
                         ? 'Customer leads'
                       : activeTab === 'portal'
@@ -2395,6 +2399,8 @@ const App = () => {
                         ? `${facturasFiltradas.length} registro${facturasFiltradas.length === 1 ? '' : 's'} en esta categoría`
                       : activeTab === 'finanzas'
                         ? `${financeDisplayedRows.length} ${financeStatusFilter === 'ALL' ? 'revenue records' : financeStatusFilter === 'PAID' ? 'paid invoices' : 'outstanding invoices'} across all ports`
+                      : activeTab === 'expenses'
+                        ? 'Record expenses and review income and cash-flow summaries'
                       : activeTab === 'leads'
                         ? `${leads.length} leads received from the website`
                       : activeTab === 'portal'
@@ -2525,6 +2531,8 @@ const App = () => {
           </div>
           <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '0.7rem' }}><table className="admin-table" style={{ minWidth: 980, width: '100%' }}><thead><tr><th>Date</th><th>Port</th><th>Customer</th><th>Tracking</th><th>Container</th><th>Total</th><th>Payment</th></tr></thead><tbody>{financeDisplayedRows.map((invoice) => <tr key={invoice.id}><td>{invoice.creado_en ? formatStaffDateTime(invoice.creado_en) : '-'}</td><td>{invoice.puerto || 'Unknown'}</td><td>{invoice.clienteNombre || '-'}<br /><small>#{invoice.clienteNumero ?? '-'}</small></td><td><button type="button" className="ga-client360-tracking" onClick={() => void abrirDetallePedido(invoice.id)}>{invoice.tracking}</button></td><td>{invoice.containerLabels.join(', ') || '-'}</td><td>${Number(invoice.total || 0).toFixed(2)}</td><td style={{ color: invoice.invoice_status === 'PAID' ? '#166534' : '#b45309', fontWeight: 700 }}>{invoice.invoice_status === 'PAID' ? 'Paid' : 'Unpaid'}</td></tr>)}</tbody></table>{financeDisplayedRows.length === 0 && <p style={{ padding: '1rem', color: '#64748b' }}>No revenue records match these filters.</p>}</div>
         </div>}
+
+        {activeTab === 'expenses' && <ExpensesAdmin />}
 
         {activeTab === 'activityLogs' && <div style={{ width: '100%' }}>
           <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap', marginBottom: '1rem' }}>

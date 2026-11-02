@@ -1,7 +1,7 @@
 /* Shared high-contrast workspace surfaces for both Admin and Staff. */
 .dashboard-root,
 .ga-page-wrapper {
-  background: #ffffff !important;
+  background: #102a43 !important;
 }
 
 .dashboard-root .data-card,
@@ -14,6 +14,13 @@
 
 .dashboard-root .data-card {
   border: 1px solid #94a3b8;
+}
+
+.ga-page-wrapper .ga-ferry-workspace {
+  padding: 0;
+  background: #ffffff;
+  border: 1px solid #94a3b8;
+  box-shadow: 0 10px 28px rgba(2, 18, 36, 0.22);
 }
 
 .dashboard-root .data-card .card-header-inner,
