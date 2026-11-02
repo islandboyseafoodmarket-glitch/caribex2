@@ -1155,7 +1155,7 @@ const App = () => {
     const { data, error } = await supabase
       .from("paquetes_registro")
       .select(
-        "id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, notas_imagenes, estado, issue_status, cubic_feet, alto, ancho, largo, peso, prepaid_review_required, prepaid_review_status, numero_cliente:numero_cliente_id (id, numero_cliente, nombre), numero_cliente_id, registro, descargado, entregado_por, hora_fecha, fecha_descargado, hora_descargado, fecha_entregado, hora_entregado",
+        "id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, notas_imagenes, estado, issue_status, cubic_feet, prepaid_review_required, prepaid_review_status, numero_cliente:numero_cliente_id (id, numero_cliente, nombre), numero_cliente_id, registro, descargado, entregado_por, hora_fecha, fecha_descargado, hora_descargado, fecha_entregado, hora_entregado",
       )
       .order("creado_en", { ascending: false });
 
