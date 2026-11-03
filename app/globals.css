@@ -2270,6 +2270,74 @@ main {
   overflow: hidden;
 }
 
+/* FerryManifestAdmin is shared by Admin and Staff. Keep its controls global so
+   they do not depend on the Admin page's locally injected button styles. */
+.ga-ferry-workspace { overflow: visible; }
+.ferry-admin-primary,
+.ferry-admin-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  min-height: 36px;
+  border-radius: 999px;
+  padding: 0.5rem 1rem;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  line-height: 1.2;
+  cursor: pointer;
+  white-space: nowrap;
+  box-sizing: border-box;
+}
+.ferry-admin-primary {
+  border: 1px solid #22c55e;
+  background: #22c55e;
+  color: #ffffff;
+}
+.ferry-admin-primary:hover { background: #16a34a; border-color: #16a34a; }
+.ferry-admin-primary:disabled,
+.ferry-admin-secondary:disabled { opacity: 0.55; cursor: not-allowed; }
+.ferry-admin-secondary {
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  color: #334155;
+  text-decoration: none;
+}
+.ferry-admin-secondary:hover { background: #f8fafc; border-color: #cbd5e1; }
+.ferry-actions-menu { position: relative; }
+.ferry-actions-menu summary { list-style: none; }
+.ferry-actions-menu summary::-webkit-details-marker { display: none; }
+.ferry-actions-menu-panel {
+  position: absolute;
+  z-index: 8;
+  top: calc(100% + 0.35rem);
+  right: 0;
+  display: grid;
+  gap: 0.4rem;
+  min-width: 190px;
+  padding: 0.5rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.75rem;
+  background: #ffffff;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.16);
+}
+.ferry-actions-menu-panel > * { width: 100%; justify-content: flex-start; }
+.ferry-admin-danger { color: #c2410c; border-color: #fed7aa; background: #fff7ed; }
+.ferry-admin-danger:hover { color: #9a3412; border-color: #fdba74; background: #ffedd5; }
+.ferry-admin-input {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.6rem;
+  font: inherit;
+  color: #0f172a;
+  background: #ffffff;
+}
+.ferry-admin-input:focus { outline: 2px solid #bfdbfe; border-color: #2563eb; }
+
 .ga-state-card-header {
   padding: 1.1rem 1.5rem;
   border-bottom: 1px solid #e5e7eb;
