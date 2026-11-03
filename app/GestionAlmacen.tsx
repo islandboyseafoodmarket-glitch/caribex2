@@ -550,26 +550,41 @@ export default function GestionAlmacen() {
     setViewCheckInDetails(null);
 
     try {
-      const { data, error } = await supabase
-        .from("paquetes_checkin")
-        .select(
-          "alto, ancho, largo, peso, problema, problema_notas, cargos_adicionales, consolidacion",
-        )
-        .eq("paquete_id", pkg.id)
-        .order("creado_en", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      const [{ data, error }, { data: checkins, error: checkinError }, { data: links, error: linkError }, { data: logs, error: logError }, { data: pickupSignatures, error: signatureError }] = await Promise.all([
+        supabase.from("paquetes_registro").select("*").eq("id", pkg.id).maybeSingle(),
+        supabase.from("paquetes_checkin").select("*").eq("paquete_id", pkg.id),
+        supabase.from("contenedor_paquetes").select("contenedor_id, contenedores:contenedor_id (id, codigo, creado_en)").eq("paquete_id", pkg.id),
+        supabase.from("staff_action_logs").select("id, actor_name, actor_email, actor_role, action, success, error_message, details, created_at").eq("entity_id", pkg.id).order("created_at", { ascending: true }).limit(500),
+        supabase.from("pickup_signatures").select("id, signed_at, shipment_ids, trackings, signature_paths, captured_by_role").contains("shipment_ids", [pkg.id]).order("signed_at", { ascending: true }).limit(100),
+      ]);
 
-      if (!error && data) {
+      if (error || checkinError || linkError || logError || signatureError) throw error || checkinError || linkError || logError || signatureError;
+      if (data) {
+        const latestCheckin = (checkins || []).slice().sort((a: any, b: any) => String(b.creado_en || '').localeCompare(String(a.creado_en || '')))[0] || null;
+        const { data: children, error: childrenError } = await supabase.from("paquetes_checkin").select("paquete_id, paquetes_registro:paquete_id (id, tracking, tipo_paquete, estado, numero_cliente_id)").eq("parent_box_id", pkg.id).order("creado_en", { ascending: true });
+        if (childrenError) throw childrenError;
+        const { data: parentLink } = await supabase.from("paquetes_checkin").select("parent_box_id").eq("paquete_id", pkg.id).not("parent_box_id", "is", null).order("creado_en", { ascending: false }).limit(1).maybeSingle();
+        const signaturesForShipment = pickupSignatures || [];
+        const enriched = {
+          ...data,
+          ...pkg,
+          detalleCheckin: latestCheckin,
+          contenedores: (links || []).map((link: any) => link.contenedores).filter(Boolean),
+          consolidates: (children || []).map((child: any) => child.paquetes_registro).filter(Boolean),
+          parent_box_id: parentLink?.parent_box_id || null,
+          activity: logs || [],
+          pickupSignatures: signaturesForShipment,
+        };
+        setViewPackage(enriched);
         setViewCheckInDetails({
-          height: (data as any).alto ?? null,
-          width: (data as any).ancho ?? null,
-          length: (data as any).largo ?? null,
-          weight: (data as any).peso ?? null,
-          hasProblem: Boolean((data as any).problema),
-          problemNotes: (data as any).problema_notas ?? null,
-          extraCharges: (data as any).cargos_adicionales ?? null,
-          isConsolidationBox: Boolean((data as any).consolidacion),
+          height: (latestCheckin as any)?.alto ?? null,
+          width: (latestCheckin as any)?.ancho ?? null,
+          length: (latestCheckin as any)?.largo ?? null,
+          weight: (latestCheckin as any)?.peso ?? null,
+          hasProblem: Boolean((latestCheckin as any)?.problema),
+          problemNotes: (latestCheckin as any)?.problema_notas ?? null,
+          extraCharges: (latestCheckin as any)?.cargos_adicionales ?? null,
+          isConsolidationBox: Boolean((latestCheckin as any)?.consolidacion),
         });
       }
     } catch {
@@ -4303,6 +4318,27 @@ const handlePackageCreated = (pkg: Package) => {
                   </div>
                 </div>
 
+                <div className="ga-field-group">
+                  <label>{isEs ? "Aprobación de factura" : "Invoice approval"}</label>
+                  <div className="ga-input" style={{ border: "none", paddingLeft: 0, color: viewPackage.approval_status === "APPROVED" ? "#166534" : "#b45309", fontWeight: 700 }}>{viewPackage.approval_status || "PENDING"}</div>
+                </div>
+                <div className="ga-field-group">
+                  <label>{isEs ? "Estado de pago" : "Payment status"}</label>
+                  <div className="ga-input" style={{ border: "none", paddingLeft: 0, color: viewPackage.invoice_status === "PAID" ? "#166534" : "#b45309", fontWeight: 700 }}>{viewPackage.invoice_status || "UNPAID"}{viewPackage.billing_total != null ? ` · $${Number(viewPackage.billing_total).toFixed(2)}` : ""}</div>
+                </div>
+                <div className="ga-field-group">
+                  <label>{isEs ? "Método de pago" : "Payment method"}</label>
+                  <div className="ga-input" style={{ border: "none", paddingLeft: 0 }}>{[viewPackage.payment_method, viewPackage.payment_reference, viewPackage.payment_date].filter(Boolean).join(" · ") || "-"}</div>
+                </div>
+                <div className="ga-field-group">
+                  <label>{isEs ? "Contenedor" : "Container"}</label>
+                  <div className="ga-input" style={{ border: "none", paddingLeft: 0 }}>{(viewPackage.contenedores || []).map((container: any) => container.codigo || container.id).join(", ") || viewPackage.containerCode || "Not assigned"}</div>
+                </div>
+                <div className="ga-field-group">
+                  <label>{isEs ? "Último escaneo" : "Last scanned"}</label>
+                  <div className="ga-input" style={{ border: "none", paddingLeft: 0 }}>{formatStaffDateTime(viewPackage.activity?.[viewPackage.activity.length - 1]?.created_at || viewPackage.updated_at || viewPackage.horaFecha, isEs ? "es-ES" : "en-US")}</div>
+                </div>
+
                 {viewCheckInDetails && (
                   <>
                     <div className="ga-field-group" style={{ gridColumn: "1 / -1" }}>
@@ -4515,6 +4551,18 @@ const handlePackageCreated = (pkg: Package) => {
                         )}
                       </div>
                     </div>
+
+                <div className="ga-field-group" style={{ gridColumn: "1 / -1", marginTop: "0.75rem" }}>
+                  <label style={{ fontWeight: 600, fontSize: "0.85rem", textTransform: "uppercase", color: "#6b7280" }}>{isEs ? "Firma de pickup" : "Pickup signature"}</label>
+                  {(viewPackage.pickupSignatures || []).length > 0 ? (viewPackage.pickupSignatures || []).map((signature: any) => {
+                    const paths = Array.isArray(signature.signature_paths) ? signature.signature_paths.filter((path: unknown) => typeof path === "string") : [];
+                    return <div key={signature.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.75rem", marginTop: "0.45rem", padding: "0.55rem", border: "1px solid #e2e8f0", borderRadius: "0.55rem", background: "#f8fafc" }}><span style={{ color: "#64748b", fontSize: "0.78rem" }}>{formatStaffDateTime(signature.signed_at, isEs ? "es-ES" : "en-US")} · {String(signature.captured_by_role || "staff").toUpperCase()}</span>{paths.length ? <svg viewBox="0 0 340 250" role="img" aria-label={isEs ? "Firma de pickup" : "Pickup signature"} style={{ width: 130, height: 76, background: "#fff", border: "1px solid #e2e8f0", borderRadius: "0.4rem" }}>{paths.map((path: string, index: number) => <path key={`${signature.id}-${index}`} d={path} stroke="#21395c" strokeWidth="3" fill="none" strokeLinecap="round" strokeLinejoin="round" />)}</svg> : <span style={{ color: "#94a3b8", fontSize: "0.8rem" }}>Signature skipped</span>}</div>;
+                  }) : <span style={{ color: "#94a3b8", fontSize: "0.8rem" }}>{isEs ? "No hay firma guardada." : "No pickup signature saved."}</span>}
+                </div>
+                <div className="ga-field-group" style={{ gridColumn: "1 / -1", marginTop: "0.75rem" }}>
+                  <label style={{ fontWeight: 600, fontSize: "0.85rem", textTransform: "uppercase", color: "#6b7280" }}>{isEs ? "Historial" : "History"} ({(viewPackage.activity || []).length})</label>
+                  {(viewPackage.activity || []).length > 0 ? <div style={{ display: "grid", gap: "0.45rem", marginTop: "0.45rem" }}>{viewPackage.activity.map((event: any) => <div key={event.id} style={{ padding: "0.5rem 0.6rem", borderLeft: `3px solid ${event.success === false ? "#dc2626" : "#2563eb"}`, background: "#f8fafc", fontSize: "0.8rem" }}><strong>{String(event.action || "Update").replaceAll("_", " ")}</strong><span style={{ color: "#64748b" }}> · {event.actor_name || event.actor_email || "Staff"} · {formatStaffDateTime(event.created_at, isEs ? "es-ES" : "en-US")}</span>{event.error_message && <div style={{ color: "#991b1b" }}>{event.error_message}</div>}</div>)}</div> : <span style={{ color: "#94a3b8", fontSize: "0.8rem" }}>{isEs ? "No hay historial." : "No activity history."}</span>}
+                </div>
 
                     {/* Sección Descargado (Roatán) */}
                     <div className="ga-field-group" style={{ gridColumn: "1 / -1", marginTop: "0.75rem" }}>
