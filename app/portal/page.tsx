@@ -61,7 +61,7 @@ type PortalData = {
 
 type StageKey = "ready" | "transit" | "checkedIn" | "received" | "pickedUp" | "other";
 type PortalSection = "packages" | "history" | "pickedUp" | "invoices" | "receipts" | "account" | "ferry";
-type LookupResult = { found: boolean; onAccount?: boolean; status?: string | null; lastScannedAt?: string | null };
+type LookupResult = { found: boolean; matchType?: "on-account" | "unclaimed" | "other-account"; status?: string | null; lastScannedAt?: string | null };
 
 function normalizedStatus(value: unknown) {
   return String(value || "").trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
@@ -538,9 +538,16 @@ export default function CustomerPortalPage() {
                     <button type="submit" className="portal-button" disabled={lookupLoading}><Search size={16} />{lookupLoading ? t.searching : t.search}</button>
                   </form>
                   {lookupError && <p className="portal-error">{lookupError}</p>}
-                  {lookupResult && <div className={`portal-lookup-result ${lookupResult.found ? "has-match" : "no-match"}`} aria-live="polite">
-                    <strong>{lookupResult.found ? (lookupResult.onAccount ? t.searchOnAccount : t.searchNotOnAccount) : t.searchNotFound}</strong>
-                    {lookupResult.found && <div><span><b>{t.status}:</b> {packageStatusLabel(lookupResult.status || null)}</span><span><b>{t.lastScanned}:</b> {lookupResult.lastScannedAt ? dateLabel(lookupResult.lastScannedAt, true) : t.noScanDate}</span></div>}
+                  {lookupResult && <div className={`portal-lookup-result ${lookupResult.found ? "has-match" : "no-match"} ${lookupResult.matchType === "unclaimed" ? "is-unclaimed" : ""}`} aria-live="polite">
+                    {!lookupResult.found ? <strong>{t.searchNotFound}</strong> : lookupResult.matchType === "other-account" ? <strong>{t.searchOtherAccount}</strong> : lookupResult.matchType === "unclaimed" ? <>
+                      <strong>{t.unclaimedPackageTitle}</strong>
+                      <p>{t.unclaimedPackageMessage.replace("{tracking}", trackingInput.trim())}</p>
+                      <p>{t.unclaimedPackageContact}</p>
+                      <div><span><b>{t.status}:</b> {packageStatusLabel(lookupResult.status || "Recibido")}</span><span><b>{t.lastScanned}:</b> {lookupResult.lastScannedAt ? dateLabel(lookupResult.lastScannedAt, true) : t.noScanDate}</span></div>
+                    </> : <>
+                      <strong>{t.searchOnAccount}</strong>
+                      <div><span><b>{t.status}:</b> {packageStatusLabel(lookupResult.status || null)}</span><span><b>{t.lastScanned}:</b> {lookupResult.lastScannedAt ? dateLabel(lookupResult.lastScannedAt, true) : t.noScanDate}</span></div>
+                    </>}
                   </div>}
                 </section>
                 <section className="portal-stage-list" aria-labelledby="portal-stage-list-title">

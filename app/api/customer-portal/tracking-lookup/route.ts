@@ -3,6 +3,8 @@ import { createClient } from "@supabase/supabase-js";
 
 export const dynamic = "force-dynamic";
 
+type LookupType = "on-account" | "unclaimed" | "other-account";
+
 function adminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -43,22 +45,33 @@ export async function POST(request: Request) {
 
     const ownMatch = matches.find((shipment) => shipment.numero_cliente_id === customer.id);
     const shipment = ownMatch || matches[0];
-    const { data: scanEvent, error: scanError } = await supabase
-      .from("staff_action_logs")
-      .select("created_at")
-      .eq("entity_type", "paquetes_registro")
-      .eq("entity_id", shipment.id)
-      .eq("action", "package_scanned")
-      .eq("success", true)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    const matchType: LookupType = ownMatch
+      ? "on-account"
+      : shipment.numero_cliente_id == null
+        ? "unclaimed"
+        : "other-account";
+
+    // The customer only needs the simple result for someone else's assigned tracking number.
+    // For unassigned receiving records, the creation event is the warehouse intake scan.
+    let lastScannedAt: string | null = null;
+    if (matchType !== "other-account") {
+      const { data: scanEvent, error: scanError } = await supabase
+        .from("staff_action_logs")
+        .select("created_at")
+        .eq("entity_type", "paquetes_registro")
+        .eq("entity_id", shipment.id)
+        .in("action", ["package_scanned", "receiving_package_created"])
+        .eq("success", true)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (!scanError && typeof scanEvent?.created_at === "string") lastScannedAt = scanEvent.created_at;
+    }
 
     return NextResponse.json({
       found: true,
-      onAccount: Boolean(ownMatch),
-      status: shipment.estado || null,
-      lastScannedAt: !scanError && typeof scanEvent?.created_at === "string" ? scanEvent.created_at : null,
+      matchType,
+      ...(matchType !== "other-account" ? { status: shipment.estado || null, lastScannedAt } : {}),
     }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error: any) {
     return NextResponse.json({ error: error?.message || "Could not search tracking number" }, { status: 500, headers: { "Cache-Control": "private, no-store" } });

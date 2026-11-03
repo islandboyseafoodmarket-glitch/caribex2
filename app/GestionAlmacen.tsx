@@ -4184,6 +4184,7 @@ const handlePackageCreated = (pkg: Package) => {
               onBulkGenerate={handleBulkGenerateInvoices}
               onChangeApproval={handleChangeInvoiceApproval as any}
               onChangeInvoiceStatus={handleChangeInvoiceStatus as any}
+              onPaymentRecorded={cargarPaquetes}
               onDeleteInvoice={isAdmin ? (handleDeleteInvoice as any) : undefined}
               onCreateManualInvoice={handleCreateManualInvoice}
               canReversePayments={isAdmin}

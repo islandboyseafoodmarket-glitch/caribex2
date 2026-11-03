@@ -42,6 +42,7 @@ type InvoicesStageProps = {
     pkg: PackageForInvoice,
     status: "PENDING" | "SENT" | "PAID" | "OVERDUE",
   ) => void | Promise<void>;
+  onPaymentRecorded?: () => void | Promise<void>;
   onDeleteInvoice?: (pkg: PackageForInvoice) => void | Promise<void>;
   canReversePayments?: boolean;
   onApplyLateFee?: (pkg: PackageForInvoice) => void | Promise<void>;
@@ -85,6 +86,7 @@ const InvoicesStage: React.FC<InvoicesStageProps> = ({
   onBulkGenerate,
   onChangeApproval,
   onChangeInvoiceStatus,
+  onPaymentRecorded,
   onDeleteInvoice,
   onCreateManualInvoice,
 }) => {
@@ -166,7 +168,7 @@ const InvoicesStage: React.FC<InvoicesStageProps> = ({
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Unable to record payment");
       setPaymentInvoice(null);
-      window.location.reload();
+      await onPaymentRecorded?.();
     } catch (error) { window.alert(error instanceof Error ? error.message : "Unable to record payment"); }
   };
 
