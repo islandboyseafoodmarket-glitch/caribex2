@@ -201,6 +201,7 @@ const App = () => {
     clienteNumero: number | null;
     clienteNombre: string | null;
     estado: string | null;
+    invoice_status?: string | null;
     carrier?: string | null;
     tipo_paquete?: string | null;
     remitente?: string | null;
@@ -1199,7 +1200,7 @@ const App = () => {
     const { data, error } = await supabase
       .from("paquetes_registro")
       .select(
-        "id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, notas_imagenes, estado, issue_status, cubic_feet, prepaid_review_required, prepaid_review_status, numero_cliente:numero_cliente_id (id, numero_cliente, nombre), numero_cliente_id, registro, descargado, entregado_por, hora_fecha, fecha_descargado, hora_descargado, fecha_entregado, hora_entregado",
+        "id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, notas_imagenes, estado, invoice_status, issue_status, cubic_feet, prepaid_review_required, prepaid_review_status, numero_cliente:numero_cliente_id (id, numero_cliente, nombre), numero_cliente_id, registro, descargado, entregado_por, hora_fecha, fecha_descargado, hora_descargado, fecha_entregado, hora_entregado",
       )
       .order("creado_en", { ascending: false });
 
@@ -1238,6 +1239,7 @@ const App = () => {
         clienteNumero: row.numero_cliente?.numero_cliente ?? null,
         clienteNombre: row.numero_cliente?.nombre ?? null,
         estado: (row.estado as string) || null,
+        invoice_status: (row.invoice_status as string | null) ?? null,
         carrier: row.nombre_paqueteria || null,
         tipo_paquete: row.tipo_paquete || null,
         remitente: null,
@@ -3315,7 +3317,13 @@ const App = () => {
                     }}
                   >
                     <span style={{ fontWeight: 600, minWidth: 200, overflowWrap: 'anywhere' }}>
-                      <button type="button" className="ga-client360-tracking" onClick={() => void abrirDetallePedido(p.id)} title="Open shipment details">
+                      <button
+                        type="button"
+                        className="ga-client360-tracking"
+                        onClick={() => void abrirDetallePedido(p.id)}
+                        title="Open shipment details"
+                        style={String(p.invoice_status || "").trim().toUpperCase() === "PAID" ? { color: "#166534", fontWeight: 800 } : undefined}
+                      >
                         #{p.tracking}
                       </button>
                     </span>
