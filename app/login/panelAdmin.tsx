@@ -2797,10 +2797,9 @@ const App = () => {
                 const isSent = invoice === 'SENT';
                 const isPaid = invoice === 'PAID';
                 const invoiceActions: AdminInvoiceAction[] = [
+                  { id: 'view-invoice', label: 'View invoice', group: 'Invoice', onSelect: () => abrirDetallePedido(f.id) },
                   { id: 'edit-add-ons', label: 'Edit invoice add-ons', group: 'Invoice', onSelect: () => handleAdminEditInvoiceAddOns(f) },
                   { id: 'print-invoice', label: 'PDF / Print invoice', group: 'Invoice', onSelect: () => printInvoice(f) },
-                  { id: 'approve-invoice', label: 'Approve invoice', group: 'Approval', disabled: isApproved, onSelect: () => handleAdminChangeApproval(f, 'APPROVED') },
-                  { id: 'mark-for-review', label: 'Mark for review', group: 'Approval', disabled: isPendingApproval, onSelect: () => handleAdminChangeApproval(f, 'PENDING') },
                 ];
 
                 return (
@@ -2880,7 +2879,8 @@ const App = () => {
                     <div style={{ minWidth: 500, paddingLeft: '0.35rem' }}>
                       <AdminInvoiceActions
                         tracking={f.tracking}
-                        onView={() => void abrirDetallePedido(f.id)}
+                        approvalLabel={isApproved ? 'Unapprove' : 'Approve'}
+                        onApprovalChange={() => handleAdminChangeApproval(f, isApproved ? 'PENDING' : 'APPROVED')}
                         sendLabel={isSent ? 'Resend invoice' : 'Send invoice'}
                         onSend={() => void handleAdminSendInvoice(f)}
                         sendDisabled={isPaid}

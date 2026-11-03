@@ -8,9 +8,11 @@ export type AdminInvoiceAction = {
   onSelect: () => void | Promise<void>;
 };
 
-export default function AdminInvoiceActions({ tracking, onView, sendLabel, onSend, sendDisabled, onRecordPayment, recordPaymentDisabled, actions }: {
+export default function AdminInvoiceActions({ tracking, approvalLabel, onApprovalChange, approvalDisabled, sendLabel, onSend, sendDisabled, onRecordPayment, recordPaymentDisabled, actions }: {
   tracking: string;
-  onView: () => void;
+  approvalLabel: string;
+  onApprovalChange: () => void | Promise<void>;
+  approvalDisabled?: boolean;
   sendLabel: string;
   onSend: () => void | Promise<void>;
   sendDisabled?: boolean;
@@ -23,11 +25,12 @@ export default function AdminInvoiceActions({ tracking, onView, sendLabel, onSen
       <button
         type="button"
         className="pa-secondary-btn"
-        onClick={onView}
-        aria-label={`View invoice ${tracking}`}
-        style={{ padding: "0.35rem 0.65rem", minHeight: 32, fontSize: "0.78rem", whiteSpace: "nowrap" }}
+        onClick={() => void onApprovalChange()}
+        disabled={approvalDisabled}
+        aria-label={`${approvalLabel} for invoice ${tracking}`}
+        style={{ padding: "0.35rem 0.65rem", minHeight: 32, fontSize: "0.78rem", whiteSpace: "nowrap", color: approvalLabel === "Approve" ? "#166534" : "#b45309" }}
       >
-        View
+        {approvalLabel}
       </button>
       <button
         type="button"
