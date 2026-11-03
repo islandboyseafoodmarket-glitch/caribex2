@@ -1,5 +1,7 @@
 "use client";
 
+import { DollarSign } from "lucide-react";
+
 export type AdminInvoiceAction = {
   id: string;
   label: string;
@@ -48,9 +50,10 @@ export default function AdminInvoiceActions({ tracking, approvalLabel, onApprova
         onClick={() => void onRecordPayment()}
         disabled={recordPaymentDisabled}
         aria-label={`Record a payment for invoice ${tracking}`}
-        style={{ padding: "0.35rem 0.65rem", minHeight: 32, fontSize: "0.78rem", whiteSpace: "nowrap" }}
+        title="Record a payment"
+        style={{ width: 34, minWidth: 34, height: 32, padding: 0, display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: "0.78rem" }}
       >
-        Record a payment
+        <DollarSign size={16} aria-hidden="true" />
       </button>
       <select
         defaultValue=""
