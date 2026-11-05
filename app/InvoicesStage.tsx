@@ -1,9 +1,10 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
-import { FileText, Plus, Trash2 } from "lucide-react";
+import { FileText, Plus } from "lucide-react";
 import { BILLABLE_INVOICE_ITEMS, formatCatalogCharge } from "../lib/invoice-pricing";
 import InvoiceStatusTabs from "../components/InvoiceStatusTabs";
+import AdminInvoiceActions from "../components/AdminInvoiceActions";
 import { supabase } from "../lib/supabaseClient";
 
 // Este tipo refleja el tipo Package definido en GestionAlmacen,
@@ -36,6 +37,7 @@ type InvoicesStageProps = {
   isEs: boolean;
   packages: PackageForInvoice[];
   onView: (pkg: PackageForInvoice) => void;
+  onPrint?: (pkg: PackageForInvoice) => void | Promise<void>;
   onBulkGenerate?: () => void | Promise<void>;
   onChangeApproval?: (pkg: PackageForInvoice, status: "APPROVED" | "REJECTED") => void | Promise<void>;
   onChangeInvoiceStatus?: (
@@ -83,11 +85,14 @@ const InvoicesStage: React.FC<InvoicesStageProps> = ({
   isEs,
   packages,
   onView,
+  onPrint,
   onBulkGenerate,
   onChangeApproval,
   onChangeInvoiceStatus,
   onPaymentRecorded,
   onDeleteInvoice,
+  canReversePayments = false,
+  onApplyLateFee,
   onCreateManualInvoice,
 }) => {
   const [search, setSearch] = useState("");
@@ -334,11 +339,27 @@ const InvoicesStage: React.FC<InvoicesStageProps> = ({
                   <span style={{ fontFeatureSettings: '"tnum" on' }}>{formatCurrency(p.billing_total ?? null)}</span>
                   <span style={{ color: approvalColor, fontSize: "0.85rem" }}>{getApprovalLabel(p.approval_status, isEs)}</span>
                   <span style={{ color: invoiceColor, fontSize: "0.85rem" }}>{getInvoiceStatusLabel(p.invoice_status, isEs)}</span>
-                  <div style={{ display: "flex", justifyContent: "flex-start", flexWrap: "wrap", gap: "0.35rem", alignItems: "center" }}>
-                    <button type="button" className="ga-secondary-button" style={{ padding: "0.3rem 0.55rem", fontSize: "0.72rem", whiteSpace: "nowrap" }} onClick={() => onView(p)}>{isEs ? "Ver" : "View"}</button>
-                    {invoice !== "PAID" && <button type="button" className="ga-primary-button" style={{ padding: "0.3rem 0.55rem", fontSize: "0.72rem", whiteSpace: "nowrap" }} onClick={() => void openPayment(p)}>{isEs ? "Registrar pago" : "Post payment"}</button>}
-                    {onDeleteInvoice && <button type="button" className="ga-icon-button ga-icon-button-danger" title={isEs ? "Eliminar factura" : "Delete invoice"} onClick={() => onDeleteInvoice(p)}><Trash2 size={16} /></button>}
-                  </div>
+                  <AdminInvoiceActions
+                    tracking={p.tracking || "-"}
+                    approvalLabel={isEs ? "Aprobar" : "Approve"}
+                    onApprovalChange={() => onChangeApproval?.(p, "APPROVED")}
+                    approvalDisabled={!onChangeApproval || approval === "APPROVED"}
+                    sendLabel={isEs ? "Ver factura" : "View invoice"}
+                    onSend={() => onView(p)}
+                    onRecordPayment={() => openPayment(p)}
+                    recordPaymentDisabled={invoice === "PAID"}
+                    actions={[
+                      ...(onChangeApproval ? [
+                        { id: "approve", label: isEs ? "Aprobar factura" : "Approve invoice", group: "Approval" as const, disabled: approval === "APPROVED", onSelect: () => onChangeApproval(p, "APPROVED") },
+                        { id: "review", label: isEs ? "Marcar para revisión" : "Mark for review", group: "Approval" as const, disabled: approval !== "APPROVED", onSelect: () => onChangeApproval(p, "REJECTED") },
+                      ] : []),
+                      { id: "payment", label: isEs ? "Registrar pago" : "Record payment", group: "Payments" as const, disabled: invoice === "PAID", onSelect: () => openPayment(p) },
+                      { id: "history", label: isEs ? "Historial de pagos" : "Payment history", group: "Payments" as const, onSelect: () => openPayment(p) },
+                      ...(onPrint ? [{ id: "print", label: isEs ? "PDF / Imprimir factura" : "PDF / Print invoice", group: "Invoice" as const, onSelect: () => onPrint(p) }] : []),
+                      ...(onApplyLateFee ? [{ id: "late-fee", label: isEs ? "Aplicar cargo por mora" : "Apply late fee", group: "Payments" as const, onSelect: () => onApplyLateFee(p) }] : []),
+                      ...(canReversePayments && onDeleteInvoice ? [{ id: "delete", label: isEs ? "Eliminar factura" : "Delete invoice", group: "Invoice" as const, onSelect: () => onDeleteInvoice(p) }] : []),
+                    ]}
+                  />
                 </li>
               );
             })}

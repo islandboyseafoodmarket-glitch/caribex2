@@ -100,10 +100,26 @@ export default function FerryManifestPage({ params }: { params: { token: string 
   const exportCsv = () => {
     if (!data) return;
     const ports = { la_ceiba: "La Ceiba", utila: "Utila", guanaja: "Guanaja" } as const;
-    const rows = [["PORT", "NO.", "ACCT", "CUSTOMER NAME", "QUANTITY", "BOOKING #", "RECEIVER NAME"]];
+    const rows = [[
+      "PORT", "NO.", "ACCOUNT NUMBER", "CUSTOMER NAME", "QUANTITY", "BOOKING #", "RECEIVER NAME",
+      "CONTAINER", "WEEK START", "WEEK END", "MANIFEST STATUS", "SUBMITTED AT",
+    ]];
     for (const port of ["la_ceiba", "utila", "guanaja"] as const) {
       data.entries.filter((entry) => entry.puerto === port).forEach((entry, index) => {
-        rows.push([ports[port], String(index + 1), formatFerryAccountNumber(entry.numero_cuenta, port), entry.nombre_cliente, entry.etiqueta_cantidad, entry.numero_reserva || "", entry.nombre_receptor || ""]);
+        rows.push([
+          ports[port],
+          String(index + 1),
+          formatFerryAccountNumber(entry.numero_cuenta, port),
+          entry.nombre_cliente,
+          entry.etiqueta_cantidad,
+          entry.numero_reserva || "",
+          entry.nombre_receptor || "",
+          data.manifest.container_codigo || "",
+          data.manifest.semana_inicio,
+          data.manifest.semana_fin,
+          data.manifest.estado || "",
+          entry.enviado_en || "",
+        ]);
       });
     }
     const csv = "\uFEFF" + rows.map((row) => row.map((value) => {

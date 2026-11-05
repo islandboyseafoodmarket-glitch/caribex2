@@ -3618,3 +3618,17 @@ main {
 @media print {
   .portal-print-report { position: absolute !important; width: 100% !important; height: auto !important; overflow: visible !important; }
 }
+
+@media print {
+  body * { visibility: hidden !important; }
+  .ga-invoice-printable,
+  .ga-invoice-printable * { visibility: visible !important; }
+  .ga-invoice-printable {
+    position: absolute !important;
+    inset: 0 !important;
+    width: 100% !important;
+    background: #fff !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+}

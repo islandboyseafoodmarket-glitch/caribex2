@@ -684,6 +684,11 @@ export default function GestionAlmacen() {
     setIsConfirmSendInvoiceOpen(false);
   };
 
+  const handlePrintInvoice = async (pkg: Package) => {
+    await handleOpenInvoiceModal(pkg);
+    window.setTimeout(() => window.print(), 250);
+  };
+
   const handleSaveInvoiceAdjustment = async () => {
     if (!invoicePackage || !canEditInvoiceAddOns) return;
     const amount = Number(invoiceCustomChargeAmount);
@@ -4196,6 +4201,7 @@ const handlePackageCreated = (pkg: Package) => {
               // componente InvoicesStage filtra por nombre de cliente.
               packages={packages as any}
               onView={handleOpenInvoiceModal as any}
+              onPrint={handlePrintInvoice as any}
               onBulkGenerate={handleBulkGenerateInvoices}
               onChangeApproval={handleChangeInvoiceApproval as any}
               onChangeInvoiceStatus={handleChangeInvoiceStatus as any}
@@ -4810,8 +4816,9 @@ const handlePackageCreated = (pkg: Package) => {
                   </div>
                 </div>
               )}
-              <InvoicePreview
-                clientName={invoicePackage.clienteNombre}
+              <div className="ga-invoice-printable">
+                <InvoicePreview
+                  clientName={invoicePackage.clienteNombre}
                 clientNumber={invoicePackage.numeroCliente ?? undefined}
                 tracking={invoicePackage.tracking}
                 carrier={invoicePackage.carrier}
@@ -4824,8 +4831,9 @@ const handlePackageCreated = (pkg: Package) => {
                 billingSubtotal={invoicePackage.billing_subtotal ?? null}
                 billingTax={invoicePackage.billing_tax ?? null}
                 billingTotal={invoicePackage.billing_total ?? null}
-                serviceDate={invoicePackage.containerCreatedAt ?? invoicePackage.horaFecha ?? null}
-              />
+                  serviceDate={invoicePackage.containerCreatedAt ?? invoicePackage.horaFecha ?? null}
+                />
+              </div>
             </div>
 
             <div className="ga-modal-footer">
