@@ -2938,6 +2938,35 @@ main {
   background-color: #e2e8f0;
 }
 
+/* Shared controls used by FerryManifestAdmin in both Admin and Staff portals. */
+.pa-input {
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  border-radius: 0.6rem;
+  border: 1px solid #e2e8f0;
+  font-size: 0.9rem;
+}
+
+.pa-secondary-btn {
+  border-radius: 999px;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  padding: 0.5rem 1.2rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.pa-primary-btn {
+  border-radius: 999px;
+  border: 1px solid #22c55e;
+  background: #22c55e;
+  padding: 0.5rem 1.4rem;
+  font-size: 0.85rem;
+  color: #ffffff;
+  font-weight: 600;
+  cursor: pointer;
+}
+
 @media (max-width: 900px) {
   .ga-main {
     padding: 1.5rem 1.25rem 2rem;
