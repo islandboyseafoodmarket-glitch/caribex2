@@ -9,7 +9,7 @@ const formatBoxMeasurements = (typeLabel: unknown, checkin: Record<string, unkno
   if (!/\b(box|caja)\b/i.test(String(typeLabel || ""))) return null;
   const dimensions = [checkin?.largo, checkin?.ancho, checkin?.alto].map(Number);
   if (!dimensions.every((value) => Number.isFinite(value) && value > 0)) return null;
-  return `${dimensions.map((value) => String(value)).join(" × ")} in`;
+  return dimensions.map((value) => String(value)).join(" × ");
 };
 
 type DisplayExtraCharge = {

@@ -629,7 +629,7 @@ export default function GestionAlmacen() {
       const width = Number((data as any).ancho);
       const length = Number((data as any).largo);
       const dimensions = [length, width, height].every((value) => Number.isFinite(value) && value > 0)
-        ? `${length} x ${width} x ${height} in`
+        ? `${length} x ${width} x ${height}`
         : null;
       setInvoiceBoxSize(dimensions);
       const extrasRaw = (data as any).cargos_adicionales as string | null;

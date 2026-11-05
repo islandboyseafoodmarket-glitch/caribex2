@@ -36,7 +36,7 @@ function parseBoxSize(data: { alto?: unknown; ancho?: unknown; largo?: unknown }
   const width = Number(data?.ancho);
   const height = Number(data?.alto);
   return [length, width, height].every((value) => Number.isFinite(value) && value > 0)
-    ? `${length} x ${width} x ${height} in`
+    ? `${length} x ${width} x ${height}`
     : null;
 }
 

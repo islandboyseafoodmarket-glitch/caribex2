@@ -106,7 +106,7 @@ export default function Client360Admin({ clientes, pedidos, facturas }: { client
       const width = Number(data?.ancho);
       const height = Number(data?.alto);
       const boxSize = [length, width, height].every((value) => Number.isFinite(value) && value > 0)
-        ? `${length} x ${width} x ${height} in`
+        ? `${length} x ${width} x ${height}`
         : null;
       const extraCharges = String(data?.cargos_adicionales || "").split(",").map((charge) => charge.trim()).filter(Boolean);
       setSelectedInvoice((current) => current?.package.id === pkg.id
