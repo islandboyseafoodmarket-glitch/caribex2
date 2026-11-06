@@ -97,4 +97,115 @@
   color: #334155;
 }
 
+.dashboard-root .admin-dashboard-content {
+  padding: 0.25rem 0 0.5rem;
+}
+
+.dashboard-root .admin-dashboard-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.dashboard-root .admin-metric-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.9rem;
+  min-width: 0;
+  min-height: 132px;
+  padding: 1.1rem;
+  border: 1px solid #d8e6f2;
+  border-radius: 1rem;
+  background: #ffffff;
+  box-shadow: 0 8px 20px rgba(26, 65, 96, 0.07);
+}
+
+.dashboard-root .admin-metric-icon {
+  display: grid;
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border-radius: 0.8rem;
+}
+
+.dashboard-root .admin-metric-card--blue .admin-metric-icon {
+  color: #1d4ed8;
+  background: #dbeafe;
+}
+
+.dashboard-root .admin-metric-card--teal .admin-metric-icon {
+  color: #0f766e;
+  background: #ccfbf1;
+}
+
+.dashboard-root .admin-metric-card--green .admin-metric-icon {
+  color: #15803d;
+  background: #dcfce7;
+}
+
+.dashboard-root .admin-metric-card--amber .admin-metric-icon {
+  color: #b45309;
+  background: #fef3c7;
+}
+
+.dashboard-root .admin-metric-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.dashboard-root .admin-metric-label {
+  margin: 0;
+  color: #526579;
+  font-size: 0.88rem;
+  font-weight: 650;
+}
+
+.dashboard-root .admin-metric-value {
+  color: #102a43;
+  font-size: clamp(1.65rem, 2.5vw, 2.15rem);
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.dashboard-root .admin-metric-description {
+  color: #64748b;
+  font-size: 0.75rem;
+  line-height: 1.35;
+}
+
+.dashboard-root .admin-dashboard-status {
+  margin: 0;
+  padding: 1rem;
+  border: 1px solid #bfdbfe;
+  border-radius: 0.8rem;
+  background: #eff6ff;
+  color: #1e3a8a;
+}
+
+.dashboard-root .admin-dashboard-status--warning {
+  margin-bottom: 0.85rem;
+  border-color: #fcd34d;
+  background: #fffbeb;
+  color: #92400e;
+}
+
+@media (max-width: 1100px) {
+  .dashboard-root .admin-dashboard-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 620px) {
+  .dashboard-root .admin-dashboard-metrics {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .dashboard-root .admin-metric-card {
+    min-height: auto;
+  }
+}
+
 /* Keep existing rows, form controls, validation colors, and billing actions intact. */

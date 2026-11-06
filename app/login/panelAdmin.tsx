@@ -5,7 +5,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { supabase } from "../../lib/supabaseClient";
 import { BrowserMultiFormatReader } from "@zxing/browser";
-import { Pencil, Trash2, Unlock, LogOut, Image as ImageIcon, Check, Send, DollarSign, ChevronDown, Package, ScanLine, AlertTriangle, QrCode, BarChart3, UserPlus, Bell, Receipt, Ship, Container, UserCog, Plus } from "lucide-react";
+import { Pencil, Trash2, Unlock, LogOut, Image as ImageIcon, Check, Send, DollarSign, ChevronDown, Package, ScanLine, AlertTriangle, QrCode, BarChart3, UserPlus, Bell, Receipt, Ship, Container, UserCog, Plus, Truck, CheckCircle2 } from "lucide-react";
 import FerryManifestAdmin from "./FerryManifestAdmin";
 import Client360Admin from "./Client360Admin";
 import PaymentsAdmin, { type PaymentBalance } from "./PaymentsAdmin";
@@ -167,8 +167,8 @@ const TRACK_STAGE_STYLES: Record<string, { color: string; background: string; bo
 const App = () => {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<
-    'personal' | 'clientes' | 'prepaid' | 'client360' | 'pedidos' | 'track' | 'incidencias' | 'facturas' | 'finanzas' | 'expenses' | 'leads' | 'portal' | 'ferry' | 'containers' | 'labels' | 'reports' | 'activityLogs'
-  >('personal');
+    'dashboard' | 'personal' | 'clientes' | 'prepaid' | 'client360' | 'pedidos' | 'track' | 'incidencias' | 'facturas' | 'finanzas' | 'expenses' | 'leads' | 'portal' | 'ferry' | 'containers' | 'labels' | 'reports' | 'activityLogs'
+  >('dashboard');
   const [incidenciaFiltro, setIncidenciaFiltro] = useState('');
   const [expandedNavGroups, setExpandedNavGroups] = useState<Record<string, boolean>>({
     operations: true,
@@ -236,6 +236,8 @@ const App = () => {
     containerLabels?: string[];
   };
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
+  const [pedidosLoaded, setPedidosLoaded] = useState(false);
+  const [pedidosLoadError, setPedidosLoadError] = useState<string | null>(null);
   type Factura = {
     id: string;
     tracking: string;
@@ -672,6 +674,36 @@ const App = () => {
     }),
     [pedidos],
   );
+  const dashboardMetrics = useMemo(() => [
+    {
+      label: "Total Shipments",
+      value: pedidos.length,
+      description: "All recorded packages",
+      icon: Package,
+      tone: "blue",
+    },
+    {
+      label: "In Transit",
+      value: pedidos.filter((pedido) => shipmentStage(pedido.estado) === "IN_TRANSIT").length,
+      description: "Currently marked in transit",
+      icon: Truck,
+      tone: "teal",
+    },
+    {
+      label: "Delivered",
+      value: pedidos.filter((pedido) => shipmentStage(pedido.estado) === "PICKED_UP").length,
+      description: "Picked up or marked delivered",
+      icon: CheckCircle2,
+      tone: "green",
+    },
+    {
+      label: "Exceptions",
+      value: pedidosConIncidencia.length,
+      description: "Same packages shown in Issues",
+      icon: AlertTriangle,
+      tone: "amber",
+    },
+  ], [pedidos, pedidosConIncidencia]);
   const incidenciasFiltradas = useMemo(() => {
     const term = incidenciaFiltro.trim().toLowerCase();
     if (!term) return pedidosConIncidencia;
@@ -1205,6 +1237,7 @@ const App = () => {
       .order("creado_en", { ascending: false });
 
     if (error) {
+      setPedidosLoadError(error.message || "Shipment data could not be loaded.");
       alert("Error cargando pedidos: " + (error.message || ""));
       console.error("Error cargarPedidos", error);
       return;
@@ -1271,6 +1304,8 @@ const App = () => {
       }));
 
       setPedidos(mapped);
+      setPedidosLoaded(true);
+      setPedidosLoadError(null);
     }
   }, []);
 
@@ -1469,7 +1504,7 @@ const App = () => {
 
   useEffect(() => {
     const interval = setInterval(() => {
-      if (activeTab === "pedidos") {
+      if (activeTab === "pedidos" || activeTab === "dashboard") {
         cargarPedidos();
       } else if (activeTab === "facturas") {
         cargarFacturas();
@@ -2324,6 +2359,7 @@ const App = () => {
         <div className="admin-sidebar-group">
           <button type="button" className="admin-sidebar-group-title" onClick={() => toggleNavGroup('operations')}>Operations <ChevronDown size={14} className={expandedNavGroups.operations ? 'nav-chevron is-open' : 'nav-chevron'} /></button>
           {expandedNavGroups.operations && <div className="admin-sidebar-items">
+            <button className={`admin-sidebar-item ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveTab('dashboard')}><BarChart3 /> Dashboard</button>
             <button className={`admin-sidebar-item ${activeTab === 'pedidos' ? 'active' : ''}`} onClick={() => setActiveTab('pedidos')}><Package /> Shipments <span className="count-badge">{pedidos.length}</span></button>
             <button className={`admin-sidebar-item ${activeTab === 'track' ? 'active' : ''}`} onClick={() => setActiveTab('track')}><ScanLine /> Track Package <span className="count-badge">{pedidos.length}</span></button>
             <button className={`admin-sidebar-item ${activeTab === 'client360' ? 'active' : ''}`} onClick={() => setActiveTab('client360')}><IconUsers /> Client 360</button>
@@ -2365,8 +2401,10 @@ const App = () => {
         <div className="card-header-inner" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
           <div>
             <h3>
-              {activeTab === 'personal' ? <IconUsers /> : <IconBriefcase />}{' '}
-              {activeTab === 'personal'
+              {activeTab === 'dashboard' ? <BarChart3 /> : activeTab === 'personal' ? <IconUsers /> : <IconBriefcase />}{' '}
+              {activeTab === 'dashboard'
+                ? 'Dashboard'
+                : activeTab === 'personal'
                 ? 'Listado de Personal'
                 : activeTab === 'activityLogs'
                   ? 'Staff Activity Logs'
@@ -2401,7 +2439,9 @@ const App = () => {
                       : 'Ferry manifests'}
             </h3>
             <span>
-              {activeTab === 'personal'
+              {activeTab === 'dashboard'
+                ? 'Live shipment metrics from the Admin shipment records'
+                : activeTab === 'personal'
                 ? `${personal.length} registro${personal.length === 1 ? '' : 's'} en esta categoría`
                 : activeTab === 'activityLogs'
                   ? `${staffActionLogs.length} recent staff events`
@@ -2526,6 +2566,35 @@ const App = () => {
         </div>
 
         <div className="divider"></div>
+
+        {activeTab === 'dashboard' && (
+          <section className="admin-dashboard-content" aria-label="Shipment metrics">
+            {!pedidosLoaded ? (
+              <p className="admin-dashboard-status" role={pedidosLoadError ? "alert" : "status"}>
+                {pedidosLoadError ? `Shipment metrics are unavailable: ${pedidosLoadError}` : "Loading shipment metrics…"}
+              </p>
+            ) : (
+              <>
+                {pedidosLoadError && <p className="admin-dashboard-status admin-dashboard-status--warning" role="status">Could not refresh shipments. Showing the last successfully loaded metrics.</p>}
+                <div className="admin-dashboard-metrics" aria-live="polite">
+                  {dashboardMetrics.map((metric) => {
+                    const MetricIcon = metric.icon;
+                    return (
+                      <article className={`admin-metric-card admin-metric-card--${metric.tone}`} key={metric.label} aria-label={`${metric.label}: ${metric.value}`}>
+                        <div className="admin-metric-icon"><MetricIcon size={22} aria-hidden="true" /></div>
+                        <div className="admin-metric-copy">
+                          <p className="admin-metric-label">{metric.label}</p>
+                          <strong className="admin-metric-value">{metric.value.toLocaleString("en-US")}</strong>
+                          <span className="admin-metric-description">{metric.description}</span>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+          </section>
+        )}
 
         {adminNotice && <div style={{ margin: '0.75rem 0', padding: '0.75rem 1rem', borderRadius: '0.75rem', background: '#dcfce7', border: '1px solid #86efac', color: '#166534', display: 'flex', justifyContent: 'space-between' }}><span>{adminNotice}</span><button type="button" onClick={() => setAdminNotice(null)} style={{ border: 0, background: 'transparent', color: 'inherit', cursor: 'pointer', fontWeight: 700 }}>Dismiss</button></div>}
         {customerLoadError && <div role="alert" style={{ margin: '0.75rem 0', padding: '0.75rem 1rem', borderRadius: '0.75rem', background: '#fef2f2', border: '1px solid #fecaca', color: '#991b1b' }}>Customers could not be loaded: {customerLoadError}</div>}
