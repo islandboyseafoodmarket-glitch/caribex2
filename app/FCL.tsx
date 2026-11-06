@@ -132,7 +132,7 @@ ${formData.additionalInfo}
   const styles: { [key: string]: React.CSSProperties } = {
     container: {
       minHeight: '100vh',
-      backgroundColor: '#f8fafc',
+      backgroundColor: '#f1f7fc',
       fontFamily: 'sans-serif',
       color: '#0f172a',
       padding: '64px 16px'
@@ -163,7 +163,11 @@ ${formData.additionalInfo}
       display: 'block'
     },
     section: {
-      marginBottom: '32px'
+      marginBottom: '32px',
+      padding: '24px',
+      borderRadius: '16px',
+      backgroundColor: '#e8f3fb',
+      border: '1px solid #c1dcec'
     },
     h2: {
       fontSize: '1.5rem',
@@ -184,13 +188,14 @@ ${formData.additionalInfo}
     },
     icon: {
       marginRight: '12px',
-      color: '#0ea5e9'
+      color: '#1774b8'
     },
     formContainer: {
       backgroundColor: 'white',
       padding: '32px',
-      borderRadius: '12px',
-      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+      borderRadius: '16px',
+      border: '1px solid #c7dce9',
+      boxShadow: '0 12px 28px rgba(24, 57, 87, 0.09)'
     },
     grid: {
       display: 'grid',

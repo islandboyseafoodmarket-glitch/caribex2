@@ -123,7 +123,7 @@ ${formData.additionalInfo}
 
     container: {
       minHeight: '100vh',
-      backgroundColor: '#f8fafc',
+      backgroundColor: '#f1f7fc',
       fontFamily: 'sans-serif',
       color: '#0f172a',
       padding: '64px 16px'
@@ -165,10 +165,10 @@ ${formData.additionalInfo}
       marginRight: 'auto'
     },
     card: {
-      backgroundColor: 'white',
+      backgroundColor: '#eaf4fb',
       borderRadius: '16px',
-      boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
-      border: '1px solid #f1f5f9',
+      boxShadow: '0 8px 20px rgba(24, 57, 87, 0.06)',
+      border: '1px solid #c5ddeb',
       padding: '32px',
       marginBottom: '64px'
     },
@@ -178,11 +178,11 @@ ${formData.additionalInfo}
       gap: '24px'
     },
     benefitCard: {
-      backgroundColor: 'white',
+      backgroundColor: '#edf6fb',
       padding: '32px',
       borderRadius: '12px',
-      boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
-      border: '1px solid #f1f5f9',
+      boxShadow: '0 6px 16px rgba(24, 57, 87, 0.055)',
+      border: '1px solid #cbdfea',
       display: 'flex',
       alignItems: 'flex-start',
       gap: '20px'
@@ -191,7 +191,13 @@ ${formData.additionalInfo}
       display: 'flex',
       alignItems: 'flex-start',
       position: 'relative',
-      marginBottom: '48px'
+      gap: '16px',
+      marginBottom: '16px',
+      padding: '18px',
+      border: '1px solid #d2e2ed',
+      borderLeft: '4px solid #71b89a',
+      borderRadius: '12px',
+      backgroundColor: '#f8fbfe'
     },
     numberCircle: {
       zIndex: 10,
@@ -209,9 +215,9 @@ ${formData.additionalInfo}
       flexShrink: 0
     },
     pricingBox: {
-      backgroundColor: '#f0f9f8',
+      backgroundColor: '#eaf6f0',
       borderRadius: '16px',
-      border: '1px solid #b2dfdb',
+      border: '1px solid #c0dfd2',
       padding: '32px',
       position: 'relative',
       marginBottom: '80px'
