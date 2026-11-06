@@ -12,6 +12,11 @@
   box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
 }
 
+/* Keep the Admin work surface lightly blue; metric cards remain white. */
+.dashboard-root .data-card:not(.data-card--ferry) {
+  background: #f0f7fd;
+}
+
 .dashboard-root .data-card {
   border: 1px solid #94a3b8;
 }

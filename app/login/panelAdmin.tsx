@@ -1843,10 +1843,12 @@ const App = () => {
           align-items: center;
           justify-content: space-between;
           width: 100%;
-          padding: 0 8px 7px;
+          margin-bottom: 5px;
+          padding: 9px 10px;
           border: 0;
-          background: transparent;
-          color: #64748b;
+          border-radius: 0.6rem;
+          background: #c9e1f3;
+          color: #123b5d;
           font-size: 0.64rem;
           font-weight: 800;
           letter-spacing: 0.1em;
