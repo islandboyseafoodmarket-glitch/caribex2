@@ -1,7 +1,7 @@
 import { randomBytes } from "crypto";
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { normalizeFerryPort } from "@/lib/shipping-rules";
+import { DATABASE_STATUS, normalizeFerryPort, statusMatches } from "@/lib/shipping-rules";
 
 export const dynamic = "force-dynamic";
 
@@ -62,9 +62,61 @@ function getWeekBounds(date = new Date()) {
   return { start, end };
 }
 
+function packageHasBeenUnloaded(status: unknown) {
+  return statusMatches(status, DATABASE_STATUS.UNLOADED) || statusMatches(status, DATABASE_STATUS.PICKED_UP);
+}
+
 export async function GET(request: Request) {
   try {
     const { supabaseAdmin } = await requireFerryAccess(request);
+    const pendingContainerId = new URL(request.url).searchParams.get("container_id");
+    if (pendingContainerId) {
+      const { data: container, error: containerError } = await supabaseAdmin
+        .from("contenedores")
+        .select("id, codigo")
+        .eq("id", pendingContainerId)
+        .maybeSingle();
+      if (containerError) throw containerError;
+      if (!container) return NextResponse.json({ error: "Container not found" }, { status: 404 });
+
+      const { data: links, error: linksError } = await supabaseAdmin
+        .from("contenedor_paquetes")
+        .select("paquete_id")
+        .eq("contenedor_id", pendingContainerId)
+        .limit(5000);
+      if (linksError) throw linksError;
+      const packageIds = Array.from(new Set((links || []).map((link) => link.paquete_id).filter(Boolean)));
+      if (!packageIds.length) return NextResponse.json({ container, pending_packages: [] });
+
+      const { data: packages, error: packagesError } = await supabaseAdmin
+        .from("paquetes_registro")
+        .select("id, tracking, estado, numero_cliente_id")
+        .in("id", packageIds)
+        .limit(5000);
+      if (packagesError) throw packagesError;
+      const pendingPackages = (packages || []).filter((item) => !packageHasBeenUnloaded(item.estado));
+      const customerIds = Array.from(new Set(pendingPackages.map((item) => item.numero_cliente_id).filter(Boolean)));
+      const { data: customers, error: customersError } = customerIds.length
+        ? await supabaseAdmin.from("numero_cliente").select("id, numero_cliente, nombre").in("id", customerIds)
+        : { data: [], error: null };
+      if (customersError) throw customersError;
+      const customerById = new Map((customers || []).map((customer) => [customer.id, customer]));
+
+      return NextResponse.json({
+        container,
+        pending_packages: pendingPackages.map((item) => {
+          const customer = customerById.get(item.numero_cliente_id);
+          return {
+            id: item.id,
+            tracking: item.tracking || "—",
+            status: item.estado || "Unknown",
+            customer_name: customer?.nombre || "Unassigned",
+            customer_account: customer?.numero_cliente != null ? String(customer.numero_cliente) : null,
+          };
+        }),
+      });
+    }
+
     const [{ data: manifests, error: manifestError }, { data: containers, error: containerError }] =
       await Promise.all([
         supabaseAdmin
@@ -127,7 +179,7 @@ export async function POST(request: Request) {
 
     const { data: packages, error: packagesError } = await supabaseAdmin
       .from("paquetes_registro")
-      .select("id, tracking, contenido, notas, numero_cliente_id")
+      .select("id, tracking, contenido, notas, estado, numero_cliente_id")
       .in("id", packageIds);
     if (packagesError) throw packagesError;
     const customerIds = Array.from(new Set((packages || []).map((item) => item.numero_cliente_id).filter(Boolean)));
@@ -140,11 +192,18 @@ export async function POST(request: Request) {
     if (customersError) throw customersError;
     const customerById = new Map((customers || []).map((customer) => [customer.id, customer]));
 
+    const containerDestinations = (packages || []).map((item) => customerById.get(item.numero_cliente_id))
+      .map((customer) => normalizeFerryPort(customer?.puerto))
+      .filter(Boolean);
+    if (!containerDestinations.length) {
+      return NextResponse.json({ error: "This container has no packages for a ferry report destination" }, { status: 400 });
+    }
+
     const entryRows = (packages || [])
       .map((item) => {
         const customer = customerById.get(item.numero_cliente_id);
         const port = normalizeFerryPort(customer?.puerto);
-        if (!customer || (port !== "la_ceiba" && port !== "utila")) return null;
+        if (!customer || !port || !packageHasBeenUnloaded(item.estado)) return null;
         const source = `${item.notas || ""} ${item.contenido || ""}`;
         const quantityMatch = source.match(/(?:BOXES?|PACKAGES?)\s*[=:]\s*\d+/i);
         return {
@@ -157,7 +216,6 @@ export async function POST(request: Request) {
         };
       })
       .filter(Boolean) as Array<Record<string, string>>;
-    if (!entryRows.length) return NextResponse.json({ error: "No La Ceiba or Utila packages were found" }, { status: 400 });
 
     const { start, end } = getWeekBounds();
     const { data: manifest, error: insertError } = await supabaseAdmin
@@ -174,12 +232,14 @@ export async function POST(request: Request) {
       .single();
     if (insertError || !manifest) throw insertError || new Error("Manifest was not created");
 
-    const { error: entryError } = await supabaseAdmin
-      .from("ferry_manifest_entries")
-      .insert(entryRows.map((entry) => ({ ...entry, manifiesto_id: manifest.id })));
-    if (entryError) {
-      await supabaseAdmin.from("ferry_manifests").delete().eq("id", manifest.id);
-      throw entryError;
+    if (entryRows.length) {
+      const { error: entryError } = await supabaseAdmin
+        .from("ferry_manifest_entries")
+        .insert(entryRows.map((entry) => ({ ...entry, manifiesto_id: manifest.id })));
+      if (entryError) {
+        await supabaseAdmin.from("ferry_manifests").delete().eq("id", manifest.id);
+        throw entryError;
+      }
     }
 
     return NextResponse.json({ manifest }, { status: 201 });

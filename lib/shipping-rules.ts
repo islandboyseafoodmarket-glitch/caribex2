@@ -12,9 +12,27 @@ export const FERRY_PORT = {
   LA_CEIBA: "la_ceiba",
   UTILA: "utila",
   GUANAJA: "guanaja",
+  SAN_PEDRO_SULA: "san_pedro_sula",
+  TEGUCIGALPA: "tegucigalpa",
 } as const;
 
 export type FerryPort = (typeof FERRY_PORT)[keyof typeof FERRY_PORT];
+
+export const FERRY_PORT_ORDER: FerryPort[] = [
+  FERRY_PORT.LA_CEIBA,
+  FERRY_PORT.UTILA,
+  FERRY_PORT.GUANAJA,
+  FERRY_PORT.SAN_PEDRO_SULA,
+  FERRY_PORT.TEGUCIGALPA,
+];
+
+export const FERRY_PORT_LABELS: Record<FerryPort, string> = {
+  [FERRY_PORT.LA_CEIBA]: "La Ceiba",
+  [FERRY_PORT.UTILA]: "Utila",
+  [FERRY_PORT.GUANAJA]: "Guanaja",
+  [FERRY_PORT.SAN_PEDRO_SULA]: "San Pedro Sula",
+  [FERRY_PORT.TEGUCIGALPA]: "Tegucigalpa",
+};
 
 export function normalizeStatus(value: unknown) {
   return String(value || "")
@@ -37,9 +55,11 @@ export function normalizeFerryPort(value: unknown): FerryPort | null {
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "");
+  if (port.includes("san pedro") || port.includes("san-pedro") || port.includes("san_pedro")) return FERRY_PORT.SAN_PEDRO_SULA;
+  if (port.includes("tegucigalpa")) return FERRY_PORT.TEGUCIGALPA;
   if (port.includes("ceiba")) return FERRY_PORT.LA_CEIBA;
-  if (port === FERRY_PORT.UTILA) return FERRY_PORT.UTILA;
-  if (port === FERRY_PORT.GUANAJA) return FERRY_PORT.GUANAJA;
+  if (port.includes("utila")) return FERRY_PORT.UTILA;
+  if (port.includes("guanaja")) return FERRY_PORT.GUANAJA;
   return null;
 }
 

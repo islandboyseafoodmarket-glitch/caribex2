@@ -6,6 +6,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import { Archive, Box, CheckCircle2, ChevronRight, CircleHelp, Download, FileText, KeyRound, LogOut, MapPin, PackageCheck, Search, Ship, UserRound, Warehouse } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
+import { FERRY_PORT_LABELS, type FerryPort } from "../../lib/shipping-rules";
 import { PORTAL_COPY, readPortalLanguage, savePortalLanguage, type PortalLanguage } from "./portal-copy";
 
 type PortalShipment = {
@@ -580,7 +581,7 @@ export default function CustomerPortalPage() {
                 <section className="portal-card" id="portal-contact-details"><h2><UserRound size={19} />{t.yourAccountTitle}</h2><dl className="portal-account-details"><div><dt>{t.accountNumber}</dt><dd>#{data.client.numero_cliente}</dd></div><div><dt>{t.accountName}</dt><dd>{data.client.nombre}</dd></div><div><dt>{t.email}</dt><dd>{data.client.email}</dd></div><div><dt>{t.phone}</dt><dd>{data.client.telefono || t.noAccountData}</dd></div><div><dt>{t.port}</dt><dd>{data.client.puerto || t.noAccountData}</dd></div></dl></section>
                 <section className="portal-card portal-security"><h2><KeyRound size={19} />{t.changePassword}</h2><p>{t.changePasswordHelp}</p><div className="portal-password-row"><input type="password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} placeholder={t.newPassword} autoComplete="new-password" /><button type="button" className="portal-button" disabled={changing} onClick={() => void changePassword()}>{changing ? t.saving : t.updatePassword}</button></div>{message && <small className="portal-success">{message}</small>}{error && <small className="portal-error">{error}</small>}</section>
               </section>}
-              {activeSection === "ferry" && !isRoatan && <section className="portal-card portal-page-card"><h2><Ship size={19} />{t.ferryTitle}</h2>{data.ferry.length ? <div className="portal-list">{data.ferry.map((item) => <div className="portal-row" key={item.id}><div className="portal-row-main"><strong>{item.numero_reserva || t.pending}</strong><span>{item.puerto === "la_ceiba" ? "La Ceiba" : "Utila"} · {t.receiver}: {item.nombre_receptor || t.notAssigned}</span><small>{item.enviado_en ? dateLabel(item.enviado_en, true) : "—"}</small></div></div>)}</div> : <p className="portal-empty">{t.noFerry}</p>}</section>}
+              {activeSection === "ferry" && !isRoatan && <section className="portal-card portal-page-card"><h2><Ship size={19} />{t.ferryTitle}</h2>{data.ferry.length ? <div className="portal-list">{data.ferry.map((item) => <div className="portal-row" key={item.id}><div className="portal-row-main"><strong>{item.numero_reserva || t.pending}</strong><span>{FERRY_PORT_LABELS[item.puerto as FerryPort] || item.puerto} · {t.receiver}: {item.nombre_receptor || t.notAssigned}</span><small>{item.enviado_en ? dateLabel(item.enviado_en, true) : "—"}</small></div></div>)}</div> : <p className="portal-empty">{t.noFerry}</p>}</section>}
             </>}
           </section>
         </div>

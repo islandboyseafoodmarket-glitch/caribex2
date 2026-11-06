@@ -1,6 +1,8 @@
+import { FERRY_PORT_LABELS, FERRY_PORT_ORDER, type FerryPort } from "./shipping-rules";
+
 export type FerryManifestEntry = {
   id: string;
-  puerto: "la_ceiba" | "utila" | "guanaja";
+  puerto: FerryPort;
   numero_cuenta: string;
   nombre_cliente: string;
   etiqueta_cantidad: string;
@@ -26,6 +28,8 @@ export const FERRY_PORT_STYLES = {
   la_ceiba: { prefix: "L", color: "2563EB" },
   utila: { prefix: "U", color: "DC2626" },
   guanaja: { prefix: "G", color: "16A34A" },
+  san_pedro_sula: { prefix: "S", color: "D97706" },
+  tegucigalpa: { prefix: "T", color: "7C3AED" },
 } as const;
 
 export function formatFerryAccountNumber(value: string, port: Port): string {
@@ -34,6 +38,45 @@ export function formatFerryAccountNumber(value: string, port: Port): string {
   const prefix = FERRY_PORT_STYLES[port].prefix;
   if (new RegExp(`^${prefix}(?:[-\\s])?\\d+$`, "i").test(raw)) return raw.replace(/^[a-z]/i, prefix);
   return /^\d+$/.test(raw) ? `${prefix}${raw}` : raw;
+}
+
+export const FERRY_MANIFEST_COLUMNS = [
+  "PORT",
+  "NO.",
+  "ACCOUNT NUMBER",
+  "CUSTOMER NAME",
+  "QUANTITY",
+  "BOOKING #",
+  "RECEIVER NAME",
+  "CONTAINER",
+  "WEEK START",
+  "WEEK END",
+  "MANIFEST STATUS",
+  "SUBMITTED AT",
+] as const;
+
+export function getFerryManifestExportRows(entries: FerryManifestEntry[], manifest: FerryManifestData["manifest"]) {
+  return FERRY_PORT_ORDER.flatMap((port) =>
+    entries
+      .filter((entry) => entry.puerto === port)
+      .map((entry, index) => ({
+        port,
+        values: [
+          FERRY_PORT_LABELS[port],
+          String(index + 1),
+          formatFerryAccountNumber(entry.numero_cuenta, port),
+          entry.nombre_cliente,
+          entry.etiqueta_cantidad,
+          entry.numero_reserva || "",
+          entry.nombre_receptor || "",
+          manifest.container_codigo || "",
+          manifest.semana_inicio,
+          manifest.semana_fin,
+          manifest.estado || "",
+          entry.enviado_en || "",
+        ],
+      })),
+  );
 }
 
 type Cell = import("exceljs").Cell;
@@ -48,32 +91,19 @@ type Font = {
   color?: { argb: string };
 };
 
-type Border = {
-  style: "thin" | "medium";
-  color: { argb: string };
-};
-
-const PORTS: Array<{ key: Port; label: string }> = [
-  { key: "la_ceiba", label: "La Ceiba Customers" },
-  { key: "utila", label: "Utila Customers" },
-  { key: "guanaja", label: "Guanaja Customers" },
-];
-
 const COLORS = {
-  navy: "000000",
-  blue: "000000",
-  lightBlue: "FFFFFF",
-  paleBlue: "FFFFFF",
-  border: "000000",
-  text: "000000",
-  muted: "000000",
+  navy: "0F3D68",
+  blue: "2563EB",
+  paleBlue: "EFF6FF",
+  border: "CBD5E1",
+  text: "0F172A",
+  muted: "475569",
   white: "FFFFFF",
 };
 
 const BODY_FONT: Font = { name: "Arial", size: 11, color: { argb: COLORS.text } };
 const LABEL_FONT: Font = { name: "Arial", size: 10, bold: true, color: { argb: COLORS.muted } };
-const HEADER_FONT: Font = { name: "Arial", size: 11, bold: true, color: { argb: COLORS.text } };
-const SECTION_FONT: Font = { name: "Arial", size: 12, bold: true, underline: true, color: { argb: COLORS.navy } };
+const HEADER_FONT: Font = { name: "Arial", size: 10, bold: true, color: { argb: COLORS.white } };
 
 function setFont(cell: Cell, font: Font) {
   cell.font = font;
@@ -101,26 +131,13 @@ function setHeaderRowStyle(row: Row) {
   row.height = 28;
   row.eachCell({ includeEmpty: true }, (cell) => {
     cell.font = HEADER_FONT;
-    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: COLORS.white } };
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: COLORS.navy } };
     cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
     cell.border = {
-      top: { style: "thin", color: { argb: COLORS.navy } },
-      left: { style: "thin", color: { argb: COLORS.navy } },
-      bottom: { style: "thin", color: { argb: COLORS.navy } },
-      right: { style: "thin", color: { argb: COLORS.navy } },
-    };
-  });
-}
-
-function setBandStyle(row: Row) {
-  row.height = 25;
-  row.eachCell({ includeEmpty: true }, (cell) => {
-    cell.font = SECTION_FONT;
-    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: COLORS.lightBlue } };
-    cell.alignment = { horizontal: "center", vertical: "middle" };
-    cell.border = {
-      top: { style: "medium", color: { argb: COLORS.blue } },
-      bottom: { style: "medium", color: { argb: COLORS.blue } },
+      top: { style: "thin", color: { argb: COLORS.blue } },
+      left: { style: "thin", color: { argb: COLORS.blue } },
+      bottom: { style: "thin", color: { argb: COLORS.blue } },
+      right: { style: "thin", color: { argb: COLORS.blue } },
     };
   });
 }
@@ -146,7 +163,7 @@ function safeFilenamePart(value: string | null | undefined): string {
 }
 
 function addManifestHeader(worksheet: import("exceljs").Worksheet, data: FerryManifestData) {
-  worksheet.mergeCells("A1:D1");
+  worksheet.mergeCells("A1:E1");
   const title = worksheet.getCell("A1");
   title.value = "CARIBEX FERRY REPORT";
   setFont(title, { name: "Arial", size: 16, bold: true, color: { argb: COLORS.text } });
@@ -154,7 +171,7 @@ function addManifestHeader(worksheet: import("exceljs").Worksheet, data: FerryMa
   title.alignment = { horizontal: "center", vertical: "middle" };
   worksheet.getRow(1).height = 31;
 
-  worksheet.mergeCells("A2:D2");
+  worksheet.mergeCells("A2:E2");
   const company = worksheet.getCell("A2");
   company.value = "Caribex Logistics Group";
   setFont(company, { name: "Arial", size: 12, bold: true, color: { argb: COLORS.navy } });
@@ -197,9 +214,9 @@ export async function downloadFerryManifestExcel(data: FerryManifestData): Promi
 
   const worksheet = workbook.addWorksheet("Ferry Manifest", {
     properties: { defaultRowHeight: 22 },
-    views: [{ showGridLines: false, state: "frozen", ySplit: 4, topLeftCell: "A5" }],
+    views: [{ showGridLines: false, state: "frozen", ySplit: 5, topLeftCell: "A6" }],
     pageSetup: {
-      orientation: "portrait",
+      orientation: "landscape",
       fitToPage: true,
       fitToWidth: 1,
       fitToHeight: 0,
@@ -211,14 +228,20 @@ export async function downloadFerryManifestExcel(data: FerryManifestData): Promi
   });
 
   worksheet.columns = [
-    { key: "number", width: 5 },
-    { key: "account", width: 11 },
-    { key: "customer", width: 29 },
-    { key: "quantity", width: 12 },
-    { key: "booking", width: 16 },
-    { key: "receiver", width: 27 },
+    { key: "port", width: 15 },
+    { key: "number", width: 6 },
+    { key: "account", width: 14 },
+    { key: "customer", width: 23 },
+    { key: "quantity", width: 11 },
+    { key: "booking", width: 15 },
+    { key: "receiver", width: 20 },
+    { key: "container", width: 14 },
+    { key: "weekStart", width: 13 },
+    { key: "weekEnd", width: 13 },
+    { key: "status", width: 14 },
+    { key: "submittedAt", width: 20 },
   ];
-  worksheet.pageSetup.printTitlesRow = "1:4";
+  worksheet.pageSetup.printTitlesRow = "1:5";
   addManifestHeader(worksheet, data);
   const logoResponse = await fetch("/imagenes/logo-pages.png");
   if (!logoResponse.ok) throw new Error("The Caribex logo could not be loaded. Please try exporting again.");
@@ -226,66 +249,36 @@ export async function downloadFerryManifestExcel(data: FerryManifestData): Promi
   let logoBinary = "";
   for (let index = 0; index < logoBytes.length; index += 1) logoBinary += String.fromCharCode(logoBytes[index]);
   const logoId = workbook.addImage({ base64: "data:image/png;base64," + btoa(logoBinary), extension: "png" });
-  worksheet.addImage(logoId, { tl: { col: 4, row: 0 }, ext: { width: 140, height: 60 }, editAs: "absolute" });
+  worksheet.addImage(logoId, { tl: { col: 5, row: 0 }, ext: { width: 140, height: 60 }, editAs: "absolute" });
 
-  let currentRow = 5;
-  for (const port of PORTS) {
-    const entries = data.entries.filter((entry) => entry.puerto === port.key);
-    if (!entries.length) continue;
-
-    const bandRow = worksheet.getRow(currentRow);
-    worksheet.mergeCells(currentRow, 1, currentRow, 6);
-    const bandCell = worksheet.getCell(currentRow, 1);
-    bandCell.value = port.label.toUpperCase();
-    setBandStyle(bandRow);
-    setFont(bandCell, SECTION_FONT);
-    bandRow.height = 25;
-    currentRow += 1;
-
-    const sectionHeader = worksheet.getRow(currentRow);
-    sectionHeader.values = ["No.", "Account Number", "Customer Name", "Quantity", "Booking #", "Receiver Name"];
-    setHeaderRowStyle(sectionHeader);
-    currentRow += 1;
-
-    entries.forEach((entry, index) => {
-      const row = worksheet.getRow(currentRow);
-      row.height = 32;
-      const values = [
-        String(index + 1),
-        formatFerryAccountNumber(entry.numero_cuenta, entry.puerto),
-        entry.nombre_cliente,
-        entry.etiqueta_cantidad,
-        entry.numero_reserva || "",
-        entry.nombre_receptor || "",
-      ];
-      values.forEach((value, columnIndex) => {
-        const cell = row.getCell(columnIndex + 1);
-        setBaseCellStyle(cell);
-        if (columnIndex === 0) {
-          setTextCell(cell, value);
-          cell.alignment = { horizontal: "center", vertical: "middle" };
-        } else if (columnIndex === 1 || columnIndex === 4) {
-          setTextCell(cell, value);
-          cell.alignment = { horizontal: "left", vertical: "middle", wrapText: true };
-        } else {
-          cell.value = value;
-          cell.alignment = { vertical: "middle", wrapText: true };
-        }
-      });
-
-      row.getCell(2).font = { ...BODY_FONT, bold: true, color: { argb: `FF${FERRY_PORT_STYLES[entry.puerto].color}` } };
-      const receiverCell = row.getCell(6);
-      receiverCell.border = {
-        top: { style: "thin", color: { argb: COLORS.border } },
-        left: { style: "thin", color: { argb: COLORS.border } },
-        bottom: { style: "thin", color: { argb: COLORS.border } },
-        right: { style: "thin", color: { argb: COLORS.border } },
+  const headerRow = worksheet.getRow(5);
+  headerRow.values = [...FERRY_MANIFEST_COLUMNS];
+  setHeaderRowStyle(headerRow);
+  let currentRow = 6;
+  for (const exportRow of getFerryManifestExportRows(data.entries, data.manifest)) {
+    const row = worksheet.getRow(currentRow);
+    row.height = 32;
+    exportRow.values.forEach((value, columnIndex) => {
+      const cell = row.getCell(columnIndex + 1);
+      setBaseCellStyle(cell);
+      setTextCell(cell, value);
+      cell.alignment = {
+        horizontal: columnIndex === 1 ? "center" : "left",
+        vertical: "middle",
+        wrapText: true,
       };
-      currentRow += 1;
     });
+    row.getCell(1).font = { ...BODY_FONT, bold: true, color: { argb: `FF${FERRY_PORT_STYLES[exportRow.port].color}` } };
+    row.getCell(3).font = { ...BODY_FONT, bold: true, color: { argb: `FF${FERRY_PORT_STYLES[exportRow.port].color}` } };
+    if ((currentRow - 6) % 2 === 1) {
+      row.eachCell({ includeEmpty: true }, (cell) => {
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: COLORS.paleBlue } };
+      });
+    }
+    currentRow += 1;
   }
 
-  worksheet.pageSetup.printArea = `A1:F${Math.max(currentRow - 1, 4)}`;
+  worksheet.pageSetup.printArea = `A1:L${Math.max(currentRow - 1, 5)}`;
   const buffer = await workbook.xlsx.writeBuffer();
   const blob = new Blob([buffer], {
     type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

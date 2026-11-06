@@ -18,11 +18,27 @@ function getAdminClient() {
   return createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
 }
 
+function hasRecentPasswordAuthentication(token: string) {
+  try {
+    const encodedPayload = token.split(".")[1];
+    if (!encodedPayload) return false;
+    const claims = JSON.parse(Buffer.from(encodedPayload, "base64url").toString("utf8"));
+    const authTime = Number(claims.auth_time);
+    const ageSeconds = Date.now() / 1000 - authTime;
+    const includesPasswordFactor = Array.isArray(claims.amr)
+      && claims.amr.some((factor: { method?: unknown }) => factor?.method === "password");
+    return includesPasswordFactor && Number.isFinite(authTime) && ageSeconds >= -60 && ageSeconds <= 600;
+  } catch {
+    return false;
+  }
+}
+
 async function requireManifestEditor(request: Request, supabaseAdmin: ReturnType<typeof getAdminClient>) {
   const bearer = request.headers.get("authorization") || "";
   const token = bearer.replace(/^Bearer\s+/i, "");
   const { data: authData, error: authError } = await supabaseAdmin.auth.getUser(token);
   if (authError || !authData.user) throw new Error("Authentication required");
+  if (!hasRecentPasswordAuthentication(token)) throw new Error("A recent password confirmation is required to edit manifest bookings");
 
   const { data: admin, error: adminError } = await supabaseAdmin
     .from("administradores")
@@ -119,7 +135,7 @@ export async function PATCH(request: Request, { params }: { params: { token: str
         await requireManifestEditor(request, supabaseAdmin);
       } catch (error: any) {
         const message = error?.message || "Ferry manifest access is not enabled for this staff account";
-        return NextResponse.json({ error: message }, { status: message.includes("Authentication") ? 401 : 403 });
+        return NextResponse.json({ error: message }, { status: message.includes("Authentication") || message.includes("password confirmation") ? 401 : 403 });
       }
     }
     const { data: manifest, error: manifestError } = await supabaseAdmin

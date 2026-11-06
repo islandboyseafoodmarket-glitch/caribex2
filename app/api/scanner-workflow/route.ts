@@ -84,8 +84,7 @@ function getWeekBounds(date = new Date()) {
 }
 
 function ferryPortForCustomer(customer: any) {
-  const port = normalizeFerryPort(customer?.puerto);
-  return port === "la_ceiba" || port === "utila" || port === "guanaja" ? port : null;
+  return normalizeFerryPort(customer?.puerto);
 }
 
 async function registerFerryShipment(supabase: SupabaseClient, shipment: any, customer: any, createdBy: string) {

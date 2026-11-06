@@ -3125,6 +3125,8 @@ main {
 .ferry-acct-la_ceiba { color: #2563eb; }
 .ferry-acct-utila { color: #dc2626; }
 .ferry-acct-guanaja { color: #16a34a; }
+.ferry-acct-san_pedro_sula { color: #d97706; }
+.ferry-acct-tegucigalpa { color: #7c3aed; }
 .ferry-row-locked { background: #f1f5f9; color: #64748b; }
 .ferry-row-locked td { border-bottom-color: #e2e8f0; }
 .ferry-booking-saved { display: inline-flex; align-items: center; gap: .35rem; color: #166534; font-weight: 800; white-space: nowrap; }
@@ -3153,7 +3155,7 @@ main {
   .ferry-page { page: ferryReceiver; width: 100%; max-width: none; margin: 0 !important; padding: 0; background: #fff; color: #000; font-family: Arial, sans-serif; }
   .ferry-header, .ferry-hero, .ferry-meta, .ferry-instructions, .ferry-footer, .ferry-notice, .ferry-error, .ferry-actions { display: none !important; }
   .ferry-print-heading { display: flow-root; margin: 0 0 18px; color: #000; font: 11pt/1.35 Arial, sans-serif; }
-  .ferry-print-logo { float: right; width: 140px; height: 60px; object-fit: contain; margin: 0 0 8px 16px; }
+  .ferry-print-logo { float: right; width: 170px; height: 73px; object-fit: contain; margin: 0 0 8px 16px; }
   .ferry-print-heading h1 { margin: 0 0 5px; font-size: 14pt; }
   .ferry-print-heading p { margin: 3px 0; font-size: 11pt; }
   .ferry-booking-screen { display: none !important; }
@@ -3174,6 +3176,8 @@ main {
   .ferry-table td.ferry-acct-la_ceiba { color: #2563eb !important; }
   .ferry-table td.ferry-acct-utila { color: #dc2626 !important; }
   .ferry-table td.ferry-acct-guanaja { color: #16a34a !important; }
+  .ferry-table td.ferry-acct-san_pedro_sula { color: #d97706 !important; }
+  .ferry-table td.ferry-acct-tegucigalpa { color: #7c3aed !important; }
   .ferry-table th:nth-child(1), .ferry-table td:nth-child(1) { width: 5%; }
   .ferry-table th:nth-child(2), .ferry-table td:nth-child(2) { width: 11%; }
   .ferry-table th:nth-child(3), .ferry-table td:nth-child(3) { width: 29%; }
@@ -3414,6 +3418,17 @@ main {
 .admin-table thead th { position: sticky; top: 0; z-index: 1; background: #f8fafc; }
 .admin-table tbody tr:nth-child(even) { background: #fbfdff; }
 .admin-table tbody tr:hover { background: #eff6ff; }
+
+.portal-events-table-wrap { width: 100%; max-width: 100%; overflow-x: auto; overscroll-behavior-x: contain; }
+.dashboard-root .admin-table.portal-events-table { width: 100%; min-width: 760px; table-layout: fixed; border-collapse: collapse; }
+.dashboard-root .admin-table.portal-events-table thead th { padding: 10px 9px; background: #dbeafe !important; color: #123b5d !important; border-bottom: 2px solid #93c5fd; text-align: left; white-space: normal; }
+.dashboard-root .admin-table.portal-events-table tbody td { padding: 10px 9px; color: #1f2937 !important; vertical-align: top; white-space: normal; overflow-wrap: anywhere; word-break: normal; line-height: 1.4; }
+.portal-events-col-date { width: 18%; }
+.portal-events-col-customer { width: 16%; }
+.portal-events-col-email { width: 22%; }
+.portal-events-col-result { width: 10%; }
+.portal-events-col-reason { width: 19%; }
+.portal-events-col-event { width: 15%; }
 
 
 /* Customer portal refresh: stage navigation, exact tracking search, bilingual controls, and receipts. */

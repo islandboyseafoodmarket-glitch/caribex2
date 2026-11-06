@@ -3,18 +3,9 @@
 import Image from "next/image";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { CheckCircle2, ClipboardList, Download, Loader2, Printer, Send, Ship, XCircle } from "lucide-react";
-import { downloadFerryManifestExcel, formatFerryAccountNumber } from "../../../lib/ferry-manifest-export";
+import { downloadFerryManifestExcel, formatFerryAccountNumber, FERRY_MANIFEST_COLUMNS, getFerryManifestExportRows, type FerryManifestEntry } from "../../../lib/ferry-manifest-export";
 
-type Entry = {
-  id: string;
-  puerto: "la_ceiba" | "utila" | "guanaja";
-  numero_cuenta: string;
-  nombre_cliente: string;
-  etiqueta_cantidad: string;
-  numero_reserva: string | null;
-  nombre_receptor: string | null;
-  enviado_en: string | null;
-};
+type Entry = FerryManifestEntry;
 type ManifestData = {
   manifest: { semana_inicio: string; semana_fin: string; estado: string; container_codigo: string | null; container_creado_en?: string | null };
   entries: Entry[];
@@ -57,6 +48,8 @@ export default function FerryManifestPage({ params }: { params: { token: string 
     la_ceiba: data?.entries.filter((entry) => entry.puerto === "la_ceiba") || [],
     utila: data?.entries.filter((entry) => entry.puerto === "utila") || [],
     guanaja: data?.entries.filter((entry) => entry.puerto === "guanaja") || [],
+    san_pedro_sula: data?.entries.filter((entry) => entry.puerto === "san_pedro_sula") || [],
+    tegucigalpa: data?.entries.filter((entry) => entry.puerto === "tegucigalpa") || [],
   }), [data]);
 
   const updateDraft = (id: string, field: keyof Draft, value: string) => {
@@ -99,29 +92,10 @@ export default function FerryManifestPage({ params }: { params: { token: string 
 
   const exportCsv = () => {
     if (!data) return;
-    const ports = { la_ceiba: "La Ceiba", utila: "Utila", guanaja: "Guanaja" } as const;
-    const rows = [[
-      "PORT", "NO.", "ACCOUNT NUMBER", "CUSTOMER NAME", "QUANTITY", "BOOKING #", "RECEIVER NAME",
-      "CONTAINER", "WEEK START", "WEEK END", "MANIFEST STATUS", "SUBMITTED AT",
-    ]];
-    for (const port of ["la_ceiba", "utila", "guanaja"] as const) {
-      data.entries.filter((entry) => entry.puerto === port).forEach((entry, index) => {
-        rows.push([
-          ports[port],
-          String(index + 1),
-          formatFerryAccountNumber(entry.numero_cuenta, port),
-          entry.nombre_cliente,
-          entry.etiqueta_cantidad,
-          entry.numero_reserva || "",
-          entry.nombre_receptor || "",
-          data.manifest.container_codigo || "",
-          data.manifest.semana_inicio,
-          data.manifest.semana_fin,
-          data.manifest.estado || "",
-          entry.enviado_en || "",
-        ]);
-      });
-    }
+    const rows = [
+      Array.from(FERRY_MANIFEST_COLUMNS),
+      ...getFerryManifestExportRows(data.entries, data.manifest).map((row) => row.values),
+    ];
     const csv = "\uFEFF" + rows.map((row) => row.map((value) => {
       const safe = /^\s*[=+@-]/.test(value) ? "'" + value : value;
       return '"' + safe.replace(/"/g, '""') + '"';
@@ -155,7 +129,7 @@ export default function FerryManifestPage({ params }: { params: { token: string 
 
   const readOnly = data.manifest.estado !== "active";
   const submittedCount = data.entries.filter((entry) => Boolean(entry.enviado_en)).length;
-  const renderSection = (port: "la_ceiba" | "utila" | "guanaja", title: string) => {
+  const renderSection = (port: Entry["puerto"], title: string) => {
     const entries = grouped[port];
     if (!entries.length) return null;
     return <section className="ferry-section" key={port}>
@@ -185,6 +159,8 @@ export default function FerryManifestPage({ params }: { params: { token: string 
       {renderSection("la_ceiba", "La Ceiba Customers")}
       {renderSection("utila", "Utila Customers")}
       {renderSection("guanaja", "Guanaja Customers")}
+      {renderSection("san_pedro_sula", "San Pedro Sula Customers")}
+      {renderSection("tegucigalpa", "Tegucigalpa Customers")}
       {!readOnly && <div className="ferry-actions"><p>Submitted rows turn grey and lock automatically. Blank rows can be completed later using this same link.</p><button type="submit" className="ferry-submit-all" disabled={submitting}>{submitting ? <Loader2 className="ferry-spin" size={18} /> : <Send size={18} />} {submitting ? "Saving…" : "Submit to Caribex"}</button></div>}
     </form>
     <footer className="ferry-footer">Caribex Logistics Group · The submitted list is visible to anyone with this manifest link.</footer>
