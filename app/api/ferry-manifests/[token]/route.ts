@@ -64,7 +64,7 @@ async function getManifest(token: string) {
   const supabaseAdmin = getAdminClient();
   const { data: manifest, error: manifestError } = await supabaseAdmin
     .from("ferry_manifests")
-    .select("id, token, semana_inicio, semana_fin, estado, contenedor_id")
+    .select("id, token, semana_inicio, semana_fin, estado, ubicacion, contenedor_id")
     .eq("token", token)
     .maybeSingle();
   if (manifestError) throw manifestError;
