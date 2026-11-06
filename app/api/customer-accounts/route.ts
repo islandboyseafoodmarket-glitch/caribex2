@@ -79,18 +79,18 @@ export async function POST(request: Request) {
 
     const heardAboutUs = (rawReferralSource || "").trim();
     const heardAboutUsDetails = (rawReferralDetails || "").trim();
-    if (heardAboutUs && !isReferralSource(heardAboutUs)) {
+    if (!heardAboutUs) {
+      return NextResponse.json(
+        { error: "Please select how you heard about us" },
+        { status: 400 },
+      );
+    }
+    if (!isReferralSource(heardAboutUs)) {
       return NextResponse.json({ error: "Invalid referral source" }, { status: 400 });
     }
     if (heardAboutUsDetails.length > REFERRAL_DETAILS_MAX_LENGTH) {
       return NextResponse.json(
         { error: `Referral detail must be ${REFERRAL_DETAILS_MAX_LENGTH} characters or fewer` },
-        { status: 400 },
-      );
-    }
-    if (heardAboutUsDetails && !heardAboutUs) {
-      return NextResponse.json(
-        { error: "Referral detail requires a referral source" },
         { status: 400 },
       );
     }
@@ -172,12 +172,10 @@ export async function POST(request: Request) {
       tipo_cuenta: accountType,
       numero_cliente: accountNumber,
       auth_user_id: authData.user.id,
+      heard_about_us: heardAboutUs,
     };
-    if (heardAboutUs) {
-      customerInsert.heard_about_us = heardAboutUs;
-      if (heardAboutUsDetails) {
-        customerInsert.heard_about_us_details = heardAboutUsDetails;
-      }
+    if (heardAboutUsDetails) {
+      customerInsert.heard_about_us_details = heardAboutUsDetails;
     }
 
     const { error: insertError } = await supabase

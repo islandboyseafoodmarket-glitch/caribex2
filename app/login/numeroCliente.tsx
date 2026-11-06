@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import { useRouter } from "next/navigation";
 
 import { useTranslation } from "react-i18next";
@@ -21,7 +21,6 @@ export default function App() {
   const { i18n } = useTranslation();
   const isEn = i18n.language.startsWith("en");
   const [showModal, setShowModal] = useState(false);
-  const [referralAvailable, setReferralAvailable] = useState(false);
   // Ya no usamos el modal ni la tarjeta de n\u00famero de cliente; ahora se env\u00eda por correo.
   const [showDuplicateModal, setShowDuplicateModal] = useState(false);
   const [duplicateEmail, setDuplicateEmail] = useState<string | null>(null);
@@ -36,22 +35,6 @@ export default function App() {
     heardAboutUs: '',
     heardAboutUsDetails: '',
   });
-
-  useEffect(() => {
-    let active = true;
-    fetch("/api/customer-accounts", { method: "GET", cache: "no-store" })
-      .then((response) => (response.ok ? response.json() : { referral_available: false }))
-      .then((result: { referral_available?: boolean }) => {
-        if (active) setReferralAvailable(result.referral_available === true);
-      })
-      .catch(() => {
-        if (active) setReferralAvailable(false);
-      });
-
-    return () => {
-      active = false;
-    };
-  }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const target = e.target as HTMLInputElement | HTMLSelectElement;
@@ -70,6 +53,15 @@ export default function App() {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (!formData.heardAboutUs) {
+      alert(
+        isEn
+          ? "Please tell us how you heard about Caribex Logistics Group."
+          : "Por favor, indíquenos cómo se enteró de Caribex Logistics Group."
+      );
+      return;
+    }
+
     if (!formData.aceptaTerminos) {
       alert(
         isEn
@@ -285,54 +277,57 @@ export default function App() {
               )}
             </div>
 
-            {referralAvailable && (
-              <>
-                <div className="form-group full-width">
-                  <label htmlFor="heard-about-us">
-                    {isEn ? "How did you hear about us?" : "¿Cómo se enteró de nosotros?"}
-                  </label>
-                  <select
-                    id="heard-about-us"
-                    name="heardAboutUs"
-                    value={formData.heardAboutUs}
-                    onChange={handleChange}
+            <fieldset className="form-group full-width referral-group" aria-describedby="heard-about-us-help" aria-required="true">
+              <legend className="referral-legend">
+                {isEn ? "How did you hear about us? *" : "¿Cómo se enteró de nosotros? *"}
+              </legend>
+              <p id="heard-about-us-help" className="referral-help">
+                {isEn
+                  ? "Choose one option to continue."
+                  : "Seleccione una opción para continuar."}
+              </p>
+              <div className="referral-options">
+                {REFERRAL_SOURCE_VALUES.map((source) => (
+                  <label
+                    key={source}
+                    className={`referral-option${formData.heardAboutUs === source ? " is-selected" : ""}`}
                   >
-                    <option value="">
-                      {isEn ? "Select an option (optional)" : "Seleccione una opción (opcional)"}
-                    </option>
-                    {REFERRAL_SOURCE_VALUES.map((source) => (
-                      <option key={source} value={source}>
-                        {REFERRAL_SOURCE_LABELS[source][isEn ? "en" : "es"]}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {referralSourceNeedsDetails(formData.heardAboutUs) && (
-                  <div className="form-group full-width">
-                    <label htmlFor="heard-about-us-details">
-                      {formData.heardAboutUs === "friend_family"
-                        ? (isEn
-                          ? "Friend or family member's name (optional)"
-                          : "Nombre del amigo o familiar (opcional)")
-                        : (isEn
-                          ? "Referral name or other detail (optional)"
-                          : "Nombre de referencia u otro detalle (opcional)")}
-                    </label>
                     <input
-                      id="heard-about-us-details"
-                      type="text"
-                      name="heardAboutUsDetails"
-                      value={formData.heardAboutUsDetails}
+                      type="radio"
+                      name="heardAboutUs"
+                      value={source}
+                      checked={formData.heardAboutUs === source}
                       onChange={handleChange}
-                      maxLength={180}
-                      placeholder={formData.heardAboutUs === "friend_family"
-                        ? (isEn ? "Optional — enter their name" : "Opcional — escriba su nombre")
-                        : (isEn ? "Optional — up to 180 characters" : "Opcional — hasta 180 caracteres")}
                     />
-                  </div>
-                )}
-              </>
+                    <span>{REFERRAL_SOURCE_LABELS[source][isEn ? "en" : "es"]}</span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+
+            {referralSourceNeedsDetails(formData.heardAboutUs) && (
+              <div className="form-group full-width">
+                <label htmlFor="heard-about-us-details">
+                  {formData.heardAboutUs === "friend_family"
+                    ? (isEn
+                      ? "Friend or family member's name (optional)"
+                      : "Nombre del amigo o familiar (opcional)")
+                    : (isEn
+                      ? "Referral name or other detail (optional)"
+                      : "Nombre de referencia u otro detalle (opcional)")}
+                </label>
+                <input
+                  id="heard-about-us-details"
+                  type="text"
+                  name="heardAboutUsDetails"
+                  value={formData.heardAboutUsDetails}
+                  onChange={handleChange}
+                  maxLength={180}
+                  placeholder={formData.heardAboutUs === "friend_family"
+                    ? (isEn ? "Optional — enter their name" : "Opcional — escriba su nombre")
+                    : (isEn ? "Optional — up to 180 characters" : "Opcional — hasta 180 caracteres")}
+                />
+              </div>
             )}
 
             <div className="form-actions full-width">
@@ -541,6 +536,15 @@ For questions about these Terms of Service or to report violations, please conta
         .form-group label { display: block; font-size: 1rem; font-weight: 800; color: #475569; margin-bottom: 8px; letter-spacing: 0.05em; }
         
         .registration-card input, .registration-card select, .registration-card select option { width: 100%; padding: 12px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 1rem; box-sizing: border-box; }
+        .referral-group { min-width: 0; margin: 0; padding: 0; border: 0; }
+        .referral-legend { display: block; width: 100%; margin: 0 0 5px; padding: 0; color: #475569; font-size: 1rem; font-weight: 800; letter-spacing: 0.02em; }
+        .referral-help { margin: 0 0 10px; color: #64748b; font-size: 0.9rem; }
+        .referral-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+        .referral-option { display: flex !important; min-height: 44px; align-items: center; gap: 10px; margin: 0 !important; padding: 9px 12px; border: 1px solid #d5e0eb; border-radius: 8px; background: #ffffff; color: #334155 !important; font-size: 0.95rem !important; font-weight: 600 !important; letter-spacing: normal !important; line-height: 1.3; cursor: pointer; transition: background 150ms ease, border-color 150ms ease, box-shadow 150ms ease; }
+        .referral-option:hover { border-color: #93c5fd; background: #f8fbff; }
+        .referral-option.is-selected { border-color: #2563eb; background: #eff6ff; box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.16); }
+        .registration-card .referral-option input[type="radio"] { width: 18px; height: 18px; flex: 0 0 18px; margin: 0; padding: 0; accent-color: #2563eb; }
+        .referral-option:focus-within { outline: 2px solid #93c5fd; outline-offset: 2px; }
         .input-with-button { display: flex; gap: 10px; }
         .inline-btn { background: #f8fafc; border: 1px solid var(--border-color); border-radius: 8px; padding: 0 20px; color: var(--text-muted); cursor: pointer; font-size: 1rem; }
 
@@ -817,6 +821,7 @@ For questions about these Terms of Service or to report violations, please conta
           .numero-card { padding: 28px 24px 26px; }
           .numero-card-title { font-size: 22px; }
           .numero-card-value { font-size: 32px; }
+          .referral-options { grid-template-columns: minmax(0, 1fr); }
         }
       `}</style>
     </div>
