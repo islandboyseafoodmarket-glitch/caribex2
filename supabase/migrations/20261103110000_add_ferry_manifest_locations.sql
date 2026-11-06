@@ -8,7 +8,7 @@ alter table public.ferry_manifests
 
 alter table public.ferry_manifests
   add constraint ferry_manifests_ubicacion_check
-  check (ubicacion in ('legacy', 'la_ceiba_utila', 'guanaja', 'san-pedro-sula', 'tegucigalpa'));
+  check (ubicacion in ('legacy', 'la_ceiba_utila', 'guanaja', 'san_pedro_sula', 'tegucigalpa'));
 
 -- A container can have separate manifests for separate destinations.
 alter table public.ferry_manifests
@@ -22,6 +22,6 @@ alter table public.ferry_manifest_entries
 
 alter table public.ferry_manifest_entries
   add constraint ferry_manifest_entries_puerto_check
-  check (puerto in ('la_ceiba', 'utila', 'guanaja', 'san-pedro-sula', 'tegucigalpa'));
+  check (puerto in ('la_ceiba', 'utila', 'guanaja', 'san_pedro_sula', 'tegucigalpa'));
 
 commit;

@@ -7,6 +7,12 @@ export const dynamic = "force-dynamic";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const FERRY_LOCATIONS = ["la_ceiba_utila", "guanaja", "san_pedro_sula", "tegucigalpa"] as const;
+
+function normalizeManifestLocation(value: unknown) {
+  const location = String(value || "").trim().toLowerCase();
+  return FERRY_LOCATIONS.includes(location as (typeof FERRY_LOCATIONS)[number]) ? location : null;
+}
 
 function getAdminClient() {
   if (!supabaseUrl || !serviceRoleKey) {
@@ -160,14 +166,17 @@ export async function POST(request: Request) {
     const { supabaseAdmin, userId } = await requireFerryAccess(request);
     const body = await request.json();
     const containerId = String(body?.contenedor_id || "");
+    const location = normalizeManifestLocation(body?.ubicacion);
     if (!containerId) return NextResponse.json({ error: "A container is required" }, { status: 400 });
+    if (!location) return NextResponse.json({ error: "A ferry location is required" }, { status: 400 });
 
     const { data: existing } = await supabaseAdmin
       .from("ferry_manifests")
       .select("id")
       .eq("contenedor_id", containerId)
+      .eq("ubicacion", location)
       .maybeSingle();
-    if (existing) return NextResponse.json({ error: "This container already has a ferry manifest" }, { status: 409 });
+    if (existing) return NextResponse.json({ error: "This container already has a ferry manifest for that location" }, { status: 409 });
 
     const { data: links, error: linksError } = await supabaseAdmin
       .from("contenedor_paquetes")
@@ -203,7 +212,10 @@ export async function POST(request: Request) {
       .map((item) => {
         const customer = customerById.get(item.numero_cliente_id);
         const port = normalizeFerryPort(customer?.puerto);
-        if (!customer || !port || !packageHasBeenUnloaded(item.estado)) return null;
+        const belongsToLocation = location === "la_ceiba_utila"
+          ? port === "la_ceiba" || port === "utila"
+          : port === location;
+        if (!customer || !port || !belongsToLocation || !packageHasBeenUnloaded(item.estado)) return null;
         const source = `${item.notas || ""} ${item.contenido || ""}`;
         const quantityMatch = source.match(/(?:BOXES?|PACKAGES?)\s*[=:]\s*\d+/i);
         return {
@@ -222,6 +234,7 @@ export async function POST(request: Request) {
       .from("ferry_manifests")
       .insert({
         contenedor_id: containerId,
+        ubicacion: location,
         token: randomBytes(24).toString("hex"),
         semana_inicio: start.toISOString(),
         semana_fin: end.toISOString(),

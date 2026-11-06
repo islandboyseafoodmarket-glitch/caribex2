@@ -16,6 +16,7 @@ export type FerryManifestData = {
     semana_inicio: string;
     semana_fin: string;
     estado: string;
+    ubicacion?: string;
     container_codigo: string | null;
     container_creado_en?: string | null;
   };

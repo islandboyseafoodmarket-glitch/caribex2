@@ -7,13 +7,21 @@ import { downloadFerryManifestExcel, formatFerryAccountNumber, FERRY_MANIFEST_CO
 
 type Entry = FerryManifestEntry;
 type ManifestData = {
-  manifest: { semana_inicio: string; semana_fin: string; estado: string; container_codigo: string | null; container_creado_en?: string | null };
+  manifest: { semana_inicio: string; semana_fin: string; estado: string; ubicacion?: string; container_codigo: string | null; container_creado_en?: string | null };
   entries: Entry[];
 };
 type Draft = { booking: string };
 
 function dateLabel(value: string) {
   return new Intl.DateTimeFormat("en-US", { dateStyle: "medium" }).format(new Date(value));
+}
+
+function locationLabel(value: string | undefined) {
+  if (value === "la_ceiba_utila") return "La Ceiba + Utila";
+  if (value === "guanaja") return "Guanaja";
+  if (value === "san_pedro_sula") return "San Pedro Sula";
+  if (value === "tegucigalpa") return "Tegucigalpa";
+  return "Existing combined report";
 }
 
 export default function FerryManifestPage({ params }: { params: { token: string } }) {
@@ -149,10 +157,10 @@ export default function FerryManifestPage({ params }: { params: { token: string 
   };
 
   return <main className="ferry-page">
-    <div className="ferry-print-heading"><Image className="ferry-print-logo" src="/imagenes/logo-pages.png" alt="Caribex Logistics Group" width={140} height={60} priority unoptimized /><h1>Caribex Ferry Report</h1><p>Container: <strong>{data.manifest.container_codigo || "—"}</strong></p><p>Date created: {data.manifest.container_creado_en ? dateLabel(data.manifest.container_creado_en) : "Not recorded"}</p></div>
+    <div className="ferry-print-heading"><Image className="ferry-print-logo" src="/imagenes/logo-pages.png" alt="Caribex Logistics Group" width={140} height={60} priority unoptimized /><h1>Caribex Ferry Report</h1><p>Location: <strong>{locationLabel(data.manifest.ubicacion)}</strong></p><p>Container: <strong>{data.manifest.container_codigo || "—"}</strong></p><p>Date created: {data.manifest.container_creado_en ? dateLabel(data.manifest.container_creado_en) : "Not recorded"}</p></div>
     <header className="ferry-header"><div className="ferry-brand"><Image src="/imagenes/logo-pages.png" alt="Caribex Logistics Group" width={190} height={81} /><span>Ferry manifest</span></div><div className={`ferry-status ${readOnly ? "ferry-status-locked" : ""}`}>{readOnly ? "Read-only" : `${submittedCount} of ${data.entries.length} submitted`}</div></header>
     <div className="ferry-hero"><div className="ferry-icon"><Ship size={25} /></div><div><p className="ferry-eyebrow">Ferry operations</p><h1>Weekly shipment manifest</h1><p>Enter the booking number for each customer who has shipped. Blank rows remain open for the next ferry.</p></div></div>
-    <div className="ferry-meta"><span><ClipboardList size={16} /> Week: {dateLabel(data.manifest.semana_inicio)} – {dateLabel(data.manifest.semana_fin)}</span><span>Container: <strong>{data.manifest.container_codigo || "—"}</strong></span><div className="ferry-export-actions"><button type="button" onClick={exportCsv}><Download size={15} /> Export CSV</button><button type="button" onClick={() => void exportExcel()} disabled={exporting}><Download size={15} /> {exporting ? "Exporting…" : "Export Excel"}</button><button type="button" onClick={() => window.print()}><Printer size={15} /> Print receiver sheet</button></div></div>
+    <div className="ferry-meta"><span><ClipboardList size={16} /> Location: <strong>{locationLabel(data.manifest.ubicacion)}</strong></span><span>Week: {dateLabel(data.manifest.semana_inicio)} – {dateLabel(data.manifest.semana_fin)}</span><span>Container: <strong>{data.manifest.container_codigo || "—"}</strong></span><div className="ferry-export-actions"><button type="button" onClick={exportCsv}><Download size={15} /> Export CSV</button><button type="button" onClick={() => void exportExcel()} disabled={exporting}><Download size={15} /> {exporting ? "Exporting…" : "Export Excel"}</button><button type="button" onClick={() => window.print()}><Printer size={15} /> Print receiver sheet</button></div></div>
     {error && <div className="ferry-error"><XCircle size={18} />{error}</div>}
     {notice && <div className="ferry-notice"><CheckCircle2 size={18} />{notice}</div>}
     <form onSubmit={submitAll}>
