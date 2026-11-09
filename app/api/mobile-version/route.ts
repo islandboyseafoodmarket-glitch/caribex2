@@ -8,7 +8,7 @@ export async function GET() {
       app: "Caribex Warehouse Management",
       version: "1.2.37",
       version_code: 1238,
-      apk_url: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663449196187/evJiBOYmXLZpUvPb.apk",
+      apk_url: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663449196187/PxxUzWOMAKPVHLgF.apk",
       filename: "Caribex-Warehouse-Management-1.2.37.apk",
       rollback_releases: [
         {
