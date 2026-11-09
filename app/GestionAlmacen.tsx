@@ -1542,7 +1542,7 @@ export default function GestionAlmacen() {
   };
 
   const handleApplyLateFee = async (pkg: { id: string; tracking: string }) => {
-    if (!window.confirm(isEs ? `¿Agregar un cargo único por mora del 5% a ${pkg.tracking}? Se requiere una factura enviada hace 30 días y saldo pendiente.` : `Apply a one-time 5% late fee to ${pkg.tracking}? Requires a verified send date at least 30 days ago and an outstanding balance.`)) return;
+    if (!window.confirm(isEs ? `¿Agregar un cargo único por mora del 5% a ${pkg.tracking}? Se requiere una factura enviada, saldo pendiente y registro de check-in.` : `Apply a one-time 5% late fee to ${pkg.tracking}? Requires a sent invoice, outstanding balance, and check-in record.`)) return;
     try {
       const { data } = await supabase.auth.getSession();
       const response = await fetch("/api/admin/invoice-late-fee", {

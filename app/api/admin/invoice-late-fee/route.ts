@@ -32,8 +32,7 @@ function apiError(status: number, code: string, message: string): ApiError {
 function mapRpcError(error: { code?: string; message?: string }): ApiError {
   const message = String(error.message || "");
   if (/INVOICE_NOT_FOUND/i.test(message)) return apiError(404, "INVOICE_NOT_FOUND", "Invoice not found");
-  if (/INVOICE_SENT_TIMESTAMP_REQUIRED/i.test(message)) return apiError(409, "INVOICE_SENT_TIMESTAMP_REQUIRED", "This invoice has no sent timestamp, so its 30-day overdue period cannot be verified");
-  if (/INVOICE_NOT_30_DAYS_OVERDUE/i.test(message)) return apiError(409, "INVOICE_NOT_30_DAYS_OVERDUE", "The invoice must have been sent at least 30 days ago before a late fee can be applied");
+  if (/INVOICE_SENT_TIMESTAMP_REQUIRED/i.test(message)) return apiError(409, "INVOICE_SENT_TIMESTAMP_REQUIRED", "The invoice must be sent before a late fee can be applied");
   if (/INVOICE_ALREADY_PAID/i.test(message)) return apiError(409, "INVOICE_ALREADY_PAID", "A late fee cannot be applied to a paid invoice");
   if (/INVOICE_NO_OUTSTANDING_BALANCE/i.test(message)) return apiError(409, "INVOICE_NO_OUTSTANDING_BALANCE", "The invoice has no outstanding balance");
   if (/INVOICE_PAYMENT_BALANCE_MISSING/i.test(message)) return apiError(503, "INVOICE_PAYMENT_BALANCE_MISSING", "The invoice payment balance is unavailable; verify the payment-ledger migration");

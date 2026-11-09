@@ -257,8 +257,8 @@ export default function FerryManifestAdmin() {
   };
 
   return (
-    <div style={{ width: "100%" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: "1rem", flexWrap: "wrap", marginBottom: "1.25rem", padding: "0.75rem 1rem", borderRadius: "14px", background: "#ffffff", border: "1px solid #dbeafe", boxShadow: "0 6px 16px rgba(15, 23, 42, 0.06)" }}>
+    <div className="ferry-manifest-admin" style={{ width: "100%" }}>
+      <div className="ferry-manifest-banner" style={{ display: "flex", alignItems: "center", gap: "1rem", flexWrap: "wrap", marginBottom: "1.25rem", padding: "0.75rem 1rem", borderRadius: "14px", background: "#ffffff", border: "1px solid #dbeafe", boxShadow: "0 6px 16px rgba(15, 23, 42, 0.06)" }}>
         <Image src="/imagenes/logo-pages.png" alt="Caribex Logistics Group — Your Cargo Our Commitment" width={220} height={94} style={{ width: "220px", height: "auto", maxWidth: "100%" }} />
         <div>
           <h2 style={{ margin: 0, color: "#0f172a", fontSize: "1.25rem" }}>Ferry manifests</h2>
@@ -316,43 +316,46 @@ export default function FerryManifestAdmin() {
       {loading ? <p style={{ color: "#64748b" }}>Loading ferry manifests…</p> : manifests.length === 0 ? (
         <div style={{ padding: "2rem 1rem", textAlign: "center", color: "#64748b", border: "1px dashed #cbd5e1", borderRadius: "14px" }}><Ship size={28} style={{ marginBottom: "0.5rem", color: "#2563eb" }} /><div>No ferry manifests yet.</div><small>Choose an existing container above to generate the first manifest.</small></div>
       ) : (
-        <div style={{ overflowX: "auto" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1.2fr 1fr 0.8fr 1.5fr", gap: "0.75rem", minWidth: "760px", padding: "0.45rem 0", borderBottom: "1px solid #e2e8f0", color: "#64748b", fontSize: "0.78rem", fontWeight: 700 }}><span>Container</span><span>Week</span><span>Status</span><span>Entries</span><span style={{ textAlign: "right" }}>Actions</span></div>
+        <div className="ferry-manifest-list">
+          <div className="ferry-manifest-list-header" aria-hidden="true"><span>Container</span><span>Destination</span><span>Week</span><span>Status</span><span>Entries</span><span>Actions</span></div>
           {manifests.map((manifest) => (
-            <div key={manifest.id}>
-              <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1.2fr 1fr 0.8fr 1.5fr", gap: "0.75rem", minWidth: "760px", alignItems: "center", padding: "0.8rem 0", borderBottom: "1px solid #f1f5f9", fontSize: "0.86rem" }}>
-                <strong style={{ color: "#0f172a" }}>{containerById.get(manifest.contenedor_id) || manifest.contenedor_id}<small style={{ display: "block", marginTop: "0.2rem", color: "#64748b", fontWeight: 500 }}>{FERRY_LOCATIONS.find((location) => location.value === manifest.ubicacion)?.label || "Existing combined report"}</small></strong>
-                <span style={{ color: "#475569" }}>{dateLabel(manifest.semana_inicio)} – {dateLabel(manifest.semana_fin)}</span>
-                <span style={{ display: "inline-flex", width: "fit-content", padding: "0.25rem 0.55rem", borderRadius: "999px", background: manifest.estado === "active" ? "#dcfce7" : "#f1f5f9", color: manifest.estado === "active" ? "#166534" : "#475569", fontSize: "0.75rem", fontWeight: 700 }}>{manifest.estado}</span>
-                <span>{manifest.entry_count}</span>
-                <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.4rem", flexWrap: "wrap" }}>
+            <article key={manifest.id} className="ferry-manifest-card">
+              <div className="ferry-manifest-row">
+                <strong data-label="Container" style={{ color: "#0f172a" }}>{containerById.get(manifest.contenedor_id) || manifest.contenedor_id}</strong>
+                <span data-label="Destination" style={{ color: "#334155" }}>{FERRY_LOCATIONS.find((location) => location.value === manifest.ubicacion)?.label || "Existing combined report"}</span>
+                <span data-label="Week" style={{ color: "#475569" }}>{dateLabel(manifest.semana_inicio)} – {dateLabel(manifest.semana_fin)}</span>
+                <span data-label="Status" className="ferry-manifest-status" style={{ background: manifest.estado === "active" ? "#dcfce7" : "#f1f5f9", color: manifest.estado === "active" ? "#166534" : "#475569" }}>{manifest.estado}</span>
+                <strong data-label="Entries" className="ferry-manifest-entry-count">{manifest.entry_count}</strong>
+                <div data-label="Actions" className="ferry-manifest-row-actions">
+                  <button type="button" className="pa-secondary-btn" onClick={() => void togglePendingPackages(manifest)} aria-expanded={expandedPendingManifestId === manifest.id} style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", whiteSpace: "nowrap" }}>
+                    {expandedPendingManifestId === manifest.id ? <ChevronUp size={14} /> : <ChevronDown size={14} />} Packages not yet unloaded
+                  </button>
                   <button type="button" className="pa-secondary-btn" onClick={() => openManifest(manifest.token)} style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem" }}><ExternalLink size={14} /> Preview</button>
                   <button type="button" className="pa-secondary-btn" onClick={() => void copyToken(manifest.token)} style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem" }}><Copy size={14} /> Copy link</button>
                   <details className="ferry-actions-menu">
                     <summary className="pa-secondary-btn">Actions</summary>
                     <div className="ferry-actions-menu-panel">
-                      <button type="button" className="pa-secondary-btn" onClick={() => void togglePendingPackages(manifest)} aria-expanded={expandedPendingManifestId === manifest.id}>{expandedPendingManifestId === manifest.id ? <ChevronUp size={14} /> : <ChevronDown size={14} />} Packages not yet unloaded</button>
                       <a className="pa-secondary-btn" href={whatsappUrl(manifest.token)} target="_blank" rel="noopener noreferrer" style={{ color: "#15803d", textDecoration: "none" }}><MessageCircle size={14} /> WhatsApp</a>
                       {manifest.estado === "active" && <button type="button" className="pa-secondary-btn ferry-admin-danger" onClick={() => void archiveManifest(manifest)}><Archive size={14} /> Archive</button>}
                     </div>
                   </details>
                 </div>
               </div>
-              {expandedPendingManifestId === manifest.id && <section aria-label={`Packages not yet unloaded in ${containerById.get(manifest.contenedor_id) || "this container"}`} style={{ minWidth: "760px", padding: "0.85rem 1rem", background: "#f8fafc", borderBottom: "1px solid #e2e8f0" }}>
+              {expandedPendingManifestId === manifest.id && <section aria-label={`Packages not yet unloaded in ${containerById.get(manifest.contenedor_id) || "this container"}`} className="ferry-manifest-pending">
                 <h4 style={{ margin: "0 0 0.6rem", color: "#0f3d68", fontSize: "0.9rem" }}>Packages registered to this container and still awaiting unload</h4>
-                {pendingLoadingManifestId === manifest.id ? <p style={{ margin: 0, color: "#64748b" }}>Loading packages…</p> : pendingErrors[manifest.id] ? <p style={{ margin: 0, color: "#b91c1c" }}>{pendingErrors[manifest.id]}</p> : (pendingPackagesByManifest[manifest.id] || []).length === 0 ? <p style={{ margin: 0, color: "#64748b" }}>No packages are currently waiting to be unloaded from this container.</p> : <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1.4fr 0.8fr 1fr", gap: "0.5rem", color: "#475569", fontSize: "0.8rem" }}>
-                  <strong>Tracking</strong><strong>Customer</strong><strong>Account</strong><strong>Status</strong>
-                  {(pendingPackagesByManifest[manifest.id] || []).map((item) => <div key={item.id} style={{ display: "contents" }}><span>{item.tracking}</span><span>{item.customer_name}</span><span>{item.customer_account || "—"}</span><span>{item.status}</span></div>)}
+                {pendingLoadingManifestId === manifest.id ? <p style={{ margin: 0, color: "#64748b" }}>Loading packages…</p> : pendingErrors[manifest.id] ? <p style={{ margin: 0, color: "#b91c1c" }}>{pendingErrors[manifest.id]}</p> : (pendingPackagesByManifest[manifest.id] || []).length === 0 ? <p style={{ margin: 0, color: "#64748b" }}>No packages are currently waiting to be unloaded from this container.</p> : <div className="ferry-manifest-pending-list">
+                  <div className="ferry-manifest-pending-header"><strong>Tracking</strong><strong>Customer</strong><strong>Account</strong><strong>Status</strong></div>
+                  {(pendingPackagesByManifest[manifest.id] || []).map((item) => <div key={item.id} className="ferry-manifest-pending-row"><span data-label="Tracking">{item.tracking}</span><span data-label="Customer">{item.customer_name}</span><span data-label="Account">{item.customer_account || "—"}</span><span data-label="Status">{item.status}</span></div>)}
                 </div>}
               </section>}
-            </div>
+            </article>
           ))}
-          {entryManifest && <section style={{ marginTop: "1.25rem", padding: "1rem", border: "1px solid #bfdbfe", borderRadius: "14px", background: "#f8fbff", minWidth: "760px" }}>
+          {entryManifest && <section className="ferry-manifest-manual">
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "0.75rem", marginBottom: "0.75rem" }}><div><h3 style={{ margin: 0, color: "#0f3d68" }}>Enter booking numbers manually</h3><p style={{ margin: "0.25rem 0 0", color: "#64748b", fontSize: "0.82rem" }}>Enter or correct the booking number for any ferry row. The receiver/pickup signer is completed on the printed receiver sheet.</p></div><button type="button" className="pa-secondary-btn" onClick={closeAdminEntryForm}>Close</button></div>
             {adminEntries.length === 0 ? <p style={{ color: "#64748b" }}>This manifest has no unloaded packages yet. Packages are added as they are scanned unloaded.</p> : adminEntries.map((entry) => {
               const draft = entryDrafts[entry.id] || { booking: "" };
               const accountColor = entry.puerto === "la_ceiba" ? "#2563eb" : entry.puerto === "utila" ? "#dc2626" : entry.puerto === "guanaja" ? "#16a34a" : entry.puerto === "san_pedro_sula" ? "#d97706" : "#7c3aed";
-              return <div key={entry.id} style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1.4fr auto", gap: "0.5rem", alignItems: "center", padding: "0.6rem 0.5rem", borderTop: "1px solid #e2e8f0" }}><strong>{entry.nombre_cliente}</strong><strong style={{ color: accountColor }}>#{entry.numero_cuenta}</strong><input className="pa-input" value={draft.booking} placeholder="Booking # or NO" aria-label={`Booking number for ${entry.nombre_cliente}`} onChange={(event) => setEntryDrafts((current) => ({ ...current, [entry.id]: { booking: event.target.value } }))} /><button type="button" className="pa-primary-btn" disabled={!draft.booking.trim()} onClick={() => void saveAdminEntry(entry)}>Save</button></div>;
+              return <div key={entry.id} className="ferry-manifest-manual-row"><strong>{entry.nombre_cliente}</strong><strong style={{ color: accountColor }}>#{entry.numero_cuenta}</strong><input className="pa-input" value={draft.booking} placeholder="Booking # or NO" aria-label={`Booking number for ${entry.nombre_cliente}`} onChange={(event) => setEntryDrafts((current) => ({ ...current, [entry.id]: { booking: event.target.value } }))} /><button type="button" className="pa-primary-btn" disabled={!draft.booking.trim()} onClick={() => void saveAdminEntry(entry)}>Save</button></div>;
             })}
           </section>}
         </div>
