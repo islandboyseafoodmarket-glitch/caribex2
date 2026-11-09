@@ -3706,6 +3706,7 @@ main {
   body * { visibility: hidden !important; }
   .ga-invoice-printable,
   .ga-invoice-printable * { visibility: visible !important; }
+  .ferry-page, .ferry-page * { visibility: visible !important; }
   .ga-invoice-printable {
     position: absolute !important;
     inset: 0 !important;
