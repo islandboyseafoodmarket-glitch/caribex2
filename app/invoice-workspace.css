@@ -8,7 +8,7 @@
   border: 1px solid rgba(0, 0, 0, 0.02);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05), 0 10px 15px -5px rgba(0, 0, 0, 0.02);
 }
-.ga-state-card.invoice-workspace { border-radius: 24px; padding: 24px; }
+.ga-state-card.invoice-workspace { border-radius: 24px; padding: 24px; max-height: none; height: auto; min-height: 0; overflow: visible; }
 .ga-main--invoices { max-width: 1900px; padding: 12px clamp(12px, 1.8vw, 24px) 32px; }
 .invoice-workspace .invoice-panel-header {
   display: flex;
@@ -27,7 +27,7 @@
   gap: 12px;
   margin: 0;
   color: #0f172a;
-  font-size: 1.25rem;
+  font-size: clamp(1.45rem, 2.2vw, 1.6rem);
   font-weight: 700;
 }
 .invoice-workspace .invoice-panel-count { margin: 4px 0 0; color: #64748b; font-size: 0.95rem; }
@@ -94,6 +94,31 @@
 .invoice-workspace .invoice-table-row > :nth-child(5),
 .invoice-workspace .invoice-table-row > :nth-child(6) { min-width: 150px; }
 .invoice-workspace .invoice-table-row > :last-child { min-width: 260px; }
+.invoice-workspace .invoice-status-tabs {
+  position: sticky;
+  top: 0.65rem;
+  z-index: 20;
+  width: fit-content;
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: 0.4rem;
+  border: 1px solid #c9deee;
+  border-radius: 14px;
+  background: rgba(234, 244, 252, 0.97);
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.14);
+}
+.invoice-workspace .invoice-status-tabs .tab-pill { white-space: nowrap; }
+@media (max-width: 768px) {
+  .ga-state-card.invoice-workspace {
+    display: block;
+    max-height: none;
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+  }
+
+  .invoice-workspace .invoice-status-tabs { top: 0.45rem; }
+}
 @media (max-width: 640px) {
   .invoice-workspace { padding: 18px; }
   .ga-state-card.invoice-workspace { padding: 18px; }
