@@ -272,8 +272,9 @@ const App = () => {
 
   const [facturas, setFacturas] = useState<Factura[]>([]);
   const facturasCount = facturas.length;
-  type Lead = { id: string; nombre: string; email: string; telefono: string | null; mensaje: string; service_type: string | null; status: 'NEW' | 'CONTACTED' | 'CONVERTED' | 'CLOSED'; admin_notes: string | null; created_at: string };
+  type Lead = { id: string; nombre: string; email: string; telefono: string | null; mensaje: string; service_type: string | null; source: string | null; status: 'NEW' | 'CONTACTED' | 'CLOSED' | 'SPAM'; admin_notes: string | null; created_at: string };
   const [leads, setLeads] = useState<Lead[]>([]);
+  const [leadStageFilter, setLeadStageFilter] = useState<'ALL' | Lead['status']>('ALL');
   type PortalEvent = { id: string; customer_name: string | null; account_number: number | null; email: string; event_type: string; success: boolean; reason: string | null; created_at: string };
   const [portalEvents, setPortalEvents] = useState<PortalEvent[]>([]);
   const cargarPortalEvents = useCallback(async () => {
@@ -324,7 +325,8 @@ const App = () => {
         telefono: null,
         mensaje: lead.mensaje,
         service_type: lead.asunto || 'Landing page lead',
-        status: lead.estado === 'contactado' ? 'CONTACTED' : lead.estado === 'cerrado' ? 'CLOSED' : lead.estado === 'spam' ? 'CLOSED' : 'NEW',
+        source: lead.fuente || null,
+        status: lead.estado === 'contactado' ? 'CONTACTED' : lead.estado === 'cerrado' ? 'CLOSED' : lead.estado === 'spam' ? 'SPAM' : 'NEW',
         admin_notes: null,
         created_at: lead.creado_en,
       }));
@@ -1522,7 +1524,7 @@ const App = () => {
     const { data: sessionData } = await supabase.auth.getSession();
     const token = sessionData.session?.access_token;
     if (!token) return;
-    const estado = changes.status === 'CONTACTED' ? 'contactado' : changes.status === 'CLOSED' ? 'cerrado' : changes.status === 'CONVERTED' ? 'contactado' : 'nuevo';
+    const estado = changes.status === 'CONTACTED' ? 'contactado' : changes.status === 'CLOSED' ? 'cerrado' : changes.status === 'SPAM' ? 'spam' : 'nuevo';
     const response = await fetch('/api/admin/leads', { method: 'PATCH', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ id, estado }) });
     if (!response.ok) { setAdminNotice('Unable to update customer lead'); return; }
     setLeads((prev) => prev.map((lead) => lead.id === id ? { ...lead, ...changes } : lead));
@@ -1750,7 +1752,7 @@ const App = () => {
   );
 
   return (
-    <div className={`dashboard-root ${activeTab === 'facturas' ? 'dashboard-root--invoices' : ''}`}>
+    <div className={`dashboard-root ${activeTab === 'facturas' ? 'dashboard-root--invoices' : ''} ${activeTab === 'leads' ? 'dashboard-root--leads' : ''}`}>
       <style suppressHydrationWarning>{`
         :root {
           --bg-main: #c9e1f3;
@@ -1780,6 +1782,9 @@ const App = () => {
         }
 
         .dashboard-root--invoices {
+          max-width: 1900px;
+        }
+        .dashboard-root--leads {
           max-width: 1900px;
         }
 
@@ -2179,6 +2184,35 @@ const App = () => {
           height: 1px;
           background: #f1f5f9;
           margin: 0 -32px 32px -32px;
+        }
+        .admin-leads { width: 100%; min-width: 0; }
+        .admin-leads-stage-tabs { display: flex; gap: 0.5rem; flex-wrap: wrap; margin: 0 0 1rem; }
+        .admin-leads-stage-tabs button { border: 1px solid #cbd5e1; border-radius: 999px; background: #fff; color: #475569; padding: 0.5rem 0.8rem; font: inherit; font-size: 0.82rem; font-weight: 700; cursor: pointer; }
+        .admin-leads-stage-tabs button span { display: inline-flex; min-width: 1.35rem; justify-content: center; margin-left: 0.25rem; padding: 0.1rem 0.35rem; border-radius: 999px; background: #f1f5f9; color: #334155; }
+        .admin-leads-stage-tabs button.is-active { border-color: #2563eb; background: #eff6ff; color: #1d4ed8; }
+        .admin-leads-table-wrap { width: 100%; max-width: 100%; overflow-x: auto; overflow-y: visible; -webkit-overflow-scrolling: touch; border: 1px solid #e2e8f0; border-radius: 0.75rem; }
+        .admin-leads-table { width: 100%; min-width: 1180px; table-layout: auto; }
+        .admin-leads-table th, .admin-leads-table td { vertical-align: top; white-space: normal; overflow-wrap: anywhere; line-height: 1.45; }
+        .admin-leads-table th { white-space: nowrap; }
+        .admin-leads-table td { padding: 0.8rem 0.75rem; }
+        .admin-leads-message { min-width: 260px; max-width: 460px; white-space: pre-wrap !important; }
+        .admin-leads-table select, .admin-leads-table textarea, .admin-lead-card select, .admin-lead-card textarea { width: 100%; box-sizing: border-box; border: 1px solid #cbd5e1; border-radius: 0.5rem; background: #fff; color: #0f172a; padding: 0.5rem 0.6rem; font: inherit; font-size: 0.82rem; }
+        .admin-leads-table textarea, .admin-lead-card textarea { min-height: 78px; resize: vertical; }
+        .admin-leads-cards { display: none; }
+        .admin-leads-empty { padding: 1.5rem; color: #64748b; border: 1px dashed #cbd5e1; border-radius: 0.75rem; }
+        @media (max-width: 700px) {
+          .admin-leads-table-wrap { display: none; }
+          .admin-leads-cards { display: grid; gap: 0.75rem; }
+          .admin-lead-card { padding: 1rem; border: 1px solid #e2e8f0; border-radius: 0.85rem; background: #fff; box-shadow: 0 4px 12px rgba(15, 23, 42, 0.05); }
+          .admin-lead-card-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 0.75rem; margin-bottom: 0.85rem; }
+          .admin-lead-card-heading strong, .admin-lead-card-heading small { display: block; }
+          .admin-lead-card-heading small { margin-top: 0.2rem; color: #64748b; }
+          .admin-lead-card-heading > span { flex: 0 0 auto; padding: 0.25rem 0.5rem; border-radius: 999px; background: #eff6ff; color: #1d4ed8; font-size: 0.75rem; font-weight: 700; }
+          .admin-lead-card dl { display: grid; gap: 0.65rem; margin: 0 0 0.85rem; }
+          .admin-lead-card dl div { display: grid; gap: 0.15rem; }
+          .admin-lead-card dt { color: #64748b; font-size: 0.72rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; }
+          .admin-lead-card dd { margin: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
+          .admin-lead-card label { display: grid; gap: 0.3rem; margin-top: 0.7rem; color: #475569; font-size: 0.78rem; font-weight: 700; }
         }
 
         /* Estado Vacío / Visual */
@@ -2603,10 +2637,20 @@ const App = () => {
 
         {activeTab === 'client360' && <Client360Admin clientes={clientes} pedidos={pedidos} facturas={facturas} />}
 
-        {activeTab === 'leads' && <div style={{ width: '100%', overflowX: 'auto' }}>
-          {leads.length === 0 ? <p style={{ padding: '1.5rem', color: '#64748b' }}>No customer leads have been received yet.</p> : <table className="admin-table" style={{ minWidth: 980, width: '100%' }}><thead><tr><th>Date</th><th>Customer</th><th>Contact</th><th>Message</th><th>Status</th><th>Admin notes</th></tr></thead><tbody>{leads.map((lead) => <tr key={lead.id}><td>{formatStaffDateTime(lead.created_at)}</td><td><strong>{lead.nombre}</strong><br /><small>{lead.service_type || 'Website contact'}</small></td><td><a href={`mailto:${lead.email}`}>{lead.email}</a><br />{lead.telefono || '-'}</td><td style={{ maxWidth: 320, whiteSpace: 'pre-wrap' }}>{lead.mensaje}</td><td><select value={lead.status} onChange={(event) => actualizarLead(lead.id, { status: event.target.value as Lead['status'] })}><option value="NEW">New</option><option value="CONTACTED">Contacted</option><option value="CONVERTED">Converted</option><option value="CLOSED">Closed</option></select></td><td><textarea defaultValue={lead.admin_notes || ''} rows={2} placeholder="Add notes" onBlur={(event) => { const notes = event.target.value; if (notes !== (lead.admin_notes || '')) actualizarLead(lead.id, { admin_notes: notes }); }} /></td></tr>)}</tbody></table>}
-        </div>}
-
+        {activeTab === 'leads' && (() => {
+          const stageCounts = { ALL: leads.length, NEW: leads.filter((lead) => lead.status === 'NEW').length, CONTACTED: leads.filter((lead) => lead.status === 'CONTACTED').length, CLOSED: leads.filter((lead) => lead.status === 'CLOSED').length, SPAM: leads.filter((lead) => lead.status === 'SPAM').length };
+          const visibleLeads = leadStageFilter === 'ALL' ? leads : leads.filter((lead) => lead.status === leadStageFilter);
+          const stageLabel = (status: Lead['status']) => status === 'NEW' ? 'New' : status === 'CONTACTED' ? 'Contacted' : status === 'CLOSED' ? 'Closed' : 'Spam';
+          return <div className="admin-leads">
+            <div className="admin-leads-stage-tabs" role="tablist" aria-label="Customer lead stages">
+              {(['ALL', 'NEW', 'CONTACTED', 'CLOSED', 'SPAM'] as const).map((stage) => <button key={stage} type="button" role="tab" aria-selected={leadStageFilter === stage} className={leadStageFilter === stage ? 'is-active' : ''} onClick={() => setLeadStageFilter(stage)}>{stage === 'ALL' ? 'All leads' : stageLabel(stage)} <span>{stageCounts[stage]}</span></button>)}
+            </div>
+            {leads.length === 0 ? <p className="admin-leads-empty">No customer leads have been received yet.</p> : visibleLeads.length === 0 ? <p className="admin-leads-empty">No leads are currently in the {stageLabel(leadStageFilter as Lead['status'])} stage.</p> : <>
+              <div className="admin-leads-table-wrap"><table className="admin-table admin-leads-table"><thead><tr><th>Date</th><th>Customer</th><th>Contact</th><th>Request / message</th><th>Source</th><th>Stage</th><th>Admin notes</th></tr></thead><tbody>{visibleLeads.map((lead) => <tr key={lead.id}><td>{formatStaffDateTime(lead.created_at)}</td><td><strong>{lead.nombre}</strong><br /><small>{lead.service_type || 'Website contact'}</small></td><td><a href={`mailto:${lead.email}`}>{lead.email}</a><br /><span>{lead.telefono || 'No phone provided'}</span></td><td className="admin-leads-message">{lead.mensaje}</td><td>{lead.source || 'Website'}</td><td><select aria-label={`Stage for ${lead.nombre}`} value={lead.status} onChange={(event) => actualizarLead(lead.id, { status: event.target.value as Lead['status'] })}><option value="NEW">New</option><option value="CONTACTED">Contacted</option><option value="CLOSED">Closed</option><option value="SPAM">Spam</option></select></td><td><textarea aria-label={`Admin notes for ${lead.nombre}`} defaultValue={lead.admin_notes || ''} rows={3} placeholder="Add notes" onBlur={(event) => { const notes = event.target.value; if (notes !== (lead.admin_notes || '')) actualizarLead(lead.id, { admin_notes: notes }); }} /></td></tr>)}</tbody></table></div>
+              <div className="admin-leads-cards">{visibleLeads.map((lead) => <article className="admin-lead-card" key={lead.id}><div className="admin-lead-card-heading"><div><strong>{lead.nombre}</strong><small>{lead.service_type || 'Website contact'}</small></div><span>{stageLabel(lead.status)}</span></div><dl><div><dt>Date</dt><dd>{formatStaffDateTime(lead.created_at)}</dd></div><div><dt>Contact</dt><dd><a href={`mailto:${lead.email}`}>{lead.email}</a><br />{lead.telefono || 'No phone provided'}</dd></div><div><dt>Source</dt><dd>{lead.source || 'Website'}</dd></div><div><dt>Request / message</dt><dd>{lead.mensaje}</dd></div></dl><label>Stage<select value={lead.status} onChange={(event) => actualizarLead(lead.id, { status: event.target.value as Lead['status'] })}><option value="NEW">New</option><option value="CONTACTED">Contacted</option><option value="CLOSED">Closed</option><option value="SPAM">Spam</option></select></label><label>Admin notes<textarea defaultValue={lead.admin_notes || ''} rows={3} placeholder="Add notes" onBlur={(event) => { const notes = event.target.value; if (notes !== (lead.admin_notes || '')) actualizarLead(lead.id, { admin_notes: notes }); }} /></label></article>)}</div>
+            </>}
+          </div>;
+        })()}
         {activeTab === 'portal' && <div className="portal-events-table-wrap">
           {portalEvents.length === 0 ? <p style={{ padding: '1.5rem', color: '#64748b' }}>No customer portal or account events have been recorded yet.</p> : <table className="admin-table portal-events-table" aria-label="Customer Portal events"><colgroup><col className="portal-events-col-date" /><col className="portal-events-col-customer" /><col className="portal-events-col-email" /><col className="portal-events-col-result" /><col className="portal-events-col-reason" /><col className="portal-events-col-event" /></colgroup><thead><tr><th>Date</th><th>Customer</th><th>Email</th><th>Result</th><th>Reason</th><th>Event</th></tr></thead><tbody>{portalEvents.map((event) => <tr key={event.id}><td>{formatStaffDateTime(event.created_at)}</td><td>{event.customer_name || '-'}{event.account_number != null && <><br /><small>Account #{event.account_number}</small></>}</td><td>{event.email}</td><td><span style={{ color: event.success ? '#166534' : '#b91c1c', fontWeight: 700 }}>{event.success ? (event.event_type === 'login_attempt' ? 'Successful' : 'Completed') : 'Problem'}</span></td><td>{event.reason || '-'}</td><td>{portalEventLabel(event.event_type)}</td></tr>)}</tbody></table>}
         </div>}
