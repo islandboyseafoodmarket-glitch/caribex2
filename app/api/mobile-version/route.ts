@@ -13,11 +13,11 @@ export async function GET() {
       rollback_releases: [
         {
           app: "Caribex Warehouse Management",
-          version: "1.2.33",
-          version_code: 1235,
-          apk_url: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663449196187/MlSoYHpoIQXUFLyD.apk",
-          filename: "Caribex-Warehouse-Management-1.2.33-rollback-code-1235.apk",
-          release_notes: ["Previous v1.2.33 app code rebuilt with installable Android version code 1235 for rollback over v1.2.38."],
+          version: "1.2.37",
+          version_code: 1238,
+          apk_url: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663449196187/PxxUzWOMAKPVHLgF.apk",
+          filename: "Caribex-Warehouse-Management-1.2.37-rollback.apk",
+          release_notes: ["Previous v1.2.37 release with the English welcome screen, signed-in Home button, rollback controls, and hidden numbered stage strip."],
         },
       ],
       release_notes: [
