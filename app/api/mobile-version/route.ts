@@ -6,10 +6,10 @@ export async function GET() {
   return NextResponse.json(
     {
       app: "Caribex Warehouse Management",
-      version: "1.2.36",
-      version_code: 1237,
-      apk_url: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663449196187/BPoLNULMWRBkVDqN.apk",
-      filename: "Caribex-Warehouse-Management-1.2.36.apk",
+      version: "1.2.37",
+      version_code: 1238,
+      apk_url: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663449196187/evJiBOYmXLZpUvPb.apk",
+      filename: "Caribex-Warehouse-Management-1.2.37.apk",
       rollback_releases: [
         {
           app: "Caribex Warehouse Management",
@@ -17,10 +17,13 @@ export async function GET() {
           version_code: 1235,
           apk_url: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663449196187/MlSoYHpoIQXUFLyD.apk",
           filename: "Caribex-Warehouse-Management-1.2.33-rollback-code-1235.apk",
-          release_notes: ["Previous v1.2.33 app code rebuilt with installable Android version code 1235 for rollback over v1.2.36."],
+          release_notes: ["Previous v1.2.33 app code rebuilt with installable Android version code 1235 for rollback over v1.2.37."],
         },
       ],
       release_notes: [
+        "Rollback Version now explicitly reads the rollback release list and permits the selected older APK download",
+        "The welcome screen is fully in English, including updates, report, sync, sign-out, version, start, and rollback labels",
+        "Removed the visible numbered five-stage strip while preserving workflow stage logic and role behavior",
         "Client Pickup now matches the reference layout with customer profile details, server refresh time, Scan and Manual Entry controls, and collapsed container groups",
         "Successful Client Pickup scans show a clear 15-second confirmation banner and immediately refresh the customer pickup count",
         "Web-equivalent Receiving, Check In, consolidation, and customer assignment",
@@ -30,7 +33,7 @@ export async function GET() {
         "Automatic carrier detection for Amazon TBA, Caribex, UPS, FedEx, USPS, DHL, and other supported labels",
         "Responsive Receiving, Check In, Container Unloading, and Client Pickup screens on smaller devices",
         "Client Pickup clearly lists shipments available to scan out, including carrier, package type, invoice status, and container",
-        "Five-stage workflow indicator uses distinct colors and highlights the active scanner stage",
+        "Workflow stage logic remains distinct internally while the numbered stage strip is hidden from the interface",
         "Home, Sync, Settings, rescan, and Client Pickup actions",
         "Already Picked Up warning for shipments already marked Entregado / Recogido",
         "Scanned-only customer signatures, fixed Home reset, and client lookup dropdown behavior",
