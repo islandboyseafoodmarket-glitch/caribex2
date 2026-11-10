@@ -298,7 +298,78 @@
   gap: 0.4rem;
 }
 
-.ferry-manifest-row-actions .pa-secondary-btn {
+.ferry-manifest-floating-actions {
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.42rem;
+  border: 1px solid rgba(148, 163, 184, 0.38);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.12), 0 2px 5px rgba(15, 23, 42, 0.06);
+  backdrop-filter: blur(8px);
+}
+
+.ferry-manifest-action-cluster {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.18rem;
+  border-radius: 999px;
+  background: #f8fafc;
+}
+
+.ferry-manifest-action {
+  min-height: 32px;
+  padding: 0.42rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.77rem;
+  font-weight: 750;
+  box-shadow: none;
+  transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease, border-color 160ms ease;
+}
+
+.ferry-manifest-action:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 5px 12px rgba(15, 23, 42, 0.12);
+}
+
+.ferry-manifest-action--packages {
+  color: #0f3d68;
+  border-color: #bfdbfe;
+  background: #eff6ff;
+}
+
+.ferry-manifest-action--preview {
+  color: #1d4ed8;
+  border-color: transparent;
+  background: #ffffff;
+}
+
+.ferry-manifest-action--copy {
+  color: #0f766e;
+  border-color: transparent;
+  background: #ffffff;
+}
+
+.ferry-manifest-action--more {
+  color: #475569;
+  border-color: transparent;
+  background: transparent;
+  cursor: pointer;
+}
+
+.ferry-manifest-action-menu summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.ferry-manifest-action-menu[open] .ferry-manifest-action--more {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.ferry-manifest-row-actions .ferry-admin-secondary {
   max-width: 100%;
   white-space: normal !important;
   text-align: center;
@@ -425,9 +496,18 @@
     grid-column: 1;
   }
 
+  .ferry-manifest-floating-actions,
+  .ferry-manifest-action-cluster,
   .ferry-manifest-row-actions > * {
+    width: 100%;
     flex: 1 1 auto;
   }
+
+  .ferry-manifest-action-cluster { flex-wrap: wrap; }
+
+  .ferry-manifest-action,
+  .ferry-manifest-action-menu,
+  .ferry-manifest-action-menu summary { justify-content: center; }
 
   .ferry-manifest-pending {
     padding: 0.75rem;

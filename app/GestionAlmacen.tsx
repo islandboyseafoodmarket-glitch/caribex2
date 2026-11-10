@@ -558,13 +558,29 @@ export default function GestionAlmacen() {
         supabase.from("pickup_signatures").select("id, signed_at, shipment_ids, trackings, signature_paths, captured_by_role").contains("shipment_ids", [pkg.id]).order("signed_at", { ascending: true }).limit(100),
       ]);
 
-      if (error || checkinError || linkError || logError || signatureError) throw error || checkinError || linkError || logError || signatureError;
+      if (error || checkinError || linkError || logError) throw error || checkinError || linkError || logError;
+      if (signatureError) console.warn("Pickup signature history is unavailable for this shipment.", signatureError.message);
       if (data) {
         const latestCheckin = (checkins || []).slice().sort((a: any, b: any) => String(b.creado_en || '').localeCompare(String(a.creado_en || '')))[0] || null;
         const { data: children, error: childrenError } = await supabase.from("paquetes_checkin").select("paquete_id, paquetes_registro:paquete_id (id, tracking, tipo_paquete, estado, numero_cliente_id)").eq("parent_box_id", pkg.id).order("creado_en", { ascending: true });
         if (childrenError) throw childrenError;
         const { data: parentLink } = await supabase.from("paquetes_checkin").select("parent_box_id").eq("paquete_id", pkg.id).not("parent_box_id", "is", null).order("creado_en", { ascending: false }).limit(1).maybeSingle();
-        const signaturesForShipment = pickupSignatures || [];
+        let signaturesForShipment = pickupSignatures || [];
+        if (data.tracking) {
+          const { data: trackingSignatures, error: trackingSignatureError } = await supabase
+            .from("pickup_signatures")
+            .select("id, signed_at, shipment_ids, trackings, signature_paths, captured_by_role")
+            .contains("trackings", [data.tracking])
+            .order("signed_at", { ascending: true })
+            .limit(100);
+          if (!trackingSignatureError && trackingSignatures?.length) {
+            const signaturesById = new Map<string, any>();
+            [...signaturesForShipment, ...trackingSignatures].forEach((signature: any) => {
+              if (signature?.id) signaturesById.set(String(signature.id), signature);
+            });
+            signaturesForShipment = Array.from(signaturesById.values()).sort((a, b) => String(a.signed_at || "").localeCompare(String(b.signed_at || "")));
+          }
+        }
         const enriched = {
           ...data,
           ...pkg,

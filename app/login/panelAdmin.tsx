@@ -779,7 +779,7 @@ const App = () => {
       if (checkinError) throw checkinError;
       if (linkError) throw linkError;
       if (logError) throw logError;
-      if (signatureError) throw signatureError;
+      if (signatureError) console.warn("Pickup signature history is unavailable for this shipment.", signatureError.message);
 
       if (!data) {
         setPedidoDetalleError("No se encontró información detallada para este pedido.");
@@ -800,15 +800,20 @@ const App = () => {
           .limit(1)
           .maybeSingle();
         let signaturesForShipment = pickupSignatures || [];
-        if (!signaturesForShipment.length && data.tracking) {
+        if (data.tracking) {
           const { data: trackingSignatures, error: trackingSignatureError } = await supabase
             .from("pickup_signatures")
             .select("id, signed_at, shipment_ids, trackings, signature_paths, captured_by_role")
             .contains("trackings", [data.tracking])
             .order("signed_at", { ascending: true })
             .limit(100);
-          if (trackingSignatureError) throw trackingSignatureError;
-          signaturesForShipment = trackingSignatures || [];
+          if (!trackingSignatureError && trackingSignatures?.length) {
+            const signaturesById = new Map<string, any>();
+            [...signaturesForShipment, ...trackingSignatures].forEach((signature: any) => {
+              if (signature?.id) signaturesById.set(String(signature.id), signature);
+            });
+            signaturesForShipment = Array.from(signaturesById.values()).sort((a, b) => String(a.signed_at || "").localeCompare(String(b.signed_at || "")));
+          }
         }
         setPedidoDetalle({
           ...data,
@@ -1752,7 +1757,7 @@ const App = () => {
   );
 
   return (
-    <div className={`dashboard-root ${activeTab === 'facturas' ? 'dashboard-root--invoices' : ''} ${activeTab === 'leads' ? 'dashboard-root--leads' : ''}`}>
+    <div className={`dashboard-root ${activeTab === 'facturas' ? 'dashboard-root--invoices' : ''} ${activeTab === 'leads' ? 'dashboard-root--leads' : ''} ${activeTab === 'containers' ? 'dashboard-root--containers' : ''}`}>
       <style suppressHydrationWarning>{`
         :root {
           --bg-main: #c9e1f3;
@@ -1785,6 +1790,9 @@ const App = () => {
           max-width: 1900px;
         }
         .dashboard-root--leads {
+          max-width: 1900px;
+        }
+        .dashboard-root--containers {
           max-width: 1900px;
         }
 

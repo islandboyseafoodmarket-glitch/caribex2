@@ -326,19 +326,21 @@ export default function FerryManifestAdmin() {
                 <span data-label="Week" style={{ color: "#475569" }}>{dateLabel(manifest.semana_inicio)} – {dateLabel(manifest.semana_fin)}</span>
                 <span data-label="Status" className="ferry-manifest-status" style={{ background: manifest.estado === "active" ? "#dcfce7" : "#f1f5f9", color: manifest.estado === "active" ? "#166534" : "#475569" }}>{manifest.estado}</span>
                 <strong data-label="Entries" className="ferry-manifest-entry-count">{manifest.entry_count}</strong>
-                <div data-label="Actions" className="ferry-manifest-row-actions">
-                  <button type="button" className="pa-secondary-btn" onClick={() => void togglePendingPackages(manifest)} aria-expanded={expandedPendingManifestId === manifest.id} style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", whiteSpace: "nowrap" }}>
+                <div data-label="Actions" className="ferry-manifest-row-actions ferry-manifest-floating-actions">
+                  <button type="button" className="ferry-admin-secondary ferry-manifest-action ferry-manifest-action--packages" onClick={() => void togglePendingPackages(manifest)} aria-expanded={expandedPendingManifestId === manifest.id}>
                     {expandedPendingManifestId === manifest.id ? <ChevronUp size={14} /> : <ChevronDown size={14} />} Packages not yet unloaded
                   </button>
-                  <button type="button" className="pa-secondary-btn" onClick={() => openManifest(manifest.token)} style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem" }}><ExternalLink size={14} /> Preview</button>
-                  <button type="button" className="pa-secondary-btn" onClick={() => void copyToken(manifest.token)} style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem" }}><Copy size={14} /> Copy link</button>
-                  <details className="ferry-actions-menu">
-                    <summary className="pa-secondary-btn">Actions</summary>
-                    <div className="ferry-actions-menu-panel">
-                      <a className="pa-secondary-btn" href={whatsappUrl(manifest.token)} target="_blank" rel="noopener noreferrer" style={{ color: "#15803d", textDecoration: "none" }}><MessageCircle size={14} /> WhatsApp</a>
-                      {manifest.estado === "active" && <button type="button" className="pa-secondary-btn ferry-admin-danger" onClick={() => void archiveManifest(manifest)}><Archive size={14} /> Archive</button>}
-                    </div>
-                  </details>
+                  <div className="ferry-manifest-action-cluster">
+                    <button type="button" className="ferry-admin-secondary ferry-manifest-action ferry-manifest-action--preview" onClick={() => openManifest(manifest.token)}><ExternalLink size={14} /> Preview</button>
+                    <button type="button" className="ferry-admin-secondary ferry-manifest-action ferry-manifest-action--copy" onClick={() => void copyToken(manifest.token)}><Copy size={14} /> Copy link</button>
+                    <details className="ferry-actions-menu ferry-manifest-action-menu">
+                      <summary className="ferry-admin-secondary ferry-manifest-action ferry-manifest-action--more">Actions <ChevronDown size={14} /></summary>
+                      <div className="ferry-actions-menu-panel">
+                        <a className="ferry-admin-secondary" href={whatsappUrl(manifest.token)} target="_blank" rel="noopener noreferrer" style={{ color: "#15803d", textDecoration: "none" }}><MessageCircle size={14} /> WhatsApp</a>
+                        {manifest.estado === "active" && <button type="button" className="ferry-admin-secondary ferry-admin-danger" onClick={() => void archiveManifest(manifest)}><Archive size={14} /> Archive</button>}
+                      </div>
+                    </details>
+                  </div>
                 </div>
               </div>
               {expandedPendingManifestId === manifest.id && <section aria-label={`Packages not yet unloaded in ${containerById.get(manifest.contenedor_id) || "this container"}`} className="ferry-manifest-pending">

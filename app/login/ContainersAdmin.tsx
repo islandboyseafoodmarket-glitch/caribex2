@@ -147,7 +147,7 @@ export default function ContainersAdmin() {
         .container-dashboard-metric { padding: 14px; border: 1px solid #e2e8f0; border-radius: 12px; background: #f8fafc; }
         .container-dashboard-metric strong { display: block; color: #0f4c81; font-size: 1.35rem; }
         .container-dashboard-metric span { color: #64748b; font-size: .78rem; }
-        .container-dashboard-scroll { max-height: calc(100vh - 250px); min-height: 0; overflow-y: auto; padding-right: 4px; scrollbar-gutter: stable; }
+        .container-dashboard-scroll { max-height: calc(100vh - 190px); min-height: min(520px, calc(100vh - 260px)); overflow-y: auto; padding-right: 6px; scrollbar-gutter: stable; }
         .container-dashboard-locations { display: flex; flex-wrap: wrap; gap: 8px; }
         .container-location-chip { padding: 7px 10px; border-radius: 999px; background: #dbeafe; color: #1e3a8a; font-size: .8rem; font-weight: 700; }
         .container-dashboard-table { overflow-x: auto; border: 1px solid #e2e8f0; border-radius: 12px; }
