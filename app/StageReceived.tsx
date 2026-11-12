@@ -427,8 +427,9 @@ const StageReceived: React.FC<StageReceivedProps> = ({
 
       if (error) {
         // Manejar específicamente errores de constraint única si el backend los expone
+        const isDuplicateTracking = error.code === "23505" || error.message?.toLowerCase().includes("duplicate") || error.message?.toLowerCase().includes("paquetes_registro_tracking_unique_idx");
         const msg =
-          error.message && error.message.toLowerCase().includes("duplicate")
+          isDuplicateTracking
             ? isEs
               ? "Ya existe un envío con este número de tracking."
               : "There is already a shipment with this tracking number."

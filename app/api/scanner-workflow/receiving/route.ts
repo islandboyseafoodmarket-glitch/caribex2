@@ -36,6 +36,13 @@ async function requireStaff(request: Request, supabase: SupabaseClient) {
 
 function errorResponse(error: unknown) {
   const message = error instanceof Error ? error.message : "Unexpected error";
+  const databaseError = error as { code?: string };
+  if (databaseError.code === "23505" || /paquetes_registro_tracking_unique_idx/i.test(message)) {
+    return NextResponse.json({
+      error: "This tracking number is already registered and cannot be received a second time.",
+      code: "DUPLICATE_TRACKING",
+    }, { status: 409 });
+  }
   return NextResponse.json({ error: message }, { status: /authentication|token|access|required/i.test(message) ? 401 : 500 });
 }
 
