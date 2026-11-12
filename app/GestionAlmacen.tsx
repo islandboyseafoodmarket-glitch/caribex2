@@ -566,6 +566,17 @@ export default function GestionAlmacen() {
         if (childrenError) throw childrenError;
         const { data: parentLink } = await supabase.from("paquetes_checkin").select("parent_box_id").eq("paquete_id", pkg.id).not("parent_box_id", "is", null).order("creado_en", { ascending: false }).limit(1).maybeSingle();
         let signaturesForShipment = pickupSignatures || [];
+        const { data: sessionData } = await supabase.auth.getSession();
+        const signatureResponse = await fetch(`/api/pickup-signatures?shipment_id=${encodeURIComponent(pkg.id)}&tracking=${encodeURIComponent(data.tracking || "")}`, {
+          headers: { Authorization: `Bearer ${sessionData.session?.access_token || ""}` },
+          cache: "no-store",
+        });
+        const signaturePayload = await signatureResponse.json().catch(() => ({}));
+        if (signatureResponse.ok && Array.isArray(signaturePayload.signatures)) {
+          signaturesForShipment = signaturePayload.signatures;
+        } else if (!signatureResponse.ok) {
+          console.warn("Authenticated pickup signature read failed.", signaturePayload.error || signatureResponse.statusText);
+        }
         if (data.tracking) {
           const { data: trackingSignatures, error: trackingSignatureError } = await supabase
             .from("pickup_signatures")

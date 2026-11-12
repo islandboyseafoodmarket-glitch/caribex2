@@ -19,6 +19,35 @@ async function auth(request: Request, supabase: SupabaseClient) {
   if (!admin && !staff) throw new Error("Staff access is required");
   return { user: data.user, role: admin ? "admin" : "staff", name: admin ? "Admin" : staff?.nombre || staff?.nombre_personal || data.user.email || "Staff" };
 }
+
+export async function GET(request: Request) {
+  try {
+    const supabase = client();
+    await auth(request, supabase);
+    const url = new URL(request.url);
+    const shipmentId = url.searchParams.get("shipment_id")?.trim() || "";
+    const tracking = url.searchParams.get("tracking")?.trim() || "";
+    if (!shipmentId && !tracking) return NextResponse.json({ error: "A shipment ID or tracking number is required" }, { status: 400 });
+
+    const byShipment = shipmentId
+      ? await supabase.from("pickup_signatures").select("id, signed_at, shipment_ids, trackings, signature_paths, captured_by_role").contains("shipment_ids", [shipmentId]).order("signed_at", { ascending: true }).limit(100)
+      : { data: [], error: null };
+    const byTracking = tracking
+      ? await supabase.from("pickup_signatures").select("id, signed_at, shipment_ids, trackings, signature_paths, captured_by_role").contains("trackings", [tracking]).order("signed_at", { ascending: true }).limit(100)
+      : { data: [], error: null };
+    if (byShipment.error || byTracking.error) throw byShipment.error || byTracking.error;
+
+    const signatures = new Map<string, any>();
+    [...(byShipment.data || []), ...(byTracking.data || [])].forEach((signature) => {
+      if (signature?.id) signatures.set(String(signature.id), signature);
+    });
+    return NextResponse.json({ signatures: Array.from(signatures.values()).sort((a, b) => String(a.signed_at || "").localeCompare(String(b.signed_at || ""))) }, { headers: { "Cache-Control": "no-store" } });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Could not load pickup signatures";
+    return NextResponse.json({ error: message }, { status: /authentication|token|access|required/i.test(message) ? 401 : 500 });
+  }
+}
+
 export async function POST(request: Request) {
   try {
     const supabase = client();
