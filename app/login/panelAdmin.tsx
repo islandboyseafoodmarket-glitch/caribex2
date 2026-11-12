@@ -532,6 +532,8 @@ const App = () => {
   const [pedidoDetalle, setPedidoDetalle] = useState<any | null>(null);
   const [pedidoDetalleLoading, setPedidoDetalleLoading] = useState(false);
   const [pedidoDetalleError, setPedidoDetalleError] = useState<string | null>(null);
+  const [adminPreviewPhoto, setAdminPreviewPhoto] = useState<string | null>(null);
+  const [adminPreviewSignature, setAdminPreviewSignature] = useState<{ id: string; paths: string[]; tracking: string } | null>(null);
   const [batchNewBoxLabels, setBatchNewBoxLabels] = useState<BatchBoxLabel[] | null>(null);
   const [newBoxLabelCount, setNewBoxLabelCount] = useState(1);
   const [labelSize, setLabelSize] = useState<CaribexLabelSize>("4x6");
@@ -3924,7 +3926,7 @@ const App = () => {
                 {problemPhotos.length > 0 && <section style={{ borderTop: "1px solid #e2e8f0", paddingTop: "0.75rem", marginTop: "0.25rem" }}>
                   <h4 style={{ margin: 0, fontSize: "1rem", color: "#1e293b" }}>Problem photos ({problemPhotos.length})</h4>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: "0.65rem", marginTop: "0.55rem" }}>
-                    {problemPhotos.map((url, index) => <img key={`${url}-${index}`} src={url} alt={`Problem photo ${index + 1}`} style={{ width: 150, height: 110, objectFit: "cover", borderRadius: 8, border: "1px solid #cbd5e1", display: "block" }} onError={(event) => { event.currentTarget.style.display = "none"; }} />)}
+                    {problemPhotos.map((url, index) => <button key={`${url}-${index}`} type="button" onClick={() => setAdminPreviewPhoto(url)} aria-label={`Enlarge problem photo ${index + 1}`} style={{ padding: 0, border: 0, background: "transparent", cursor: "zoom-in" }}><img src={url} alt={`Problem photo ${index + 1}`} style={{ width: 150, height: 110, objectFit: "cover", borderRadius: 8, border: "1px solid #cbd5e1", display: "block" }} onError={(event) => { event.currentTarget.style.display = "none"; }} /></button>)}
                   </div>
                 </section>}
                 <section style={{ borderTop: "1px solid #e2e8f0", paddingTop: "0.75rem" }}>
@@ -3939,7 +3941,7 @@ const App = () => {
                             <strong style={{ color: "#334155" }}>Tracking: {trackings.includes(pedidoDetalle.tracking) ? pedidoDetalle.tracking : trackings.join(", ")}</strong>
                             <div style={{ color: "#64748b", fontSize: "0.78rem", marginTop: "0.15rem" }}>{formatStaffDateTime(signature.signed_at)} · {String(signature.captured_by_role || "staff").toUpperCase()}</div>
                           </div>
-                          {paths.length ? <svg viewBox="0 0 340 250" role="img" aria-label={`Pickup signature for ${pedidoDetalle.tracking}`} style={{ width: "130px", height: "76px", background: "#fff", border: "1px solid #e2e8f0", borderRadius: "0.4rem" }}>{paths.map((path: string, pathIndex: number) => <path key={`${signature.id}-${pathIndex}`} d={path} stroke="#21395c" strokeWidth="3" fill="none" strokeLinecap="round" strokeLinejoin="round" />)}</svg> : <span style={{ color: "#94a3b8", fontSize: "0.8rem" }}>Signature skipped</span>}
+                          {paths.length ? <button type="button" onClick={() => setAdminPreviewSignature({ id: String(signature.id), paths, tracking: pedidoDetalle.tracking })} aria-label={`Enlarge pickup signature for ${pedidoDetalle.tracking}`} style={{ display: "grid", justifyItems: "center", gap: "0.2rem", padding: 0, border: 0, background: "transparent", cursor: "zoom-in" }}><svg viewBox="0 0 340 250" role="img" aria-label={`Pickup signature for ${pedidoDetalle.tracking}`} style={{ width: "130px", height: "76px", background: "#fff", border: "1px solid #e2e8f0", borderRadius: "0.4rem" }}>{paths.map((path: string, pathIndex: number) => <path key={`${signature.id}-${pathIndex}`} d={path} stroke="#21395c" strokeWidth="3" fill="none" strokeLinecap="round" strokeLinejoin="round" />)}</svg><span style={{ color: "#2563eb", fontSize: "0.7rem", fontWeight: 700 }}>Click to enlarge</span></button> : <span style={{ color: "#94a3b8", fontSize: "0.8rem" }}>Signature skipped</span>}
                         </div>;
                       })}
                     </div>
@@ -3959,6 +3961,9 @@ const App = () => {
           </div>
         </div>
       )}
+
+      {adminPreviewPhoto && <div className="pa-modal-overlay" onClick={() => setAdminPreviewPhoto(null)}><div className="pa-modal" role="dialog" aria-modal="true" aria-label="Enlarged problem photo" onClick={(event) => event.stopPropagation()} style={{ maxWidth: 1000, width: "min(94vw, 1000px)" }}><div className="pa-modal-header"><h4 className="pa-modal-title">Problem photo</h4><button type="button" className="pa-close-btn" onClick={() => setAdminPreviewPhoto(null)} aria-label="Close photo">×</button></div><div style={{ display: "flex", justifyContent: "center", padding: "1rem 0" }}><img src={adminPreviewPhoto} alt="Enlarged problem photo" style={{ display: "block", maxWidth: "100%", maxHeight: "72vh", width: "auto", height: "auto", objectFit: "contain", borderRadius: 10 }} /></div></div></div>}
+      {adminPreviewSignature && <div className="pa-modal-overlay" onClick={() => setAdminPreviewSignature(null)}><div className="pa-modal" role="dialog" aria-modal="true" aria-label="Enlarged pickup signature" onClick={(event) => event.stopPropagation()} style={{ maxWidth: 900, width: "min(94vw, 900px)" }}><div className="pa-modal-header"><h4 className="pa-modal-title">Pickup signature</h4><button type="button" className="pa-close-btn" onClick={() => setAdminPreviewSignature(null)} aria-label="Close signature">×</button></div><div style={{ display: "flex", justifyContent: "center", padding: "1rem 0" }}><svg viewBox="0 0 340 250" role="img" aria-label={`Enlarged pickup signature for ${adminPreviewSignature.tracking}`} style={{ width: "min(680px, 86vw)", height: "min(500px, 62vh)", background: "#fff", border: "1px solid #cbd5e1", borderRadius: 10 }}>{adminPreviewSignature.paths.map((path, index) => <path key={`${adminPreviewSignature.id}-${index}`} d={path} stroke="#21395c" strokeWidth="3" fill="none" strokeLinecap="round" strokeLinejoin="round" />)}</svg></div></div></div>}
 
       {isPedidoDetalleOpen && pedidoDetalleLoading && (
         <div className="pa-modal-overlay" onClick={() => setIsPedidoDetalleOpen(false)}>

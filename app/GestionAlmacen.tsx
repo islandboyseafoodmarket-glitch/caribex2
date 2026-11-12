@@ -495,6 +495,7 @@ export default function GestionAlmacen() {
   // Modal para ver una foto de problema en grande
   const [isImagePreviewOpen, setIsImagePreviewOpen] = useState(false);
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
+  const [signaturePreview, setSignaturePreview] = useState<{ id: string; paths: string[] } | null>(null);
 
   // Factura virtual
   const [invoicePackage, setInvoicePackage] = useState<Package | null>(null);
@@ -4589,7 +4590,7 @@ const handlePackageCreated = (pkg: Package) => {
                   <label style={{ fontWeight: 600, fontSize: "0.85rem", textTransform: "uppercase", color: "#6b7280" }}>{isEs ? "Firma de pickup" : "Pickup signature"}</label>
                   {(viewPackage.pickupSignatures || []).length > 0 ? (viewPackage.pickupSignatures || []).map((signature: any) => {
                     const paths = Array.isArray(signature.signature_paths) ? signature.signature_paths.filter((path: unknown) => typeof path === "string") : [];
-                    return <div key={signature.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.75rem", marginTop: "0.45rem", padding: "0.55rem", border: "1px solid #e2e8f0", borderRadius: "0.55rem", background: "#f8fafc" }}><span style={{ color: "#64748b", fontSize: "0.78rem" }}>{formatStaffDateTime(signature.signed_at, isEs ? "es-ES" : "en-US")} · {String(signature.captured_by_role || "staff").toUpperCase()}</span>{paths.length ? <svg viewBox="0 0 340 250" role="img" aria-label={isEs ? "Firma de pickup" : "Pickup signature"} style={{ width: 130, height: 76, background: "#fff", border: "1px solid #e2e8f0", borderRadius: "0.4rem" }}>{paths.map((path: string, index: number) => <path key={`${signature.id}-${index}`} d={path} stroke="#21395c" strokeWidth="3" fill="none" strokeLinecap="round" strokeLinejoin="round" />)}</svg> : <span style={{ color: "#94a3b8", fontSize: "0.8rem" }}>Signature skipped</span>}</div>;
+                    return <div key={signature.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.75rem", marginTop: "0.45rem", padding: "0.55rem", border: "1px solid #e2e8f0", borderRadius: "0.55rem", background: "#f8fafc" }}><span style={{ color: "#64748b", fontSize: "0.78rem" }}>{formatStaffDateTime(signature.signed_at, isEs ? "es-ES" : "en-US")} · {String(signature.captured_by_role || "staff").toUpperCase()}</span>{paths.length ? <button type="button" onClick={() => setSignaturePreview({ id: String(signature.id), paths })} aria-label={isEs ? "Ampliar firma de pickup" : "Enlarge pickup signature"} style={{ display: "grid", justifyItems: "center", gap: "0.2rem", padding: 0, border: 0, background: "transparent", cursor: "zoom-in" }}><svg viewBox="0 0 340 250" role="img" aria-label={isEs ? "Firma de pickup" : "Pickup signature"} style={{ width: 130, height: 76, background: "#fff", border: "1px solid #e2e8f0", borderRadius: "0.4rem" }}>{paths.map((path: string, index: number) => <path key={`${signature.id}-${index}`} d={path} stroke="#21395c" strokeWidth="3" fill="none" strokeLinecap="round" strokeLinejoin="round" />)}</svg><span style={{ color: "#2563eb", fontSize: "0.7rem", fontWeight: 700 }}>{isEs ? "Haga clic para ampliar" : "Click to enlarge"}</span></button> : <span style={{ color: "#94a3b8", fontSize: "0.8rem" }}>Signature skipped</span>}</div>;
                   }) : <span style={{ color: "#94a3b8", fontSize: "0.8rem" }}>{isEs ? "No hay firma guardada." : "No pickup signature saved."}</span>}
                 </div>
                 <div className="ga-field-group" style={{ gridColumn: "1 / -1", marginTop: "0.75rem" }}>
@@ -5026,6 +5027,8 @@ const handlePackageCreated = (pkg: Package) => {
           </div>
         </div>
       )}
+
+      {signaturePreview && <div className="ga-modal-backdrop" role="dialog" aria-modal="true" onClick={() => setSignaturePreview(null)}><div className="ga-modal" onClick={(event) => event.stopPropagation()} style={{ maxWidth: 900 }}><div className="ga-modal-header"><h4>{isEs ? "Firma de pickup ampliada" : "Enlarged pickup signature"}</h4><button type="button" className="ga-icon-button ga-icon-button-light" onClick={() => setSignaturePreview(null)} aria-label={isEs ? "Cerrar firma" : "Close signature"}><span style={{ lineHeight: 1 }}>×</span></button></div><div className="ga-modal-body" style={{ justifyContent: "center", alignItems: "center" }}><svg viewBox="0 0 340 250" role="img" aria-label={isEs ? "Firma de pickup ampliada" : "Enlarged pickup signature"} style={{ width: "min(680px, 86vw)", height: "min(500px, 62vh)", background: "#fff", border: "1px solid #cbd5e1", borderRadius: 10 }}>{signaturePreview.paths.map((path, index) => <path key={`${signaturePreview.id}-${index}`} d={path} stroke="#21395c" strokeWidth="3" fill="none" strokeLinecap="round" strokeLinejoin="round" />)}</svg></div></div></div>}
 
       {isQrModalOpen && (
         <div className="ga-modal-backdrop" role="dialog" aria-modal="true">
