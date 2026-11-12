@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Download, Minus, Plus } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
+import { isReferralSource, REFERRAL_SOURCE_LABELS } from "../../lib/referral-source";
 
 type ReportRow = {
   id: string;
@@ -17,7 +18,18 @@ type ReportRow = {
   parent_box_id: string | null;
 };
 
-type ReportFilter = "container" | "received" | "checkin" | "pickup" | "customer";
+type ReferralReportRow = {
+  id: string;
+  nombre: string;
+  account: number | null;
+  email: string | null;
+  telefono: string | null;
+  source: string | null;
+  details: string | null;
+  created_at: string | null;
+};
+
+type ReportFilter = "container" | "received" | "checkin" | "pickup" | "customer" | "referral";
 
 const monthLabel = (value: string) => {
   const [year, month] = value.split("-").map(Number);
@@ -98,6 +110,7 @@ export default function ReportsAdmin() {
   const [containerCount, setContainerCount] = useState(1);
   const [filter, setFilter] = useState<ReportFilter>("container");
   const [rows, setRows] = useState<ReportRow[]>([]);
+  const [referralRows, setReferralRows] = useState<ReferralReportRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [detail, setDetail] = useState<{ loading: boolean; error: string; shipment: any | null; checkins: any[]; logs: any[]; pickupSignatures: any[] } | null>(null);
@@ -108,7 +121,7 @@ export default function ReportsAdmin() {
       const [{ data: packages, error: packageError }, { data: links, error: linkError }, { data: customers, error: customerError }, { data: checkins, error: checkinError }] = await Promise.all([
         supabase.from("paquetes_registro").select("id, tracking, estado, creado_en, registro, numero_cliente_id, tipo_paquete, contenido").order("creado_en", { ascending: false }),
         supabase.from("contenedor_paquetes").select("paquete_id, contenedor_id"),
-        supabase.from("numero_cliente").select("id, nombre, numero_cliente"),
+        supabase.from("numero_cliente").select("id, nombre, numero_cliente, email, telefono, heard_about_us, heard_about_us_details, creado_en").order("creado_en", { ascending: false }),
         supabase.from("paquetes_checkin").select("paquete_id, alto, ancho, largo, parent_box_id, creado_en").order("creado_en", { ascending: false }),
       ]);
       if (packageError || linkError || customerError || checkinError) throw packageError || linkError || customerError || checkinError;
@@ -134,7 +147,17 @@ export default function ReportsAdmin() {
         container_id: containerByPackage.get(pkg.id) || null,
         parent_box_id: checkinByPackage.get(pkg.id)?.parent_box_id || null,
       }));
-      if (mounted) { setRows(mapped); setLoading(false); }
+      const mappedReferrals = (customers || []).map((customer: any) => ({
+        id: customer.id,
+        nombre: customer.nombre || "",
+        account: customer.numero_cliente ?? null,
+        email: customer.email || null,
+        telefono: customer.telefono || null,
+        source: customer.heard_about_us || null,
+        details: customer.heard_about_us_details || null,
+        created_at: customer.creado_en || null,
+      }));
+      if (mounted) { setRows(mapped); setReferralRows(mappedReferrals); setLoading(false); }
     })().catch((err) => { if (mounted) { setError(err.message || "Could not load reports"); setLoading(false); } });
     return () => { mounted = false; };
   }, []);
@@ -163,7 +186,36 @@ export default function ReportsAdmin() {
     return Array.from(map.entries()).sort(([a], [b]) => b.localeCompare(a));
   }, [filteredRows]);
 
+  const filteredReferralRows = useMemo(() => referralRows.filter((row) => {
+    const date = row.created_at ? new Date(row.created_at) : null;
+    const month = date && !Number.isNaN(date.getTime()) ? `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}` : "";
+    return (!fromMonth || month >= fromMonth) && (!toMonth || month <= toMonth);
+  }), [fromMonth, referralRows, toMonth]);
+
+  const referralGroups = useMemo(() => {
+    const groups = new Map<string, ReferralReportRow[]>();
+    for (const row of filteredReferralRows) {
+      const key = row.source || "not_provided";
+      groups.set(key, [...(groups.get(key) || []), row]);
+    }
+    return Array.from(groups.entries()).sort(([, a], [, b]) => b.length - a.length);
+  }, [filteredReferralRows]);
+
+  const referralLabel = (source: string) => isReferralSource(source) ? REFERRAL_SOURCE_LABELS[source].en : source === "not_provided" ? "Not provided" : source;
+
   const exportCsv = () => {
+    if (filter === "referral") {
+      const header = ["How They Heard About Us", "Signup Count", "Customer Name", "Account", "Email", "Phone", "Referral Detail", "Signup Date"];
+      const body = referralGroups.flatMap(([source, group]) => group.map((row) => [referralLabel(source), group.length, row.nombre, row.account ?? "", row.email || "", row.telefono || "", row.details || "", row.created_at || ""]));
+      const csv = [header, ...body].map((line) => line.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(",")).join("\n");
+      const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `caribex-report-referrals-${fromMonth}-${toMonth}.csv`;
+      anchor.click();
+      URL.revokeObjectURL(url);
+      return;
+    }
     const header = ["Client Name", "Account", "Tracking Number", "Item"];
     const body = filteredRows.map((row) => [row.nombre, row.account ?? "", row.tracking, row.item]);
     const csv = [header, ...body].map((line) => line.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(",")).join("\n");
@@ -202,6 +254,7 @@ export default function ReportsAdmin() {
     ["checkin", "Never made it from Check In"],
     ["pickup", "Never picked up"],
     ["customer", "No customer name"],
+    ["referral", "How Did You Hear About Us"],
   ];
 
   return <section className="caribex-reports">
@@ -209,7 +262,7 @@ export default function ReportsAdmin() {
     <div className="caribex-reports-header"><h2>Shipment Exception Reports <span style={{fontWeight:400}}>Never made it off a container</span></h2></div>
     <div className="caribex-report-filters">{filters.map(([value, label]) => <button type="button" key={value} className={`caribex-report-filter ${filter === value ? "active" : ""}`} onClick={() => setFilter(value)}>{label}</button>)}</div>
     <div className="caribex-report-controls"><label>From <input type="month" value={fromMonth} onChange={(event) => setFromMonth(event.target.value)} /></label><label>To <input type="month" value={toMonth} onChange={(event) => setToMonth(event.target.value)} /></label><span>Later containers that must have gone</span><span className="caribex-report-counter"><button type="button" onClick={() => setContainerCount((value) => Math.max(1, value - 1))}><Minus size={16} /></button>{containerCount} containers<button type="button" onClick={() => setContainerCount((value) => value + 1)}><Plus size={16} /></button></span><button type="button" className="caribex-report-export" onClick={exportCsv}><Download size={16} /> Export CSV</button></div>
-    <div className="caribex-report-table">{grouped.length ? <table><thead><tr><th>Client Name</th><th>Account</th><th>Tracking Number</th><th>Item</th></tr></thead><tbody>{grouped.map(([month, monthRows]) => <><tr className="caribex-report-month" key={`${month}-heading`}><td colSpan={4}>{month === "Unknown date" ? month : monthLabel(month)}</td></tr>{monthRows.map((row) => <tr key={row.id}><td>{row.nombre || "—"}</td><td>{row.account || "—"}</td><td><button type="button" className="caribex-report-tracking" onClick={() => void openTrackingDetail(row)} title={`View details for ${row.tracking}`}>{row.tracking || "—"}</button></td><td>{row.item}</td></tr>)}</>)}</tbody></table> : <div className="caribex-report-empty">No shipments match this report.</div>}</div>
+    {filter === "referral" ? <div className="caribex-report-table">{referralGroups.length ? <table><thead><tr><th>How They Heard About Us</th><th>Signups</th><th>Customer</th><th>Account</th><th>Contact</th><th>Referral Detail</th><th>Signup Date</th></tr></thead><tbody>{referralGroups.map(([source, group]) => <><tr className="caribex-report-month" key={`${source}-heading`}><td>{referralLabel(source)}</td><td>{group.length}</td><td colSpan={5}>All signups in this source</td></tr>{group.map((row) => <tr key={row.id}><td>{referralLabel(source)}</td><td>{group.length}</td><td>{row.nombre || "—"}</td><td>{row.account || "—"}</td><td>{[row.email, row.telefono].filter(Boolean).join(" · ") || "—"}</td><td>{row.details || "—"}</td><td>{row.created_at ? new Date(row.created_at).toLocaleDateString("en-US") : "—"}</td></tr>)}</>)}</tbody></table> : <div className="caribex-report-empty">No customer signups match this date range.</div>}</div> : <div className="caribex-report-table">{grouped.length ? <table><thead><tr><th>Client Name</th><th>Account</th><th>Tracking Number</th><th>Item</th></tr></thead><tbody>{grouped.map(([month, monthRows]) => <><tr className="caribex-report-month" key={`${month}-heading`}><td colSpan={4}>{month === "Unknown date" ? month : monthLabel(month)}</td></tr>{monthRows.map((row) => <tr key={row.id}><td>{row.nombre || "—"}</td><td>{row.account || "—"}</td><td><button type="button" className="caribex-report-tracking" onClick={() => void openTrackingDetail(row)} title={`View details for ${row.tracking}`}>{row.tracking || "—"}</button></td><td>{row.item}</td></tr>)}</>)}</tbody></table> : <div className="caribex-report-empty">No shipments match this report.</div>}</div>}
     {detail && <div className="caribex-report-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setDetail(null); }}>
       <section className="caribex-report-modal" role="dialog" aria-modal="true" aria-labelledby="report-tracking-detail-title">
         <div className="caribex-report-modal-header"><div><h3 id="report-tracking-detail-title">Shipment details</h3>{detail.shipment && <div>{detail.shipment.tracking || "—"} · {detail.shipment.tipo_paquete || "Shipment"}</div>}</div><button type="button" className="caribex-report-close" onClick={() => setDetail(null)}>Close</button></div>

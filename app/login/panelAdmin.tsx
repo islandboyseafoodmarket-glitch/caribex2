@@ -142,6 +142,8 @@ const shipmentStage = (status: string | null | undefined) => {
   return "RECEIVED";
 };
 
+const WEB_ADMIN_VERSION = "1.0.0";
+
 const trackPackageStage = (shipment: { estado?: string | null; insideBox?: boolean }) =>
   shipment.insideBox && shipmentStage(shipment.estado) !== "PICKED_UP" ? "INSIDE_BOX" : shipmentStage(shipment.estado);
 
@@ -2520,6 +2522,7 @@ const App = () => {
                       : 'Create, share, and archive weekly ferry manifests'}
             </span>
           </div>
+          <span style={{ flexShrink: 0, border: '1px solid #bfdbfe', borderRadius: '999px', background: '#eff6ff', color: '#1d4ed8', padding: '0.3rem 0.65rem', fontSize: '0.74rem', fontWeight: 800, whiteSpace: 'nowrap' }}>Web v{WEB_ADMIN_VERSION}</span>
           {activeTab === 'facturas' && (
             <button type="button" className="pa-primary-btn" onClick={() => { setManualInvoiceError(null); setIsManualInvoiceOpen(true); }} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', whiteSpace: 'nowrap' }}>
               <Plus size={16} /> Create invoice
@@ -2643,7 +2646,7 @@ const App = () => {
         {adminNotice && <div style={{ margin: '0.75rem 0', padding: '0.75rem 1rem', borderRadius: '0.75rem', background: '#dcfce7', border: '1px solid #86efac', color: '#166534', display: 'flex', justifyContent: 'space-between' }}><span>{adminNotice}</span><button type="button" onClick={() => setAdminNotice(null)} style={{ border: 0, background: 'transparent', color: 'inherit', cursor: 'pointer', fontWeight: 700 }}>Dismiss</button></div>}
         {customerLoadError && <div role="alert" style={{ margin: '0.75rem 0', padding: '0.75rem 1rem', borderRadius: '0.75rem', background: '#fef2f2', border: '1px solid #fecaca', color: '#991b1b' }}>Customers could not be loaded: {customerLoadError}</div>}
 
-        {activeTab === 'client360' && <Client360Admin clientes={clientes} pedidos={pedidos} facturas={facturas} />}
+        {activeTab === 'client360' && <Client360Admin clientes={clientes} pedidos={pedidos} facturas={facturas} onOpenShipmentDetails={abrirDetallePedido} />}
 
         {activeTab === 'leads' && (() => {
           const stageCounts = { ALL: leads.length, NEW: leads.filter((lead) => lead.status === 'NEW').length, CONTACTED: leads.filter((lead) => lead.status === 'CONTACTED').length, CLOSED: leads.filter((lead) => lead.status === 'CLOSED').length, SPAM: leads.filter((lead) => lead.status === 'SPAM').length };
@@ -3891,6 +3894,7 @@ const App = () => {
                   <span style={{ color: "#64748b", fontSize: "1.1rem" }}>▧</span>
                   <strong style={{ flex: 1, fontSize: "1.08rem", letterSpacing: "0.01em", overflowWrap: "anywhere" }}>{pedidoDetalle.tracking || "Shipment"}</strong>
                   <span style={{ background: "#fbbf24", color: "#78350f", borderRadius: "0.35rem", padding: "0.45rem 0.7rem", fontWeight: 800 }}>{pedidoDetalle.tipo_paquete || "Package"} {pedidoDetalle.invoice_id ? pedidoDetalle.invoice_id : ""}</span>
+                  <span style={{ color: "#1d4ed8", background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: "999px", padding: "0.25rem 0.55rem", fontSize: "0.72rem", fontWeight: 800, whiteSpace: "nowrap" }}>Web v{WEB_ADMIN_VERSION}</span>
                   {invoiceIndex >= 0 && <div style={{ display: "flex", gap: "0.3rem", alignItems: "center" }}><button type="button" className="pa-secondary-btn" disabled={invoiceIndex <= 0} onClick={() => openAdjacentInvoice(-1)} style={{ padding: "0.25rem 0.45rem", fontSize: "0.72rem" }}>‹ Previous</button><span style={{ color: "#64748b", fontSize: "0.75rem", whiteSpace: "nowrap" }}>{invoiceIndex + 1} of {facturasFiltradas.length}</span><button type="button" className="pa-secondary-btn" disabled={invoiceIndex >= facturasFiltradas.length - 1} onClick={() => openAdjacentInvoice(1)} style={{ padding: "0.25rem 0.45rem", fontSize: "0.72rem" }}>Next ›</button></div>}
                   <span style={{ color: stageColor, fontWeight: 800, whiteSpace: "nowrap" }}>{status}</span>
                   <button type="button" onClick={() => setIsPedidoDetalleOpen(false)} aria-label="Close shipment details" style={{ border: 0, background: "transparent", color: "#64748b", fontSize: "1.5rem", lineHeight: 1, cursor: "pointer" }}>×</button>
