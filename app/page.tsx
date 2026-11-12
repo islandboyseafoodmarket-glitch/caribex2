@@ -556,6 +556,15 @@ export default function HomePage() {
                 >
                   {t("home.primaryCta")}
                 </button>
+                <a
+                  className="hero-survey-btn"
+                  href="https://docs.google.com/forms/d/e/1FAIpQLSczrYqOSlsA2UMrssr5eo_jiuExj5hLIiLDT51_HItKBNGI4A/viewform"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  {i18n.language.startsWith("en") ? "Take Our Customer Survey" : "Responda nuestra encuesta"}
+                  <span>{i18n.language.startsWith("en") ? "Help us improve tracking, updates, and prepaid services." : "Ayúdenos a mejorar el seguimiento, las actualizaciones y los servicios prepagados."}</span>
+                </a>
               </div>
             </div>
           </section>
