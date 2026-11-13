@@ -52,6 +52,14 @@ function additionalChargeTotal(value: string | null | undefined) {
   if (!value) return 0;
   return (value.match(/\$?\d+(?:\.\d{1,2})?/g) || []).reduce((sum, item) => sum + Number(item.replace("$", "")), 0);
 }
+function escapeHtml(value: unknown) {
+  return String(value ?? "—")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
 
 export default function ContainersAdmin() {
   const [containers, setContainers] = useState<Container[]>([]);
@@ -129,6 +137,37 @@ export default function ContainersAdmin() {
       return totals;
     }, { subtotal: 0, additional: 0, tax: 0, total: 0 });
   }, [selected]);
+  const printManifest = () => {
+    if (!selected) return;
+    const printWindow = window.open("", "_blank", "width=1200,height=900");
+    if (!printWindow) { alert("Please allow pop-ups to print the manifest."); return; }
+    const rows = groupedShipments.flatMap((group) => group.map((shipment) => {
+      const additional = additionalChargeTotal(shipment.checkin?.cargos_adicionales);
+      const total = Number(shipment.billing_total ?? ((shipment.billing_subtotal || 0) + additional));
+      const consolidated = selected.shipments.filter((candidate) => candidate.checkin?.parent_box_id === shipment.id).map((candidate) => candidate.tracking).filter(Boolean);
+      const dimensions = shipment.checkin && [shipment.checkin.largo, shipment.checkin.ancho, shipment.checkin.alto].some((value) => value != null)
+        ? `${shipment.checkin.largo || "—"}x${shipment.checkin.ancho || "—"}x${shipment.checkin.alto || "—"}`
+        : "—";
+      const cells = [
+        formatPortName(shipment.customer?.puerto, "Unassigned"),
+        shipment.customer?.nombre || "Unknown owner",
+        shipment.customer?.numero_cliente ? `#${shipment.customer.numero_cliente}` : "—",
+        shipment.tracking || "—",
+        `${shipment.tipo_paquete || shipment.contenido || "—"} (${dimensions})`,
+        money(shipment.billing_subtotal),
+        additional ? money(additional) : "—",
+        money(total),
+        consolidated.length ? consolidated.join(", ") : "None",
+        String(consolidated.length + 1),
+      ];
+      return `<tr>${cells.map((cell) => `<td>${escapeHtml(cell)}</td>`).join("")}</tr>`;
+    })).join("");
+    const reportHtml = `<!doctype html><html><head><meta charset="utf-8"><title>Container Manifest ${escapeHtml(selected.codigo)}</title><style>
+      @page{size:letter landscape;margin:10mm}*{box-sizing:border-box}html,body{margin:0;background:#fff;color:#0f172a;font-family:Arial,sans-serif}main{width:100%}h1{margin:0 0 3px;color:#0f4c81;font-size:20pt}p{margin:0 0 12px;color:#475569;font-size:11pt}table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:10pt;line-height:1.25}thead{display:table-header-group}tr{break-inside:avoid;page-break-inside:avoid}th,td{padding:6pt 5pt;border-bottom:.6pt solid #94a3b8;text-align:left;vertical-align:top;overflow-wrap:anywhere}th{background:#0f304b;color:#fff;font-size:9pt;text-transform:uppercase}tfoot{display:table-row-group}.totals{width:280pt;margin:12pt 0 0 auto;border:1pt solid #93c5fd;padding:10pt;font-size:10pt}.totals div{display:flex;justify-content:space-between;gap:12pt;padding:2pt 0}.totals .grand{border-top:2pt solid #0f4c81;margin-top:5pt;padding-top:7pt;color:#0f4c81;font-size:12pt;font-weight:700}</style></head><body><main><h1>Container Manifest — ${escapeHtml(selected.codigo)}</h1><p>Created ${escapeHtml(dateLabel(selected.creado_en))} · ${groupedShipments.reduce((sum, group) => sum + group.length, 0)} shipment${groupedShipments.reduce((sum, group) => sum + group.length, 0) === 1 ? "" : "s"}</p><table><colgroup><col style="width:9%"><col style="width:13%"><col style="width:7%"><col style="width:13%"><col style="width:15%"><col style="width:8%"><col style="width:10%"><col style="width:8%"><col style="width:12%"><col style="width:5%"></colgroup><thead><tr><th>Location</th><th>Name</th><th>Customer ID</th><th>Tracking Number</th><th>Item / Dimensions</th><th>Item Cost</th><th>Additional Charges</th><th>Total Cost</th><th>Consolidates</th><th>Pkgs</th></tr></thead><tbody>${rows}</tbody></table><section class="totals"><div><span>Container subtotal</span><strong>${escapeHtml(money(selectedTotals.subtotal))}</strong></div><div><span>Additional charges</span><strong>${escapeHtml(money(selectedTotals.additional))}</strong></div><div><span>Handling fee</span><strong>${escapeHtml(money(selectedTotals.tax))}</strong></div><div class="grand"><span>Container grand total</span><strong>${escapeHtml(money(selectedTotals.total))}</strong></div></section></main><script>window.onload=function(){window.focus();window.print();}</script></body></html>`;
+    printWindow.document.open();
+    printWindow.document.write(reportHtml);
+    printWindow.document.close();
+  };
 
   if (loading) return <div className="container-dashboard-state">Loading container dashboard…</div>;
   if (error) return <div className="container-dashboard-state container-dashboard-error">{error}</div>;
@@ -210,7 +249,7 @@ export default function ContainersAdmin() {
           {containers.map((container) => <option key={container.id} value={container.id}>{container.codigo} ({container.shipments.length} shipments)</option>)}
         </select>
         <input className="container-dashboard-filter" value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Filter tracking, customer, or location" />
-        <button className="container-dashboard-button" type="button" onClick={() => window.print()} disabled={!selected}>Print / Save PDF manifest</button>
+        <button className="container-dashboard-button" type="button" onClick={printManifest} disabled={!selected}>Print / Save PDF manifest</button>
       </div>
       <div className="container-dashboard-metrics">
         <div className="container-dashboard-metric"><strong>{containers.length}</strong><span>Total containers</span></div>

@@ -157,7 +157,7 @@ const WEB_TAB_VERSIONS: Record<string, string> = {
   prepaid: "1.0.3",
   reports: "1.0.3",
   labels: "1.0.3",
-  containers: "1.0.4",
+  containers: "1.0.5",
   personal: "1.0.3",
   activityLogs: "1.0.3",
   leads: "1.0.3",
