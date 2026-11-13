@@ -153,19 +153,19 @@ export default function ShipmentsAdmin({
     let inTransit = 0;
     let delivered = 0;
     let exceptions = 0;
-    shipments.forEach((shipment) => {
+    shipments.filter((shipment) => !isManualInvoice(shipment)).forEach((shipment) => {
       const stage = rowStage(shipment);
       if (stage === "IN_TRANSIT") inTransit += 1;
       if (stage === "PICKED_UP") delivered += 1;
       if (issueSet.has(shipment.id)) exceptions += 1;
     });
-    return { total: shipments.length, inTransit, delivered, exceptions };
+    return { total: shipments.filter((shipment) => !isManualInvoice(shipment)).length, inTransit, delivered, exceptions };
   }, [getStage, issueSet, shipments]);
 
   const filteredShipments = useMemo(() => {
     const searchTerm = normalizedText(appliedSearch);
 
-    return shipments.filter((shipment) => {
+    return shipments.filter((shipment) => !isManualInvoice(shipment)).filter((shipment) => {
       const tracking = normalizedText(shipment.tracking);
       const customer = normalizedText(shipment.clienteNombre);
       const port = normalizedText(formatPortName(shipment.clientePuerto, ""));

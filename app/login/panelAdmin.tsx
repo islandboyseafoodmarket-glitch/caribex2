@@ -142,7 +142,7 @@ const shipmentStage = (status: string | null | undefined) => {
   return "RECEIVED";
 };
 
-const WEB_ADMIN_VERSION = "1.0.2";
+const WEB_ADMIN_VERSION = "1.0.3";
 
 const trackPackageStage = (shipment: { estado?: string | null; insideBox?: boolean }) =>
   shipment.insideBox && shipmentStage(shipment.estado) !== "PICKED_UP" ? "INSIDE_BOX" : shipmentStage(shipment.estado);
