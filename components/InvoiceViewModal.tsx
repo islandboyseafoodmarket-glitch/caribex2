@@ -1,7 +1,6 @@
 "use client";
 
 import { type ReactNode, useEffect, useState } from "react";
-import InvoicePreview from "./InvoicePreview";
 import { supabase } from "../lib/supabaseClient";
 
 export type InvoiceViewData = {
@@ -26,118 +25,81 @@ export type InvoiceViewData = {
   paymentDate?: string | null;
   invoiceSentAt?: string | null;
   lateFeeApplied?: boolean;
+  approvalStatus?: string | null;
+  paymentStatus?: string | null;
+  paidAmount?: number | null;
+  balanceAmount?: number | null;
+  container?: string | null;
 };
 
-type InvoiceDetails = {
-  extraCharges: string[];
-  boxSize: string | null;
-  isConsolidationBox: boolean;
-};
+type InvoicePackage = { id: string; tracking: string; typeLabel: string; status: string };
+const money = (value: number | null | undefined) => `$${Number(value || 0).toFixed(2)}`;
 
-function parseExtraCharges(value: unknown) {
-  return String(value || "")
-    .split(",")
-    .map((charge) => charge.trim())
-    .filter(Boolean);
-}
-
-function parseBoxSize(data: { alto?: unknown; ancho?: unknown; largo?: unknown } | null) {
-  const length = Number(data?.largo);
-  const width = Number(data?.ancho);
-  const height = Number(data?.alto);
-  return [length, width, height].every((value) => Number.isFinite(value) && value > 0)
-    ? `${length} x ${width} x ${height}`
-    : null;
+function dateTime(value: string | null | undefined) {
+  if (!value) return "-";
+  const date = new Date(value);
+  return Number.isFinite(date.getTime())
+    ? new Intl.DateTimeFormat("en-US", { timeZone: "America/Tegucigalpa", dateStyle: "short", timeStyle: "short" }).format(date)
+    : value;
 }
 
 export default function InvoiceViewModal({ invoice, onClose, actions }: { invoice: InvoiceViewData; onClose: () => void; actions?: ReactNode }) {
-  const [details, setDetails] = useState<InvoiceDetails>({ extraCharges: [], boxSize: null, isConsolidationBox: false });
+  const [packages, setPackages] = useState<InvoicePackage[]>([{ id: invoice.id, tracking: invoice.tracking, typeLabel: invoice.typeLabel, status: "-" }]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
     let active = true;
-
-    setLoading(true);
-    setError(null);
-    setDetails({ extraCharges: [], boxSize: null, isConsolidationBox: false });
-
-    const loadInvoiceDetails = async () => {
-      try {
-        const { data, error: queryError } = await supabase
-          .from("paquetes_checkin")
-          .select("alto, ancho, largo, cargos_adicionales, consolidacion")
-          .eq("paquete_id", invoice.id)
-          .order("creado_en", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        if (controller.signal.aborted || !active) return;
-        if (queryError) throw queryError;
-
-        setDetails({
-          extraCharges: parseExtraCharges(data?.cargos_adicionales),
-          boxSize: parseBoxSize(data),
-          isConsolidationBox: Boolean(data?.consolidacion),
-        });
-      } catch (queryError) {
-        if (controller.signal.aborted || !active) return;
-        setError(queryError instanceof Error ? queryError.message : "Saved invoice item details could not be loaded.");
-      } finally {
-        if (!controller.signal.aborted && active) setLoading(false);
-      }
+    const loadPackages = async () => {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from("paquetes_checkin")
+        .select("paquete_id, parent_box_id, creado_en, paquetes_registro:paquete_id (id, tracking, tipo_paquete, estado)")
+        .or(`paquete_id.eq.${invoice.id},parent_box_id.eq.${invoice.id}`)
+        .order("creado_en", { ascending: true });
+      if (!active || controller.signal.aborted) return;
+      const rows = (data || []).map((row: any) => row.paquetes_registro).filter(Boolean);
+      const all = [
+        { id: invoice.id, tracking: invoice.tracking, typeLabel: invoice.typeLabel, status: "-" },
+        ...rows.map((row: any) => ({ id: String(row.id), tracking: String(row.tracking || "-"), typeLabel: String(row.tipo_paquete || "Package"), status: String(row.estado || "-") })),
+      ];
+      const seen = new Set<string>();
+      setPackages(all.filter((item) => !seen.has(item.id) && seen.add(item.id)));
+      if (error) setPackages([{ id: invoice.id, tracking: invoice.tracking, typeLabel: invoice.typeLabel, status: "-" }]);
+      setLoading(false);
     };
-
-    void loadInvoiceDetails();
-    return () => {
-      active = false;
-      controller.abort();
-    };
-  }, [invoice.id]);
+    void loadPackages();
+    return () => { active = false; controller.abort(); };
+  }, [invoice.id, invoice.tracking, invoice.typeLabel]);
 
   useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
+    const onKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape") onClose(); };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [onClose]);
 
+  const paymentStatus = invoice.paymentStatus || (invoice.invoiceStatus === "PAID" ? "Paid" : "Not paid");
+  const approvalStatus = invoice.approvalStatus || "UNAPPROVED";
+  const total = Number(invoice.billingTotal || 0);
+  const paid = invoice.paidAmount == null ? (paymentStatus.toUpperCase() === "PAID" ? total : 0) : Number(invoice.paidAmount);
+  const balance = invoice.balanceAmount == null ? Math.max(0, total - paid) : Number(invoice.balanceAmount);
+
   return (
-    <div className="pa-modal-overlay" role="presentation">
-      <div className="pa-modal" style={{ maxWidth: 900, maxHeight: "90vh", overflowY: "auto" }} role="dialog" aria-modal="true" aria-labelledby="invoice-view-modal-title">
-        <div className="pa-modal-header">
-          <h2 id="invoice-view-modal-title" className="pa-modal-title">Invoice</h2>
-          <button type="button" className="pa-close-btn" onClick={onClose} aria-label="Close invoice">×</button>
+    <div className="pa-modal-overlay" onClick={onClose}>
+      <div className="pa-modal" role="dialog" aria-modal="true" aria-labelledby="invoice-view-modal-title" onClick={(event) => event.stopPropagation()} style={{ maxWidth: 760, maxHeight: "90vh", overflowY: "auto", padding: "1.35rem 1.5rem" }}>
+        <div className="pa-modal-header" style={{ marginBottom: "1rem" }}><h2 id="invoice-view-modal-title" className="pa-modal-title">▣&nbsp; Invoice</h2><button type="button" className="pa-close-btn" onClick={onClose} aria-label="Close invoice">×</button></div>
+        <div style={{ display: "grid", gridTemplateColumns: "145px minmax(0,1fr)", gap: "0.55rem 1.2rem", fontSize: "1rem", padding: "0.25rem 0 1.1rem" }}>
+          <span style={{ color: "#64748b" }}>Client</span><strong>{invoice.clientName || "-"} {invoice.clientNumber != null ? ` (#${invoice.clientNumber})` : ""}</strong>
+          <span style={{ color: "#64748b" }}>Status</span><strong>{approvalStatus}</strong>
+          <span style={{ color: "#64748b" }}>Payment</span><strong style={{ color: paymentStatus.toUpperCase() === "PAID" ? "#166534" : "#64748b" }}>{paymentStatus}</strong>
+          <span style={{ color: "#64748b" }}>Total</span><strong>{money(total)} <span style={{ fontWeight: 500, color: "#475569" }}>(subtotal {money(invoice.billingSubtotal)}, tax {money(invoice.billingTax)})</span></strong>
+          <span style={{ color: "#64748b" }}>Balance</span><strong style={{ color: balance > 0 ? "#b45309" : "#166534" }}>{money(balance)}</strong>
+          <span style={{ color: "#64748b" }}>Container</span><strong>{invoice.container || invoice.containerLabels?.filter(Boolean).join(", ") || "-"}</strong>
+          <span style={{ color: "#64748b" }}>Created</span><strong>{dateTime(invoice.serviceDate)}</strong>
         </div>
-        {loading && <p role="status" style={{ color: "#64748b", margin: "0 0 1rem" }}>Loading saved invoice items…</p>}
-        {error && <p role="alert" style={{ color: "#b91c1c", margin: "0 0 1rem" }}>Saved invoice item details could not be loaded: {error}</p>}
-        <InvoicePreview
-          clientName={invoice.clientName}
-          clientNumber={invoice.clientNumber}
-          clientEmail={invoice.clientEmail}
-          port={invoice.port}
-          containerLabels={invoice.containerLabels}
-          tracking={invoice.tracking}
-          carrier={invoice.carrier}
-          typeLabel={invoice.typeLabel}
-          contents={invoice.contents}
-          boxSize={details.boxSize}
-          extraCharges={details.extraCharges}
-          isConsolidationBox={details.isConsolidationBox}
-          billingSubtotal={invoice.billingSubtotal}
-          billingTax={invoice.billingTax}
-          billingTotal={invoice.billingTotal}
-          serviceDate={invoice.serviceDate}
-          invoiceStatus={invoice.invoiceStatus}
-          paymentMethod={invoice.paymentMethod}
-          paymentNotes={invoice.paymentNotes}
-          paymentReference={invoice.paymentReference}
-          paymentDate={invoice.paymentDate}
-          invoiceSentAt={invoice.invoiceSentAt}
-          lateFeeApplied={invoice.lateFeeApplied}
-        />
+        <section style={{ borderTop: "1px solid #e2e8f0", paddingTop: "1rem" }}><h3 style={{ margin: "0 0 0.55rem", fontSize: "1.05rem" }}>Packages on this invoice ({packages.length})</h3>
+          {loading ? <p style={{ color: "#64748b", margin: 0 }}>Loading packages…</p> : <div style={{ display: "grid", gap: "0.35rem" }}>{packages.map((item) => <div key={item.id} style={{ display: "grid", gridTemplateColumns: "minmax(0,1.8fr) minmax(100px,1fr) minmax(120px,1fr)", gap: "0.75rem", color: "#475569", padding: "0.2rem 0" }}><button type="button" style={{ border: 0, padding: 0, background: "transparent", textAlign: "left", color: "#2563eb", font: "inherit", cursor: "pointer" }} onClick={onClose}>{item.tracking}</button><span>{item.typeLabel}</span><span>{item.id === invoice.id && item.status === "-" ? "" : item.status}</span></div>)}</div>}
+        </section>
         {actions && <div style={{ display: "flex", justifyContent: "flex-end", flexWrap: "wrap", gap: ".6rem", marginTop: "1rem", paddingTop: "1rem", borderTop: "1px solid #e2e8f0" }}>{actions}</div>}
       </div>
     </div>

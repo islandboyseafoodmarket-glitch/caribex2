@@ -25,6 +25,7 @@ export type PaymentInvoice = {
   payment_notes?: string | null;
   payment_reference?: string | null;
   payment_date?: string | null;
+  approval_status?: string | null;
   containerLabels?: string[];
   containerIds?: string[];
   /** The existing row may carry the complete source invoice under this property. */
@@ -102,6 +103,9 @@ function invoiceViewData<T extends PaymentInvoice>(invoice: T): InvoiceViewData 
     paymentDate: invoice.payment_date,
     invoiceSentAt: invoice.invoice_sent_at,
     lateFeeApplied: invoice.late_fee_applied,
+    approvalStatus: invoice.approval_status,
+    paymentStatus: invoice.invoice_status === "PAID" ? "Paid" : "Not paid",
+    container: invoice.containerLabels?.filter(Boolean).join(", ") || "-",
   };
 }
 
@@ -267,7 +271,7 @@ export default function PaymentsAdmin<T extends PaymentInvoice>({
       </div>
 
       {selectedInvoice && <InvoiceViewModal
-        invoice={invoiceViewData(selectedInvoice)}
+        invoice={{ ...invoiceViewData(selectedInvoice), paidAmount: getBalance(selectedInvoice).paid, balanceAmount: getBalance(selectedInvoice).balance }}
         onClose={() => setSelectedInvoice(null)}
         actions={<>
           {onRecordPayment && (balances?.[selectedInvoice.id]?.balance || 0) > 0 && <button type="button" className="pa-primary-btn" disabled={!recordingEnabled} onClick={() => { const invoice = selectedInvoice; setSelectedInvoice(null); onRecordPayment(invoice); }}>Record payment</button>}

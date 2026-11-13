@@ -19,6 +19,7 @@ import ReportsAdmin from "./ReportsAdmin";
 import ExpensesAdmin from "./ExpensesAdmin";
 import { formatStaffDateTime } from "../../lib/staff-date-format";
 import InvoicePreview, { type InvoicePreviewProps } from "../../components/InvoicePreview";
+import InvoiceViewModal, { type InvoiceViewData } from "../../components/InvoiceViewModal";
 import { BILLABLE_INVOICE_ITEMS, SALES_TAX_RATE, formatCatalogCharge, roundMoney } from "../../lib/invoice-pricing";
 import { INVOICE_FILTER_COLORS, tabColorStyle } from "../../lib/shipment-colors";
 
@@ -169,8 +170,8 @@ const TRACK_STAGE_STYLES: Record<string, { color: string; background: string; bo
 const App = () => {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<
-    'dashboard' | 'personal' | 'clientes' | 'prepaid' | 'client360' | 'pedidos' | 'track' | 'incidencias' | 'facturas' | 'finanzas' | 'expenses' | 'leads' | 'portal' | 'ferry' | 'containers' | 'labels' | 'reports' | 'activityLogs'
-  >('dashboard');
+    'personal' | 'clientes' | 'prepaid' | 'client360' | 'pedidos' | 'track' | 'incidencias' | 'facturas' | 'finanzas' | 'expenses' | 'leads' | 'portal' | 'ferry' | 'containers' | 'labels' | 'reports' | 'activityLogs'
+  >('pedidos');
   const [incidenciaFiltro, setIncidenciaFiltro] = useState('');
   const [expandedNavGroups, setExpandedNavGroups] = useState<Record<string, boolean>>({
     operations: true,
@@ -536,6 +537,7 @@ const App = () => {
   const [pedidoDetalleError, setPedidoDetalleError] = useState<string | null>(null);
   const [adminPreviewPhoto, setAdminPreviewPhoto] = useState<string | null>(null);
   const [adminPreviewSignature, setAdminPreviewSignature] = useState<{ id: string; paths: string[]; tracking: string } | null>(null);
+  const [trackInvoiceSummary, setTrackInvoiceSummary] = useState<InvoiceViewData | null>(null);
   const [batchNewBoxLabels, setBatchNewBoxLabels] = useState<BatchBoxLabel[] | null>(null);
   const [newBoxLabelCount, setNewBoxLabelCount] = useState(1);
   const [labelSize, setLabelSize] = useState<CaribexLabelSize>("4x6");
@@ -1530,7 +1532,7 @@ const App = () => {
 
   useEffect(() => {
     const interval = setInterval(() => {
-      if (activeTab === "pedidos" || activeTab === "dashboard") {
+      if (activeTab === "pedidos") {
         cargarPedidos();
       } else if (activeTab === "facturas") {
         cargarFacturas();
@@ -1690,6 +1692,11 @@ const App = () => {
       billingTotal: factura.total,
       serviceDate: factura.creado_en,
     });
+  };
+
+  const openInvoiceSummary = (factura: Factura) => {
+    const ledger = paymentBalances[factura.id];
+    setTrackInvoiceSummary({ id: factura.id, tracking: factura.tracking, clientName: factura.clienteNombre, clientNumber: factura.clienteNumero, carrier: factura.carrier, typeLabel: factura.tipo_paquete || "Shipment", contents: factura.contenido, billingSubtotal: factura.subtotal, billingTax: factura.tax, billingTotal: factura.total, serviceDate: factura.creado_en, approvalStatus: factura.approval_status || "PENDING", paymentStatus: factura.invoice_status === "PAID" ? "Paid" : "Not paid", paidAmount: ledger?.paid ?? null, balanceAmount: ledger?.balance ?? null, container: factura.containerLabels?.filter(Boolean).join(", ") || "-" });
   };
 
   const openConfirmPayInvoice = (factura: Factura) => {
@@ -2441,7 +2448,6 @@ const App = () => {
         <div className="admin-sidebar-group">
           <button type="button" className="admin-sidebar-group-title" onClick={() => toggleNavGroup('operations')}>Operations <ChevronDown size={14} className={expandedNavGroups.operations ? 'nav-chevron is-open' : 'nav-chevron'} /></button>
           {expandedNavGroups.operations && <div className="admin-sidebar-items">
-            <button className={`admin-sidebar-item ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveTab('dashboard')}><BarChart3 /> Dashboard</button>
             <button className={`admin-sidebar-item ${activeTab === 'pedidos' ? 'active' : ''}`} onClick={() => setActiveTab('pedidos')}><Package /> Shipments <span className="count-badge">{pedidos.length}</span></button>
             <button className={`admin-sidebar-item ${activeTab === 'track' ? 'active' : ''}`} onClick={() => setActiveTab('track')}><ScanLine /> Track Package <span className="count-badge">{pedidos.length}</span></button>
             <button className={`admin-sidebar-item ${activeTab === 'client360' ? 'active' : ''}`} onClick={() => setActiveTab('client360')}><IconUsers /> Client 360</button>
@@ -2483,10 +2489,8 @@ const App = () => {
         <div className="card-header-inner" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
           <div>
             <h3>
-              {activeTab === 'dashboard' ? <BarChart3 /> : activeTab === 'personal' ? <IconUsers /> : <IconBriefcase />}{' '}
-              {activeTab === 'dashboard'
-                ? 'Dashboard'
-                : activeTab === 'personal'
+              {activeTab === 'personal' ? <IconUsers /> : <IconBriefcase />}{' '}
+              {activeTab === 'personal'
                 ? 'Listado de Personal'
                 : activeTab === 'activityLogs'
                   ? 'Staff Activity Logs'
@@ -2521,9 +2525,7 @@ const App = () => {
                       : 'Ferry manifests'}
             </h3>
             <span>
-              {activeTab === 'dashboard'
-                ? 'Live shipment metrics from the Admin shipment records'
-                : activeTab === 'personal'
+              {activeTab === 'personal'
                 ? `${personal.length} registro${personal.length === 1 ? '' : 's'} en esta categoría`
                 : activeTab === 'activityLogs'
                   ? `${staffActionLogs.length} recent staff events`
@@ -2649,35 +2651,6 @@ const App = () => {
         </div>
 
         <div className="divider"></div>
-
-        {activeTab === 'dashboard' && (
-          <section className="admin-dashboard-content" aria-label="Shipment metrics">
-            {!pedidosLoaded ? (
-              <p className="admin-dashboard-status" role={pedidosLoadError ? "alert" : "status"}>
-                {pedidosLoadError ? `Shipment metrics are unavailable: ${pedidosLoadError}` : "Loading shipment metrics…"}
-              </p>
-            ) : (
-              <>
-                {pedidosLoadError && <p className="admin-dashboard-status admin-dashboard-status--warning" role="status">Could not refresh shipments. Showing the last successfully loaded metrics.</p>}
-                <div className="admin-dashboard-metrics" aria-live="polite">
-                  {dashboardMetrics.map((metric) => {
-                    const MetricIcon = metric.icon;
-                    return (
-                      <article className={`admin-metric-card admin-metric-card--${metric.tone}`} key={metric.label} aria-label={`${metric.label}: ${metric.value}`}>
-                        <div className="admin-metric-icon"><MetricIcon size={22} aria-hidden="true" /></div>
-                        <div className="admin-metric-copy">
-                          <p className="admin-metric-label">{metric.label}</p>
-                          <strong className="admin-metric-value">{metric.value.toLocaleString("en-US")}</strong>
-                          <span className="admin-metric-description">{metric.description}</span>
-                        </div>
-                      </article>
-                    );
-                  })}
-                </div>
-              </>
-            )}
-          </section>
-        )}
 
         {adminNotice && <div style={{ margin: '0.75rem 0', padding: '0.75rem 1rem', borderRadius: '0.75rem', background: '#dcfce7', border: '1px solid #86efac', color: '#166534', display: 'flex', justifyContent: 'space-between' }}><span>{adminNotice}</span><button type="button" onClick={() => setAdminNotice(null)} style={{ border: 0, background: 'transparent', color: 'inherit', cursor: 'pointer', fontWeight: 700 }}>Dismiss</button></div>}
         {customerLoadError && <div role="alert" style={{ margin: '0.75rem 0', padding: '0.75rem 1rem', borderRadius: '0.75rem', background: '#fef2f2', border: '1px solid #fecaca', color: '#991b1b' }}>Customers could not be loaded: {customerLoadError}</div>}
@@ -2962,7 +2935,7 @@ const App = () => {
                 const isSent = invoice === 'SENT';
                 const isPaid = invoice === 'PAID';
                 const invoiceActions: AdminInvoiceAction[] = [
-                  { id: 'view-invoice', label: 'View invoice', group: 'Invoice', onSelect: () => abrirDetallePedido(f.id) },
+                  { id: 'view-invoice', label: 'View invoice', group: 'Invoice', onSelect: () => openInvoiceSummary(f) },
                   { id: 'edit-add-ons', label: 'Edit invoice add-ons', group: 'Invoice', onSelect: () => handleAdminEditInvoiceAddOns(f) },
                   { id: 'print-invoice', label: 'PDF / Print invoice', group: 'Invoice', onSelect: () => printInvoice(f) },
                 ];
@@ -3400,6 +3373,12 @@ const App = () => {
 
         {activeTab === 'pedidos' && pedidos.length > 0 && (
           <div style={{ width: '100%', overflowX: 'auto' }}>
+            <section className="admin-dashboard-content" aria-label="Shipment metrics" style={{ marginBottom: '1.25rem' }}>
+              {!pedidosLoaded ? <p className="admin-dashboard-status" role={pedidosLoadError ? "alert" : "status"}>{pedidosLoadError ? `Shipment metrics are unavailable: ${pedidosLoadError}` : "Loading shipment metrics…"}</p> : <>
+                {pedidosLoadError && <p className="admin-dashboard-status admin-dashboard-status--warning" role="status">Could not refresh shipments. Showing the last successfully loaded metrics.</p>}
+                <div className="admin-dashboard-metrics" aria-live="polite">{dashboardMetrics.map((metric) => { const MetricIcon = metric.icon; return <article className={`admin-metric-card admin-metric-card--${metric.tone}`} key={`shipments-${metric.label}`} aria-label={`${metric.label}: ${metric.value}`}><div className="admin-metric-icon"><MetricIcon size={22} aria-hidden="true" /></div><div className="admin-metric-copy"><p className="admin-metric-label">{metric.label}</p><strong className="admin-metric-value">{metric.value.toLocaleString("en-US")}</strong><span className="admin-metric-description">{metric.description}</span></div></article>; })}</div>
+              </>}
+            </section>
             {/* Filtro por tracking, número de cuenta o nombre de cliente */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
               <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
@@ -3882,6 +3861,7 @@ const App = () => {
       )}
 
       {paymentDialogInvoice && <PaymentLedgerDialog key={`${paymentDialogInvoice.id}-${paymentDialogMode}`} invoice={paymentDialogInvoice} mode={paymentDialogMode} onClose={() => setPaymentDialogInvoice(null)} onChanged={handlePaymentChanged} />}
+      {trackInvoiceSummary && <InvoiceViewModal invoice={trackInvoiceSummary} onClose={() => setTrackInvoiceSummary(null)} actions={<button type="button" className="pa-secondary-btn" onClick={() => setTrackInvoiceSummary(null)}>Close</button>} />}
 
       {isPedidoDetalleOpen && pedidoDetalle?.activity !== undefined && (
         <div className="pa-modal-overlay" onClick={() => setIsPedidoDetalleOpen(false)}>
@@ -3945,7 +3925,7 @@ const App = () => {
                   {detailRow("Item", `${pedidoDetalle.tipo_paquete || "Shipment"}${pedidoDetalle.billing_subtotal != null ? ` ($${Number(pedidoDetalle.billing_subtotal).toFixed(2)})` : ""}`, "item")}
                   {detailRow("Charges", checkin.cargos_adicionales || "—", "charges")}
                   {detailRow("Container", containers.map((container: any) => container.codigo || container.id).join(", ") || "Not assigned", "container")}
-                  {detailRow("Invoice", <span>Invoice <strong style={{ color: invoiceApproval === "APPROVED" ? "#166534" : "#64748b" }}>{invoiceApproval || "PENDING"}</strong> <span style={{ marginLeft: "0.7rem" }}>Payment: <strong style={{ color: payment === "PAID" ? "#166534" : "#b45309" }}>{payment || "UNPAID"}</strong></span></span>, "invoice")}
+                  {detailRow("Invoice", <button type="button" onClick={() => setTrackInvoiceSummary({ id: String(pedidoDetalle.id), tracking: String(pedidoDetalle.tracking || "-"), clientName: customer.nombre || null, clientNumber: customer.numero_cliente ?? null, carrier: pedidoDetalle.nombre_paqueteria || null, typeLabel: pedidoDetalle.tipo_paquete || "Shipment", contents: pedidoDetalle.contenido || null, billingSubtotal: pedidoDetalle.billing_subtotal ?? null, billingTax: pedidoDetalle.billing_tax ?? null, billingTotal: pedidoDetalle.billing_total ?? null, serviceDate: pedidoDetalle.creado_en || pedidoDetalle.hora_fecha || null, approvalStatus: invoiceApproval || "PENDING", paymentStatus: payment === "PAID" ? "Paid" : "Not paid", container: containers.map((container: any) => container.codigo || container.id).join(", ") || "-" })} style={{ border: 0, background: "transparent", padding: 0, color: "#2563eb", textAlign: "left", font: "inherit", cursor: "pointer", textDecoration: "underline" }} aria-label="Open invoice summary">Invoice <strong style={{ color: invoiceApproval === "APPROVED" ? "#166534" : "#64748b" }}>{invoiceApproval || "PENDING"}</strong> <span style={{ marginLeft: "0.7rem" }}>Payment: <strong style={{ color: payment === "PAID" ? "#166534" : "#b45309" }}>{payment || "UNPAID"}</strong></span>{pedidoDetalle.billing_total != null ? ` · $${Number(pedidoDetalle.billing_total).toFixed(2)}` : ""}</button>, "invoice")}
                   {detailRow("Received", formatStaffDateTime(pedidoDetalle.hora_fecha || pedidoDetalle.creado_en), "received")}
                   {detailRow("Last scanned", formatStaffDateTime(activity[activity.length - 1]?.created_at || pedidoDetalle.updated_at || pedidoDetalle.hora_fecha), "scanned")}
                 </div>

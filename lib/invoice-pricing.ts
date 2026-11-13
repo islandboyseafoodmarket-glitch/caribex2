@@ -14,6 +14,14 @@ export const INVOICE_DISCOUNTS = {
   vip_discount: { label: "VIP Discount (25%)", scope: "invoice", rate: 0.25 },
   customer_appreciation: { label: "Customer Appreciation (10%)", scope: "invoice", rate: 0.10 },
   ferry_charge_offset: { label: "Ferry Charge Offset (10%)", scope: "shipping", rate: 0.10 },
+  church_missionary_discount: { label: "Church or Missionary Discount (10%)", scope: "invoice", rate: 0.10 },
+  container_discount: { label: "Container Discount (20%)", scope: "invoice", rate: 0.20 },
+  customer_satisfaction_discount: { label: "Customer Satisfaction Discount (20%)", scope: "invoice", rate: 0.20 },
+  donator_discount: { label: "Donator Discount (15%)", scope: "invoice", rate: 0.15 },
+  air_freight_shipping_offset: { label: "Discount to Offset Shipping via Air Freight (10%)", scope: "shipping", rate: 0.10 },
+  air_freight_offset: { label: "Discount to Offset Air Freight (10%)", scope: "shipping", rate: 0.10 },
+  sap_air_cargo_offset: { label: "SAP Discount to Offset Air Cargo (10%)", scope: "shipping", rate: 0.10 },
+  teguc_airfare_offset: { label: "Teguc Discount to Offset Airfare (10%)", scope: "shipping", rate: 0.10 },
 } as const;
 
 export type InvoiceDiscountCode = keyof typeof INVOICE_DISCOUNTS;
