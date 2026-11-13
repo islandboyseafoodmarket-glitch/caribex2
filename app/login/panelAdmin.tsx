@@ -578,6 +578,8 @@ const App = () => {
   const [adminPreviewPhoto, setAdminPreviewPhoto] = useState<string | null>(null);
   const [adminPreviewSignature, setAdminPreviewSignature] = useState<{ id: string; paths: string[]; tracking: string } | null>(null);
   const [trackInvoiceSummary, setTrackInvoiceSummary] = useState<InvoiceViewData | null>(null);
+  const [actualInvoicePreview, setActualInvoicePreview] = useState<InvoicePreviewProps | null>(null);
+  const [actualInvoicePreviewLoading, setActualInvoicePreviewLoading] = useState(false);
   const [batchNewBoxLabels, setBatchNewBoxLabels] = useState<BatchBoxLabel[] | null>(null);
   const [newBoxLabelCount, setNewBoxLabelCount] = useState(1);
   const [labelSize, setLabelSize] = useState<CaribexLabelSize>("4x6");
@@ -1737,6 +1739,16 @@ const App = () => {
   const openInvoiceSummary = (factura: Factura) => {
     const ledger = paymentBalances[factura.id];
     setTrackInvoiceSummary({ id: factura.id, tracking: factura.tracking, clientName: factura.clienteNombre, clientNumber: factura.clienteNumero, carrier: factura.carrier, typeLabel: factura.tipo_paquete || "Shipment", contents: factura.contenido, billingSubtotal: factura.subtotal, billingTax: factura.tax, billingTotal: factura.total, serviceDate: factura.creado_en, approvalStatus: factura.approval_status || "PENDING", paymentStatus: factura.invoice_status === "PAID" ? "Paid" : "Not paid", paidAmount: ledger?.paid ?? null, balanceAmount: ledger?.balance ?? null, container: factura.containerLabels?.filter(Boolean).join(", ") || "-" });
+  };
+
+  const openActualInvoice = async (factura: Factura) => {
+    setActualInvoicePreviewLoading(true);
+    setActualInvoicePreview({ clientName: factura.clienteNombre, clientNumber: factura.clienteNumero, clientEmail: factura.clienteEmail, tracking: factura.tracking, carrier: factura.carrier, typeLabel: factura.tipo_paquete || "Shipment", contents: factura.contenido, billingSubtotal: factura.subtotal, billingTax: factura.tax, billingTotal: factura.total, serviceDate: factura.creado_en, invoiceStatus: factura.invoice_status });
+    const { data: checkin } = await supabase.from("paquetes_checkin").select("alto, ancho, largo, cargos_adicionales, consolidacion").eq("paquete_id", factura.id).order("creado_en", { ascending: false }).limit(1).maybeSingle();
+    const { data: consolidated } = checkin?.consolidacion ? await supabase.from("paquetes_checkin").select("paquete_id").eq("parent_box_id", factura.id) : { data: [] as { paquete_id: string }[] };
+    const dimensions = [checkin?.largo, checkin?.ancho, checkin?.alto].map(Number);
+    setActualInvoicePreview({ clientName: factura.clienteNombre, clientNumber: factura.clienteNumero, clientEmail: factura.clienteEmail, tracking: factura.tracking, carrier: factura.carrier, typeLabel: factura.tipo_paquete || "Shipment", boxSize: dimensions.every((value) => Number.isFinite(value) && value > 0) ? dimensions.join(" x ") : null, contents: factura.contenido, extraCharges: String(checkin?.cargos_adicionales || "").split(",").map((item) => item.trim()).filter(Boolean), isConsolidationBox: Boolean(checkin?.consolidacion), consolidatedPackagesCount: consolidated?.length || 0, billingSubtotal: factura.subtotal, billingTax: factura.tax, billingTotal: factura.total, serviceDate: factura.creado_en, invoiceStatus: factura.invoice_status, paymentMethod: factura.payment_method, paymentNotes: factura.payment_notes, paymentReference: factura.payment_reference, paymentDate: factura.payment_date, invoiceSentAt: factura.invoice_sent_at, lateFeeApplied: factura.late_fee_applied });
+    setActualInvoicePreviewLoading(false);
   };
 
   const openConfirmPayInvoice = (factura: Factura) => {
@@ -2975,7 +2987,7 @@ const App = () => {
                 const isSent = invoice === 'SENT';
                 const isPaid = invoice === 'PAID';
                 const invoiceActions: AdminInvoiceAction[] = [
-                  { id: 'view-invoice', label: 'View invoice', group: 'Invoice', onSelect: () => openInvoiceSummary(f) },
+                  { id: 'view-invoice', label: 'View invoice', group: 'Invoice', onSelect: () => void openActualInvoice(f) },
                   { id: 'edit-add-ons', label: 'Edit invoice add-ons', group: 'Invoice', onSelect: () => handleAdminEditInvoiceAddOns(f) },
                   { id: 'print-invoice', label: 'PDF / Print invoice', group: 'Invoice', onSelect: () => printInvoice(f) },
                 ];
@@ -3901,7 +3913,8 @@ const App = () => {
       )}
 
       {paymentDialogInvoice && <PaymentLedgerDialog key={`${paymentDialogInvoice.id}-${paymentDialogMode}`} invoice={paymentDialogInvoice} mode={paymentDialogMode} onClose={() => setPaymentDialogInvoice(null)} onChanged={handlePaymentChanged} />}
-      {trackInvoiceSummary && <InvoiceViewModal invoice={trackInvoiceSummary} onClose={() => setTrackInvoiceSummary(null)} actions={<button type="button" className="pa-secondary-btn" onClick={() => setTrackInvoiceSummary(null)}>Close</button>} />}
+      {trackInvoiceSummary && <InvoiceViewModal invoice={trackInvoiceSummary} onClose={() => setTrackInvoiceSummary(null)} onOpenShipment={(shipmentId) => { setTrackInvoiceSummary(null); void abrirDetallePedido(shipmentId); }} actions={<button type="button" className="pa-secondary-btn" onClick={() => setTrackInvoiceSummary(null)}>Close</button>} />}
+      {actualInvoicePreview && <div className="pa-modal-overlay" style={{ zIndex: 10050 }} onClick={() => setActualInvoicePreview(null)}><div className="pa-modal" role="dialog" aria-modal="true" aria-label="Actual invoice" onClick={(event) => event.stopPropagation()} style={{ width: "min(900px, 96vw)", maxHeight: "92vh", overflowY: "auto", padding: "1.5rem" }}><div className="pa-modal-header"><h2 className="pa-modal-title">Invoice</h2><button type="button" className="pa-close-btn" onClick={() => setActualInvoicePreview(null)} aria-label="Close invoice">×</button></div>{actualInvoicePreviewLoading && <p role="status" style={{ color: "#64748b" }}>Loading invoice details…</p>}<InvoicePreview {...actualInvoicePreview} /></div></div>}
 
       {isPedidoDetalleOpen && pedidoDetalle?.activity !== undefined && (
         <div className="pa-modal-overlay" onClick={() => setIsPedidoDetalleOpen(false)}>

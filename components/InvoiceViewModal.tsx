@@ -43,7 +43,7 @@ function dateTime(value: string | null | undefined) {
     : value;
 }
 
-export default function InvoiceViewModal({ invoice, onClose, actions }: { invoice: InvoiceViewData; onClose: () => void; actions?: ReactNode }) {
+export default function InvoiceViewModal({ invoice, onClose, actions, onOpenShipment }: { invoice: InvoiceViewData; onClose: () => void; actions?: ReactNode; onOpenShipment?: (shipmentId: string) => void }) {
   const [packages, setPackages] = useState<InvoicePackage[]>([{ id: invoice.id, tracking: invoice.tracking, typeLabel: invoice.typeLabel, status: "-" }]);
   const [loading, setLoading] = useState(true);
 
@@ -98,7 +98,7 @@ export default function InvoiceViewModal({ invoice, onClose, actions }: { invoic
           <span style={{ color: "#64748b" }}>Created</span><strong>{dateTime(invoice.serviceDate)}</strong>
         </div>
         <section style={{ borderTop: "1px solid #e2e8f0", paddingTop: "1rem" }}><h3 style={{ margin: "0 0 0.55rem", fontSize: "1.05rem" }}>Packages on this invoice ({packages.length})</h3>
-          {loading ? <p style={{ color: "#64748b", margin: 0 }}>Loading packages…</p> : <div style={{ display: "grid", gap: "0.35rem" }}>{packages.map((item) => <div key={item.id} style={{ display: "grid", gridTemplateColumns: "minmax(0,1.8fr) minmax(100px,1fr) minmax(120px,1fr)", gap: "0.75rem", color: "#475569", padding: "0.2rem 0" }}><button type="button" style={{ border: 0, padding: 0, background: "transparent", textAlign: "left", color: "#2563eb", font: "inherit", cursor: "pointer" }} onClick={onClose}>{item.tracking}</button><span>{item.typeLabel}</span><span>{item.id === invoice.id && item.status === "-" ? "" : item.status}</span></div>)}</div>}
+          {loading ? <p style={{ color: "#64748b", margin: 0 }}>Loading packages…</p> : <div style={{ display: "grid", gap: "0.35rem" }}>{packages.map((item) => <div key={item.id} style={{ display: "grid", gridTemplateColumns: "minmax(0,1.8fr) minmax(100px,1fr) minmax(120px,1fr)", gap: "0.75rem", color: "#475569", padding: "0.2rem 0" }}><button type="button" style={{ border: 0, padding: 0, background: "transparent", textAlign: "left", color: "#2563eb", font: "inherit", cursor: "pointer", textDecoration: "underline" }} onClick={() => onOpenShipment ? onOpenShipment(item.id) : onClose()}>{item.tracking}</button><span>{item.typeLabel}</span><span>{item.id === invoice.id && item.status === "-" ? "" : item.status}</span></div>)}</div>}
         </section>
         {actions && <div style={{ display: "flex", justifyContent: "flex-end", flexWrap: "wrap", gap: ".6rem", marginTop: "1rem", paddingTop: "1rem", borderTop: "1px solid #e2e8f0" }}>{actions}</div>}
       </div>
