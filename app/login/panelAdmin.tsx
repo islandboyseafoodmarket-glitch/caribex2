@@ -142,7 +142,7 @@ const shipmentStage = (status: string | null | undefined) => {
   return "RECEIVED";
 };
 
-const WEB_ADMIN_VERSION = "1.0.0";
+const WEB_ADMIN_VERSION = "1.0.1";
 
 const trackPackageStage = (shipment: { estado?: string | null; insideBox?: boolean }) =>
   shipment.insideBox && shipmentStage(shipment.estado) !== "PICKED_UP" ? "INSIDE_BOX" : shipmentStage(shipment.estado);
@@ -2566,7 +2566,7 @@ const App = () => {
 
           {activeTab === 'reports' && <ReportsAdmin />}
 
-          {activeTab === 'finanzas' && (
+          {activeTab === 'prepaid' && (
             <div style={{ margin: '1rem 0', padding: '1rem 1.1rem', borderRadius: '0.9rem', border: '1px solid #f59e0b', background: '#fffbeb' }}>
               <strong style={{ color: '#92400e' }}>Prepaid allowance review</strong>
               <p style={{ margin: '0.35rem 0 0.8rem', color: '#78350f' }}>Shipments that exceed a customer’s cubic-foot allowance stay visible for Admin approval before operational completion.</p>
