@@ -180,20 +180,22 @@ export default function ContainersAdmin() {
         @media print {
           @page { size: letter landscape; margin: 10mm; }
           html, body { width: 100%; margin: 0 !important; background: #fff !important; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
-          body * { visibility: hidden !important; }
-          .container-dashboard, .container-dashboard * { visibility: visible !important; }
+          body * { visibility: visible !important; }
+          .dashboard-root--containers { max-width: none !important; margin: 0 !important; padding: 0 !important; }
+          .dashboard-root--containers > *:not(.data-card), .dashboard-root--containers .data-card > *:not(.container-dashboard) { display: none !important; }
+          .dashboard-root--containers .data-card { display: block !important; margin: 0 !important; padding: 0 !important; border: 0 !important; box-shadow: none !important; }
           .container-invoice-backdrop { display: none !important; }
           .container-dashboard-toolbar, .container-dashboard-metrics, .container-dashboard-locations { display: none !important; }
-          .container-dashboard { display: block; position: static; width: 100%; margin: 0; padding: 0; color: #0f172a; font-family: Arial, sans-serif; }
+          .container-dashboard { display: block; position: absolute; top: 0; left: 0; z-index: 9999; width: 100%; margin: 0; padding: 0; color: #0f172a; font-family: Arial, sans-serif; }
           .container-dashboard-scroll { max-height: none; min-height: 0; overflow: visible; padding: 0; }
           .container-dashboard-scroll > div:first-child { margin: 0 0 8pt; font-size: 9pt; }
           .container-dashboard-table { overflow: visible; border: 0; border-radius: 0; }
-          .container-dashboard-table table { width: 100%; min-width: 0; table-layout: fixed; border-collapse: collapse; font-size: 8pt; line-height: 1.2; }
+          .container-dashboard-table table { width: 100%; min-width: 0; table-layout: fixed; border-collapse: collapse; font-size: 9pt; line-height: 1.25; }
           .container-dashboard-table thead { display: table-header-group; }
           .container-dashboard-table tr { break-inside: avoid; page-break-inside: avoid; }
-          .container-dashboard-table th, .container-dashboard-table td { box-sizing: border-box; padding: 4pt 3pt; border-bottom: 0.5pt solid #94a3b8; text-align: left; vertical-align: top; overflow-wrap: anywhere; }
-          .container-dashboard-table th { background: #0f304b !important; color: #fff !important; font-size: 7pt; line-height: 1.15; text-transform: uppercase; }
-          .container-dashboard-table td { font-size: 8pt; }
+          .container-dashboard-table th, .container-dashboard-table td { box-sizing: border-box; padding: 5pt 4pt; border-bottom: 0.5pt solid #94a3b8; text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+          .container-dashboard-table th { background: #0f304b !important; color: #fff !important; font-size: 8pt; line-height: 1.2; text-transform: uppercase; }
+          .container-dashboard-table td { font-size: 9pt; }
           .container-dashboard-table tr:last-child td { border-bottom: 0.5pt solid #94a3b8; }
           .container-dashboard-total-card { box-sizing: border-box; width: 260pt; margin: 8pt 0 0 auto; padding: 8pt 10pt; border-radius: 0; font-size: 9pt; break-inside: avoid; page-break-inside: avoid; }
           .container-dashboard-total-card > div { gap: 10pt; }
