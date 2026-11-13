@@ -22,6 +22,7 @@ export type PaymentInvoice = {
   invoice_sent_at?: string | null;
   late_fee_applied?: boolean;
   payment_method?: string | null;
+  payment_notes?: string | null;
   payment_reference?: string | null;
   payment_date?: string | null;
   containerLabels?: string[];
@@ -84,6 +85,9 @@ function invoiceViewData<T extends PaymentInvoice>(invoice: T): InvoiceViewData 
     tracking: invoice.tracking,
     clientName: invoice.clienteNombre,
     clientNumber: invoice.clienteNumero,
+    clientEmail: invoice.clienteEmail,
+    port: invoice.puerto,
+    containerLabels: invoice.containerLabels,
     carrier: invoice.carrier,
     typeLabel: invoice.tipo_paquete || "Shipment",
     contents: invoice.contenido,
@@ -91,6 +95,13 @@ function invoiceViewData<T extends PaymentInvoice>(invoice: T): InvoiceViewData 
     billingTax: invoice.tax,
     billingTotal: invoice.total,
     serviceDate: invoice.creado_en,
+    invoiceStatus: invoice.invoice_status,
+    paymentMethod: invoice.payment_method,
+    paymentNotes: invoice.payment_notes,
+    paymentReference: invoice.payment_reference,
+    paymentDate: invoice.payment_date,
+    invoiceSentAt: invoice.invoice_sent_at,
+    lateFeeApplied: invoice.late_fee_applied,
   };
 }
 

@@ -6,6 +6,9 @@ import { parseInvoiceChargeLine } from "../lib/invoice-pricing";
 export type InvoicePreviewProps = {
   clientName?: string | null;
   clientNumber?: number | null;
+  clientEmail?: string | null;
+  port?: string | null;
+  containerLabels?: string[];
   tracking: string;
   carrier?: string | null;
   typeLabel: string;
@@ -18,6 +21,13 @@ export type InvoicePreviewProps = {
   billingTax?: number | null;
   billingTotal?: number | null;
   serviceDate?: string | null;
+  invoiceStatus?: string | null;
+  paymentMethod?: string | null;
+  paymentNotes?: string | null;
+  paymentReference?: string | null;
+  paymentDate?: string | null;
+  invoiceSentAt?: string | null;
+  lateFeeApplied?: boolean;
 };
 
 function formatServiceDate(value: string | null | undefined) {
@@ -77,6 +87,9 @@ function getDisplayExtraCharges(labels: string[]): DisplayExtraCharge[] {
 const InvoicePreview: React.FC<InvoicePreviewProps> = ({
   clientName,
   clientNumber,
+  clientEmail,
+  port,
+  containerLabels,
   tracking,
   carrier,
   typeLabel,
@@ -89,10 +102,18 @@ const InvoicePreview: React.FC<InvoicePreviewProps> = ({
   billingTax,
   billingTotal,
   serviceDate,
+  invoiceStatus,
+  paymentMethod,
+  paymentNotes,
+  paymentReference,
+  paymentDate,
+  invoiceSentAt,
+  lateFeeApplied,
 }) => {
   const safeClientName = clientName && clientName.trim().length > 0 ? clientName : "-";
   const safeClientNumber =
     typeof clientNumber === "number" ? `#${clientNumber}` : "-";
+  const safeContainers = (containerLabels || []).filter(Boolean).join(", ");
 
   const subtotal =
     typeof billingSubtotal === "number" && !Number.isNaN(billingSubtotal)
@@ -118,6 +139,14 @@ const InvoicePreview: React.FC<InvoicePreviewProps> = ({
       ? `${typeLabel.trim()} — ${boxSize}`
       : typeLabel;
   const itemDetail = contents && contents.trim().length > 0 && contents.trim() !== tracking.trim() ? contents : null;
+  const paymentDetails = [
+    invoiceStatus && `Status: ${invoiceStatus}`,
+    paymentMethod && `Method: ${paymentMethod}`,
+    paymentReference && `Reference: ${paymentReference}`,
+    paymentDate && `Paid date: ${formatServiceDate(paymentDate)}`,
+    invoiceSentAt && `Sent: ${formatServiceDate(invoiceSentAt)}`,
+    lateFeeApplied && "Late fee: 5% applied",
+  ].filter(Boolean) as string[];
 
   const hasHandling = extrasList.some((label) => {
     const parsed = parseInvoiceChargeLine(label);
@@ -228,6 +257,9 @@ const InvoicePreview: React.FC<InvoicePreviewProps> = ({
           <div style={{ fontWeight: 600, marginBottom: 6 }}>Customer</div>
           <div>{safeClientName}</div>
           <div>{safeClientNumber}</div>
+          {clientEmail && <div>{clientEmail}</div>}
+          {port && <div>Port: {port}</div>}
+          {safeContainers && <div>Container: {safeContainers}</div>}
         </div>
 
         <div>
@@ -242,6 +274,14 @@ const InvoicePreview: React.FC<InvoicePreviewProps> = ({
           <div>${total.toFixed(2)}</div>
         </div>
       </section>
+
+      {(paymentDetails.length > 0 || paymentNotes) && (
+        <section style={{ marginBottom: 20, padding: "12px 14px", border: "1px solid #e5e7eb", borderRadius: 8, background: "#f9fafb", fontSize: 13 }}>
+          <div style={{ fontWeight: 600, marginBottom: 6 }}>Payment details</div>
+          {paymentDetails.map((detail) => <div key={detail}>{detail}</div>)}
+          {paymentNotes && <div style={{ marginTop: 6, color: "#4b5563" }}>Notes: {paymentNotes}</div>}
+        </section>
+      )}
 
       <section style={{ marginBottom: 20 }}>
         <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 8 }}>Items</div>

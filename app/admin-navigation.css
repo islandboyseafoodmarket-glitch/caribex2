@@ -248,6 +248,30 @@
   padding: 14px 0 28px;
 }
 
+/* Wide workspaces own their horizontal scrolling; the outer Admin card must
+   not clip their headers, tables, forms, or action controls. */
+.dashboard-root .data-card--payments,
+.dashboard-root .data-card--payments > .payments-workspace,
+.dashboard-root .data-card--expenses,
+.dashboard-root .data-card--expenses > .expenses-admin,
+.dashboard-root .data-card--activity,
+.dashboard-root .data-card--activity > div,
+.dashboard-root .data-card--ferry,
+.dashboard-root .data-card--ferry > .ferry-manifest-admin {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow: visible;
+}
+
+.dashboard-root .data-card--payments,
+.dashboard-root .data-card--expenses,
+.dashboard-root .data-card--activity {
+  padding-left: 14px;
+  padding-right: 14px;
+}
+
 /* FerryManifestAdmin renders its own shared branded header in both Staff and Admin. */
 .dashboard-root .data-card--ferry {
   padding: 0 !important;

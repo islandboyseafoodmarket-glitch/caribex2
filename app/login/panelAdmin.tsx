@@ -142,7 +142,7 @@ const shipmentStage = (status: string | null | undefined) => {
   return "RECEIVED";
 };
 
-const WEB_ADMIN_VERSION = "1.0.1";
+const WEB_ADMIN_VERSION = "1.0.2";
 
 const trackPackageStage = (shipment: { estado?: string | null; insideBox?: boolean }) =>
   shipment.insideBox && shipmentStage(shipment.estado) !== "PICKED_UP" ? "INSIDE_BOX" : shipmentStage(shipment.estado);
@@ -264,6 +264,8 @@ const App = () => {
     payment_notes: string | null;
     payment_reference: string | null;
     payment_date: string | null;
+    invoice_sent_at?: string | null;
+    late_fee_applied?: boolean;
     customer_invoice_note: string | null;
     cubic_feet?: number | null;
     prepaid_review_required?: boolean | null;
@@ -1335,7 +1337,7 @@ const App = () => {
     const { data, error } = await supabase
       .from("paquetes_registro")
       .select(
-        "id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, notas_imagenes, issue_status, billing_subtotal, billing_tax, billing_total, approval_status, invoice_status, payment_method, payment_notes, payment_reference, payment_date, customer_invoice_note, cubic_feet, prepaid_review_required, prepaid_review_status, creado_en, numero_cliente:numero_cliente_id (id, numero_cliente, nombre, email, puerto)",
+        "id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, notas_imagenes, issue_status, billing_subtotal, billing_tax, billing_total, approval_status, invoice_status, payment_method, payment_notes, payment_reference, payment_date, invoice_sent_at, customer_invoice_note, cubic_feet, prepaid_review_required, prepaid_review_status, creado_en, numero_cliente:numero_cliente_id (id, numero_cliente, nombre, email, puerto)",
       )
       .or("estado.ilike.%descargado%,estado.ilike.%entregado%")
       .order("creado_en", { ascending: false });
@@ -1351,7 +1353,7 @@ const App = () => {
         ? await Promise.all([
             supabase.from("contenedor_paquetes").select("paquete_id, contenedor_id").in("paquete_id", packageIds),
             supabase.from("contenedores").select("id, codigo"),
-            supabase.from("paquetes_checkin").select("paquete_id, problema, problema_notas, creado_en").in("paquete_id", packageIds).order("creado_en", { ascending: false }),
+            supabase.from("paquetes_checkin").select("paquete_id, problema, problema_notas, cargos_adicionales, creado_en").in("paquete_id", packageIds).order("creado_en", { ascending: false }),
           ])
         : [{ data: [] }, { data: [] }, { data: [] }];
       const containerById = new Map((containers || []).map((container: any) => [container.id, container.codigo]));
@@ -1362,7 +1364,7 @@ const App = () => {
         current.labels.push(containerById.get(link.contenedor_id) || link.contenedor_id);
         containersByPackage.set(link.paquete_id, current);
       });
-      const checkinByPackage = new Map<string, { problema?: boolean | null; problema_notas?: string | null }>();
+      const checkinByPackage = new Map<string, { problema?: boolean | null; problema_notas?: string | null; cargos_adicionales?: string | null }>();
       (checkins || []).forEach((checkin: any) => {
         if (!checkinByPackage.has(checkin.paquete_id)) {
           checkinByPackage.set(checkin.paquete_id, checkin);
@@ -1392,6 +1394,8 @@ const App = () => {
         payment_notes: (row.payment_notes as string | null) ?? null,
         payment_reference: (row.payment_reference as string | null) ?? null,
         payment_date: (row.payment_date as string | null) ?? null,
+        invoice_sent_at: (row.invoice_sent_at as string | null) ?? null,
+        late_fee_applied: /late\s+fee\s*\(\s*5\s*%\s*\)/i.test(String(checkinByPackage.get(row.id)?.cargos_adicionales || "")),
         customer_invoice_note: (row.customer_invoice_note as string | null) ?? null,
         cubic_feet: (row.cubic_feet as number | null) ?? null,
         prepaid_review_required: Boolean(row.prepaid_review_required),
@@ -1612,6 +1616,25 @@ const App = () => {
     if (invoiceUpdate.error || checkinUpdate.error) { alert(invoiceUpdate.error?.message || checkinUpdate.error?.message || "Could not update invoice add-on"); return; }
     updateFacturaEnEstado(editingInvoiceAddOns.id, { subtotal, tax, total });
     setEditingInvoiceAddOns(null);
+  };
+
+  const handleAdminApplyLateFee = async (factura: Factura) => {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const response = await fetch("/api/admin/invoice-late-fee", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${sessionData.session?.access_token || ""}` },
+      body: JSON.stringify({ invoice_id: factura.id }),
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) { alert(body.error || "Could not apply the late fee."); return; }
+    const updated = body.invoice || {};
+    updateFacturaEnEstado(factura.id, {
+      subtotal: Number(updated.billing_subtotal ?? factura.subtotal ?? 0),
+      total: Number(updated.billing_total ?? factura.total ?? 0),
+      late_fee_applied: true,
+    });
+    setPaymentReload((current) => current + 1);
+    alert(`Late fee applied: $${Number(updated.late_fee_amount || 0).toFixed(2)}`);
   };
 
   const handleAdminSendInvoice = async (factura: Factura) => {
@@ -2456,7 +2479,7 @@ const App = () => {
       </aside>
 
       {/* Card de Visualización de Datos */}
-      <div className={`data-card ${activeTab === 'facturas' ? 'data-card--invoices' : ''} ${activeTab === 'ferry' ? 'data-card--ferry' : ''}`}>
+        <div className={`data-card ${activeTab === 'facturas' ? 'data-card--invoices' : ''} ${activeTab === 'finanzas' ? 'data-card--payments' : ''} ${activeTab === 'expenses' ? 'data-card--expenses' : ''} ${activeTab === 'activityLogs' ? 'data-card--activity' : ''} ${activeTab === 'ferry' ? 'data-card--ferry' : ''}`}>
         <div className="card-header-inner" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
           <div>
             <h3>
@@ -2697,6 +2720,7 @@ const App = () => {
             onRecordPayment={openConfirmPayInvoice}
             onViewPaymentHistory={(invoice) => { setPaymentDialogMode("history"); setPaymentDialogInvoice(invoice); }}
             onEditInvoice={(invoice) => { const record = facturas.find((candidate) => candidate.id === invoice.id); if (record) void handleAdminEditInvoiceAddOns(record); }}
+            onApplyLateFee={(invoice) => { const record = facturas.find((candidate) => candidate.id === invoice.id); if (record) void handleAdminApplyLateFee(record); }}
           />
         </div>}
 

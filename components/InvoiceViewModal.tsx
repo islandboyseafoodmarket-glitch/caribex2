@@ -9,6 +9,9 @@ export type InvoiceViewData = {
   tracking: string;
   clientName?: string | null;
   clientNumber?: number | null;
+  clientEmail?: string | null;
+  port?: string | null;
+  containerLabels?: string[];
   carrier?: string | null;
   typeLabel: string;
   contents?: string | null;
@@ -16,6 +19,13 @@ export type InvoiceViewData = {
   billingTax?: number | null;
   billingTotal?: number | null;
   serviceDate?: string | null;
+  invoiceStatus?: string | null;
+  paymentMethod?: string | null;
+  paymentNotes?: string | null;
+  paymentReference?: string | null;
+  paymentDate?: string | null;
+  invoiceSentAt?: string | null;
+  lateFeeApplied?: boolean;
 };
 
 type InvoiceDetails = {
@@ -106,6 +116,9 @@ export default function InvoiceViewModal({ invoice, onClose, actions }: { invoic
         <InvoicePreview
           clientName={invoice.clientName}
           clientNumber={invoice.clientNumber}
+          clientEmail={invoice.clientEmail}
+          port={invoice.port}
+          containerLabels={invoice.containerLabels}
           tracking={invoice.tracking}
           carrier={invoice.carrier}
           typeLabel={invoice.typeLabel}
@@ -117,6 +130,13 @@ export default function InvoiceViewModal({ invoice, onClose, actions }: { invoic
           billingTax={invoice.billingTax}
           billingTotal={invoice.billingTotal}
           serviceDate={invoice.serviceDate}
+          invoiceStatus={invoice.invoiceStatus}
+          paymentMethod={invoice.paymentMethod}
+          paymentNotes={invoice.paymentNotes}
+          paymentReference={invoice.paymentReference}
+          paymentDate={invoice.paymentDate}
+          invoiceSentAt={invoice.invoiceSentAt}
+          lateFeeApplied={invoice.lateFeeApplied}
         />
         {actions && <div style={{ display: "flex", justifyContent: "flex-end", flexWrap: "wrap", gap: ".6rem", marginTop: "1rem", paddingTop: "1rem", borderTop: "1px solid #e2e8f0" }}>{actions}</div>}
       </div>
