@@ -3640,15 +3640,17 @@ const App = () => {
                       </a>
                     </div>
                   ) : (
-                    <Image
-                      src={url}
-                      alt="Incidencia"
-                      width={800}
-                      height={800}
-                      unoptimized
-                      onError={() => setIncidenciaImagenesFallidas((current) => current.includes(url) ? current : [...current, url])}
-                      style={{ width: "100%", height: "100%", objectFit: "contain" }}
-                    />
+                    <button type="button" onClick={() => setAdminPreviewPhoto(url)} title="Open photo" aria-label="Open issue photo" style={{ display: "block", width: "100%", padding: 0, border: 0, background: "transparent", cursor: "zoom-in" }}>
+                      <Image
+                        src={url}
+                        alt="Incidencia"
+                        width={800}
+                        height={800}
+                        unoptimized
+                        onError={() => setIncidenciaImagenesFallidas((current) => current.includes(url) ? current : [...current, url])}
+                        style={{ width: "100%", height: "100%", objectFit: "contain" }}
+                      />
+                    </button>
                   )}
                 </div>
               ))}
