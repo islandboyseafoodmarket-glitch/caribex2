@@ -144,7 +144,47 @@ const shipmentStage = (status: string | null | undefined) => {
 };
 
 const WEB_ADMIN_VERSION = "1.0.3";
+const WEB_TAB_VERSIONS: Record<string, string> = {
+  pedidos: "1.0.4",
+  finanzas: "1.0.4",
+  expenses: "1.0.3",
+  ferry: "1.0.3",
+  facturas: "1.0.4",
+  track: "1.0.3",
+  client360: "1.0.3",
+  incidencias: "1.0.3",
+  clientes: "1.0.3",
+  prepaid: "1.0.3",
+  reports: "1.0.3",
+  labels: "1.0.3",
+  containers: "1.0.3",
+  personal: "1.0.3",
+  activityLogs: "1.0.3",
+  leads: "1.0.3",
+  portal: "1.0.3",
+};
+const WEB_TAB_LABELS: Record<string, string> = {
+  pedidos: "Shipments",
+  finanzas: "Payments",
+  expenses: "Expenses",
+  ferry: "Ferry",
+  facturas: "Invoices",
+  track: "Track Package",
+  client360: "Client 360",
+  incidencias: "Issues",
+  clientes: "Customers",
+  prepaid: "Prepaid",
+  reports: "Reports",
+  labels: "Labels",
+  containers: "Containers",
+  personal: "Staff",
+  activityLogs: "Activity Logs",
+  leads: "Leads",
+  portal: "Portal Alerts",
+};
 
+const webTabVersion = (tab: string) => WEB_TAB_VERSIONS[tab] || WEB_ADMIN_VERSION;
+const webTabLabel = (tab: string) => WEB_TAB_LABELS[tab] || "Admin";
 const trackPackageStage = (shipment: { estado?: string | null; insideBox?: boolean }) =>
   shipment.insideBox && shipmentStage(shipment.estado) !== "PICKED_UP" ? "INSIDE_BOX" : shipmentStage(shipment.estado);
 
@@ -2560,7 +2600,7 @@ const App = () => {
                       : 'Create, share, and archive weekly ferry manifests'}
             </span>
           </div>
-          <span style={{ flexShrink: 0, border: '1px solid #bfdbfe', borderRadius: '999px', background: '#eff6ff', color: '#1d4ed8', padding: '0.3rem 0.65rem', fontSize: '0.74rem', fontWeight: 800, whiteSpace: 'nowrap' }}>Web v{WEB_ADMIN_VERSION}</span>
+          <span style={{ flexShrink: 0, border: '1px solid #bfdbfe', borderRadius: '999px', background: '#eff6ff', color: '#1d4ed8', padding: '0.3rem 0.65rem', fontSize: '0.74rem', fontWeight: 800, whiteSpace: 'nowrap' }}>Web {webTabLabel(activeTab)} v{webTabVersion(activeTab)}</span>
           {activeTab === 'facturas' && (
             <button type="button" className="pa-primary-btn" onClick={() => { setManualInvoiceError(null); setIsManualInvoiceOpen(true); }} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', whiteSpace: 'nowrap' }}>
               <Plus size={16} /> Create invoice
@@ -3913,7 +3953,7 @@ const App = () => {
                   <span style={{ color: "#64748b", fontSize: "1.1rem" }}>▧</span>
                   <strong style={{ flex: 1, fontSize: "1.08rem", letterSpacing: "0.01em", overflowWrap: "anywhere" }}>{pedidoDetalle.tracking || "Shipment"}</strong>
                   <span style={{ background: "#fbbf24", color: "#78350f", borderRadius: "0.35rem", padding: "0.45rem 0.7rem", fontWeight: 800 }}>{pedidoDetalle.tipo_paquete || "Package"} {pedidoDetalle.invoice_id ? pedidoDetalle.invoice_id : ""}</span>
-                  <span style={{ color: "#1d4ed8", background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: "999px", padding: "0.25rem 0.55rem", fontSize: "0.72rem", fontWeight: 800, whiteSpace: "nowrap" }}>Web v{WEB_ADMIN_VERSION}</span>
+                  <span style={{ color: "#1d4ed8", background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: "999px", padding: "0.25rem 0.55rem", fontSize: "0.72rem", fontWeight: 800, whiteSpace: "nowrap" }}>Web shipments v{webTabVersion("pedidos")}</span>
                   {invoiceIndex >= 0 && <div style={{ display: "flex", gap: "0.3rem", alignItems: "center" }}><button type="button" className="pa-secondary-btn" disabled={invoiceIndex <= 0} onClick={() => openAdjacentInvoice(-1)} style={{ padding: "0.25rem 0.45rem", fontSize: "0.72rem" }}>‹ Previous</button><span style={{ color: "#64748b", fontSize: "0.75rem", whiteSpace: "nowrap" }}>{invoiceIndex + 1} of {facturasFiltradas.length}</span><button type="button" className="pa-secondary-btn" disabled={invoiceIndex >= facturasFiltradas.length - 1} onClick={() => openAdjacentInvoice(1)} style={{ padding: "0.25rem 0.45rem", fontSize: "0.72rem" }}>Next ›</button></div>}
                   <span style={{ color: stageColor, fontWeight: 800, whiteSpace: "nowrap" }}>{status}</span>
                   <button type="button" onClick={() => setIsPedidoDetalleOpen(false)} aria-label="Close shipment details" style={{ border: 0, background: "transparent", color: "#64748b", fontSize: "1.5rem", lineHeight: 1, cursor: "pointer" }}>×</button>

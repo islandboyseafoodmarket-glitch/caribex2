@@ -85,7 +85,7 @@ export default function InvoiceViewModal({ invoice, onClose, actions }: { invoic
   const balance = invoice.balanceAmount == null ? Math.max(0, total - paid) : Number(invoice.balanceAmount);
 
   return (
-    <div className="pa-modal-overlay" onClick={onClose}>
+    <div className="pa-modal-overlay" style={{ zIndex: 10050 }} onClick={onClose}>
       <div className="pa-modal" role="dialog" aria-modal="true" aria-labelledby="invoice-view-modal-title" onClick={(event) => event.stopPropagation()} style={{ maxWidth: 760, maxHeight: "90vh", overflowY: "auto", padding: "1.35rem 1.5rem" }}>
         <div className="pa-modal-header" style={{ marginBottom: "1rem" }}><h2 id="invoice-view-modal-title" className="pa-modal-title">▣&nbsp; Invoice</h2><button type="button" className="pa-close-btn" onClick={onClose} aria-label="Close invoice">×</button></div>
         <div style={{ display: "grid", gridTemplateColumns: "145px minmax(0,1fr)", gap: "0.55rem 1.2rem", fontSize: "1rem", padding: "0.25rem 0 1.1rem" }}>
