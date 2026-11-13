@@ -151,7 +151,7 @@ const WEB_TAB_VERSIONS: Record<string, string> = {
   ferry: "1.0.3",
   facturas: "1.0.4",
   track: "1.0.3",
-  client360: "1.0.4",
+  client360: "1.0.3",
   incidencias: "1.0.3",
   clientes: "1.0.3",
   prepaid: "1.0.3",
