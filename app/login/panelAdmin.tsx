@@ -133,6 +133,10 @@ const auditChangeLines = (log: any) => {
   }
   if (details.invoice_reason) lines.push(`Invoice: ${String(details.invoice_reason)}`);
   if (details.container_code) lines.push(`Container: ${String(details.container_code)}`);
+  if (details.partial_pickup_reason) lines.push(`Partial pickup reason: ${String(details.partial_pickup_reason)}`);
+  if (Array.isArray(details.unscanned_tracking_numbers)) {
+    lines.push(`Unscanned tracking: ${details.unscanned_tracking_numbers.length ? details.unscanned_tracking_numbers.join(", ") : "None"}`);
+  }
   if (details.changed_fields?.length) lines.push(`Updated fields: ${details.changed_fields.join(", ")}`);
   return lines;
 };

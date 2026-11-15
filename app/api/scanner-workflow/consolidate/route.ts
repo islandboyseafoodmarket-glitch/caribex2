@@ -8,7 +8,17 @@ function adminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) throw new Error("Supabase server environment variables are missing");
-  return createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
+  return createClient(url, key, {
+    auth: { autoRefreshToken: false, persistSession: false },
+    global: {
+      fetch: (input, init) => fetch(input, { ...init, cache: "no-store" }),
+    },
+  });
+}
+
+function normalizeCustomerId(value: unknown) {
+  const normalized = String(value ?? "").trim();
+  return normalized || null;
 }
 
 async function requireStaff(request: Request, supabase: SupabaseClient) {
@@ -60,21 +70,51 @@ export async function POST(request: Request) {
     const actor = await requireStaff(request, supabase);
     const body = await request.json();
     const boxId = String(body?.box_id || "").trim();
-    const childIds = Array.from(new Set((Array.isArray(body?.child_ids) ? body.child_ids : []).map((id: unknown) => String(id).trim()).filter(Boolean)));
-    const customerId = String(body?.customer_id || "").trim() || null;
-    if (!boxId || !childIds.length) return NextResponse.json({ error: "Select one BOX and at least one PACKAGE" }, { status: 400 });
+    const rawChildIds = (Array.isArray(body?.child_ids) ? body.child_ids : [])
+      .map((id: unknown) => String(id ?? "").trim())
+      .filter(Boolean);
+    const childIds = Array.from(new Set(rawChildIds));
+    const customerId = normalizeCustomerId(body?.customer_id);
+    if (!boxId || !rawChildIds.length) return NextResponse.json({ error: "Select one BOX and at least one PACKAGE" }, { status: 400 });
+    if (childIds.length !== rawChildIds.length) return NextResponse.json({ error: "Duplicate child PACKAGE IDs are not allowed." }, { status: 400 });
     if (childIds.includes(boxId)) return NextResponse.json({ error: "The BOX cannot be one of its own children" }, { status: 400 });
 
-    const { data: rows, error: rowsError } = await supabase.from("paquetes_registro").select("id, tracking, tipo_paquete, estado, numero_cliente_id").in("id", [boxId, ...childIds]);
+    const { data: rows, error: rowsError } = await supabase
+      .from("paquetes_registro")
+      .select("id, tracking, tipo_paquete, estado, numero_cliente_id")
+      .in("id", [boxId, ...childIds])
+      .limit(childIds.length + 1);
     if (rowsError) throw rowsError;
     const box = (rows || []).find((row) => row.id === boxId);
     const children = (rows || []).filter((row) => childIds.includes(row.id));
     if (!box || box.tipo_paquete !== "BOX") return NextResponse.json({ error: "Select a valid BOX shipment" }, { status: 400 });
     if (children.length !== childIds.length || children.some((row) => row.tipo_paquete !== "PACKAGE")) return NextResponse.json({ error: "Every selected child must be a PACKAGE shipment" }, { status: 400 });
-    const customerIds = Array.from(new Set([box.numero_cliente_id, ...children.map((child) => child.numero_cliente_id), customerId].filter(Boolean).map(String)));
+    if (box.estado !== DATABASE_STATUS.RECEIVED || children.some((child) => child.estado !== DATABASE_STATUS.RECEIVED)) {
+      return NextResponse.json({ error: "The BOX and every PACKAGE must be in Received status before consolidation." }, { status: 409 });
+    }
+    const boxCustomerId = normalizeCustomerId(box.numero_cliente_id);
+    const childCustomerIds = children.map((child) => normalizeCustomerId(child.numero_cliente_id));
+    if (!boxCustomerId || childCustomerIds.some((id) => !id)) {
+      return NextResponse.json({ error: "The BOX and every PACKAGE must have an assigned customer before consolidation." }, { status: 400 });
+    }
+    const customerIds = Array.from(new Set([boxCustomerId, ...childCustomerIds, customerId].filter(Boolean).map(String)));
     if (customerIds.length > 1) return NextResponse.json({ error: "Packages can only be consolidated when the BOX and every PACKAGE belong to the same customer." }, { status: 409 });
 
-    const inheritedCustomerId = customerId || box.numero_cliente_id || children.find((child) => child.numero_cliente_id)?.numero_cliente_id || null;
+    const { data: existingParents, error: existingParentsError } = await supabase
+      .from("paquetes_checkin")
+      .select("paquete_id, parent_box_id")
+      .in("paquete_id", [boxId, ...childIds])
+      .not("parent_box_id", "is", null)
+      .limit(5000);
+    if (existingParentsError) throw existingParentsError;
+    if ((existingParents || []).some((checkin) => checkin.paquete_id === boxId)) {
+      return NextResponse.json({ error: "The selected BOX is already assigned as a child of another BOX." }, { status: 409 });
+    }
+    if ((existingParents || []).some((checkin) => childIds.includes(checkin.paquete_id))) {
+      return NextResponse.json({ error: "A selected PACKAGE is already inside a BOX and cannot be reassigned." }, { status: 409 });
+    }
+
+    const inheritedCustomerId = boxCustomerId;
     await saveCheckinRelationship(supabase, boxId, { parent_box_id: null, numero_cliente_id: inheritedCustomerId, consolidacion: true });
     const { data: childCheckins, error: childCheckinsError } = await supabase
       .from("paquetes_checkin")

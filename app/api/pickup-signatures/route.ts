@@ -1,10 +1,13 @@
 import { NextResponse } from "next/server";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { DATABASE_STATUS, normalizeStatus, statusMatches } from "../../../lib/shipping-rules";
+import { isInvoiceOnlyShipment } from "../../../lib/shipment-eligibility";
 
 const MAX_SHIPMENTS = 100;
 const MAX_TRACKING_LENGTH = 200;
 const MAX_SIGNATURE_PATH_LENGTH = 200000;
+const MAX_CUSTOMER_SHIPMENTS = 5000;
+const MAX_PARTIAL_REASON_LENGTH = 2000;
 
 type ShipmentRow = {
   id: string;
@@ -14,6 +17,11 @@ type ShipmentRow = {
   issue_status: string | null;
   fecha_entregado: string | null;
   hora_entregado: string | null;
+};
+
+type CustomerShipmentRow = ShipmentRow & {
+  tipo_paquete: string | null;
+  nombre_paqueteria: string | null;
 };
 
 function client() {
@@ -37,6 +45,11 @@ async function auth(request: Request, supabase: SupabaseClient) {
 
 function text(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function normalizeContainerCode(value: unknown) {
+  const normalized = text(value);
+  return !normalized || normalized.toUpperCase() === "UNASSIGNED" ? "UNASSIGNED" : normalized;
 }
 
 function stringArray(value: unknown): string[] | null {
@@ -122,6 +135,31 @@ export async function POST(request: Request) {
       return invalid("A valid customer ID is required", "INVALID_CUSTOMER_REFERENCE", 400);
     }
 
+    const hasContainerCode = body && Object.prototype.hasOwnProperty.call(body, "container_code");
+    if (hasContainerCode && typeof body.container_code !== "string") {
+      return invalid("container_code must be a string", "INVALID_CONTAINER_REFERENCE", 400);
+    }
+    const suppliedContainerCode = hasContainerCode ? normalizeContainerCode(body.container_code) : null;
+    if (suppliedContainerCode && suppliedContainerCode.length > MAX_TRACKING_LENGTH) {
+      return invalid("The container code is too long", "INVALID_CONTAINER_REFERENCE", 400);
+    }
+
+    if (body?.partial_pickup_reason !== undefined && typeof body.partial_pickup_reason !== "string") {
+      return invalid("partial_pickup_reason must be a string", "INVALID_PARTIAL_PICKUP_REASON", 400);
+    }
+    const partialPickupReason = text(body?.partial_pickup_reason);
+    if (partialPickupReason.length > MAX_PARTIAL_REASON_LENGTH) {
+      return invalid("The partial pickup reason is too long", "INVALID_PARTIAL_PICKUP_REASON", 400);
+    }
+
+    const rawRemainingTrackings = body?.remaining_trackings === undefined ? [] : stringArray(body.remaining_trackings);
+    if (rawRemainingTrackings === null) {
+      return invalid("remaining_trackings must be a string array", "INVALID_REMAINING_TRACKINGS", 400);
+    }
+    if (rawRemainingTrackings.length > MAX_SHIPMENTS || rawRemainingTrackings.some((tracking) => tracking.length > MAX_TRACKING_LENGTH)) {
+      return invalid(`A maximum of ${MAX_SHIPMENTS} remaining trackings may be supplied`, "INVALID_REMAINING_TRACKINGS", 400);
+    }
+
     const lookupValues = shipmentIds.length ? shipmentIds : trackings;
     const lookupColumn = shipmentIds.length ? "id" : "tracking";
     let shipmentQuery = supabase
@@ -173,6 +211,72 @@ export async function POST(request: Request) {
     }
 
     const finalTrackings = resolvedRows.map((row) => text(row.tracking));
+    let authoritativeRemainingTrackings: string[] = [];
+
+    if (suppliedContainerCode) {
+      const { data: customerShipments, error: customerShipmentError } = await supabase
+        .from("paquetes_registro")
+        .select("id, tracking, numero_cliente_id, estado, issue_status, fecha_entregado, hora_entregado, tipo_paquete, nombre_paqueteria")
+        .eq("numero_cliente_id", resolvedCustomerId)
+        .neq("estado", "Archivado")
+        .limit(MAX_CUSTOMER_SHIPMENTS);
+      if (customerShipmentError) throw customerShipmentError;
+
+      const customerRows = (customerShipments || []) as CustomerShipmentRow[];
+      const customerPackageIds = customerRows.map((row) => row.id);
+      const [{ data: childLinks, error: childLinkError }, { data: containerLinks, error: containerLinkError }] = await Promise.all([
+        customerPackageIds.length
+          ? supabase.from("paquetes_checkin").select("paquete_id, parent_box_id").in("paquete_id", customerPackageIds).limit(MAX_CUSTOMER_SHIPMENTS)
+          : Promise.resolve({ data: [], error: null }),
+        customerPackageIds.length
+          ? supabase.from("contenedor_paquetes").select("paquete_id, contenedor_id").in("paquete_id", customerPackageIds).limit(MAX_CUSTOMER_SHIPMENTS)
+          : Promise.resolve({ data: [], error: null }),
+      ]);
+      if (childLinkError || containerLinkError) throw childLinkError || containerLinkError;
+
+      const consolidatedChildIds = new Set(
+        (childLinks || [])
+          .filter((link) => Boolean(link.parent_box_id))
+          .map((link) => String(link.paquete_id)),
+      );
+      const containerIds = Array.from(new Set((containerLinks || []).map((link) => link.contenedor_id).filter(Boolean)));
+      const { data: containers, error: containerError } = containerIds.length
+        ? await supabase.from("contenedores").select("id, codigo").in("id", containerIds).limit(MAX_CUSTOMER_SHIPMENTS)
+        : { data: [], error: null };
+      if (containerError) throw containerError;
+
+      const containerById = new Map((containers || []).map((container) => [String(container.id), text(container.codigo)]));
+      const containerByPackageId = new Map<string, string>();
+      for (const link of containerLinks || []) {
+        const code = containerById.get(String(link.contenedor_id));
+        if (code) containerByPackageId.set(String(link.paquete_id), code);
+      }
+
+      const mismatchedContainer = resolvedRows.find((row) => normalizeContainerCode(containerByPackageId.get(String(row.id))) !== suppliedContainerCode);
+      if (mismatchedContainer) {
+        return invalid("The supplied container does not match every signed shipment", "CONTAINER_MISMATCH", 409);
+      }
+
+      const signedIds = new Set(resolvedRows.map((row) => String(row.id)));
+      authoritativeRemainingTrackings = customerRows
+        .filter((row) => !signedIds.has(String(row.id)))
+        .filter((row) => !consolidatedChildIds.has(String(row.id)))
+        .filter((row) => !isInvoiceOnlyShipment(row))
+        .filter((row) => statusMatches(row.estado, DATABASE_STATUS.UNLOADED) && !isPickedUp(row))
+        .filter((row) => normalizeContainerCode(containerByPackageId.get(String(row.id))) === suppliedContainerCode)
+        .map((row) => text(row.tracking))
+        .filter(Boolean)
+        .filter((tracking, index, values) => values.indexOf(tracking) === index);
+
+      if (authoritativeRemainingTrackings.length > 0 && !partialPickupReason) {
+        return NextResponse.json({
+          error: "A reason is required when ready shipments remain unscanned in this customer/container pickup",
+          code: "PARTIAL_PICKUP_REASON_REQUIRED",
+          remaining_trackings: authoritativeRemainingTrackings,
+        }, { status: 409 });
+      }
+    }
+
     const { data, error } = await supabase
       .from("pickup_signatures")
       .insert({ numero_cliente_id: resolvedCustomerId, shipment_ids: resolvedRows.map((row) => row.id), trackings: finalTrackings, signature_paths: paths, captured_by: staff.user.id, captured_by_role: staff.role })
@@ -194,6 +298,9 @@ export async function POST(request: Request) {
         signed_at: data.signed_at,
         scanned_tracking_numbers: finalTrackings,
         shipment_count: resolvedRows.length,
+        partial_pickup_reason: partialPickupReason || null,
+        container_code: suppliedContainerCode,
+        unscanned_tracking_numbers: authoritativeRemainingTrackings,
         source: "client_pickup_session",
       },
     }));
@@ -201,7 +308,7 @@ export async function POST(request: Request) {
       const { error: logError } = await supabase.from("staff_action_logs").insert(linkedLogs);
       if (logError) console.warn("[pickup-signatures] Signature saved; audit linkage failed", logError.message);
     }
-    return NextResponse.json({ ok: true, signature: data });
+    return NextResponse.json({ ok: true, signature: data, remaining_trackings: authoritativeRemainingTrackings });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not save pickup signature";
     return NextResponse.json({ error: message }, { status: /authentication|token|access|required/i.test(message) ? 401 : 500 });

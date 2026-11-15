@@ -1,14 +1,24 @@
 import { NextResponse } from "next/server";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { DATABASE_STATUS, statusMatches } from "@/lib/shipping-rules";
+import { isInvoiceOnlyShipment } from "@/lib/shipment-eligibility";
 
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+function liveJson(body: object, status = 200) {
+  return NextResponse.json(body, { status, headers: {
+    "Cache-Control": "private, no-store, no-cache, max-age=0, must-revalidate",
+    "CDN-Cache-Control": "no-store", "Vercel-CDN-Cache-Control": "no-store",
+    "Pragma": "no-cache", "Expires": "0", "Vary": "Authorization",
+  } });
+}
 
 function adminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) throw new Error("Supabase server environment variables are missing");
-  return createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
+  return createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false }, global: { fetch: (input, init) => fetch(input, { ...init, cache: "no-store" }) } });
 }
 
 async function requireStaff(request: Request, supabase: SupabaseClient) {
@@ -25,7 +35,7 @@ async function requireStaff(request: Request, supabase: SupabaseClient) {
 
 function errorResponse(error: unknown) {
   const message = error instanceof Error ? error.message : "Unexpected error";
-  return NextResponse.json({ error: message }, { status: /authentication|token|access|required/i.test(message) ? 401 : 500 });
+  return liveJson({ error: message }, /authentication|token|access|required/i.test(message) ? 401 : 500);
 }
 
 export async function GET(request: Request) {
@@ -36,6 +46,7 @@ export async function GET(request: Request) {
     const query = url.searchParams.get("query")?.trim() || "";
     const clientId = url.searchParams.get("client_id")?.trim() || "";
     const view = url.searchParams.get("view") || "ready";
+    const requestId = url.searchParams.get("_request_id") || null;
     if (url.searchParams.get("list") === "1") {
       const { data: clients, error: clientListError } = await supabase
         .from("numero_cliente")
@@ -43,9 +54,9 @@ export async function GET(request: Request) {
         .order("nombre", { ascending: true })
         .limit(1000);
       if (clientListError) throw clientListError;
-      return NextResponse.json({ clients: clients || [] });
+      return liveJson({ clients: clients || [], checked_at: new Date().toISOString(), request_id: requestId });
     }
-    if (query.length < 1 && !clientId) return NextResponse.json({ client: null, packages: [] });
+    if (query.length < 1 && !clientId) return liveJson({ client: null, packages: [], checked_at: new Date().toISOString(), request_id: requestId });
 
     const numeric = query.replace(/[^0-9]/g, "");
     let clientQuery = supabase.from("numero_cliente").select("id, numero_cliente, nombre, email, telefono, puerto").limit(5);
@@ -55,7 +66,7 @@ export async function GET(request: Request) {
     const { data: clients, error: clientError } = await clientQuery;
     if (clientError) throw clientError;
     const client = clients?.[0] || null;
-    if (!client) return NextResponse.json({ client: null, packages: [] });
+    if (!client) return liveJson({ client: null, packages: [], checked_at: new Date().toISOString(), request_id: requestId });
 
     const statusFilters: Record<string, string[]> = {
       ready: [DATABASE_STATUS.UNLOADED],
@@ -85,7 +96,7 @@ export async function GET(request: Request) {
     // A consolidated child travels inside its main BOX and must not appear as
     // a second pickup item. It remains in the database for history and is
     // marked Entregado automatically when the main BOX is collected.
-    const pickupPackages = (allPackages || []).filter((item) => !consolidatedChildIds.has(item.id));
+    const pickupPackages = (allPackages || []).filter((item) => !consolidatedChildIds.has(item.id) && !isInvoiceOnlyShipment(item));
     const { data: containerLinks, error: linkError } = packageIds.length
       ? await supabase.from("contenedor_paquetes").select("paquete_id, contenedor_id").in("paquete_id", packageIds).limit(5000)
       : { data: [], error: null };
@@ -116,7 +127,7 @@ export async function GET(request: Request) {
     const pickupSet = withContainers.filter((item) => isReadyForPickup(item) || isPickedUp(item));
     const collected = pickupSet.filter((item) => isPickedUp(item)).length;
     const total = pickupSet.length;
-    return NextResponse.json({ client, packages, pickup_packages: pickupSet, view, summary: { collected, total, pending: Math.max(total - collected, 0) } });
+    return liveJson({ client, packages, pickup_packages: pickupSet, view, checked_at: new Date().toISOString(), request_id: requestId, summary: { collected, total, pending: Math.max(total - collected, 0) } });
   } catch (error) {
     return errorResponse(error);
   }

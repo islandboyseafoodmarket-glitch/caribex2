@@ -5,6 +5,7 @@ import { centralAmericaDateParts } from "../../../lib/staff-date-format";
 import { invoiceApprovalStatus } from "@/lib/invoice-approval";
 import { calculateWorkflowBilling, isBox } from "@/lib/workflow-billing";
 import { DATABASE_STATUS, normalizeFerryPort, statusMatches } from "@/lib/shipping-rules";
+import { isInvoiceOnlyShipment } from "@/lib/shipment-eligibility";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +23,7 @@ function adminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) throw new Error("Supabase server environment variables are missing");
-  return createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
+  return createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false }, global: { fetch: (input, init) => fetch(input, { ...init, cache: "no-store" }) } });
 }
 
 async function requireStaff(request: Request, supabase: SupabaseClient) {
@@ -334,6 +335,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Only the next workflow status can be applied", current: WORKFLOW[beforeIndex], next: expectedNext || null }, { status: 409 });
     }
 
+    if (expectedNext.key === "PICKED_UP" && isInvoiceOnlyShipment(shipment)) {
+      return NextResponse.json({ error: "This is an invoice-only billing record, not a physical package available for pickup", code: "INVOICE_ONLY_RECORD" }, { status: 409 });
+    }
     const hasExpectedCustomerId = body?.expected_customer_id !== undefined && body?.expected_customer_id !== null;
     const expectedCustomerId = hasExpectedCustomerId ? String(body.expected_customer_id).trim() : "";
     if (expectedNext.key === "PICKED_UP" && hasExpectedCustomerId && expectedCustomerId !== String(shipment.numero_cliente_id || "").trim()) {
