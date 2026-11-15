@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { DATABASE_STATUS, statusMatches } from "@/lib/shipping-rules";
-import { isInvoiceOnlyShipment } from "@/lib/shipment-eligibility";
+import { isArchivedShipment, isInvoiceOnlyShipment, isInTransitShipment, isPickedUpShipment, isReadyForPickupShipment } from "@/lib/shipment-eligibility";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -68,11 +67,6 @@ export async function GET(request: Request) {
     const client = clients?.[0] || null;
     if (!client) return liveJson({ client: null, packages: [], checked_at: new Date().toISOString(), request_id: requestId });
 
-    const statusFilters: Record<string, string[]> = {
-      ready: [DATABASE_STATUS.UNLOADED],
-      picked: [DATABASE_STATUS.PICKED_UP],
-      way: [DATABASE_STATUS.IN_TRANSIT],
-    };
     const { data: allPackages, error: packageError } = await supabase
       .from("paquetes_registro")
       .select("id, tracking, nombre_paqueteria, tipo_paquete, estado, invoice_status, approval_status, billing_total, fecha_descargado, hora_descargado, fecha_entregado, hora_entregado")
@@ -96,7 +90,7 @@ export async function GET(request: Request) {
     // A consolidated child travels inside its main BOX and must not appear as
     // a second pickup item. It remains in the database for history and is
     // marked Entregado automatically when the main BOX is collected.
-    const pickupPackages = (allPackages || []).filter((item) => !consolidatedChildIds.has(item.id) && !isInvoiceOnlyShipment(item));
+    const pickupPackages = (allPackages || []).filter((item) => !consolidatedChildIds.has(item.id) && !isInvoiceOnlyShipment(item) && !isArchivedShipment(item));
     const { data: containerLinks, error: linkError } = packageIds.length
       ? await supabase.from("contenedor_paquetes").select("paquete_id, contenedor_id").in("paquete_id", packageIds).limit(5000)
       : { data: [], error: null };
@@ -112,8 +106,8 @@ export async function GET(request: Request) {
       const container = containerById.get(link.contenedor_id);
       if (container?.code) containerByPackageId.set(link.paquete_id, { code: container.code, createdAt: container.createdAt || null });
     }
-    const isPickedUp = (item: any) => statusMatches(item.estado, DATABASE_STATUS.PICKED_UP) || Boolean(item.fecha_entregado || item.hora_entregado);
-    const isReadyForPickup = (item: any) => statusMatches(item.estado, DATABASE_STATUS.UNLOADED) && !isPickedUp(item);
+    const isPickedUp = isPickedUpShipment;
+    const isReadyForPickup = isReadyForPickupShipment;
     const withContainers = pickupPackages.map((item) => ({
       ...item,
       container_code: containerByPackageId.get(item.id)?.code || null,
@@ -122,7 +116,7 @@ export async function GET(request: Request) {
     const packages = withContainers.filter((item) => {
       if (view === "ready") return isReadyForPickup(item);
       if (view === "picked") return isPickedUp(item);
-      return (statusFilters[view] || statusFilters.ready).some((allowed) => statusMatches(item.estado, allowed as typeof DATABASE_STATUS[keyof typeof DATABASE_STATUS]));
+      return view === "way" ? isInTransitShipment(item) : isReadyForPickup(item);
     });
     const pickupSet = withContainers.filter((item) => isReadyForPickup(item) || isPickedUp(item));
     const collected = pickupSet.filter((item) => isPickedUp(item)).length;

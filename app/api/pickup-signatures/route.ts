@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { DATABASE_STATUS, normalizeStatus, statusMatches } from "../../../lib/shipping-rules";
-import { isInvoiceOnlyShipment } from "../../../lib/shipment-eligibility";
+import { isInvoiceOnlyShipment, isPickedUpShipment, isReadyForPickupShipment } from "../../../lib/shipment-eligibility";
 
 const MAX_SHIPMENTS = 100;
 const MAX_TRACKING_LENGTH = 200;
@@ -67,7 +67,7 @@ function isArchived(row: ShipmentRow) {
 }
 
 function isPickedUp(row: ShipmentRow) {
-  return statusMatches(row.estado, DATABASE_STATUS.PICKED_UP) || Boolean(row.fecha_entregado || row.hora_entregado);
+  return isPickedUpShipment(row);
 }
 
 export async function GET(request: Request) {
@@ -262,7 +262,7 @@ export async function POST(request: Request) {
         .filter((row) => !signedIds.has(String(row.id)))
         .filter((row) => !consolidatedChildIds.has(String(row.id)))
         .filter((row) => !isInvoiceOnlyShipment(row))
-        .filter((row) => statusMatches(row.estado, DATABASE_STATUS.UNLOADED) && !isPickedUp(row))
+        .filter((row) => isReadyForPickupShipment(row))
         .filter((row) => normalizeContainerCode(containerByPackageId.get(String(row.id))) === suppliedContainerCode)
         .map((row) => text(row.tracking))
         .filter(Boolean)
