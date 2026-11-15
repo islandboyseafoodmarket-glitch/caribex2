@@ -334,6 +334,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Only the next workflow status can be applied", current: WORKFLOW[beforeIndex], next: expectedNext || null }, { status: 409 });
     }
 
+    const hasExpectedCustomerId = body?.expected_customer_id !== undefined && body?.expected_customer_id !== null;
+    const expectedCustomerId = hasExpectedCustomerId ? String(body.expected_customer_id).trim() : "";
+    if (expectedNext.key === "PICKED_UP" && hasExpectedCustomerId && expectedCustomerId !== String(shipment.numero_cliente_id || "").trim()) {
+      return NextResponse.json({ error: "Selected customer does not match the shipment customer", code: "CUSTOMER_MISMATCH" }, { status: 409 });
+    }
+
     if (expectedNext.key === "IN_TRANSIT") {
       return NextResponse.json({
         error: "Individual In-Transit is disabled. Use Check In all to create one container for the eligible shipment group.",

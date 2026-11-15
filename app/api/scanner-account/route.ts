@@ -28,8 +28,17 @@ export async function POST(request: Request) {
 
     const payload = body as Record<string, unknown>;
     const action = payload.action;
-    if (action !== "password_reset" && action !== "password_change") {
-      return jsonResponse({ error: "action must be password_reset or password_change" }, { status: 400 });
+    if (action !== "password_reset" && action !== "password_change" && action !== "sign_out") {
+      return jsonResponse({ error: "action must be password_reset, password_change, or sign_out" }, { status: 400 });
+    }
+
+    if (action === "sign_out") {
+      const supabase = createAdminClient();
+      await requireStaffOrAdmin(request, supabase);
+      const token = (request.headers.get("authorization") || "").slice("Bearer ".length).trim();
+      const { error } = await supabase.auth.admin.signOut(token, "local");
+      if (error) throw error;
+      return jsonResponse({ success: true, message: "Signed out." });
     }
 
     if (action === "password_reset") {
