@@ -92,6 +92,7 @@ const auditActionLabel = (action: unknown) => {
     package_problem_noted: "Package Problem Noted",
     package_internal_note_added: "Package Note Added",
     package_issue_photo_uploaded: "Package Issue Photo Uploaded",
+    mobile_support_report: "Mobile Support Report",
     send_invoice: "Invoice Sent",
     manual_invoice_created: "Manual Invoice Created",
   };
@@ -105,6 +106,8 @@ const auditChangeLines = (log: any) => {
   const fromStatus = details.from_status ?? previous.estado;
   const toStatus = details.to_status ?? current.estado;
   const lines: string[] = [];
+  if (details.report_message) lines.push(`Report: ${String(details.report_message)}`);
+  if (details.app_version) lines.push(`App version: ${String(details.app_version)}`);
   if (fromStatus !== undefined && toStatus !== undefined && String(fromStatus) !== String(toStatus)) {
     lines.push(`Stage: ${String(fromStatus || "Empty")} → ${String(toStatus || "Empty")}`);
   }
