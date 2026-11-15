@@ -19,13 +19,13 @@ export async function GET() {
     {
       app: "Caribex Warehouse Management",
       version: "1.2.43",
-      version_code: 1248,
-      apk_url: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663449196187/yXqGdsAKnnWbtmlz.apk",
+      version_code: 1250,
+      apk_url: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663449196187/bNGUprPGjejHepvo.apk",
       filename: "Caribex-Warehouse-Management-1.2.43.apk",
-      apk_sha256: "91fdb1d4e0eac87f4e0dc945bad11fccb84eab088b12f99c38db0f0cca48b698",
+      apk_sha256: "815340c9e9b82ae354dc4ffb4b6b90084792e19a2409587e7d65dc3664713a45",
       release_notes: releaseNotes,
       release_history: [
-        { version: "1.2.43", version_code: 1248, release_notes: releaseNotes },
+        { version: "1.2.43", version_code: 1250, release_notes: releaseNotes },
         { version: "1.2.40", version_code: 1243, release_notes: [
           "Customer Pickup uses fresh server data: invoice-only billing records and consolidated children are excluded from physical package counts.",
           "Unloaded port suffixes and English/Spanish status aliases are recognized; a pickup timestamp overrides a stale status label.",
@@ -43,13 +43,13 @@ export async function GET() {
         {
           app: "Caribex Warehouse Management",
           version: "1.2.40",
-          version_code: 1249,
-          apk_url: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663449196187/ljVtCvfgOWenLQJc.apk",
+          version_code: 1251,
+          apk_url: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663449196187/NRfXUCFIOaXQbzWX.apk",
           filename: "Caribex-Warehouse-Management-1.2.40-rollback-code-1249.apk",
-          apk_sha256: "fc67cf0b3c71c37afdad63ff499ccc0df1494757762b5419e0b4abd34e15bca9",
+          apk_sha256: "1040f8409682e87bae95bc3d8983f66cf57e07be0a6e1492da762489972295a1",
           release_notes: [
             "v1.2.40 application payload with Android code 1246 and the existing signing certificate so it can replace v1.2.41/code 1245 without uninstalling.",
-            "This rolls back the phone app only, not the server database. A later forward installation must use Android code greater than 1249.",
+            "This rolls back the phone app only, not the server database. A later forward installation must use Android code greater than 1251.",
           ],
         },
       ],
