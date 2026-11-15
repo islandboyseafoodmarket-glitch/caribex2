@@ -45,7 +45,7 @@ export async function GET() {
           version: "1.2.40",
           version_code: 1251,
           apk_url: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663449196187/NRfXUCFIOaXQbzWX.apk",
-          filename: "Caribex-Warehouse-Management-1.2.40-rollback-code-1249.apk",
+          filename: "Caribex-Warehouse-Management-1.2.40-rollback-code-1251.apk",
           apk_sha256: "1040f8409682e87bae95bc3d8983f66cf57e07be0a6e1492da762489972295a1",
           release_notes: [
             "v1.2.40 application payload with Android code 1246 and the existing signing certificate so it can replace v1.2.41/code 1245 without uninstalling.",
