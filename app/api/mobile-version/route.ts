@@ -4,6 +4,9 @@ import releaseHistory from "./release-history.json";
 export const dynamic = "force-dynamic";
 
 const releaseNotes = [
+  "Caribex launcher icon restored in the Android native resources; the app now displays the correct Caribex logo on the phone.",
+  "Customer signature dialog now fits smaller phone screens and keeps the Complete pickup action visible, with scrolling available when needed.",
+  "Pickup success notification is shorter and no longer adds the extra unscanned-packages message.",
   "Pickup search now keeps the selected customer account ID when Search is pressed again, preventing a false Customer not found message.",
   "Shipment status values display in English throughout the scanner, including finished and picked-up shipments; legacy Spanish database values remain supported internally.",
   "Removed the extra large Home shortcut; the existing bottom Home navigation remains the single Home action.",
@@ -18,13 +21,14 @@ export async function GET() {
   return NextResponse.json(
     {
       app: "Caribex Warehouse Management",
-      version: "1.2.43",
-      version_code: 1250,
-      apk_url: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663449196187/bNGUprPGjejHepvo.apk",
-      filename: "Caribex-Warehouse-Management-1.2.43.apk",
-      apk_sha256: "815340c9e9b82ae354dc4ffb4b6b90084792e19a2409587e7d65dc3664713a45",
+      version: "1.2.44",
+      version_code: 1252,
+      apk_url: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663449196187/HUdiXupUtWMtLMZo.apk",
+      filename: "Caribex-Warehouse-Management-1.2.44-logo-fix.apk",
+      apk_sha256: "c0f5a57d9ed20d8f0243f7a5b2d2a3f9d5b8cc1870a40c2c7cecb342f24ecb81",
       release_notes: releaseNotes,
       release_history: [
+        { version: "1.2.44", version_code: 1252, release_notes: releaseNotes },
         { version: "1.2.43", version_code: 1250, release_notes: releaseNotes },
         { version: "1.2.40", version_code: 1243, release_notes: [
           "Customer Pickup uses fresh server data: invoice-only billing records and consolidated children are excluded from physical package counts.",
@@ -43,13 +47,13 @@ export async function GET() {
         {
           app: "Caribex Warehouse Management",
           version: "1.2.40",
-          version_code: 1251,
-          apk_url: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663449196187/NRfXUCFIOaXQbzWX.apk",
-          filename: "Caribex-Warehouse-Management-1.2.40-rollback-code-1251.apk",
-          apk_sha256: "1040f8409682e87bae95bc3d8983f66cf57e07be0a6e1492da762489972295a1",
+          version_code: 1253,
+          apk_url: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663449196187/nfaofHqBjiGWZPtX.apk",
+          filename: "Caribex-Warehouse-Management-1.2.40-rollback-code-1253.apk",
+          apk_sha256: "efeea57bafabc30fa88965ecb95072d773b87916443c3ca2902c92d408ccc928",
           release_notes: [
-            "v1.2.40 application payload with Android code 1246 and the existing signing certificate so it can replace v1.2.41/code 1245 without uninstalling.",
-            "This rolls back the phone app only, not the server database. A later forward installation must use Android code greater than 1251.",
+            "v1.2.40 application payload with Android code 1253 and the existing signing certificate so it can replace v1.2.44/code 1252 without uninstalling.",
+            "This rolls back the phone app only, not the server database. A later forward installation must use Android code greater than 1253.",
           ],
         },
       ],
