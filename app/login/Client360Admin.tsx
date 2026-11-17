@@ -7,6 +7,7 @@ import { formatStaffDateTime } from "../../lib/staff-date-format";
 import { formatPortName } from "../../lib/port-format";
 import InvoicePreview from "../../components/InvoicePreview";
 import { isReferralSource, REFERRAL_SOURCE_LABELS } from "../../lib/referral-source";
+import type { PaymentBalance } from "./PaymentsAdmin";
 
 type Cliente = { id: string; nombre: string; numero_cliente: number; email: string | null; telefono: string | null; puerto: string | null; tipo_cuenta: string | null; prepaid_allowance_cubic_feet?: number | null; prepaid_used_cubic_feet?: number | null; creado_en: string | null; auth_user_id?: string | null; heard_about_us?: string | null; heard_about_us_details?: string | null };
 type Pedido = { id: string; tracking: string; clienteNumero: number | null; clienteNombre: string | null; estado: string | null; carrier?: string | null; tipo_paquete?: string | null; contenido?: string | null; notas?: string | null; notas_imagenes?: string | string[] | null; numero_cliente_id?: string | null; registro?: string | null; hora_fecha?: string | null; fecha_entregado?: string | null; problema?: boolean | null; problema_notas?: string | null; cubic_feet?: number | null; prepaid_review_required?: boolean | null; prepaid_review_status?: string | null; containerCode?: string | null; containerLabels?: string[] };
@@ -42,7 +43,7 @@ function stageFor(status: string | null) {
   return "Received";
 }
 
-export default function Client360Admin({ clientes, pedidos, facturas, onOpenShipmentDetails }: { clientes: Cliente[]; pedidos: Pedido[]; facturas: Factura[]; onOpenShipmentDetails?: (id: string) => void }) {
+export default function Client360Admin({ clientes, pedidos, facturas, paymentBalances = {}, onOpenShipmentDetails }: { clientes: Cliente[]; pedidos: Pedido[]; facturas: Factura[]; paymentBalances?: Record<string, PaymentBalance>; onOpenShipmentDetails?: (id: string) => void }) {
   const [selectedId, setSelectedId] = useState("");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
@@ -61,15 +62,24 @@ export default function Client360Admin({ clientes, pedidos, facturas, onOpenShip
     return { client, packages };
   }), [clientes, pedidos]);
 
+  const invoiceBalance = (invoice: Factura | undefined) => {
+    if (!invoice) return { paid: 0, balance: 0, total: 0 };
+    const total = Number(invoice.total || 0);
+    const ledger = paymentBalances[invoice.id];
+    if (ledger) return { paid: Number(ledger.paid || 0), balance: Math.max(0, Number(ledger.balance || 0)), total };
+    const paid = (invoice.invoice_status || "").toLowerCase() === "paid" ? total : 0;
+    return { paid, balance: Math.max(0, total - paid), total };
+  };
+
   const filteredRecords = records.filter(({ client, packages }) => {
     const term = search.trim().toLowerCase();
     const matchesClient = [client.nombre, client.email, client.puerto, String(client.numero_cliente)].filter(Boolean).some((value) => String(value).toLowerCase().includes(term));
     const matchesTracking = packages.some((pkg) => String(pkg.tracking || "").toLowerCase().includes(term));
     const matchesSearch = !term || matchesClient || matchesTracking;
     const matchesStatus = statusFilter === "ALL" || packages.some((pkg) => stageFor(pkg.estado) === statusFilter);
-    const total = packages.reduce((sum, pkg) => sum + Number((facturas.find((invoice) => invoice.id === pkg.id)?.total) || 0), 0);
-    const paid = packages.reduce((sum, pkg) => sum + ((facturas.find((invoice) => invoice.id === pkg.id)?.invoice_status || "").toLowerCase() === "paid" ? Number(facturas.find((invoice) => invoice.id === pkg.id)?.total || 0) : 0), 0);
-    const balance = Math.max(0, total - paid);
+    const balances = packages.map((pkg) => invoiceBalance(facturas.find((invoice) => invoice.id === pkg.id)));
+    const total = balances.reduce((sum, item) => sum + item.total, 0);
+    const balance = balances.reduce((sum, item) => sum + item.balance, 0);
     const matchesBalance = balanceFilter === "ALL" || (balanceFilter === "OUTSTANDING" && balance > 0) || (balanceFilter === "PAID" && balance === 0 && total > 0);
     const latest = Math.max(...packages.map((pkg) => new Date(pkg.hora_fecha || pkg.registro || 0).getTime()).filter((value) => Number.isFinite(value)), 0);
     const matchesDate = dateFilter === "ALL" || (dateFilter === "30" && latest >= now - 30 * 86400000) || (dateFilter === "90" && latest >= now - 90 * 86400000);
@@ -87,7 +97,7 @@ export default function Client360Admin({ clientes, pedidos, facturas, onOpenShip
     active: clientPackages.filter((pkg) => !["Picked up", "Unloaded"].includes(stageFor(pkg.estado))).length,
     invoices: clientInvoices.length,
     invoiced: clientInvoices.reduce((sum, invoice) => sum + Number(invoice.total || 0), 0),
-    paid: clientInvoices.filter((invoice) => (invoice.invoice_status || "").toLowerCase() === "paid").reduce((sum, invoice) => sum + Number(invoice.total || 0), 0),
+    paid: clientInvoices.reduce((sum, invoice) => sum + invoiceBalance(invoice).paid, 0),
   };
   const outstanding = Math.max(0, summary.invoiced - summary.paid);
   const selectedPackagePhotos = selectedPackage ? (Array.isArray(selectedPackage.notas_imagenes) ? selectedPackage.notas_imagenes : selectedPackage.notas_imagenes ? [selectedPackage.notas_imagenes] : []).filter(Boolean) : [];

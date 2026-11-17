@@ -7,6 +7,7 @@ import { supabase } from "../../lib/supabaseClient";
 import { BrowserMultiFormatReader } from "@zxing/browser";
 import { Pencil, Trash2, Unlock, LogOut, Image as ImageIcon, Check, Send, DollarSign, ChevronDown, Package, ScanLine, AlertTriangle, QrCode, BarChart3, UserPlus, Bell, Receipt, Ship, Container, UserCog, Plus, Truck, CheckCircle2 } from "lucide-react";
 import FerryManifestAdmin from "./FerryManifestAdmin";
+import DispatchesAdmin from "./DispatchesAdmin";
 import Client360Admin from "./Client360Admin";
 import PaymentsAdmin, { type PaymentBalance } from "./PaymentsAdmin";
 import PaymentLedgerDialog from "../../components/PaymentLedgerDialog";
@@ -156,6 +157,7 @@ const WEB_TAB_VERSIONS: Record<string, string> = {
   finanzas: "1.0.4",
   expenses: "1.0.3",
   ferry: "1.0.3",
+  dispatches: "1.0.1",
   facturas: "1.0.4",
   track: "1.0.3",
   client360: "1.0.3",
@@ -175,6 +177,7 @@ const WEB_TAB_LABELS: Record<string, string> = {
   finanzas: "Payments",
   expenses: "Expenses",
   ferry: "Ferry",
+  dispatches: "Dispatches",
   facturas: "Invoices",
   track: "Track Package",
   client360: "Client 360",
@@ -217,7 +220,7 @@ const TRACK_STAGE_STYLES: Record<string, { color: string; background: string; bo
 const App = () => {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<
-    'personal' | 'clientes' | 'prepaid' | 'client360' | 'pedidos' | 'track' | 'incidencias' | 'facturas' | 'finanzas' | 'expenses' | 'leads' | 'portal' | 'ferry' | 'containers' | 'labels' | 'reports' | 'activityLogs'
+    'personal' | 'clientes' | 'prepaid' | 'client360' | 'pedidos' | 'track' | 'incidencias' | 'facturas' | 'finanzas' | 'expenses' | 'leads' | 'portal' | 'ferry' | 'dispatches' | 'containers' | 'labels' | 'reports' | 'activityLogs'
   >('pedidos');
   const [incidenciaFiltro, setIncidenciaFiltro] = useState('');
   const [expandedNavGroups, setExpandedNavGroups] = useState<Record<string, boolean>>({
@@ -505,7 +508,7 @@ const App = () => {
   }), [financeRows, paymentBalances]);
 
   useEffect(() => {
-    if (activeTab !== "finanzas") return;
+    if (activeTab !== "finanzas" && activeTab !== "client360") return;
     const controller = new AbortController();
     setPaymentsReady(false);
     setPaymentsError(null);
@@ -2513,6 +2516,7 @@ const App = () => {
             <button className={`admin-sidebar-item ${activeTab === 'incidencias' ? 'active' : ''}`} onClick={() => setActiveTab('incidencias')}><AlertTriangle /> Issues <span className="count-badge">{pedidosConIncidencia.length}</span></button>
             <button className={`admin-sidebar-item ${activeTab === 'labels' ? 'active' : ''}`} onClick={() => setActiveTab('labels')}><QrCode /> Caribex labels</button>
             <button className={`admin-sidebar-item ${activeTab === 'reports' ? 'active' : ''}`} onClick={() => setActiveTab('reports')}><BarChart3 /> Reports</button>
+            <button className={`admin-sidebar-item ${activeTab === 'dispatches' ? 'active' : ''}`} onClick={() => setActiveTab('dispatches')}><Truck /> Dispatches</button>
           </div>}
         </div>
         <div className="admin-sidebar-group">
@@ -2714,7 +2718,7 @@ const App = () => {
         {adminNotice && <div style={{ margin: '0.75rem 0', padding: '0.75rem 1rem', borderRadius: '0.75rem', background: '#dcfce7', border: '1px solid #86efac', color: '#166534', display: 'flex', justifyContent: 'space-between' }}><span>{adminNotice}</span><button type="button" onClick={() => setAdminNotice(null)} style={{ border: 0, background: 'transparent', color: 'inherit', cursor: 'pointer', fontWeight: 700 }}>Dismiss</button></div>}
         {customerLoadError && <div role="alert" style={{ margin: '0.75rem 0', padding: '0.75rem 1rem', borderRadius: '0.75rem', background: '#fef2f2', border: '1px solid #fecaca', color: '#991b1b' }}>Customers could not be loaded: {customerLoadError}</div>}
 
-        {activeTab === 'client360' && <Client360Admin clientes={clientes} pedidos={pedidos} facturas={facturas} onOpenShipmentDetails={abrirDetallePedido} />}
+        {activeTab === 'client360' && <Client360Admin clientes={clientes} pedidos={pedidos} facturas={facturas} paymentBalances={paymentBalances} onOpenShipmentDetails={abrirDetallePedido} />}
 
         {activeTab === 'leads' && (() => {
           const stageCounts = { ALL: leads.length, NEW: leads.filter((lead) => lead.status === 'NEW').length, CONTACTED: leads.filter((lead) => lead.status === 'CONTACTED').length, CLOSED: leads.filter((lead) => lead.status === 'CLOSED').length, SPAM: leads.filter((lead) => lead.status === 'SPAM').length };
@@ -2775,6 +2779,8 @@ const App = () => {
         </div>}
 
         {activeTab === 'ferry' && <FerryManifestAdmin />}
+
+        {activeTab === 'dispatches' && <DispatchesAdmin />}
 
         {activeTab === 'containers' && <ContainersAdmin />}
 
