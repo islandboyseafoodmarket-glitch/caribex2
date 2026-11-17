@@ -20,9 +20,9 @@ export async function GET() {
       app: "Caribex Warehouse Management",
       version: "1.2.46",
       version_code: 1255,
-      apk_url: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663449196187/kBMxpEKfsWwHHnoZ.apk",
+      apk_url: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663449196187/DLPKuLSAmvwpcArh.apk",
       filename: "Caribex-Warehouse-Management-1.2.46-admin-tools.apk",
-      apk_sha256: "89e3f5f19efcc41fee2ce99c1bcb22adfbd13bea998501753b9c694ec75c6ff4",
+      apk_sha256: "a20152a94c7fdb2c8700e7d0d4744e35fa1ec97924aeec40584bc0c90c743f9d",
       release_notes: releaseNotes,
       release_history: [
         { version: "1.2.46", version_code: 1255, release_notes: releaseNotes },
