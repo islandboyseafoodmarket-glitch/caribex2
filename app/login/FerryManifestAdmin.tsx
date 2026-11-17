@@ -327,9 +327,9 @@ export default function FerryManifestAdmin() {
                 <span data-label="Status" className="ferry-manifest-status" style={{ background: manifest.estado === "active" ? "#dcfce7" : "#f1f5f9", color: manifest.estado === "active" ? "#166534" : "#475569" }}>{manifest.estado}</span>
                 <strong data-label="Entries" className="ferry-manifest-entry-count">{manifest.entry_count}</strong>
                 <div data-label="Actions" className="ferry-manifest-row-actions ferry-manifest-floating-actions">
-                  <button type="button" className="ferry-admin-secondary ferry-manifest-action ferry-manifest-action--packages" onClick={() => void togglePendingPackages(manifest)} aria-expanded={expandedPendingManifestId === manifest.id}>
+                  {manifest.estado === "active" && <button type="button" className="ferry-admin-secondary ferry-manifest-action ferry-manifest-action--packages" onClick={() => void togglePendingPackages(manifest)} aria-expanded={expandedPendingManifestId === manifest.id}>
                     {expandedPendingManifestId === manifest.id ? <ChevronUp size={14} /> : <ChevronDown size={14} />} Packages not yet unloaded
-                  </button>
+                  </button>}
                   <div className="ferry-manifest-action-cluster">
                     <button type="button" className="ferry-admin-secondary ferry-manifest-action ferry-manifest-action--preview" onClick={() => openManifest(manifest.token)}><ExternalLink size={14} /> Preview</button>
                     <button type="button" className="ferry-admin-secondary ferry-manifest-action ferry-manifest-action--copy" onClick={() => void copyToken(manifest.token)}><Copy size={14} /> Copy link</button>

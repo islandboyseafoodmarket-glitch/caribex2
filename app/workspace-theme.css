@@ -316,6 +316,7 @@
   padding: 0.18rem;
   border-radius: 999px;
   background: #f8fafc;
+  min-width: 0;
 }
 
 .ferry-manifest-action {
@@ -371,8 +372,17 @@
 
 .ferry-manifest-row-actions .ferry-admin-secondary {
   max-width: 100%;
-  white-space: normal !important;
+  white-space: nowrap !important;
+  overflow-wrap: normal;
+  word-break: keep-all;
   text-align: center;
+}
+
+.ferry-manifest-action-cluster > .ferry-manifest-action,
+.ferry-manifest-action-menu,
+.ferry-manifest-action-menu summary {
+  min-width: 0;
+  white-space: nowrap;
 }
 
 .ferry-manifest-pending {
