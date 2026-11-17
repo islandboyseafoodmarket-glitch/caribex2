@@ -49,6 +49,7 @@ import InvoicePreview from "../components/InvoicePreview";
 import CaribexLabelPrint, { type CaribexLabelSize } from "../components/CaribexLabelPrint";
 import CaribexBatchLabelPrint, { BatchBoxLabel } from "../components/CaribexBatchLabelPrint";
 import FerryManifestAdmin from "./login/FerryManifestAdmin";
+import DispatchesAdmin from "./login/DispatchesAdmin";
 import { calculateWorkflowBilling, isBox } from "../lib/workflow-billing";
 import { DATABASE_STATUS } from "../lib/shipping-rules";
 
@@ -366,7 +367,7 @@ export default function GestionAlmacen() {
   const [packages, setPackages] = useState<Package[]>([]);
 
   const [activeStage, setActiveStage] = useState<StageId>("RECIBIDO_FLORIDA");
-  const [activeWarehouseTab, setActiveWarehouseTab] = useState<"stages" | "client360" | "labels" | "ferry">("stages");
+  const [activeWarehouseTab, setActiveWarehouseTab] = useState<"stages" | "client360" | "labels" | "ferry" | "dispatches">("stages");
   const [client360Search, setClient360Search] = useState("");
   const [client360StatusFilter, setClient360StatusFilter] = useState("ALL");
   const [client360BalanceFilter, setClient360BalanceFilter] = useState("ALL");
@@ -3943,11 +3944,26 @@ const handlePackageCreated = (pkg: Package) => {
             <Ship size={16} />
             <span>{isEs ? "Manifiestos de ferry" : "Ferry Manifest"}</span>
           </button>}
+          {(isAdmin || staffPermissions.ferry_manifests === true) && <button
+            type="button"
+            className={"ga-workspace-tab" + (activeWarehouseTab === "dispatches" ? " ga-workspace-tab-active" : "")}
+            data-workspace="dispatches"
+            style={tabColorStyle(NAV_SECTION_COLORS.billing)}
+            aria-current={activeWarehouseTab === "dispatches" ? "page" : undefined}
+            onClick={() => setActiveWarehouseTab("dispatches")}
+          >
+            <Truck size={16} />
+            <span>{isEs ? "Despachos" : "Dispatches"}</span>
+          </button>}
         </nav>
       </header>
 
       <main className={"ga-main" + (activeWarehouseTab === "stages" && activeStage === "FACTURAS" ? " ga-main--invoices" : "")}>
-        {activeWarehouseTab === "ferry" ? (
+        {activeWarehouseTab === "dispatches" ? (
+          <section className="ga-state-card ga-ferry-workspace">
+            <DispatchesAdmin />
+          </section>
+        ) : activeWarehouseTab === "ferry" ? (
           <section className="ga-state-card ga-ferry-workspace">
             <FerryManifestAdmin />
           </section>
