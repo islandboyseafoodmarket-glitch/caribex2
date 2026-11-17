@@ -157,7 +157,7 @@ const WEB_TAB_VERSIONS: Record<string, string> = {
   finanzas: "1.0.4",
   expenses: "1.0.3",
   ferry: "1.0.3",
-  dispatches: "1.0.1",
+  dispatches: "1.0.2",
   facturas: "1.0.4",
   track: "1.0.3",
   client360: "1.0.3",
@@ -2516,7 +2516,6 @@ const App = () => {
             <button className={`admin-sidebar-item ${activeTab === 'incidencias' ? 'active' : ''}`} onClick={() => setActiveTab('incidencias')}><AlertTriangle /> Issues <span className="count-badge">{pedidosConIncidencia.length}</span></button>
             <button className={`admin-sidebar-item ${activeTab === 'labels' ? 'active' : ''}`} onClick={() => setActiveTab('labels')}><QrCode /> Caribex labels</button>
             <button className={`admin-sidebar-item ${activeTab === 'reports' ? 'active' : ''}`} onClick={() => setActiveTab('reports')}><BarChart3 /> Reports</button>
-            <button className={`admin-sidebar-item ${activeTab === 'dispatches' ? 'active' : ''}`} onClick={() => setActiveTab('dispatches')}><Truck /> Dispatches</button>
           </div>}
         </div>
         <div className="admin-sidebar-group">
@@ -2535,6 +2534,7 @@ const App = () => {
             <button className={`admin-sidebar-item admin-sidebar-item--billing ${activeTab === 'finanzas' ? 'active' : ''}`} onClick={() => setActiveTab('finanzas')}><DollarSign /> Payments</button>
             <button className={`admin-sidebar-item admin-sidebar-item--billing ${activeTab === 'expenses' ? 'active' : ''}`} onClick={() => setActiveTab('expenses')}><Receipt /> Expenses</button>
             <button className={`admin-sidebar-item admin-sidebar-item--billing ${activeTab === 'ferry' ? 'active' : ''}`} onClick={() => setActiveTab('ferry')}><Ship /> Ferry manifests</button>
+            <button className={`admin-sidebar-item admin-sidebar-item--billing ${activeTab === 'dispatches' ? 'active' : ''}`} onClick={() => setActiveTab('dispatches')}><Truck /> Dispatches</button>
             <button className={`admin-sidebar-item admin-sidebar-item--billing ${activeTab === 'containers' ? 'active' : ''}`} onClick={() => setActiveTab('containers')}><Container /> Containers</button>
           </div>}
         </div>
