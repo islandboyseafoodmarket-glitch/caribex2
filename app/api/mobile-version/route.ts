@@ -18,14 +18,19 @@ export async function GET() {
   return NextResponse.json(
     {
       app: "Caribex Warehouse Management",
-      version: "1.2.46",
-      version_code: 1255,
+      version: "1.2.47",
+      version_code: 1256,
       apk_url: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663449196187/DLPKuLSAmvwpcArh.apk",
-      filename: "Caribex-Warehouse-Management-1.2.46-admin-tools.apk",
+      filename: "Caribex-Warehouse-Management-1.2.47-session-update-fix.apk",
       apk_sha256: "a20152a94c7fdb2c8700e7d0d4744e35fa1ec97924aeec40584bc0c90c743f9d",
       release_notes: releaseNotes,
       release_history: [
-        { version: "1.2.46", version_code: 1255, release_notes: releaseNotes },
+        { version: "1.2.47", version_code: 1256, release_notes: releaseNotes },
+        { version: "1.2.46", version_code: 1255, release_notes: [
+          "Customer Lookup and Send to Ferry were added to the mobile Admin menu and removed from individual workflow stages.",
+          "Dispatches filtering supports Client ID, Show ID, and ferry booking number on the web dashboard.",
+          "v1.2.46 uses Android code 1255 and the existing compatible signing certificate.",
+        ] },
         { version: "1.2.45", version_code: 1254, release_notes: [
           "Dispatches filtering now supports Client ID, formatted Show ID, and ferry booking number.",
           "The web Admin and Staff warehouse view includes the Dispatches surface alongside the existing Ferry Manifest page.",
@@ -56,7 +61,7 @@ export async function GET() {
           filename: "Caribex-Warehouse-Management-1.2.40-rollback-code-1253.apk",
           apk_sha256: "efeea57bafabc30fa88965ecb95072d773b87916443c3ca2902c92d408ccc928",
           release_notes: [
-            "v1.2.40 application payload with Android code 1253 and the existing signing certificate so it can replace v1.2.46/code 1255 without uninstalling.",
+            "v1.2.40 application payload with Android code 1253 and the existing signing certificate so it can replace v1.2.47/code 1256 without uninstalling.",
             "This rolls back the phone app only, not the server database. A later forward installation must use Android code greater than 1253.",
           ],
         },
