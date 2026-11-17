@@ -22,15 +22,15 @@ export async function GET(
     );
   }
 
-  const { data, error } = await supabase
-    .from("paquetes_registro")
-    .select(
-      // This endpoint is used by the QR/warehouse lookup. Never expose the
-      // internal notes column in a general shipment lookup response.
-      "tracking, nombre_paqueteria, tipo_paquete, contenido, estado, numero_cliente_id, fecha_descargado, hora_descargado, fecha_entregado, hora_entregado",
-    )
-    .eq("id", id)
-    .maybeSingle();
+  // Older mobile builds open a selected customer shipment by its tracking
+  // number, while QR links may still pass the internal UUID. Support both
+  // identifiers so a tracking click does not incorrectly return "not found".
+  const shipmentFields =
+    "tracking, nombre_paqueteria, tipo_paquete, contenido, estado, numero_cliente_id, fecha_descargado, hora_descargado, fecha_entregado, hora_entregado";
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(id);
+  let lookup = supabase.from("paquetes_registro").select(shipmentFields);
+  lookup = isUuid ? lookup.eq("id", id) : lookup.ilike("tracking", id.trim());
+  const { data, error } = await lookup.maybeSingle();
 
   if (error) {
     return NextResponse.json(
