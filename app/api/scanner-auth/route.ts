@@ -1,3 +1,4 @@
+import { createHash, randomBytes } from "crypto";
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
@@ -25,6 +26,10 @@ function adminClient() {
   return createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
 }
 
+function hashScannerSession(token: string) {
+  return createHash("sha256").update(token).digest("hex");
+}
+
 export async function POST(request: Request) {
   try {
     const supabase = adminClient();
@@ -46,6 +51,16 @@ export async function POST(request: Request) {
     ]);
     if (!admin && !staff) return NextResponse.json({ error: "This account is not authorized for warehouse workflow access" }, { status: 403 });
 
+    // One active scanner per account: upserting replaces the previous phone's
+    // session hash, so its next authenticated request is rejected.
+    const scannerSessionToken = randomBytes(32).toString("hex");
+    const { error: sessionError } = await supabase.from("scanner_active_sessions").upsert({
+      user_id: userId,
+      session_hash: hashScannerSession(scannerSessionToken),
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "user_id" });
+    if (sessionError) throw sessionError;
+
     const operatorName = admin
       ? "Admin"
       : staff?.nombre || staff?.nombre_personal ||
@@ -54,7 +69,7 @@ export async function POST(request: Request) {
         "Staff";
 
     return NextResponse.json({
-      session: { access_token: result.data.session.access_token, refresh_token: result.data.session.refresh_token },
+      session: { access_token: result.data.session.access_token, refresh_token: result.data.session.refresh_token, scanner_session_token: scannerSessionToken },
       operator: operatorName,
       role: admin ? "admin" : "staff",
       approved_roles: approvedRoles(staff?.rol, staff?.permissions, Boolean(admin)),

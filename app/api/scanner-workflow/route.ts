@@ -1,4 +1,4 @@
-import { randomBytes } from "crypto";
+import { createHash, randomBytes } from "crypto";
 import { NextResponse } from "next/server";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { centralAmericaDateParts } from "../../../lib/staff-date-format";
@@ -36,6 +36,16 @@ async function requireStaff(request: Request, supabase: SupabaseClient) {
     supabase.from("personal").select("id, rol, nombre, nombre_personal").eq("id", data.user.id).maybeSingle(),
   ]);
   if (!admin && !staff) throw new Error("Staff access is required");
+  const scannerSessionToken = request.headers.get("x-scanner-session")?.trim();
+  if (!scannerSessionToken) throw new Error("Scanner session is missing. Sign in again.");
+  const { data: activeSession, error: sessionError } = await supabase
+    .from("scanner_active_sessions")
+    .select("session_hash")
+    .eq("user_id", data.user.id)
+    .maybeSingle();
+  if (sessionError || activeSession?.session_hash !== createHash("sha256").update(scannerSessionToken).digest("hex")) {
+    throw new Error("This scanner session was replaced by a newer sign-in. Please sign in again.");
+  }
   const profile = admin
     ? { nombre: "Admin", nombre_personal: null, rol: admin.rol || "administrador" }
     : staff
@@ -276,7 +286,7 @@ export async function GET(request: Request) {
     const rawCode = url.searchParams.get("code")?.trim() || "";
     if (!rawCode) return NextResponse.json({ error: "Scan or enter a tracking number" }, { status: 400 });
 
-    let query = supabase.from("paquetes_registro").select("id, tracking, nombre_paqueteria, tipo_paquete, estado, issue_status, numero_cliente_id, billing_subtotal, billing_tax, billing_total, invoice_status, approval_status, fecha_descargado, hora_descargado, fecha_entregado, hora_entregado, numero_cliente:numero_cliente_id (id, numero_cliente, nombre, email, telefono, puerto)");
+    let query = supabase.from("paquetes_registro").select("id, tracking, nombre_paqueteria, tipo_paquete, estado, issue_status, numero_cliente_id, billing_subtotal, billing_tax, billing_total, invoice_status, approval_status, registro, hora_fecha, creado_en, fecha_descargado, hora_descargado, fecha_entregado, hora_entregado, numero_cliente:numero_cliente_id (id, numero_cliente, nombre, email, telefono, puerto)");
     const idMatch = rawCode.match(/(?:pedidos\/)?([0-9a-f]{8}-[0-9a-f-]{27})/i);
     if (idMatch) query = query.eq("id", idMatch[1]);
     else {

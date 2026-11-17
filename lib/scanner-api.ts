@@ -1,3 +1,4 @@
+import { createHash } from "crypto";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -103,6 +104,11 @@ function bearerToken(request: Request): string | null {
   return token || null;
 }
 
+function scannerSessionHash(request: Request): string | null {
+  const token = request.headers.get("x-scanner-session")?.trim();
+  return token ? createHash("sha256").update(token).digest("hex") : null;
+}
+
 export async function resolveScannerActor(request: Request, supabase: SupabaseClient): Promise<ScannerActor> {
   const token = bearerToken(request);
   if (!token) {
@@ -158,6 +164,17 @@ export async function requireStaffOrAdmin(request: Request, supabase: SupabaseCl
     supabase.from("personal").select("id").eq("id", authData.user.id).maybeSingle(),
   ]);
   if (!admin && !staff) throw new Error("Staff access is required");
+
+  const activeSessionHash = scannerSessionHash(request);
+  if (!activeSessionHash) throw new Error("Scanner session is missing. Sign in again.");
+  const { data: activeSession, error: sessionError } = await supabase
+    .from("scanner_active_sessions")
+    .select("session_hash")
+    .eq("user_id", authData.user.id)
+    .maybeSingle();
+  if (sessionError || activeSession?.session_hash !== activeSessionHash) {
+    throw new Error("This scanner session was replaced by a newer sign-in. Please sign in again.");
+  }
 
   return { user: authData.user, role: admin ? "admin" : "staff" };
 }

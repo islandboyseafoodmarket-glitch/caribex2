@@ -4,30 +4,34 @@ import releaseHistory from "./release-history.json";
 export const dynamic = "force-dynamic";
 
 const releaseNotes = [
-  "Caribex launcher icon restored in the Android native resources; the app now displays the correct Caribex logo on the phone.",
-  "Customer signature dialog now fits smaller phone screens and keeps the Complete pickup action visible, with scrolling available when needed.",
-  "Pickup success notification is shorter and no longer adds the extra unscanned-packages message.",
-  "Pickup search now keeps the selected customer account ID when Search is pressed again, preventing a false Customer not found message.",
-  "Shipment status values display in English throughout the scanner, including finished and picked-up shipments; legacy Spanish database values remain supported internally.",
-  "Removed the extra large Home shortcut; the existing bottom Home navigation remains the single Home action.",
-  "Settings now includes scan sounds, camera flashlight, connection test, Updates, Change password, and Sign out. Change stage remains on the main workflow screen.",
-  "Report dialog layout remains usable while typing; the form scrolls without collapsing when Android opens the keyboard.",
-  "The camera flashlight preference is saved on the device, and scan sound preference can be turned off without disabling visual notices.",
-  "v1.2.41 uses Android code 1245 and the existing compatible signing certificate. It installs over v1.2.40/code 1243; code 1244 remains reserved for the v1.2.37 rollback.",
-  "37 automated tests and signed APK integrity/version checks passed. Physical-device acceptance still requires staff testing.",
+  "Customer Lookup and Send to Ferry are available only inside the Admin tools menu; they no longer appear on every workflow stage.",
+  "Ferry destinations load when the Admin Send to Ferry tool opens, with continuous scan/manual-entry support for the selected dispatch batch.",
+  "The mobile Admin tools now return readable JSON errors instead of exposing a JSON parse error when the server responds with an error.",
+  "The Updates screen reads the complete server-published release history, including the last two mobile releases.",
+  "A new sign-in on another phone replaces the previous scanner session for that account. The older phone is signed out on its next API request.",
+  "When a newer version is available, sign-in shows a clear New version available popup asking the operator to update.",
+  "v1.2.46 uses Android code 1255 and the existing compatible signing certificate.",
+  "Mobile TypeScript checks and 39 automated tests passed; physical-device acceptance testing remains required.",
 ];
 
 export async function GET() {
   return NextResponse.json(
     {
       app: "Caribex Warehouse Management",
-      version: "1.2.44",
-      version_code: 1252,
-      apk_url: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663449196187/HUdiXupUtWMtLMZo.apk",
-      filename: "Caribex-Warehouse-Management-1.2.44-logo-fix.apk",
-      apk_sha256: "c0f5a57d9ed20d8f0243f7a5b2d2a3f9d5b8cc1870a40c2c7cecb342f24ecb81",
+      version: "1.2.46",
+      version_code: 1255,
+      apk_url: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663449196187/kBMxpEKfsWwHHnoZ.apk",
+      filename: "Caribex-Warehouse-Management-1.2.46-admin-tools.apk",
+      apk_sha256: "89e3f5f19efcc41fee2ce99c1bcb22adfbd13bea998501753b9c694ec75c6ff4",
       release_notes: releaseNotes,
       release_history: [
+        { version: "1.2.46", version_code: 1255, release_notes: releaseNotes },
+        { version: "1.2.45", version_code: 1254, release_notes: [
+          "Dispatches filtering now supports Client ID, formatted Show ID, and ferry booking number.",
+          "The web Admin and Staff warehouse view includes the Dispatches surface alongside the existing Ferry Manifest page.",
+          "Admin Customer Lookup and Ferry tools were added to the mobile Admin menu for controlled staff workflows.",
+          "v1.2.45 uses Android code 1254 and the existing compatible signing certificate.",
+        ] },
         { version: "1.2.44", version_code: 1252, release_notes: releaseNotes },
         { version: "1.2.43", version_code: 1250, release_notes: releaseNotes },
         { version: "1.2.40", version_code: 1243, release_notes: [
@@ -52,7 +56,7 @@ export async function GET() {
           filename: "Caribex-Warehouse-Management-1.2.40-rollback-code-1253.apk",
           apk_sha256: "efeea57bafabc30fa88965ecb95072d773b87916443c3ca2902c92d408ccc928",
           release_notes: [
-            "v1.2.40 application payload with Android code 1253 and the existing signing certificate so it can replace v1.2.44/code 1252 without uninstalling.",
+            "v1.2.40 application payload with Android code 1253 and the existing signing certificate so it can replace v1.2.46/code 1255 without uninstalling.",
             "This rolls back the phone app only, not the server database. A later forward installation must use Android code greater than 1253.",
           ],
         },
