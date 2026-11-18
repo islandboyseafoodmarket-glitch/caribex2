@@ -6,6 +6,10 @@ export const dynamic = "force-dynamic";
 const releaseNotes = [
   "Customer Lookup and Send to Ferry are available only inside the Admin tools menu; they no longer appear on every workflow stage.",
   "Ferry destinations load when the Admin Send to Ferry tool opens, with continuous scan/manual-entry support for the selected dispatch batch.",
+  "Send to Ferry reads the newly created unloaded container and clearly reports when no eligible shipments exist for the selected destination.",
+  "Customer Lookup opens a dedicated Box History dialog when a tracking number is selected, including shipment history and billing totals.",
+  "Scans with an invalid, unknown, duplicate, or wrong-stage label show a clear error or warning with guidance; no status change is made.",
+  "The scanner now keeps scanned shipment details in a temporary dialog until Close or the next scan, and the camera/report controls use compact layouts.",
   "The mobile Admin tools now return readable JSON errors instead of exposing a JSON parse error when the server responds with an error.",
   "The Updates screen reads the complete server-published release history, including the last two mobile releases.",
   "A new sign-in on another phone replaces the previous scanner session for that account. The older phone is signed out on its next API request.",
@@ -18,14 +22,18 @@ export async function GET() {
   return NextResponse.json(
     {
       app: "Caribex Warehouse Management",
-      version: "1.2.47",
-      version_code: 1256,
-      apk_url: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663449196187/DLPKuLSAmvwpcArh.apk",
-      filename: "Caribex-Warehouse-Management-1.2.47-session-update-fix.apk",
-      apk_sha256: "a20152a94c7fdb2c8700e7d0d4744e35fa1ec97924aeec40584bc0c90c743f9d",
+      version: "1.2.48",
+      version_code: 1258,
+      apk_url: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663449196187/CPVKIPNtYjJXWVDH.apk",
+      filename: "Caribex-Warehouse-Management-1.2.48.apk",
+      apk_sha256: "9ef61a51b78270e0e5c29375eef3c0dab3aa2129eabe911fb5886a1a8b81cbb8",
       release_notes: releaseNotes,
       release_history: [
-        { version: "1.2.47", version_code: 1256, release_notes: releaseNotes },
+        { version: "1.2.48", version_code: 1258, release_notes: releaseNotes },
+        { version: "1.2.47", version_code: 1256, release_notes: [
+          "One active scanner session per account: a newer phone sign-in replaces the older scanner session.",
+          "The sign-in update prompt clearly asks the operator to install a newer release.",
+        ] },
         { version: "1.2.46", version_code: 1255, release_notes: [
           "Customer Lookup and Send to Ferry were added to the mobile Admin menu and removed from individual workflow stages.",
           "Dispatches filtering supports Client ID, Show ID, and ferry booking number on the web dashboard.",
@@ -56,13 +64,13 @@ export async function GET() {
         {
           app: "Caribex Warehouse Management",
           version: "1.2.40",
-          version_code: 1253,
-          apk_url: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663449196187/nfaofHqBjiGWZPtX.apk",
-          filename: "Caribex-Warehouse-Management-1.2.40-rollback-code-1253.apk",
-          apk_sha256: "efeea57bafabc30fa88965ecb95072d773b87916443c3ca2902c92d408ccc928",
+          version_code: 1257,
+          apk_url: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663449196187/OSNxbbHOwacUVYxv.apk",
+          filename: "Caribex-Warehouse-Management-1.2.40-rollback-code-1257.apk",
+          apk_sha256: "26e193ea1478c86c441af5a7cd9c5eedb053d630e045df1f941ae39351752f0a",
           release_notes: [
-            "v1.2.40 application payload with Android code 1253 and the existing signing certificate so it can replace v1.2.47/code 1256 without uninstalling.",
-            "This rolls back the phone app only, not the server database. A later forward installation must use Android code greater than 1253.",
+            "v1.2.40 application payload with Android code 1257 and the existing signing certificate so it can replace v1.2.48/code 1258 without uninstalling.",
+            "This rolls back the phone app only, not the server database. A later forward installation must use Android code greater than 1257.",
           ],
         },
       ],
