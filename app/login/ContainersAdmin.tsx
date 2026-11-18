@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { RefreshCw } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
 import { CENTRAL_AMERICA_TIME_ZONE } from "../../lib/staff-date-format";
 import { formatPortName } from "../../lib/port-format";
@@ -68,26 +69,30 @@ export default function ContainersAdmin() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [invoiceGroup, setInvoiceGroup] = useState<Shipment[] | null>(null);
+  const [refreshNonce, setRefreshNonce] = useState(0);
 
   useEffect(() => {
     let mounted = true;
     (async () => {
+      setLoading(true);
+      setError("");
       const { data } = await supabase.auth.getSession();
       const token = data.session?.access_token;
       if (!token) { if (mounted) { setError("Your admin session has expired."); setLoading(false); } return; }
-      const response = await fetch("/api/admin/containers", { headers: { Authorization: `Bearer ${token}` } });
+      const response = await fetch("/api/admin/containers", { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Could not load containers");
       if (mounted) {
         setContainers(payload.containers || []);
-        setSelectedId(payload.containers?.[0]?.id || "");
+        setSelectedId((current) => payload.containers?.some((container: Container) => container.id === current) ? current : payload.containers?.[0]?.id || "");
         setLoading(false);
       }
     })().catch((err) => { if (mounted) { setError(err.message); setLoading(false); } });
     return () => { mounted = false; };
-  }, []);
+  }, [refreshNonce]);
 
   const selected = containers.find((container) => container.id === selectedId) || null;
+  const matchingContainerRecords = selected ? containers.filter((container) => container.codigo === selected.codigo).length : 0;
   const visibleShipments = useMemo(() => {
     const term = filter.trim().toLowerCase();
     if (!selected || !term) return selected?.shipments || [];
@@ -182,6 +187,7 @@ export default function ContainersAdmin() {
         .container-dashboard-toolbar input { min-width: 230px; }
         .container-dashboard-button { border: 0; border-radius: 9px; padding: 10px 14px; background: #0f4c81; color: #fff; font-weight: 700; cursor: pointer; }
         .container-dashboard-button.secondary { background: #e2e8f0; color: #0f172a; }
+        .container-dashboard-duplicate-warning { padding: 10px 12px; border: 1px solid #fbbf24; border-radius: 10px; background: #fffbeb; color: #78350f; font-size: .84rem; line-height: 1.45; }
         .container-dashboard-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
         .container-dashboard-metric { padding: 14px; border: 1px solid #e2e8f0; border-radius: 12px; background: #f8fafc; }
         .container-dashboard-metric strong { display: block; color: #0f4c81; font-size: 1.35rem; }
@@ -246,11 +252,13 @@ export default function ContainersAdmin() {
       <div className="container-dashboard-toolbar">
         <select value={selectedId} onChange={(event) => setSelectedId(event.target.value)} aria-label="Select container">
           <option value="">Select a container</option>
-          {containers.map((container) => <option key={container.id} value={container.id}>{container.codigo} ({container.shipments.length} shipments)</option>)}
+          {containers.map((container) => <option key={container.id} value={container.id}>{container.codigo} · {dateLabel(container.creado_en)} · {container.shipments.length} shipments · #{container.id.slice(0, 8)}</option>)}
         </select>
         <input className="container-dashboard-filter" value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Filter tracking, customer, or location" />
+        <button className="container-dashboard-button secondary" type="button" onClick={() => setRefreshNonce((value) => value + 1)} disabled={loading} aria-label="Refresh containers"><RefreshCw size={16} aria-hidden="true" /> {loading ? "Refreshing…" : "Refresh"}</button>
         <button className="container-dashboard-button" type="button" onClick={printManifest} disabled={!selected}>Print / Save PDF manifest</button>
       </div>
+      {selected && matchingContainerRecords > 1 && <div className="container-dashboard-duplicate-warning" role="status"><strong>Multiple records share container code {selected.codigo}.</strong> This view is showing the record created {dateLabel(selected.creado_en)} (#{selected.id.slice(0, 8)}) with {selected.shipments.length} linked shipments. Select the matching timestamp in the container list to view another record.</div>}
       <div className="container-dashboard-metrics">
         <div className="container-dashboard-metric"><strong>{containers.length}</strong><span>Total containers</span></div>
         <div className="container-dashboard-metric"><strong>{totalShipments}</strong><span>Total linked shipments</span></div>

@@ -1,6 +1,6 @@
 /* Shared invoice presentation for Admin and Staff. */
 .invoice-workspace {
-  --invoice-columns: minmax(220px, 2fr) 200px 150px 100px 140px 140px 280px;
+  --invoice-columns: minmax(220px, 2fr) 200px 150px 100px 140px 140px 500px;
   font-family: 'Inter', -apple-system, system-ui, sans-serif;
   background: #fff;
   border-radius: 24px;
@@ -86,7 +86,7 @@
   grid-template-columns: var(--invoice-columns);
   column-gap: 0.75rem;
   align-items: center;
-  min-width: 1280px;
+  min-width: 1520px;
   border-bottom: 1px solid #e2e8f0;
 }
 .invoice-workspace .invoice-table-header { position: sticky; top: 0; z-index: 1; padding: 0.4rem 0; background: #f8fafc; color: #64748b; font-size: 0.8rem; font-weight: 600; }

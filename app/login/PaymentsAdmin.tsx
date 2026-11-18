@@ -186,6 +186,24 @@ export default function PaymentsAdmin<T extends PaymentInvoice>({
         .payments-workspace .record-payment-btn { border:1px solid #f97316; border-radius:999px; padding:.43rem .75rem; background:#fff7ed; color:#c2410c; font-size:.78rem; font-weight:700; cursor:pointer; white-space:nowrap; }
         .payments-workspace .record-payment-btn:hover { background:#ffedd5; }
         .payments-workspace-empty { padding:2.2rem 1rem; text-align:center; color:#64748b; }
+        @media (max-width: 1100px) {
+          .payments-workspace-table-wrap { overflow:visible; border:0; background:transparent; }
+          .payments-workspace table { min-width:0; border-collapse:separate; border-spacing:0; }
+          .payments-workspace thead { display:none; }
+          .payments-workspace tbody { display:grid; gap:.75rem; }
+          .payments-workspace tbody tr { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); border:1px solid #dbe4ed; border-radius:.8rem; overflow:hidden; background:#fff; }
+          .payments-workspace td { display:grid; grid-template-columns:minmax(84px,.7fr) minmax(0,1.3fr); gap:.55rem; min-width:0; padding:.62rem .7rem; border:0; border-top:1px solid #eef2f7; overflow-wrap:anywhere; }
+          .payments-workspace td::before { content:attr(data-label); color:#64748b; font-size:.75rem; font-weight:750; }
+          .payments-workspace tbody tr td:first-child { border-top:0; }
+          .payments-workspace th:last-child, .payments-workspace td:last-child { position:static; right:auto; min-width:0; border-left:0; box-shadow:none; white-space:normal; }
+          .payments-workspace td:last-child { grid-column:1 / -1; background:#f8fafc; }
+          .payments-workspace tbody tr:hover td:last-child { background:#f8fafc; }
+        }
+        @media (max-width: 640px) {
+          .payments-workspace tbody tr { grid-template-columns:minmax(0,1fr); }
+          .payments-workspace td { grid-template-columns:minmax(92px,.65fr) minmax(0,1.35fr); }
+          .payments-workspace td:last-child { grid-column:auto; }
+        }
         @media (max-width: 720px) { .payments-workspace-summary { grid-template-columns:1fr; } .payments-workspace-heading { display:block; } }
       `}</style>
 
@@ -239,14 +257,14 @@ export default function PaymentsAdmin<T extends PaymentInvoice>({
                 const container = invoice.containerLabels?.filter(Boolean).join(", ") || "-";
                 return (
                   <tr key={invoice.id} onClick={() => setSelectedInvoice(invoice)} title="Open invoice">
-                    <td><span className="customer-name">{invoice.clienteNombre || "-"}</span>{invoice.clienteEmail && <span className="muted-detail">{invoice.clienteEmail}</span>}</td>
-                    <td>#{invoice.clienteNumero ?? "-"}</td>
-                    <td><button type="button" className="invoice-link" style={{ border: 0, background: "transparent", padding: 0, cursor: "pointer" }} onClick={(event) => { event.stopPropagation(); setSelectedInvoice(invoice); }} aria-label={`Open invoice ${invoice.tracking}`}>{invoice.tracking || "-"}</button></td>
-                    <td>{container}</td>
-                    <td><button type="button" className="invoice-link" style={{ border: 0, background: "transparent", padding: 0, cursor: "pointer" }} onClick={(event) => { event.stopPropagation(); setSelectedInvoice(invoice); }} aria-label={`Open invoice details for ${invoice.tracking}`}>{money(roundMoney(Number(invoice.total || 0)))}</button></td>
-                    <td>{paid == null ? "—" : money(paid)}</td>
-                    <td>{balance == null ? "—" : money(balance)}</td>
-                    <td>
+                    <td data-label="Customer"><span className="customer-name">{invoice.clienteNombre || "-"}</span>{invoice.clienteEmail && <span className="muted-detail">{invoice.clienteEmail}</span>}</td>
+                    <td data-label="Client ID">#{invoice.clienteNumero ?? "-"}</td>
+                    <td data-label="Invoice"><button type="button" className="invoice-link" style={{ border: 0, background: "transparent", padding: 0, cursor: "pointer" }} onClick={(event) => { event.stopPropagation(); setSelectedInvoice(invoice); }} aria-label={`Open invoice ${invoice.tracking}`}>{invoice.tracking || "-"}</button></td>
+                    <td data-label="Container">{container}</td>
+                    <td data-label="Total"><button type="button" className="invoice-link" style={{ border: 0, background: "transparent", padding: 0, cursor: "pointer" }} onClick={(event) => { event.stopPropagation(); setSelectedInvoice(invoice); }} aria-label={`Open invoice details for ${invoice.tracking}`}>{money(roundMoney(Number(invoice.total || 0)))}</button></td>
+                    <td data-label="Paid">{paid == null ? "—" : money(paid)}</td>
+                    <td data-label="Balance">{balance == null ? "—" : money(balance)}</td>
+                    <td data-label="Status">
                       <span className={`status ${isOwing ? "owing" : "paid"}`}>{!verified ? "Unverified" : isOwing ? "Outstanding" : "Paid"}</span>
                       {verified && !isOwing && (invoice.payment_date || invoice.payment_method || invoice.payment_reference) && (
                         <span className="muted-detail">
@@ -254,7 +272,7 @@ export default function PaymentsAdmin<T extends PaymentInvoice>({
                         </span>
                       )}
                     </td>
-                    <td>
+                    <td data-label="Action / Record payment">
                       {isOwing ? (
                         <button type="button" className="record-payment-btn" disabled={!recordingEnabled} onClick={(event) => { event.stopPropagation(); onRecordPayment(invoice); }}>
                           Record payment

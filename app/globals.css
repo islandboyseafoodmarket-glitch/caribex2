@@ -3634,6 +3634,16 @@ main {
 .portal-reset-card > .customer-login-eyebrow { text-align: left; }
 .portal-reset-password-fields { max-width: none; margin-top: 14px; }
 .portal-reset-password-fields input { flex: 1 1 180px; min-width: 0; min-height: 40px; padding: .65rem .75rem; border: 1px solid #cbd5e1; border-radius: 9px; font: inherit; }
+.portal-reset-password-fields .portal-password-input-wrap { position: relative; display: flex; align-items: center; flex: 1 1 180px; min-width: 0; }
+.portal-reset-password-fields .portal-password-input-wrap input { width: 100%; padding-right: 2.8rem; }
+.portal-password-visibility-toggle { position: absolute; top: 50%; right: .45rem; display: inline-flex; align-items: center; justify-content: center; width: 2.1rem; height: 2.1rem; padding: 0; transform: translateY(-50%); border: 0; border-radius: .45rem; background: transparent; color: #526779; cursor: pointer; }
+.portal-password-visibility-toggle:hover { background: #edf4f8; color: #1e3a56; }
+.portal-password-visibility-toggle:focus-visible { outline: 2px solid #4284b2; outline-offset: 2px; }
+.pa-password-input-wrap { position: relative; width: 100%; }
+.pa-password-input-wrap .pa-input { padding-right: 2.85rem; }
+.pa-password-visibility-toggle { position: absolute; top: 50%; right: .45rem; display: inline-flex; align-items: center; justify-content: center; width: 2.1rem; height: 2.1rem; padding: 0; transform: translateY(-50%); border: 0; border-radius: .45rem; background: transparent; color: #475569; cursor: pointer; }
+.pa-password-visibility-toggle:hover { background: #f1f5f9; color: #0f172a; }
+.pa-password-visibility-toggle:focus-visible { outline: 2px solid #3b82f6; outline-offset: 2px; }
 .portal-centered .portal-loading-card { display: grid; justify-items: center; gap: .8rem; padding: 25px; border: 1px solid #e1e8ef; border-radius: 15px; background: #fff; }
 .portal-centered .portal-loading-card img { width: 180px; height: 76px; object-fit: contain; }
 .portal-print-report { position: absolute; width: 1px; height: 1px; overflow: hidden; }

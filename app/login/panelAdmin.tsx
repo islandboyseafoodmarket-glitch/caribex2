@@ -5,7 +5,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { supabase } from "../../lib/supabaseClient";
 import { BrowserMultiFormatReader } from "@zxing/browser";
-import { Pencil, Trash2, Unlock, LogOut, Image as ImageIcon, Check, Send, DollarSign, ChevronDown, Package, ScanLine, AlertTriangle, QrCode, BarChart3, UserPlus, Bell, Receipt, Ship, Container, UserCog, Plus, Truck, CheckCircle2 } from "lucide-react";
+import { Pencil, Trash2, Unlock, LogOut, Image as ImageIcon, Check, Send, DollarSign, ChevronDown, Package, ScanLine, AlertTriangle, QrCode, BarChart3, UserPlus, Bell, Receipt, Ship, Container, UserCog, Plus, Truck, CheckCircle2, Eye, EyeOff } from "lucide-react";
 import FerryManifestAdmin from "./FerryManifestAdmin";
 import DispatchesAdmin from "./DispatchesAdmin";
 import Client360Admin from "./Client360Admin";
@@ -14,9 +14,10 @@ import PaymentLedgerDialog from "../../components/PaymentLedgerDialog";
 import AdminInvoiceActions, { type AdminInvoiceAction } from "../../components/AdminInvoiceActions";
 import type { PaymentSummary } from "../../lib/payment-ledger";
 import CaribexBatchLabelPrint, { BatchBoxLabel } from "../../components/CaribexBatchLabelPrint";
-import type { CaribexLabelSize } from "../../components/CaribexLabelPrint";
+import CaribexLabelPrint, { type CaribexLabelData, type CaribexLabelSize } from "../../components/CaribexLabelPrint";
 import ContainersAdmin from "./ContainersAdmin";
 import ReportsAdmin from "./ReportsAdmin";
+import MobileSupportReportsAdmin from "./MobileSupportReportsAdmin";
 import ExpensesAdmin from "./ExpensesAdmin";
 import { formatStaffDateTime } from "../../lib/staff-date-format";
 import InvoicePreview, { type InvoicePreviewProps } from "../../components/InvoicePreview";
@@ -88,6 +89,7 @@ const auditActionLabel = (action: unknown) => {
   const labels: Record<string, string> = {
     workflow_status_change: "Workflow Status Change",
     bulk_workflow_status_change: "Bulk Workflow Status Change",
+    pickup_signature_saved: "Pickup Signature Saved",
     receiving_package_created: "Receiving Package Created",
     receiving_package_updated: "Receiving Package Updated",
     package_problem_noted: "Package Problem Noted",
@@ -153,7 +155,7 @@ const shipmentStage = (status: string | null | undefined) => {
 
 const WEB_ADMIN_VERSION = "1.0.3";
 const WEB_TAB_VERSIONS: Record<string, string> = {
-  pedidos: "1.0.4",
+  pedidos: "1.0.5",
   finanzas: "1.0.4",
   expenses: "1.0.3",
   ferry: "1.0.3",
@@ -364,6 +366,8 @@ const App = () => {
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
   const [newAdminPassword, setNewAdminPassword] = useState("");
   const [confirmAdminPassword, setConfirmAdminPassword] = useState("");
+  const [showNewAdminPassword, setShowNewAdminPassword] = useState(false);
+  const [showConfirmAdminPassword, setShowConfirmAdminPassword] = useState(false);
   const [passwordSaving, setPasswordSaving] = useState(false);
   const cargarLeads = useCallback(async () => {
     try {
@@ -585,6 +589,8 @@ const App = () => {
   const [pedidoDetalle, setPedidoDetalle] = useState<any | null>(null);
   const [pedidoDetalleLoading, setPedidoDetalleLoading] = useState(false);
   const [pedidoDetalleError, setPedidoDetalleError] = useState<string | null>(null);
+  const [customerSummary, setCustomerSummary] = useState<Cliente | null>(null);
+  const [shipmentLabel, setShipmentLabel] = useState<CaribexLabelData | null>(null);
   const [adminPreviewPhoto, setAdminPreviewPhoto] = useState<string | null>(null);
   const [adminPreviewSignature, setAdminPreviewSignature] = useState<{ id: string; paths: string[]; tracking: string } | null>(null);
   const [trackInvoiceSummary, setTrackInvoiceSummary] = useState<InvoiceViewData | null>(null);
@@ -720,6 +726,8 @@ const App = () => {
     }
     setNewAdminPassword("");
     setConfirmAdminPassword("");
+    setShowNewAdminPassword(false);
+    setShowConfirmAdminPassword(false);
     setIsPasswordModalOpen(false);
     setAdminNotice("Admin password changed successfully.");
   };
@@ -2470,7 +2478,7 @@ const App = () => {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <button type="button" className="pa-secondary-btn" onClick={() => setIsPasswordModalOpen(true)} title="Change Admin password">
+          <button type="button" className="pa-secondary-btn" onClick={() => { setShowNewAdminPassword(false); setShowConfirmAdminPassword(false); setIsPasswordModalOpen(true); }} title="Change Admin password">
             <Unlock size={16} /> Change password
           </button>
           <button
@@ -2652,7 +2660,7 @@ const App = () => {
             </div>
           )}
 
-          {activeTab === 'reports' && <ReportsAdmin />}
+          {activeTab === 'reports' && <><MobileSupportReportsAdmin /><ReportsAdmin /></>}
 
           {activeTab === 'prepaid' && (
             <div style={{ margin: '1rem 0', padding: '1rem 1.1rem', borderRadius: '0.9rem', border: '1px solid #f59e0b', background: '#fffbeb' }}>
@@ -3819,21 +3827,31 @@ const App = () => {
           <div className="pa-modal" style={{ maxWidth: "460px" }}>
             <div className="pa-modal-header">
               <h4 id="admin-password-title" className="pa-modal-title">Change Admin password</h4>
-              <button type="button" className="pa-close-btn" onClick={() => setIsPasswordModalOpen(false)} aria-label="Close">×</button>
+          <button type="button" className="pa-close-btn" onClick={() => { setShowNewAdminPassword(false); setShowConfirmAdminPassword(false); setIsPasswordModalOpen(false); }} aria-label="Close">×</button>
             </div>
             <p style={{ margin: "0 0 1rem", color: "#64748b", fontSize: "0.88rem" }}>
               This changes the password for the Admin account currently signed in.
             </p>
             <div className="pa-field">
               <label htmlFor="new-admin-password">New password</label>
-              <input id="new-admin-password" className="pa-input" type="password" minLength={8} value={newAdminPassword} onChange={(event) => setNewAdminPassword(event.target.value)} autoComplete="new-password" />
+              <div className="pa-password-input-wrap">
+                <input id="new-admin-password" className="pa-input" type={showNewAdminPassword ? "text" : "password"} minLength={8} value={newAdminPassword} onChange={(event) => setNewAdminPassword(event.target.value)} autoComplete="new-password" />
+                <button type="button" className="pa-password-visibility-toggle" aria-label={showNewAdminPassword ? "Hide new password" : "Show new password"} aria-pressed={showNewAdminPassword} onClick={() => setShowNewAdminPassword((visible) => !visible)}>
+                  {showNewAdminPassword ? <EyeOff size={18} aria-hidden="true" /> : <Eye size={18} aria-hidden="true" />}
+                </button>
+              </div>
             </div>
             <div className="pa-field">
               <label htmlFor="confirm-admin-password">Confirm new password</label>
-              <input id="confirm-admin-password" className="pa-input" type="password" minLength={8} value={confirmAdminPassword} onChange={(event) => setConfirmAdminPassword(event.target.value)} autoComplete="new-password" />
+              <div className="pa-password-input-wrap">
+                <input id="confirm-admin-password" className="pa-input" type={showConfirmAdminPassword ? "text" : "password"} minLength={8} value={confirmAdminPassword} onChange={(event) => setConfirmAdminPassword(event.target.value)} autoComplete="new-password" />
+                <button type="button" className="pa-password-visibility-toggle" aria-label={showConfirmAdminPassword ? "Hide password confirmation" : "Show password confirmation"} aria-pressed={showConfirmAdminPassword} onClick={() => setShowConfirmAdminPassword((visible) => !visible)}>
+                  {showConfirmAdminPassword ? <EyeOff size={18} aria-hidden="true" /> : <Eye size={18} aria-hidden="true" />}
+                </button>
+              </div>
             </div>
             <div className="pa-modal-actions">
-              <button type="button" className="pa-secondary-btn" onClick={() => setIsPasswordModalOpen(false)}>Cancel</button>
+              <button type="button" className="pa-secondary-btn" onClick={() => { setShowNewAdminPassword(false); setShowConfirmAdminPassword(false); setIsPasswordModalOpen(false); }}>Cancel</button>
               <button type="button" className="pa-primary-btn" disabled={passwordSaving || !newAdminPassword || !confirmAdminPassword} onClick={() => void changeAdminPassword()}>
                 {passwordSaving ? "Saving…" : "Change password"}
               </button>
@@ -3929,6 +3947,31 @@ const App = () => {
       {trackInvoiceSummary && <InvoiceViewModal invoice={trackInvoiceSummary} onClose={() => setTrackInvoiceSummary(null)} onOpenShipment={(shipmentId) => { setTrackInvoiceSummary(null); void abrirDetallePedido(shipmentId); }} actions={<button type="button" className="pa-secondary-btn" onClick={() => setTrackInvoiceSummary(null)}>Close</button>} />}
       {actualInvoicePreview && <div className="pa-modal-overlay" style={{ zIndex: 10050 }} onClick={() => setActualInvoicePreview(null)}><div className="pa-modal" role="dialog" aria-modal="true" aria-label="Actual invoice" onClick={(event) => event.stopPropagation()} style={{ width: "min(900px, 96vw)", maxHeight: "92vh", overflowY: "auto", padding: "1.5rem" }}><div className="pa-modal-header"><h2 className="pa-modal-title">Invoice</h2><button type="button" className="pa-close-btn" onClick={() => setActualInvoicePreview(null)} aria-label="Close invoice">×</button></div>{actualInvoicePreviewLoading && <p role="status" style={{ color: "#64748b" }}>Loading invoice details…</p>}<InvoicePreview {...actualInvoicePreview} /></div></div>}
 
+      {customerSummary && (() => {
+        const customerShipments = pedidos.filter((shipment) => shipment.numero_cliente_id === customerSummary.id || shipment.clienteNumero === customerSummary.numero_cliente);
+        const waitingCount = customerShipments.filter((shipment) => shipmentStage(shipment.estado) === "UNLOADED").length;
+        const customerInvoices = facturas.filter((invoice) => invoice.clienteNumero === customerSummary.numero_cliente);
+        const unpaidCount = customerInvoices.filter((invoice) => paymentBalances[invoice.id]
+          ? paymentBalances[invoice.id].balance > 0.005
+          : String(invoice.invoice_status || "").toUpperCase() !== "PAID").length;
+        const location = String(customerSummary.puerto || "Not specified").replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+        return <div className="pa-modal-overlay" style={{ zIndex: 80 }} onClick={() => setCustomerSummary(null)}>
+          <div className="pa-modal" role="dialog" aria-modal="true" aria-labelledby="shipment-customer-summary-title" onClick={(event) => event.stopPropagation()} style={{ width: "min(620px, 94vw)", maxHeight: "86vh", overflowY: "auto", padding: "1.35rem" }}>
+            <div className="pa-modal-header" style={{ borderBottom: "1px solid #e2e8f0", paddingBottom: "0.75rem" }}>
+              <h2 id="shipment-customer-summary-title" className="pa-modal-title">{customerSummary.nombre}, account #{customerSummary.numero_cliente}</h2>
+              <button type="button" className="pa-close-btn" onClick={() => setCustomerSummary(null)} aria-label="Close customer summary">×</button>
+            </div>
+            <div style={{ padding: "0.75rem 0 0.6rem" }}>
+              {[["Email", customerSummary.email || "Not provided"], ["Phone", customerSummary.telefono || "Not provided"], ["Location", location]].map(([label, value]) => <div key={label} style={{ display: "grid", gridTemplateColumns: "140px minmax(0,1fr)", gap: "0.75rem", padding: "0.35rem 0", color: "#334155", overflowWrap: "anywhere" }}><span style={{ color: "#64748b" }}>{label}</span><strong>{value}</strong></div>)}
+              <div style={{ borderTop: "1px solid #e2e8f0", margin: "0.5rem 0", paddingTop: "0.5rem" }} />
+              {[["Account", customerSummary.auth_user_id ? "Active" : "No portal login"], ["Boxes waiting", `${waitingCount} unloaded, not collected`], ["Unpaid", `${unpaidCount} invoice(s)`]].map(([label, value]) => <div key={label} style={{ display: "grid", gridTemplateColumns: "140px minmax(0,1fr)", gap: "0.75rem", padding: "0.35rem 0", color: "#334155", overflowWrap: "anywhere" }}><span style={{ color: "#64748b" }}>{label}</span><strong>{value}</strong></div>)}
+            </div>
+            <div className="pa-modal-actions" style={{ justifyContent: "flex-end", marginTop: "0.5rem" }}><button type="button" className="pa-secondary-btn" onClick={() => setCustomerSummary(null)}>Back to the package</button></div>
+          </div>
+        </div>;
+      })()}
+      {shipmentLabel && <CaribexLabelPrint label={shipmentLabel} onClose={() => setShipmentLabel(null)} mode="qr-reprint" labelSize="4x6" />}
+
       {isPedidoDetalleOpen && pedidoDetalle?.activity !== undefined && (
         <div className="pa-modal-overlay" onClick={() => setIsPedidoDetalleOpen(false)}>
           <div
@@ -3939,12 +3982,27 @@ const App = () => {
             style={{ width: "min(760px, 96vw)", maxHeight: "90vh", overflowY: "auto", borderRadius: "1.2rem", background: "#fff", boxShadow: "0 25px 80px rgba(15,23,42,.28)", padding: "1rem 1.35rem 1.25rem" }}
           >
             {(() => {
-              const customer = pedidoDetalle.numero_cliente || {};
+              const customer = Array.isArray(pedidoDetalle.numero_cliente) ? pedidoDetalle.numero_cliente[0] || {} : pedidoDetalle.numero_cliente || {};
               const checkin = pedidoDetalle.detalleCheckin || {};
               const status = String(pedidoDetalle.estado || "Pending");
               const payment = String(pedidoDetalle.invoice_status || "").toUpperCase();
               const invoiceApproval = String(pedidoDetalle.approval_status || "").toUpperCase();
               const activity = Array.isArray(pedidoDetalle.activity) ? pedidoDetalle.activity : [];
+              const historyActivity = activity.filter((event: any) => {
+                const action = String(event?.action || "").toLowerCase();
+                if (["workflow_status_change", "bulk_workflow_status_change", "pickup_signature_saved"].includes(action)) return true;
+                const details = event?.details || {};
+                const current = details.new && typeof details.new === "object" ? details.new : {};
+                const previous = details.old && typeof details.old === "object" ? details.old : {};
+                const isPackageRowUpdate = event?.entity_type === "paquetes_registro" && details.source === "database_trigger" && action === "update";
+                if (isPackageRowUpdate) {
+                  const statusChanged = String(current.estado ?? "") !== String(previous.estado ?? "");
+                  const customerChanged = String(current.numero_cliente_id ?? "") !== String(previous.numero_cliente_id ?? "");
+                  return statusChanged || customerChanged;
+                }
+                return action === "receiving_package_updated" && Array.isArray(details.changed_fields)
+                  && details.changed_fields.some((field: unknown) => field === "numero_cliente_id" || field === "customer_id");
+              });
               const children = Array.isArray(pedidoDetalle.consolidates) ? pedidoDetalle.consolidates : [];
               const containers = Array.isArray(pedidoDetalle.contenedores) ? pedidoDetalle.contenedores : [];
               const pickupSignatures = Array.isArray(pedidoDetalle.pickupSignatures) ? pedidoDetalle.pickupSignatures : [];
@@ -3967,16 +4025,42 @@ const App = () => {
                 const statusChange = fromStatus !== undefined && toStatus !== undefined && String(fromStatus) !== String(toStatus)
                   ? [`status: ${String(fromStatus || "empty")} → ${String(toStatus || "empty")}`]
                   : [];
-                return [...statusChange, ...fields
+                const lines = [...statusChange, ...fields
                   .filter((field) => JSON.stringify(current[field] ?? null) !== JSON.stringify(previous[field] ?? null) && (current[field] !== undefined || previous[field] !== undefined))
-                  .map((field) => `${labels[field] || field}: ${String(previous[field] ?? "empty")} → ${String(current[field] ?? "empty")}`)];
+                  .map((field) => {
+                    if (field === "numero_cliente_id") {
+                      const displayCustomer = (id: unknown) => {
+                        if (!id) return "Unassigned";
+                        const match = clientes.find((candidate) => candidate.id === String(id));
+                        return match ? `${match.nombre} (#${match.numero_cliente})` : String(id);
+                      };
+                      return `customer: ${displayCustomer(previous[field])} → ${displayCustomer(current[field])}`;
+                    }
+                    return `${labels[field] || field}: ${String(previous[field] ?? "empty")} → ${String(current[field] ?? "empty")}`;
+                  })];
+                if (event?.action === "receiving_package_updated" && Array.isArray(details?.changed_fields)
+                  && details.changed_fields.some((field: unknown) => field === "numero_cliente_id" || field === "customer_id")) {
+                  const changedCustomer = clientes.find((candidate) => candidate.id === String(details.customer_id || ""));
+                  lines.push(`customer assigned to: ${changedCustomer ? `${changedCustomer.nombre} (#${changedCustomer.numero_cliente})` : details.customer_id || "Unassigned"}`);
+                }
+                return lines;
+              };
+              const isCustomerChangeEvent = (event: any) => {
+                const details = event?.details || {};
+                const current = details.new && typeof details.new === "object" ? details.new : {};
+                const previous = details.old && typeof details.old === "object" ? details.old : {};
+                return (event?.action === "update" && event?.entity_type === "paquetes_registro" && details.source === "database_trigger"
+                  && String(current.numero_cliente_id ?? "") !== String(previous.numero_cliente_id ?? ""))
+                || (event?.action === "receiving_package_updated" && Array.isArray(details?.changed_fields)
+                    && details.changed_fields.some((field: unknown) => field === "numero_cliente_id" || field === "customer_id"));
               };
               const isFlaggedEvent = (event: any) => !event.success || String(event.action).toLowerCase().includes("problem");
-              const flaggedCount = activity.filter(isFlaggedEvent).length;
+              const historyLabel = (event: any) => isCustomerChangeEvent(event) ? "Customer Assignment Change" : auditActionLabel(event.action);
+              const flaggedCount = historyActivity.filter(isFlaggedEvent).length;
               const detailRow = (label: string, value: React.ReactNode, key: string) => <div key={key} style={{ display: "grid", gridTemplateColumns: "145px minmax(0,1fr)", gap: "0.75rem", padding: "0.34rem 0", alignItems: "baseline" }}><span style={{ color: "#64748b", fontSize: "0.88rem" }}>{label}</span><span style={{ color: "#1e293b", fontWeight: 600, minWidth: 0, overflowWrap: "anywhere" }}>{value || "—"}</span></div>;
               return <>
                 <div style={{ display: "flex", alignItems: "center", gap: "0.65rem", borderBottom: "1px solid #e2e8f0", padding: "0.1rem 0 0.8rem" }}>
-                  <span style={{ color: "#64748b", fontSize: "1.1rem" }}>▧</span>
+                  <button type="button" disabled={!pedidoDetalle.tracking} onClick={() => setShipmentLabel({ tracking: String(pedidoDetalle.tracking || ""), customerName: customer.nombre || null, accountNumber: customer.numero_cliente ?? null, carrier: pedidoDetalle.nombre_paqueteria || null, packageType: pedidoDetalle.tipo_paquete || null, details: pedidoDetalle.contenido || null })} title="View and print Caribex tracking label" aria-label={`View and print label for ${pedidoDetalle.tracking || "shipment"}`} style={{ display: "grid", placeItems: "center", width: 34, height: 34, border: "1px solid #bfdbfe", borderRadius: 8, background: "#eff6ff", color: "#1d4ed8", cursor: pedidoDetalle.tracking ? "pointer" : "not-allowed", flex: "0 0 auto" }}><QrCode aria-hidden="true" size={19} /></button>
                   <strong style={{ flex: 1, fontSize: "1.08rem", letterSpacing: "0.01em", overflowWrap: "anywhere" }}>{pedidoDetalle.tracking || "Shipment"}</strong>
                   <span style={{ background: "#fbbf24", color: "#78350f", borderRadius: "0.35rem", padding: "0.45rem 0.7rem", fontWeight: 800 }}>{pedidoDetalle.tipo_paquete || "Package"} {pedidoDetalle.invoice_id ? pedidoDetalle.invoice_id : ""}</span>
                   <span style={{ color: "#1d4ed8", background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: "999px", padding: "0.25rem 0.55rem", fontSize: "0.72rem", fontWeight: 800, whiteSpace: "nowrap" }}>Web shipments v{webTabVersion("pedidos")}</span>
@@ -3985,7 +4069,7 @@ const App = () => {
                   <button type="button" onClick={() => setIsPedidoDetalleOpen(false)} aria-label="Close shipment details" style={{ border: 0, background: "transparent", color: "#64748b", fontSize: "1.5rem", lineHeight: 1, cursor: "pointer" }}>×</button>
                 </div>
                 <div style={{ padding: "0.65rem 0 0.35rem" }}>
-                  {detailRow("Client", customer.nombre ? <span style={{ color: "#2563eb", textDecoration: "underline" }}>{customer.nombre} (#{customer.numero_cliente ?? "—"})</span> : "Unassigned", "client")}
+                  {detailRow("Client", customer.nombre ? <button type="button" onClick={() => setCustomerSummary(customer as Cliente)} style={{ border: 0, background: "transparent", padding: 0, color: "#2563eb", textDecoration: "underline", font: "inherit", fontWeight: 700, cursor: "pointer", textAlign: "left" }} aria-label={`Open customer summary for ${customer.nombre}`}>{customer.nombre} (#{customer.numero_cliente ?? "—"})</button> : "Unassigned", "client")}
                   {detailRow("Carrier", pedidoDetalle.nombre_paqueteria || "—", "carrier")}
                   {detailRow("Note", <span style={{ color: pedidoDetalle.notas ? "#334155" : "#94a3b8", fontWeight: 500 }}>{pedidoDetalle.notas || "No note"} <small style={{ color: "#94a3b8", marginLeft: "0.4rem" }}>(staff/admin only)</small></span>, "note")}
                   {detailRow("Item", `${pedidoDetalle.tipo_paquete || "Shipment"}${pedidoDetalle.billing_subtotal != null ? ` ($${Number(pedidoDetalle.billing_subtotal).toFixed(2)})` : ""}`, "item")}
@@ -3993,7 +4077,7 @@ const App = () => {
                   {detailRow("Container", containers.map((container: any) => container.codigo || container.id).join(", ") || "Not assigned", "container")}
                   {detailRow("Invoice", <button type="button" onClick={() => setTrackInvoiceSummary({ id: String(pedidoDetalle.id), tracking: String(pedidoDetalle.tracking || "-"), clientName: customer.nombre || null, clientNumber: customer.numero_cliente ?? null, carrier: pedidoDetalle.nombre_paqueteria || null, typeLabel: pedidoDetalle.tipo_paquete || "Shipment", contents: pedidoDetalle.contenido || null, billingSubtotal: pedidoDetalle.billing_subtotal ?? null, billingTax: pedidoDetalle.billing_tax ?? null, billingTotal: pedidoDetalle.billing_total ?? null, serviceDate: pedidoDetalle.creado_en || pedidoDetalle.hora_fecha || null, approvalStatus: invoiceApproval || "PENDING", paymentStatus: payment === "PAID" ? "Paid" : "Not paid", container: containers.map((container: any) => container.codigo || container.id).join(", ") || "-" })} style={{ border: 0, background: "transparent", padding: 0, color: "#2563eb", textAlign: "left", font: "inherit", cursor: "pointer", textDecoration: "underline" }} aria-label="Open invoice summary">Invoice <strong style={{ color: invoiceApproval === "APPROVED" ? "#166534" : "#64748b" }}>{invoiceApproval || "PENDING"}</strong> <span style={{ marginLeft: "0.7rem" }}>Payment: <strong style={{ color: payment === "PAID" ? "#166534" : "#b45309" }}>{payment || "UNPAID"}</strong></span>{pedidoDetalle.billing_total != null ? ` · $${Number(pedidoDetalle.billing_total).toFixed(2)}` : ""}</button>, "invoice")}
                   {detailRow("Received", formatStaffDateTime(pedidoDetalle.hora_fecha || pedidoDetalle.creado_en), "received")}
-                  {detailRow("Last scanned", formatStaffDateTime(activity[activity.length - 1]?.created_at || pedidoDetalle.updated_at || pedidoDetalle.hora_fecha), "scanned")}
+                  {detailRow("Last scanned", formatStaffDateTime(activity.filter((event: any) => event.action === "package_scanned").slice(-1)[0]?.created_at), "scanned")}
                 </div>
                 {problemPhotos.length > 0 && <section style={{ borderTop: "1px solid #e2e8f0", paddingTop: "0.75rem", marginTop: "0.25rem" }}>
                   <h4 style={{ margin: 0, fontSize: "1rem", color: "#1e293b" }}>Problem photos ({problemPhotos.length})</h4>
@@ -4024,8 +4108,8 @@ const App = () => {
                   {children.length ? <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem", padding: "0.45rem 0 0.75rem 1rem" }}>{children.map((child: any) => <button key={child.id} type="button" onClick={() => void abrirDetallePedido(child.id)} style={{ border: 0, background: "transparent", color: "#2563eb", textAlign: "left", cursor: "pointer", fontSize: "0.9rem" }}>{child.tracking}</button>)}</div> : <p style={{ color: "#94a3b8", margin: "0.45rem 0 0.75rem" }}>None</p>}
                 </section>
                 <section style={{ borderTop: "1px solid #e2e8f0", paddingTop: "0.75rem" }}>
-                  <h4 style={{ margin: 0, fontSize: "1rem", color: "#1e293b" }}>↗ History - every touch ({activity.length}) <span title="A flagged event means a failed operation or a package problem was recorded. Normal updates are not flagged." style={{ color: flaggedCount ? "#b91c1c" : "#64748b", fontSize: "0.82rem", marginLeft: "0.35rem" }}>⚑ {flaggedCount ? `${flaggedCount} flagged` : "No flagged events"}</span></h4>
-                  {activity.length ? <div style={{ marginTop: "0.55rem", display: "flex", flexDirection: "column", gap: "0.5rem" }}>{activity.map((event: any) => { const changes = describeChanges(event); const actor = event.actor_name || event.actor_email || "Unknown staff"; const role = event.actor_role ? ` (${String(event.actor_role).replace(/^./, (letter) => letter.toUpperCase())})` : ""; return <div key={event.id} style={{ display: "grid", gridTemplateColumns: "115px 1fr", gap: "0.7rem", fontSize: "0.82rem" }}><time style={{ color: "#64748b" }}>{formatStaffDateTime(event.created_at)}</time><div style={{ borderLeft: `3px solid ${isFlaggedEvent(event) ? "#dc2626" : "#2563eb"}`, paddingLeft: "0.65rem" }}><strong style={{ color: isFlaggedEvent(event) ? "#991b1b" : "#334155" }}>{auditActionLabel(event.action)}</strong><span style={{ color: "#64748b" }}> by {actor}{role}</span>{event.error_message && <div style={{ color: "#991b1b" }}>{event.error_message}</div>}{changes.length > 0 && <div style={{ color: "#475569", marginTop: "0.18rem" }}>{changes.map((change: string, index: number) => <div key={`${event.id}-change-${index}`}>{change}</div>)}</div>}{event.details?.source === "database_trigger" && changes.length === 0 && <div style={{ color: "#64748b" }}>No tracked field changes</div>}</div></div>; })}</div> : <p style={{ color: "#94a3b8", margin: "0.5rem 0" }}>No activity history has been recorded.</p>}
+                  <h4 style={{ margin: 0, fontSize: "1rem", color: "#1e293b" }}>Shipment History ({historyActivity.length}) <span title="Only workflow status changes, customer assignment changes, and saved pickup signatures are shown." style={{ color: flaggedCount ? "#b91c1c" : "#64748b", fontSize: "0.82rem", marginLeft: "0.35rem" }}>⚑ {flaggedCount ? `${flaggedCount} flagged` : "No flagged events"}</span></h4>
+                  {historyActivity.length ? <div style={{ marginTop: "0.55rem", display: "flex", flexDirection: "column", gap: "0.5rem" }}>{historyActivity.map((event: any) => { const changes = describeChanges(event); const actor = event.actor_name || event.actor_email || "Unknown staff"; const role = event.actor_role ? ` (${String(event.actor_role).replace(/^./, (letter) => letter.toUpperCase())})` : ""; return <div key={event.id} style={{ display: "grid", gridTemplateColumns: "115px 1fr", gap: "0.7rem", fontSize: "0.82rem" }}><time style={{ color: "#64748b" }}>{formatStaffDateTime(event.created_at)}</time><div style={{ borderLeft: `3px solid ${isFlaggedEvent(event) ? "#dc2626" : "#2563eb"}`, paddingLeft: "0.65rem" }}><strong style={{ color: isFlaggedEvent(event) ? "#991b1b" : "#334155" }}>{historyLabel(event)}</strong><span style={{ color: "#64748b" }}> by {actor}{role}</span>{event.error_message && <div style={{ color: "#991b1b" }}>{event.error_message}</div>}{changes.length > 0 && <div style={{ color: "#475569", marginTop: "0.18rem" }}>{changes.map((change: string, index: number) => <div key={`${event.id}-change-${index}`}>{change}</div>)}</div>}{event.details?.source === "database_trigger" && changes.length === 0 && <div style={{ color: "#64748b" }}>No tracked field changes</div>}</div></div>; })}</div> : <p style={{ color: "#94a3b8", margin: "0.5rem 0" }}>No status, customer-assignment, or pickup-signature events have been recorded.</p>}
                 </section>
                 <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem", marginTop: "1rem", paddingTop: "0.75rem", borderTop: "1px solid #e2e8f0" }}><button type="button" className="pa-secondary-btn" onClick={() => setIsPedidoDetalleOpen(false)}>Close</button></div>
               </>;

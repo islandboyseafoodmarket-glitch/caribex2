@@ -1,6 +1,6 @@
 "use client";
-
 import { useEffect, useState } from "react";
+import { Eye, EyeOff } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { supabase } from "../../../lib/supabaseClient";
@@ -11,6 +11,8 @@ export default function CustomerResetPasswordPage() {
   const [hasSession, setHasSession] = useState(false);
   const [password, setPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmation, setShowConfirmation] = useState(false);
   const [language, setLanguage] = useState<PortalLanguage>("en");
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -56,6 +58,8 @@ export default function CustomerResetPasswordPage() {
     if (updateError) { setError(t.passwordError); return; }
     setPassword("");
     setConfirmation("");
+    setShowPassword(false);
+    setShowConfirmation(false);
     setMessage(t.resetSuccess);
   }
 
@@ -71,7 +75,21 @@ export default function CustomerResetPasswordPage() {
         <p className="customer-login-eyebrow">{t.resetEyebrow}</p>
         <h1>{t.resetTitle}</h1>
         <p>{t.resetDescription}</p>
-        <div className="portal-password-row portal-reset-password-fields"><input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder={t.newPassword} autoComplete="new-password" /><input type="password" value={confirmation} onChange={(event) => setConfirmation(event.target.value)} placeholder={t.confirmPassword} autoComplete="new-password" /><button type="button" className="portal-button" disabled={saving} onClick={() => void savePassword()}>{saving ? t.saving : t.saveNewPassword}</button></div>
+        <div className="portal-password-row portal-reset-password-fields">
+          <div className="portal-password-input-wrap">
+            <input type={showPassword ? "text" : "password"} value={password} onChange={(event) => setPassword(event.target.value)} placeholder={t.newPassword} autoComplete="new-password" />
+            <button type="button" className="portal-password-visibility-toggle" aria-label={language === "es" ? (showPassword ? "Ocultar contraseña" : "Mostrar contraseña") : (showPassword ? "Hide password" : "Show password")} aria-pressed={showPassword} onClick={() => setShowPassword((visible) => !visible)}>
+              {showPassword ? <EyeOff size={18} aria-hidden="true" /> : <Eye size={18} aria-hidden="true" />}
+            </button>
+          </div>
+          <div className="portal-password-input-wrap">
+            <input type={showConfirmation ? "text" : "password"} value={confirmation} onChange={(event) => setConfirmation(event.target.value)} placeholder={t.confirmPassword} autoComplete="new-password" />
+            <button type="button" className="portal-password-visibility-toggle" aria-label={language === "es" ? (showConfirmation ? "Ocultar confirmación de contraseña" : "Mostrar confirmación de contraseña") : (showConfirmation ? "Hide password confirmation" : "Show password confirmation")} aria-pressed={showConfirmation} onClick={() => setShowConfirmation((visible) => !visible)}>
+              {showConfirmation ? <EyeOff size={18} aria-hidden="true" /> : <Eye size={18} aria-hidden="true" />}
+            </button>
+          </div>
+          <button type="button" className="portal-button" disabled={saving} onClick={() => void savePassword()}>{saving ? t.saving : t.saveNewPassword}</button>
+        </div>
         {error && <small className="portal-error" role="alert">{error}</small>}
         {message && <><small className="portal-success" role="status">{message}</small><Link href="/portal/login" className="customer-login-back">{t.signInAfterReset}</Link></>}
       </section>
