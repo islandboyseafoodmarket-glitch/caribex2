@@ -57,6 +57,16 @@ export async function POST(request: Request) {
         .in("estado", RECEIVING_STAGE_QUERY)
         .limit(500);
       if (listError) throw listError;
+      const blocked = (received || [])
+        .filter((row) => !String(row.numero_cliente_id || "").trim())
+        .map((row) => ({ id: row.id, tracking: row.tracking, reason: "Assign a customer account before Check In" }));
+      if (blocked.length) {
+        return NextResponse.json({
+          error: "Check In blocked: one or more shipments still need a customer account",
+          code: "CUSTOMER_REQUIRED",
+          blocked,
+        }, { status: 422 });
+      }
       const ids = (received || []).map((row) => row.id);
       if (!ids.length) return NextResponse.json({ ok: true, moved: 0 });
       const { data: existingCheckins, error: checkinLookupError } = await supabase
@@ -93,11 +103,21 @@ export async function POST(request: Request) {
     }
     const { data: rows, error: listError } = await supabase
       .from("paquetes_registro")
-      .select("id, tracking, tipo_paquete, billing_subtotal, billing_tax, billing_total, invoice_status")
+      .select("id, tracking, numero_cliente_id, tipo_paquete, billing_subtotal, billing_tax, billing_total, invoice_status")
       .in("estado", IN_TRANSIT_STAGE_QUERY)
       .limit(500);
     if (listError) throw listError;
     const candidates = rows || [];
+    const ownerBlocked = candidates
+      .filter((row) => !String(row.numero_cliente_id || "").trim())
+      .map((row) => ({ id: row.id, tracking: row.tracking, reason: "Assign a customer account before In-Transit" }));
+    if (ownerBlocked.length) {
+      return NextResponse.json({
+        error: "In-Transit blocked: one or more shipments still need a customer account",
+        code: "CUSTOMER_REQUIRED",
+        blocked: ownerBlocked,
+      }, { status: 422 });
+    }
     const ids = candidates.map((row) => row.id);
     if (!ids.length) return NextResponse.json({ ok: true, moved: 0, blocked: [] });
 

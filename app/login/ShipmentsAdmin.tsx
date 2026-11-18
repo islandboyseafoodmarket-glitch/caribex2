@@ -509,7 +509,8 @@ export default function ShipmentsAdmin({
           display: block;
           width: 100%;
           max-width: 100%;
-          overflow: hidden;
+          min-width: 0;
+          overflow-wrap: anywhere;
           padding: 0;
           border: 0;
           background: transparent;
@@ -518,19 +519,18 @@ export default function ShipmentsAdmin({
           font: inherit;
           font-weight: 700;
           text-align: left;
-          text-overflow: ellipsis;
           text-decoration: underline;
           text-decoration-thickness: 1px;
           text-underline-offset: 3px;
-          white-space: nowrap;
+          white-space: normal;
         }
         .tracking-button.tracking-paid { color: #15803d; }
         .tracking-button:hover,
         .tracking-button:focus-visible { color: #0b625c; outline: none; }
         .tracking-button.tracking-paid:hover,
         .tracking-button.tracking-paid:focus-visible { color: #166534; }
-        .tracking-main { display: block; overflow: hidden; text-overflow: ellipsis; }
-        .customer-name { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+        .tracking-main { display: block; overflow-wrap: anywhere; word-break: break-word; }
+        .customer-name { display: block; overflow-wrap: anywhere; word-break: break-word; white-space: normal; font-weight: 600; }
         .customer-account { display: block; margin-top: 0.18rem; color: #64748b; font-size: 0.72rem; font-variant-numeric: tabular-nums; }
         .customer-unassigned, .table-muted { color: #94a3b8; }
         .account-number { font-variant-numeric: tabular-nums; }

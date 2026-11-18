@@ -345,6 +345,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Only the next workflow status can be applied", current: WORKFLOW[beforeIndex], next: expectedNext || null }, { status: 409 });
     }
 
+    // Unknown Owner shipments may be received, but must remain in Received
+    // until staff assigns a real customer account.
+    if (!String(shipment.numero_cliente_id || "").trim()) {
+      return NextResponse.json({
+        error: "Assign a customer account before moving this shipment beyond Received",
+        code: "CUSTOMER_REQUIRED",
+        current_status: shipment.estado,
+        tracking: shipment.tracking,
+      }, { status: 409 });
+    }
+
     if (expectedNext.key === "PICKED_UP" && isInvoiceOnlyShipment(shipment)) {
       return NextResponse.json({ error: "This is an invoice-only billing record, not a physical package available for pickup", code: "INVOICE_ONLY_RECORD" }, { status: 409 });
     }

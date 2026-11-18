@@ -21,9 +21,10 @@ body {
 
 .ga-table th,
 .ga-table td {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  overflow: visible;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
 }
 
 /* Orden actual: CLIENT #, TRACKING, CARRIER, TIPO, NOTE, CONSOLIDATION, STATUS, SCAN TIME, ACCIONES */
@@ -740,8 +741,8 @@ main {
 
 .nav-link-button:hover,
 .nav-link-button-active {
-  color: var(--accent-green);
-  border-bottom-color: var(--accent-green);
+  color: var(--text-gray);
+  border-bottom-color: transparent;
 }
 
 .nav-btn {
@@ -2305,6 +2306,44 @@ main {
   text-decoration: none;
 }
 .ferry-admin-secondary:hover { background: #f8fafc; border-color: #cbd5e1; }
+.ferry-manifest-list { display: grid; gap: 0.75rem; min-width: 0; }
+.ferry-manifest-list-header,
+.ferry-manifest-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 1.1fr) minmax(130px, 1.1fr) minmax(145px, 1.2fr) minmax(82px, .65fr) minmax(54px, .4fr) minmax(330px, 2.7fr);
+  align-items: center;
+  gap: 0.65rem;
+  min-width: 0;
+}
+.ferry-manifest-list-header { padding: 0 1rem; color: #64748b; font-size: .68rem; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
+.ferry-manifest-card { min-width: 0; padding: .9rem 1rem; border: 1px solid #e2e8f0; border-radius: .9rem; background: #fff; box-shadow: 0 5px 14px rgba(15,23,42,.04); }
+.ferry-manifest-row > * { min-width: 0; overflow-wrap: anywhere; }
+.ferry-manifest-status { justify-self: start; padding: .25rem .5rem; border-radius: 999px; font-size: .72rem; font-weight: 800; text-transform: capitalize; }
+.ferry-manifest-entry-count { text-align: center; }
+.ferry-manifest-row-actions { display: flex; align-items: center; justify-content: flex-end; gap: .45rem; min-width: 0; }
+.ferry-manifest-action { min-width: 0; max-width: 100%; padding: .42rem .62rem; font-size: .76rem; }
+.ferry-manifest-action--packages { flex: 1 1 170px; white-space: normal; text-align: left; }
+.ferry-manifest-action-cluster { display: flex; flex: 0 1 auto; align-items: center; justify-content: flex-end; gap: .4rem; min-width: 0; }
+.ferry-manifest-action-menu { flex: 0 0 auto; }
+.ferry-manifest-action-menu summary { cursor: pointer; }
+.ferry-manifest-pending { margin-top: .85rem; padding: .85rem; border: 1px solid #dbeafe; border-radius: .7rem; background: #f8fbff; overflow-x: auto; }
+.ferry-manifest-pending-list { min-width: 560px; }
+.ferry-manifest-pending-header, .ferry-manifest-pending-row { display: grid; grid-template-columns: 1.1fr 1.3fr .75fr .9fr; gap: .65rem; padding: .55rem 0; border-bottom: 1px solid #e2e8f0; }
+.ferry-manifest-pending-row:last-child { border-bottom: 0; }
+.ferry-manifest-pending-header { color: #64748b; font-size: .7rem; text-transform: uppercase; }
+.ferry-manifest-pending-row > * { overflow-wrap: anywhere; }
+@media (max-width: 1200px) {
+  .ferry-manifest-list-header { display: none; }
+  .ferry-manifest-row { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .ferry-manifest-row-actions { grid-column: 1 / -1; justify-content: flex-start; padding-top: .55rem; border-top: 1px solid #eef2f7; }
+}
+@media (max-width: 720px) {
+  .ferry-manifest-row { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .55rem .75rem; }
+  .ferry-manifest-row-actions { flex-wrap: wrap; }
+  .ferry-manifest-action-cluster { flex-wrap: wrap; justify-content: flex-start; }
+  .ferry-manifest-action--packages { flex-basis: 100%; }
+  .ferry-manifest-action { flex: 0 1 auto; }
+}
 .ferry-actions-menu { position: relative; }
 .ferry-actions-menu summary { list-style: none; }
 .ferry-actions-menu summary::-webkit-details-marker { display: none; }
