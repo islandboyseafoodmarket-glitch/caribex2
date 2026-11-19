@@ -22,13 +22,14 @@ export async function GET() {
   return NextResponse.json(
     {
       app: "Caribex Warehouse Management",
-      version: "1.2.48",
-      version_code: 1258,
-      apk_url: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663449196187/CPVKIPNtYjJXWVDH.apk",
-      filename: "Caribex-Warehouse-Management-1.2.48.apk",
-      apk_sha256: "9ef61a51b78270e0e5c29375eef3c0dab3aa2129eabe911fb5886a1a8b81cbb8",
+      version: "1.2.49",
+      version_code: 1260,
+      apk_url: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663449196187/HPckclGtvUQSFVfb.apk",
+      filename: "Caribex-Warehouse-Management-1.2.49.apk",
+      apk_sha256: "9e63a01f3c8158338ca649cfc81ef4ee0df6bb75ae609cd91bccce5dff4e0165",
       release_notes: releaseNotes,
       release_history: [
+        { version: "1.2.49", version_code: 1260, release_notes: releaseNotes },
         { version: "1.2.48", version_code: 1258, release_notes: releaseNotes },
         { version: "1.2.47", version_code: 1256, release_notes: [
           "One active scanner session per account: a newer phone sign-in replaces the older scanner session.",
@@ -64,13 +65,13 @@ export async function GET() {
         {
           app: "Caribex Warehouse Management",
           version: "1.2.40",
-          version_code: 1259,
-          apk_url: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663449196187/dmyyeCdHXlNmMDiC.apk",
-          filename: "Caribex-Warehouse-Management-1.2.40-rollback-code-1259.apk",
-          apk_sha256: "5ca47abc53001f067ac6548c672a291abf3fa26de3e325d1d55a96b39ceb5982",
+          version_code: 1261,
+          apk_url: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663449196187/TSyDFDzWfBIHxJdP.apk",
+          filename: "Caribex-Warehouse-Management-1.2.40-rollback-code-1261.apk",
+          apk_sha256: "94fab533a729ef96fc2b97ccb41fe547576507a2d4767967eea2245d75c90d5a",
           release_notes: [
-            "v1.2.40 application payload with Android code 1259 and the existing signing certificate so it can replace v1.2.48/code 1258 without uninstalling.",
-            "This rolls back the phone app only, not the server database. A later forward installation must use Android code greater than 1259.",
+            "v1.2.40 application payload with Android code 1261 and the existing signing certificate so it can replace v1.2.49/code 1260 without uninstalling.",
+            "This rolls back the phone app only, not the server database. A later forward installation must use Android code greater than 1261.",
           ],
         },
       ],
