@@ -129,7 +129,7 @@ export async function GET(request: Request) {
           .from("ferry_manifests")
           .select("*")
           .order("creado_en", { ascending: false }),
-        supabaseAdmin.from("contenedores").select("id, codigo").order("creado_en", { ascending: false }),
+        supabaseAdmin.from("contenedores").select("id, codigo, creado_en").order("creado_en", { ascending: false }),
       ]);
     if (manifestError) throw manifestError;
     if (containerError) throw containerError;
@@ -228,6 +228,13 @@ export async function POST(request: Request) {
         };
       })
       .filter(Boolean) as Array<Record<string, string>>;
+
+    if (!entryRows.length) {
+      return NextResponse.json(
+        { error: "No eligible unloaded shipments are assigned to this container and ferry destination. A manifest requires at least one shipment." },
+        { status: 409 },
+      );
+    }
 
     const { start, end } = getWeekBounds();
     const { data: manifest, error: insertError } = await supabaseAdmin

@@ -33,6 +33,41 @@ function safeDate(value: string | null | undefined) {
   return /(?:T|\s)\d{1,2}:\d{2}/.test(raw) ? formatStaffDateTime(date) : date.toLocaleDateString("en-US");
 }
 
+function customerTenureLabel(value: string | null) {
+  const raw = String(value || "").trim();
+  if (!raw) return "Customer registration date unavailable";
+  const dateOnly = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  const year = dateOnly ? Number(dateOnly[1]) : null;
+  const month = dateOnly ? Number(dateOnly[2]) : null;
+  const day = dateOnly ? Number(dateOnly[3]) : null;
+  const start = dateOnly ? new Date(year!, month! - 1, day!) : new Date(raw);
+  if (Number.isNaN(start.getTime())) return "Customer registration date unavailable";
+  if (dateOnly && (start.getFullYear() !== year || start.getMonth() !== month! - 1 || start.getDate() !== day)) {
+    return "Customer registration date unavailable";
+  }
+
+  const today = new Date();
+  let years = today.getFullYear() - start.getFullYear();
+  let months = today.getMonth() - start.getMonth();
+  let days = today.getDate() - start.getDate();
+  if (days < 0) {
+    months -= 1;
+    days += new Date(today.getFullYear(), today.getMonth(), 0).getDate();
+  }
+  if (months < 0) {
+    years -= 1;
+    months += 12;
+  }
+
+  const dateLabel = start.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  if (years < 0) return `Customer since ${dateLabel}`;
+  const duration = [
+    years ? `${years} ${years === 1 ? "year" : "years"}` : "",
+    months ? `${months} ${months === 1 ? "month" : "months"}` : "",
+  ].filter(Boolean).join(", ") || (days > 0 ? `${days} ${days === 1 ? "day" : "days"}` : "less than a month");
+  return `Customer since ${dateLabel} · ${duration}`;
+}
+
 function stageFor(status: string | null) {
   const normalized = (status || "").toLowerCase();
   if (normalized.includes("entregado") || normalized.includes("recogido") || normalized.includes("picked")) return "Picked up";
@@ -154,7 +189,7 @@ export default function Client360Admin({ clientes, pedidos, facturas, paymentBal
 
   return <section className="ga-client360">
     <button type="button" className="pa-secondary-btn" onClick={() => setSelectedId("")} style={{ display: "inline-flex", alignItems: "center", gap: ".35rem", marginBottom: "1rem" }}><ArrowLeft size={15} /> All clients</button>
-    <div className="ga-client360-profile"><div className="ga-client360-profile-icon"><UserRound size={28} /></div><div><h3>{selected.nombre} <span>#{selected.numero_cliente}</span></h3><p><MapPin size={14} /> {formatPortName(selected.puerto, "Location not recorded")}</p><p><Mail size={14} /> {selected.email || "No email"} · <Phone size={14} /> {selected.telefono || "No phone"}</p></div><div style={{ marginLeft: "auto", display: "flex", gap: ".45rem", flexWrap: "wrap" }}>{selected.auth_user_id ? <button type="button" className="pa-secondary-btn" onClick={() => void sendResetLink()}>Email password-reset link</button> : <button type="button" className="pa-secondary-btn" onClick={() => void provisionPortal()}>Create customer portal access</button>}</div></div>
+    <div className="ga-client360-profile"><div className="ga-client360-profile-icon"><UserRound size={28} /></div><div><h3>{selected.nombre} <span>#{selected.numero_cliente}</span></h3><p><MapPin size={14} /> {formatPortName(selected.puerto, "Location not recorded")}</p><p><Mail size={14} /> {selected.email || "No email"} · <Phone size={14} /> {selected.telefono || "No phone"}</p><p className="ga-client360-customer-since"><CalendarDays size={14} /> {customerTenureLabel(selected.creado_en)}</p></div><div style={{ marginLeft: "auto", display: "flex", gap: ".45rem", flexWrap: "wrap" }}>{selected.auth_user_id ? <button type="button" className="pa-secondary-btn" onClick={() => void sendResetLink()}>Email password-reset link</button> : <button type="button" className="pa-secondary-btn" onClick={() => void provisionPortal()}>Create customer portal access</button>}</div></div>
     <div className="ga-client360-card" style={{ padding: '.85rem 1rem', marginBottom: '1rem' }}><strong>How did you hear about us?</strong><p style={{ margin: '.3rem 0 0', color: '#475569' }}>{selected.heard_about_us ? (isReferralSource(selected.heard_about_us) ? REFERRAL_SOURCE_LABELS[selected.heard_about_us].en : selected.heard_about_us) : 'Not provided'}{selected.heard_about_us_details && <span style={{ display: 'block', marginTop: '.2rem' }}>{selected.heard_about_us_details}</span>}</p></div>
     {message && <div className="c360-alert">{message}</div>}
     {selected.tipo_cuenta === "Developer / Builder — Prepaid" && (() => { const allowance = Number(selected.prepaid_allowance_cubic_feet || 0); const used = Number(selected.prepaid_used_cubic_feet || 0); const remaining = Math.max(0, allowance - used); const pendingReviews = clientPackages.filter((pkg) => pkg.prepaid_review_required && pkg.prepaid_review_status !== "APPROVED").length; return <div className="ga-client360-card" style={{ borderColor: "#bfdbfe", background: "#eff6ff" }}><div className="ga-client360-card-header"><div><h3>Developer / Builder prepaid account</h3><p>Cubic-foot allowance</p></div></div><div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(130px,1fr))", gap: ".65rem" }}><div><small>Allowance</small><strong style={{ display: "block", fontSize: "1.2rem" }}>{allowance.toFixed(2)} ft³</strong></div><div><small>Used</small><strong style={{ display: "block", fontSize: "1.2rem" }}>{used.toFixed(2)} ft³</strong></div><div><small>Remaining</small><strong style={{ display: "block", fontSize: "1.2rem", color: remaining > 0 ? "#166534" : "#92400e" }}>{remaining.toFixed(2)} ft³</strong></div><div><small>Pending shipment reviews</small><strong style={{ display: "block", fontSize: "1.2rem" }}>{pendingReviews}</strong></div></div></div>; })()}

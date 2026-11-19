@@ -156,7 +156,27 @@ export async function POST(request: Request) {
       if (created.error) throw created.error;
       manifest = created.data;
     }
-    const { data: entry, error: entryError } = await supabase.from("ferry_manifest_entries").insert({ manifiesto_id: manifest.id, paquete_id: row.id, numero_cliente_id: row.numero_cliente_id, puerto: rowPort, numero_cuenta: String(row.customer?.numero_cliente || ""), nombre_cliente: row.customer?.nombre || "Unknown customer", etiqueta_cantidad: "BOX= 1", despachado_en: new Date().toISOString() }).select("id, paquete_id, despachado_en").single();
+    const dispatchedAt = new Date().toISOString();
+    const { data: existingEntry, error: existingEntryError } = await supabase
+      .from("ferry_manifest_entries")
+      .select("id")
+      .eq("manifiesto_id", manifest.id)
+      .eq("paquete_id", row.id)
+      .maybeSingle();
+    if (existingEntryError) throw existingEntryError;
+
+    const { data: entry, error: entryError } = existingEntry
+      ? await supabase
+          .from("ferry_manifest_entries")
+          .update({ despachado_en: dispatchedAt })
+          .eq("id", existingEntry.id)
+          .select("id, paquete_id, despachado_en")
+          .single()
+      : await supabase
+          .from("ferry_manifest_entries")
+          .insert({ manifiesto_id: manifest.id, paquete_id: row.id, numero_cliente_id: row.numero_cliente_id, puerto: rowPort, numero_cuenta: String(row.customer?.numero_cliente || ""), nombre_cliente: row.customer?.nombre || "Unknown customer", etiqueta_cantidad: "BOX= 1", despachado_en: dispatchedAt })
+          .select("id, paquete_id, despachado_en")
+          .single();
     if (entryError) throw entryError;
     return NextResponse.json({ ok: true, entry, shipment: { id: row.id, tracking: row.tracking, customer_name: row.customer?.nombre || "Unassigned", account_number: row.customer?.numero_cliente ?? null }, port, port_label: FERRY_PORT_LABELS[port], manifest_id: manifest.id }, { status: 201 });
   } catch (error) { return errorResponse(error); }

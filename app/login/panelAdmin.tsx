@@ -159,8 +159,8 @@ const WEB_ADMIN_VERSION = "1.0.3";
 const WEB_TAB_VERSIONS: Record<string, string> = {
   pedidos: "1.0.5",
   finanzas: "1.0.4",
-  expenses: "1.0.3",
-  ferry: "1.0.3",
+  expenses: "1.0.4",
+  ferry: "1.0.4",
   dispatches: "1.0.2",
   facturas: "1.0.4",
   track: "1.0.3",

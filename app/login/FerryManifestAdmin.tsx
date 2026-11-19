@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
-import { Archive, ChevronDown, ChevronUp, Clipboard, Copy, ExternalLink, LockKeyhole, MessageCircle, Plus, RefreshCw, Ship } from "lucide-react";
-import Image from "next/image";
+import { Archive, ChevronDown, Copy, Download, ExternalLink, List, LockKeyhole, MessageCircle, Plus, RefreshCw, Ship } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
+import { downloadFerryManifestExcel, FERRY_PORT_STYLES, formatFerryAccountNumber, type FerryManifestData, type FerryManifestEntry } from "../../lib/ferry-manifest-export";
+import { FERRY_PORT_LABELS, FERRY_PORT_ORDER } from "../../lib/shipping-rules";
 
-type Container = { id: string; codigo: string | null };
+type Container = { id: string; codigo: string | null; creado_en?: string | null };
 type Manifest = {
   id: string;
   contenedor_id: string;
@@ -18,7 +19,7 @@ type Manifest = {
   entry_count: number;
   ubicacion: string;
 };
-type AdminEntry = { id: string; puerto: string; numero_cuenta: string; nombre_cliente: string; numero_reserva: string | null; nombre_receptor: string | null; enviado_en: string | null };
+type AdminEntry = FerryManifestEntry;
 type PendingPackage = { id: string; tracking: string; status: string; customer_name: string; customer_account: string | null };
 const CARIBEX_WHATSAPP_NUMBER = "50489467476";
 const FERRY_LOCATIONS = [
@@ -32,6 +33,10 @@ function dateLabel(value: string) {
   return new Intl.DateTimeFormat("en-US", { dateStyle: "medium" }).format(new Date(value));
 }
 
+function arrivalDateLabel(value: string) {
+  return new Intl.DateTimeFormat("en-US", { month: "numeric", day: "numeric", year: "numeric" }).format(new Date(value));
+}
+
 export default function FerryManifestAdmin() {
   const [containers, setContainers] = useState<Container[]>([]);
   const [manifests, setManifests] = useState<Manifest[]>([]);
@@ -41,7 +46,14 @@ export default function FerryManifestAdmin() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [lastToken, setLastToken] = useState<string | null>(null);
+  const [reportManifest, setReportManifest] = useState<Manifest | null>(null);
+  const [reportData, setReportData] = useState<FerryManifestData | null>(null);
+  const [reportLoading, setReportLoading] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [showPackagesInContainer, setShowPackagesInContainer] = useState(false);
+  const [pendingPackages, setPendingPackages] = useState<PendingPackage[]>([]);
+  const [pendingLoading, setPendingLoading] = useState(false);
+  const [pendingError, setPendingError] = useState<string | null>(null);
   const [entryManifest, setEntryManifest] = useState<Manifest | null>(null);
   const [adminEntries, setAdminEntries] = useState<AdminEntry[]>([]);
   const [entryDrafts, setEntryDrafts] = useState<Record<string, { booking: string }>>({});
@@ -51,12 +63,10 @@ export default function FerryManifestAdmin() {
   const [verifyingPassword, setVerifyingPassword] = useState(false);
   const [manualEditAccessToken, setManualEditAccessToken] = useState<string | null>(null);
   const [selectedEditManifestId, setSelectedEditManifestId] = useState("");
-  const [expandedPendingManifestId, setExpandedPendingManifestId] = useState<string | null>(null);
-  const [pendingPackagesByManifest, setPendingPackagesByManifest] = useState<Record<string, PendingPackage[]>>({});
-  const [pendingLoadingManifestId, setPendingLoadingManifestId] = useState<string | null>(null);
-  const [pendingErrors, setPendingErrors] = useState<Record<string, string>>({});
 
   const containerById = useMemo(() => new Map(containers.map((item) => [item.id, item.codigo || item.id])), [containers]);
+  const selectedManifest = useMemo(() => manifests.find((manifest) => manifest.contenedor_id === selectedContainer && manifest.ubicacion === selectedLocation) || null, [manifests, selectedContainer, selectedLocation]);
+  const reportGroups = useMemo(() => FERRY_PORT_ORDER.map((port) => ({ port, entries: (reportData?.entries || []).filter((entry) => entry.puerto === port) })).filter((group) => group.entries.length > 0), [reportData]);
 
   const request = useCallback(async (input: RequestInfo, init: RequestInit = {}) => {
     const { data } = await supabase.auth.getSession();
@@ -77,7 +87,9 @@ export default function FerryManifestAdmin() {
     try {
       const body = await request("/api/ferry-manifests");
       setContainers(body.containers || []);
-      setManifests(body.manifests || []);
+      const nextManifests = body.manifests || [];
+      setManifests(nextManifests);
+      setReportManifest((current) => current ? nextManifests.find((manifest: Manifest) => manifest.id === current.id) || current : null);
     } catch (err: any) {
       setError(err.message || "Could not load ferry manifests.");
     } finally {
@@ -85,7 +97,57 @@ export default function FerryManifestAdmin() {
     }
   }, [request]);
 
+  const loadManifestReport = useCallback(async (manifest: Manifest) => {
+    setReportLoading(true);
+    setError(null);
+    try {
+      const body = await request(`/api/ferry-manifests/${manifest.token}`);
+      setReportManifest({ ...manifest, estado: body.manifest?.estado || manifest.estado });
+      setReportData(body as FerryManifestData);
+    } catch (err: any) {
+      setReportManifest(null);
+      setReportData(null);
+      setError(err.message || "Could not load the ferry report.");
+    } finally {
+      setReportLoading(false);
+    }
+  }, [request]);
+
+  const loadPendingPackages = useCallback(async (containerId: string) => {
+    if (!containerId) return;
+    setPendingLoading(true);
+    setPendingError(null);
+    try {
+      const body = await request(`/api/ferry-manifests?container_id=${encodeURIComponent(containerId)}`);
+      setPendingPackages(body.pending_packages || []);
+    } catch (err: any) {
+      setPendingPackages([]);
+      setPendingError(err.message || "Could not load packages in this container.");
+    } finally {
+      setPendingLoading(false);
+    }
+  }, [request]);
+
   useEffect(() => { void load(); }, [load]);
+
+  const downloadReport = async () => {
+    if (!reportData || exporting) return;
+    setExporting(true);
+    setError(null);
+    try {
+      await downloadFerryManifestExcel(reportData);
+    } catch (err: any) {
+      setError(err.message || "Could not export the ferry manifest.");
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const refreshWorkspace = async () => {
+    await load();
+    if (reportManifest) await loadManifestReport(reportManifest);
+    if (showPackagesInContainer && selectedContainer) await loadPendingPackages(selectedContainer);
+  };
 
   const createManifest = async () => {
     if (!selectedContainer) return;
@@ -97,10 +159,10 @@ export default function FerryManifestAdmin() {
         method: "POST",
         body: JSON.stringify({ contenedor_id: selectedContainer, ubicacion: selectedLocation }),
       });
-      setLastToken(body.manifest?.token || null);
-      setSelectedContainer("");
+      const createdManifest = { ...body.manifest, entry_count: 0 } as Manifest;
       setNotice(`${FERRY_LOCATIONS.find((item) => item.value === selectedLocation)?.label || "Ferry"} manifest created successfully.`);
       await load();
+      if (createdManifest?.token) await loadManifestReport(createdManifest);
     } catch (err: any) {
       setError(err.message || "Could not create the ferry manifest.");
     } finally {
@@ -227,6 +289,7 @@ export default function FerryManifestAdmin() {
       });
       setNotice(`Booking ${draft.booking.trim()} saved. The customer notification was sent when an email is available.`);
       await openAdminEntryForm(entryManifest);
+      await loadManifestReport(entryManifest);
       await load();
     } catch (err: any) {
       setError(err.message || "Could not save booking number.");
@@ -238,130 +301,166 @@ export default function FerryManifestAdmin() {
     }
   };
 
-  const togglePendingPackages = async (manifest: Manifest) => {
-    if (expandedPendingManifestId === manifest.id) {
-      setExpandedPendingManifestId(null);
-      return;
-    }
-    setExpandedPendingManifestId(manifest.id);
-    setPendingLoadingManifestId(manifest.id);
-    setPendingErrors((current) => ({ ...current, [manifest.id]: "" }));
-    try {
-      const body = await request(`/api/ferry-manifests?container_id=${encodeURIComponent(manifest.contenedor_id)}`);
-      setPendingPackagesByManifest((current) => ({ ...current, [manifest.id]: body.pending_packages || [] }));
-    } catch (err: any) {
-      setPendingErrors((current) => ({ ...current, [manifest.id]: err.message || "Could not load packages." }));
-    } finally {
-      setPendingLoadingManifestId(null);
-    }
-  };
-
   return (
-    <div className="ferry-manifest-admin" style={{ width: "100%" }}>
-      <div className="ferry-manifest-banner" style={{ display: "flex", alignItems: "center", gap: "1rem", flexWrap: "wrap", marginBottom: "1.25rem", padding: "0.75rem 1rem", borderRadius: "14px", background: "#ffffff", border: "1px solid #dbeafe", boxShadow: "0 6px 16px rgba(15, 23, 42, 0.06)" }}>
-        <Image src="/imagenes/logo-pages.png" alt="Caribex Logistics Group — Your Cargo Our Commitment" width={220} height={94} style={{ width: "220px", height: "auto", maxWidth: "100%" }} />
-        <div>
-          <h2 style={{ margin: 0, color: "#0f172a", fontSize: "1.25rem" }}>Ferry manifests</h2>
-          <p style={{ margin: "0.3rem 0 0", color: "#64748b", fontSize: "0.82rem" }}>Create, manage, and share shipment manifests.</p>
+    <div className="ferry-manifest-admin">
+      <header className="ferry-manifest-banner">
+        <span className="ferry-manifest-brand-mark" aria-hidden="true"><Ship size={22} /></span>
+        <div className="ferry-manifest-heading">
+          <h2>Ferry manifests</h2>
+          <p>Create, manage, and share shipment manifests.</p>
         </div>
-      </div>
-      <section aria-labelledby="ferry-workflow-instructions" style={{ marginBottom: "1.25rem", padding: "1rem 1.1rem", borderRadius: "14px", background: "#f0f9ff", border: "1px solid #bae6fd", color: "#0f3d68" }}>
-        <h3 id="ferry-workflow-instructions" style={{ margin: 0, fontSize: "1rem" }}>Ferry workflow instructions</h3>
-        <ol style={{ margin: "0.65rem 0 0", paddingLeft: "1.25rem", lineHeight: 1.55, fontSize: "0.84rem" }}>
-          <li>Unload each container package normally, then choose La Ceiba + Utila, Guanaja, San Pedro Sula, or Tegucigalpa when creating the report.</li>
-          <li>Use <strong>Packages not yet unloaded</strong> on a container row to view its registered packages still awaiting unload.</li>
+      </header>
+
+      <div className="ferry-manifest-email-note">Customer confirmation emails are sent after a booking number is submitted. Dispatches shows the same manifest entries after the scanner marks a shipment as dispatched; creating a manifest alone does not add a Dispatches row. No email is sent for a row marked <strong>NO</strong>.</div>
+      <details className="ferry-manifest-instructions">
+        <summary>Ferry workflow instructions</summary>
+        <ol>
+          <li>Unload each container package normally. Create a ferry manifest only after at least one unloaded shipment is assigned to the selected destination.</li>
+          <li>Use the single <strong>Show packages in container</strong> checkbox beside the location selector to view packages that have not yet been officially unloaded.</li>
           <li>When the mobile app gives the triple-beep ferry alert, set that package aside for the ferry.</li>
           <li>The customer invoice is billed and sent at unload using the normal invoice rules. The ferry booking notification is sent later.</li>
-          <li>Open the active manifest and use <strong>Send by WhatsApp</strong> to share the private link with Joni.</li>
-          <li>Joni enters each booking number, then presses <strong>Submit to Caribex</strong>. Blank rows can be completed later. The receiver/pickup signer is completed on the printed sheet.</li>
+          <li>Select the active manifest and choose <strong>WhatsApp</strong> from <strong>Actions</strong> to share its private link with the ferry contact.</li>
+          <li>The ferry contact enters each booking number, then presses <strong>Submit to Caribex</strong>. Blank rows can be completed later. The receiver/pickup signer is completed on the printed sheet.</li>
           <li>Use <strong>Print receiver sheet</strong> from the public link for the signed handover sheet.</li>
-          <li>After each submitted booking, Caribex sends that customer a confirmation email with the booking number. No email is sent for a row marked <strong>NO</strong>.</li>
+          <li>After each submitted booking, Caribex sends that customer a confirmation email with the booking number.</li>
         </ol>
-      </section>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem", alignItems: "flex-end", marginBottom: "1.25rem" }}>
-        <label style={{ flex: "1 1 240px", color: "#475569", fontSize: "0.82rem", fontWeight: 600 }}>
-          Ferry location
-          <select value={selectedLocation} onChange={(event) => setSelectedLocation(event.target.value as (typeof FERRY_LOCATIONS)[number]["value"])} style={{ display: "block", width: "100%", marginTop: "0.35rem", padding: "0.7rem 0.85rem", border: "1px solid #cbd5e1", borderRadius: "10px", background: "#fff" }}>
-            {FERRY_LOCATIONS.map((location) => <option key={location.value} value={location.value}>{location.label}</option>)}
-          </select>
+      </details>
+
+      <div className="ferry-manifest-toolbar">
+        <div className="ferry-manifest-location-switch" role="group" aria-label="Ferry location">
+          <span className="ferry-manifest-step-label">1. Location</span>
+          {FERRY_LOCATIONS.map((location) => <button
+            key={location.value}
+            type="button"
+            className={`ferry-manifest-location-button${selectedLocation === location.value ? " is-active" : ""}`}
+            aria-pressed={selectedLocation === location.value}
+            onClick={() => {
+              if (selectedLocation !== location.value) {
+                setSelectedContainer("");
+                setReportManifest(null);
+                setReportData(null);
+                setPendingPackages([]);
+                setPendingError(null);
+                setShowPackagesInContainer(false);
+              }
+              setSelectedLocation(location.value);
+            }}
+          >{location.label}</button>)}
+        </div>
+        <label className="ferry-manifest-show-packages">
+          <input type="checkbox" checked={showPackagesInContainer} onChange={(event) => {
+            const checked = event.target.checked;
+            setShowPackagesInContainer(checked);
+            if (checked && selectedContainer) void loadPendingPackages(selectedContainer);
+            else {
+              setPendingPackages([]);
+              setPendingError(null);
+              setPendingLoading(false);
+            }
+          }} />
+          <span>Show packages in container</span>
         </label>
-        <label style={{ flex: "1 1 280px", color: "#475569", fontSize: "0.82rem", fontWeight: 600 }}>
-          Create manifest from container
+        <div className="ferry-manifest-tool-actions">
+          <button type="button" className="pa-secondary-btn" disabled={!manifests.length || Boolean(entryManifest)} onClick={startManualEdit} style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem", minHeight: "42px" }}>
+            <LockKeyhole size={15} /> Type numbers on myself
+          </button>
+          <button type="button" className="pa-secondary-btn" onClick={() => void refreshWorkspace()} disabled={loading || reportLoading || pendingLoading} style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem", minHeight: "42px" }}>
+            <RefreshCw size={15} /> Refresh
+          </button>
+        </div>
+      </div>
+
+      <div className="ferry-manifest-create-row">
+        <label className="ferry-manifest-container-field">
+          <span>2. Container</span>
           <select
             value={selectedContainer}
-            onChange={(event) => setSelectedContainer(event.target.value)}
-            style={{ display: "block", width: "100%", marginTop: "0.35rem", padding: "0.7rem 0.85rem", border: "1px solid #cbd5e1", borderRadius: "10px", background: "#fff" }}
+            onChange={(event) => {
+              const containerId = event.target.value;
+              setSelectedContainer(containerId);
+              setReportManifest(null);
+              setReportData(null);
+              setError(null);
+              if (showPackagesInContainer && containerId) void loadPendingPackages(containerId);
+              else {
+                setPendingPackages([]);
+                setPendingError(null);
+              }
+            }}
           >
             <option value="">Select a container…</option>
-            {containers.filter((container) => !manifests.some((manifest) => manifest.contenedor_id === container.id && manifest.ubicacion === selectedLocation)).map((container) => (
-              <option key={container.id} value={container.id}>{container.codigo || container.id}</option>
-            ))}
+            {containers.map((container) => {
+              const hasManifest = manifests.some((manifest) => manifest.contenedor_id === container.id && manifest.ubicacion === selectedLocation);
+              const arrivalDate = container.creado_en ? arrivalDateLabel(container.creado_en) : null;
+              return <option key={container.id} value={container.id}>{arrivalDate ? `${arrivalDate} · ` : ""}{container.codigo || container.id}{hasManifest ? " · manifest entered" : ""}</option>;
+            })}
           </select>
         </label>
-        <button type="button" className="pa-primary-btn" disabled={!selectedContainer || saving} onClick={() => void createManifest()} style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem", minHeight: "42px" }}>
+        {selectedManifest ? <button type="button" className="pa-secondary-btn ferry-manifest-show-list" disabled={reportLoading} onClick={() => void loadManifestReport(selectedManifest)} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "0.4rem", minHeight: "42px" }}>
+          <List size={16} /> 2. Show list
+        </button> : <button type="button" className="pa-primary-btn" disabled={!selectedContainer || saving} onClick={() => void createManifest()} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "0.4rem", minHeight: "42px" }}>
           <Plus size={16} /> {saving ? "Creating…" : "Create manifest"}
-        </button>
-        <button type="button" className="pa-secondary-btn" disabled={!manifests.length || Boolean(entryManifest)} onClick={startManualEdit} style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem", minHeight: "42px" }}>
-          <LockKeyhole size={15} /> Type numbers on myself
-        </button>
-        <button type="button" className="pa-secondary-btn" onClick={() => void load()} disabled={loading} style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem", minHeight: "42px" }}>
-          <RefreshCw size={15} /> Refresh
-        </button>
+        </button>}
       </div>
+      <p className="ferry-manifest-create-hint">{selectedManifest ? "Select Show list to display this container’s entered ferry report." : "A manifest is created only when the selected container has at least one shipment assigned to that destination and already unloaded."}</p>
 
       {notice && <div style={{ padding: "0.7rem 0.85rem", marginBottom: "0.8rem", background: "#ecfdf5", color: "#166534", borderRadius: "10px", fontSize: "0.85rem" }}>{notice}</div>}
       {error && <div style={{ padding: "0.7rem 0.85rem", marginBottom: "0.8rem", background: "#fef2f2", color: "#b91c1c", borderRadius: "10px", fontSize: "0.85rem" }}>{error}</div>}
-      {lastToken && <div style={{ padding: "0.7rem 0.85rem", marginBottom: "1rem", background: "#eff6ff", color: "#1e40af", borderRadius: "10px", fontSize: "0.85rem", display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}><Clipboard size={16} /> New ferry link is ready. <button type="button" onClick={() => void copyToken(lastToken)} style={{ border: 0, background: "transparent", color: "#1d4ed8", fontWeight: 700, cursor: "pointer", display: "inline-flex", gap: "0.3rem", alignItems: "center" }}><Copy size={14} /> Copy link</button><a href={whatsappUrl(lastToken)} target="_blank" rel="noopener noreferrer" style={{ border: 0, background: "transparent", color: "#15803d", fontWeight: 700, cursor: "pointer", display: "inline-flex", gap: "0.3rem", alignItems: "center", textDecoration: "none" }}><MessageCircle size={14} /> Send by WhatsApp</a></div>}
 
-      {loading ? <p style={{ color: "#64748b" }}>Loading ferry manifests…</p> : manifests.length === 0 ? (
-        <div style={{ padding: "2rem 1rem", textAlign: "center", color: "#64748b", border: "1px dashed #cbd5e1", borderRadius: "14px" }}><Ship size={28} style={{ marginBottom: "0.5rem", color: "#2563eb" }} /><div>No ferry manifests yet.</div><small>Choose an existing container above to generate the first manifest.</small></div>
-      ) : (
-        <div className="ferry-manifest-list">
-          <div className="ferry-manifest-list-header" aria-hidden="true"><span>Container</span><span>Destination</span><span>Week</span><span>Status</span><span>Entries</span><span>Actions</span></div>
-          {manifests.map((manifest) => (
-            <article key={manifest.id} className="ferry-manifest-card">
-              <div className="ferry-manifest-row">
-                <strong data-label="Container" style={{ color: "#0f172a" }}>{containerById.get(manifest.contenedor_id) || manifest.contenedor_id}</strong>
-                <span data-label="Destination" style={{ color: "#334155" }}>{FERRY_LOCATIONS.find((location) => location.value === manifest.ubicacion)?.label || "Existing combined report"}</span>
-                <span data-label="Week" style={{ color: "#475569" }}>{dateLabel(manifest.semana_inicio)} – {dateLabel(manifest.semana_fin)}</span>
-                <span data-label="Status" className="ferry-manifest-status" style={{ background: manifest.estado === "active" ? "#dcfce7" : "#f1f5f9", color: manifest.estado === "active" ? "#166534" : "#475569" }}>{manifest.estado}</span>
-                <strong data-label="Entries" className="ferry-manifest-entry-count">{manifest.entry_count}</strong>
-                <div data-label="Actions" className="ferry-manifest-row-actions ferry-manifest-floating-actions">
-                  {manifest.estado === "active" && <button type="button" className="ferry-admin-secondary ferry-manifest-action ferry-manifest-action--packages" onClick={() => void togglePendingPackages(manifest)} aria-expanded={expandedPendingManifestId === manifest.id}>
-                    {expandedPendingManifestId === manifest.id ? <ChevronUp size={14} /> : <ChevronDown size={14} />} Packages not yet unloaded
-                  </button>}
-                  <div className="ferry-manifest-action-cluster">
-                    <button type="button" className="ferry-admin-secondary ferry-manifest-action ferry-manifest-action--preview" onClick={() => openManifest(manifest.token)}><ExternalLink size={14} /> Preview</button>
-                    <button type="button" className="ferry-admin-secondary ferry-manifest-action ferry-manifest-action--copy" onClick={() => void copyToken(manifest.token)}><Copy size={14} /> Copy link</button>
-                    <details className="ferry-actions-menu ferry-manifest-action-menu">
-                      <summary className="ferry-admin-secondary ferry-manifest-action ferry-manifest-action--more">Actions <ChevronDown size={14} /></summary>
-                      <div className="ferry-actions-menu-panel">
-                        <a className="ferry-admin-secondary" href={whatsappUrl(manifest.token)} target="_blank" rel="noopener noreferrer" style={{ color: "#15803d", textDecoration: "none" }}><MessageCircle size={14} /> WhatsApp</a>
-                        {manifest.estado === "active" && <button type="button" className="ferry-admin-secondary ferry-admin-danger" onClick={() => void archiveManifest(manifest)}><Archive size={14} /> Archive</button>}
-                      </div>
-                    </details>
-                  </div>
-                </div>
+      {loading && <p style={{ color: "#64748b" }}>Loading ferry manifests…</p>}
+
+      {showPackagesInContainer && <section className="ferry-manifest-pending" aria-live="polite">
+        <h4 style={{ margin: "0 0 0.6rem", color: "#0f3d68", fontSize: "0.9rem" }}>Packages in container awaiting official unload</h4>
+        {!selectedContainer ? <p style={{ margin: 0, color: "#64748b" }}>Select a container to see packages that have not yet been officially unloaded.</p> : pendingLoading ? <p style={{ margin: 0, color: "#64748b" }}>Loading packages…</p> : pendingError ? <p style={{ margin: 0, color: "#b91c1c" }}>{pendingError}</p> : pendingPackages.length === 0 ? <p style={{ margin: 0, color: "#64748b" }}>No packages in this container are awaiting official unload.</p> : <div className="ferry-manifest-pending-list">
+          <div className="ferry-manifest-pending-header"><strong>Tracking</strong><strong>Customer</strong><strong>Account</strong><strong>Status</strong></div>
+          {pendingPackages.map((item) => <div key={item.id} className="ferry-manifest-pending-row"><span data-label="Tracking">{item.tracking}</span><span data-label="Customer">{item.customer_name}</span><span data-label="Account">{item.customer_account || "—"}</span><span data-label="Status">{item.status}</span></div>)}
+        </div>}
+      </section>}
+
+      {!loading && !selectedManifest && !reportData && <div className="ferry-manifest-empty-state"><Ship size={28} /><p>{manifests.length ? "Select a container with an existing report or create a manifest for a new one." : "No ferry manifests yet. Select a container above to create the first manifest."}</p></div>}
+      {reportLoading && <p role="status" className="ferry-manifest-report-loading">Loading ferry report…</p>}
+      {reportData && reportManifest && <section className="ferry-manifest-report">
+        <div className="ferry-manifest-report-heading">
+          <div>
+            <h3>Container arriving on {arrivalDateLabel(reportData.manifest.container_creado_en || reportManifest.semana_inicio)}</h3>
+            <p>{FERRY_LOCATIONS.find((location) => location.value === reportManifest.ubicacion)?.label || "Ferry"} · {reportData.entries.length} customer rows · {reportData.manifest.estado}</p>
+          </div>
+          <div className="ferry-manifest-report-actions">
+            <button type="button" className="ferry-admin-secondary ferry-manifest-action ferry-manifest-action--download" onClick={() => void downloadReport()} disabled={exporting}><Download size={14} /> {exporting ? "Downloading…" : "Download .xlsx"}</button>
+            <button type="button" className="ferry-admin-secondary ferry-manifest-action ferry-manifest-action--copy" onClick={() => void copyToken(reportManifest.token)}><Copy size={14} /> Copy ferry link</button>
+            <button type="button" className="ferry-admin-secondary ferry-manifest-action ferry-manifest-action--preview" onClick={() => openManifest(reportManifest.token)}><ExternalLink size={14} /> Preview</button>
+            <details className="ferry-actions-menu ferry-manifest-action-menu">
+              <summary className="ferry-admin-secondary ferry-manifest-action ferry-manifest-action--more">Actions <ChevronDown size={14} /></summary>
+              <div className="ferry-actions-menu-panel">
+                <a className="ferry-admin-secondary" href={whatsappUrl(reportManifest.token)} target="_blank" rel="noopener noreferrer" style={{ color: "#15803d", textDecoration: "none" }}><MessageCircle size={14} /> WhatsApp</a>
+                {reportManifest.estado === "active" && <button type="button" className="ferry-admin-secondary ferry-admin-danger" onClick={() => void archiveManifest(reportManifest)}><Archive size={14} /> Archive</button>}
               </div>
-              {expandedPendingManifestId === manifest.id && <section aria-label={`Packages not yet unloaded in ${containerById.get(manifest.contenedor_id) || "this container"}`} className="ferry-manifest-pending">
-                <h4 style={{ margin: "0 0 0.6rem", color: "#0f3d68", fontSize: "0.9rem" }}>Packages registered to this container and still awaiting unload</h4>
-                {pendingLoadingManifestId === manifest.id ? <p style={{ margin: 0, color: "#64748b" }}>Loading packages…</p> : pendingErrors[manifest.id] ? <p style={{ margin: 0, color: "#b91c1c" }}>{pendingErrors[manifest.id]}</p> : (pendingPackagesByManifest[manifest.id] || []).length === 0 ? <p style={{ margin: 0, color: "#64748b" }}>No packages are currently waiting to be unloaded from this container.</p> : <div className="ferry-manifest-pending-list">
-                  <div className="ferry-manifest-pending-header"><strong>Tracking</strong><strong>Customer</strong><strong>Account</strong><strong>Status</strong></div>
-                  {(pendingPackagesByManifest[manifest.id] || []).map((item) => <div key={item.id} className="ferry-manifest-pending-row"><span data-label="Tracking">{item.tracking}</span><span data-label="Customer">{item.customer_name}</span><span data-label="Account">{item.customer_account || "—"}</span><span data-label="Status">{item.status}</span></div>)}
-                </div>}
-              </section>}
-            </article>
-          ))}
-          {entryManifest && <section className="ferry-manifest-manual">
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "0.75rem", marginBottom: "0.75rem" }}><div><h3 style={{ margin: 0, color: "#0f3d68" }}>Enter booking numbers manually</h3><p style={{ margin: "0.25rem 0 0", color: "#64748b", fontSize: "0.82rem" }}>Enter or correct the booking number for any ferry row. The receiver/pickup signer is completed on the printed receiver sheet.</p></div><button type="button" className="pa-secondary-btn" onClick={closeAdminEntryForm}>Close</button></div>
-            {adminEntries.length === 0 ? <p style={{ color: "#64748b" }}>This manifest has no unloaded packages yet. Packages are added as they are scanned unloaded.</p> : adminEntries.map((entry) => {
-              const draft = entryDrafts[entry.id] || { booking: "" };
-              const accountColor = entry.puerto === "la_ceiba" ? "#2563eb" : entry.puerto === "utila" ? "#dc2626" : entry.puerto === "guanaja" ? "#16a34a" : entry.puerto === "san_pedro_sula" ? "#d97706" : "#7c3aed";
-              return <div key={entry.id} className="ferry-manifest-manual-row"><strong>{entry.nombre_cliente}</strong><strong style={{ color: accountColor }}>#{entry.numero_cuenta}</strong><input className="pa-input" value={draft.booking} placeholder="Booking # or NO" aria-label={`Booking number for ${entry.nombre_cliente}`} onChange={(event) => setEntryDrafts((current) => ({ ...current, [entry.id]: { booking: event.target.value } }))} /><button type="button" className="pa-primary-btn" disabled={!draft.booking.trim()} onClick={() => void saveAdminEntry(entry)}>Save</button></div>;
-            })}
-          </section>}
+            </details>
+          </div>
         </div>
-      )}
+        {reportGroups.length === 0 ? <p className="ferry-manifest-report-empty">Nobody on this list yet. Customers appear as their boxes are unloaded.</p> : reportGroups.map(({ port, entries }) => <section key={port} className="ferry-manifest-report-group">
+          <h4>{FERRY_PORT_LABELS[port].toUpperCase()} CUSTOMER ({entries.length})</h4>
+          <div className="ferry-manifest-report-table-wrap"><table className="ferry-manifest-report-table">
+            <thead><tr><th>No.</th><th>Acct</th><th>Customer Name</th><th>Quantity</th><th>Booking #</th></tr></thead>
+            <tbody>{entries.map((entry, index) => <tr key={entry.id}>
+              <td>{index + 1}</td>
+              <td className={`ferry-manifest-report-account ferry-acct-${port}`} style={{ color: `#${FERRY_PORT_STYLES[port].color}` }}>{formatFerryAccountNumber(entry.numero_cuenta, port)}</td>
+              <td><strong>{entry.nombre_cliente}</strong></td>
+              <td>{entry.etiqueta_cantidad}</td>
+              <td>{entry.numero_reserva || "—"}</td>
+            </tr>)}</tbody>
+          </table></div>
+        </section>)}
+      </section>}
+
+      {entryManifest && <section className="ferry-manifest-manual">
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "0.75rem", marginBottom: "0.75rem" }}><div><h3 style={{ margin: 0, color: "#0f3d68" }}>Enter booking numbers manually</h3><p style={{ margin: "0.25rem 0 0", color: "#64748b", fontSize: "0.82rem" }}>Enter or correct the booking number for any ferry row. The receiver/pickup signer is completed on the printed receiver sheet.</p></div><button type="button" className="pa-secondary-btn" onClick={closeAdminEntryForm}>Close</button></div>
+        {adminEntries.length === 0 ? <p style={{ color: "#64748b" }}>This manifest has no unloaded packages yet. Packages are added as they are scanned unloaded.</p> : adminEntries.map((entry) => {
+          const draft = entryDrafts[entry.id] || { booking: "" };
+          const accountColor = `#${FERRY_PORT_STYLES[entry.puerto].color}`;
+          return <div key={entry.id} className="ferry-manifest-manual-row"><strong>{entry.nombre_cliente}</strong><strong style={{ color: accountColor }}>{formatFerryAccountNumber(entry.numero_cuenta, entry.puerto)}</strong><input className="pa-input" value={draft.booking} placeholder="Booking # or NO" aria-label={`Booking number for ${entry.nombre_cliente}`} onChange={(event) => setEntryDrafts((current) => ({ ...current, [entry.id]: { booking: event.target.value } }))} /><button type="button" className="pa-primary-btn" disabled={!draft.booking.trim()} onClick={() => void saveAdminEntry(entry)}>Save</button></div>;
+        })}
+      </section>}
 
       {manualEditModalOpen && <div style={{ position: "fixed", inset: 0, zIndex: 1000, display: "grid", placeItems: "center", padding: "1rem", background: "rgba(15, 23, 42, 0.55)" }}>
         <section role="dialog" aria-modal="true" aria-labelledby="manual-ferry-edit-title" style={{ width: "min(100%, 480px)", padding: "1.25rem", borderRadius: "16px", background: "#fff", boxShadow: "0 24px 60px rgba(15, 23, 42, 0.28)" }}>

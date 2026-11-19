@@ -2364,6 +2364,73 @@ main {
 .ferry-actions-menu-panel > * { width: 100%; justify-content: flex-start; }
 .ferry-admin-danger { color: #c2410c; border-color: #fed7aa; background: #fff7ed; }
 .ferry-admin-danger:hover { color: #9a3412; border-color: #fdba74; background: #ffedd5; }
+.ferry-manifest-admin .pa-secondary-btn,
+.ferry-manifest-admin .ferry-admin-secondary:not(.ferry-admin-danger) {
+  border-color: #b9cbdc;
+  background: #eaf1f7;
+  color: #1e3a5f;
+  box-shadow: 0 2px 5px rgba(15, 23, 42, .08);
+}
+.ferry-manifest-admin .pa-secondary-btn:hover,
+.ferry-manifest-admin .ferry-admin-secondary:not(.ferry-admin-danger):hover {
+  border-color: #8fa9c0;
+  background: #dce8f3;
+}
+.ferry-manifest-admin .pa-primary-btn,
+.ferry-manifest-admin .ferry-admin-primary {
+  border-color: #15803d;
+  background: #15803d;
+  color: #ffffff;
+  box-shadow: 0 2px 6px rgba(21, 128, 61, .2);
+}
+.ferry-manifest-admin .pa-primary-btn:hover,
+.ferry-manifest-admin .ferry-admin-primary:hover {
+  border-color: #166534;
+  background: #166534;
+}
+.ferry-manifest-admin .ferry-manifest-action--packages { border-color: #7dd3fc; background: #e0f2fe; color: #0c4a6e; }
+.ferry-manifest-admin .ferry-manifest-action--packages:hover { border-color: #38bdf8; background: #bae6fd; }
+.ferry-manifest-admin .ferry-manifest-action--preview { border-color: #1d4ed8; background: #1d4ed8; color: #ffffff; }
+.ferry-manifest-admin .ferry-manifest-action--preview:hover { border-color: #1e40af; background: #1e40af; }
+.ferry-manifest-admin .ferry-manifest-action--copy { border-color: #15803d; background: #15803d; color: #ffffff; }
+.ferry-manifest-admin .ferry-manifest-action--copy:hover { border-color: #166534; background: #166534; }
+.ferry-manifest-admin .ferry-manifest-action--more { border-color: #475569; background: #475569; color: #ffffff; }
+.ferry-manifest-admin .ferry-manifest-action--more:hover { border-color: #334155; background: #334155; }
+.ferry-manifest-create-hint { margin: -.7rem 0 1rem; color: #52677b; font-size: .78rem; line-height: 1.45; }
+.ferry-manifest-admin { width: 100%; min-width: 0; color: #172b3a; }
+.ferry-manifest-banner { display: flex; align-items: center; gap: .8rem; margin-bottom: .85rem; padding: .8rem 1rem; border: 1px solid #0f3d68; border-radius: 12px; background: #0f3d68; color: #fff; box-shadow: 0 5px 14px rgba(15, 61, 104, .18); }
+.ferry-manifest-brand-mark { display: grid; place-items: center; flex: 0 0 42px; width: 42px; height: 42px; border: 1px solid rgba(255,255,255,.25); border-radius: 10px; background: rgba(255,255,255,.12); color: #fff; }
+.ferry-manifest-heading { min-width: 0; }
+.ferry-manifest-heading h2 { margin: 0; color: #fff; font-size: 1.2rem; }
+.ferry-manifest-heading p { margin: .2rem 0 0; color: #dbeafe; font-size: .82rem; }
+.ferry-manifest-email-note { margin-bottom: .7rem; padding: .7rem .9rem; border: 1px solid #d5e0e8; border-radius: 9px; background: #f8fafc; color: #475569; font-size: .82rem; line-height: 1.45; }
+.ferry-manifest-instructions { margin-bottom: .9rem; border: 1px solid #d5e0e8; border-radius: 9px; background: #fff; }
+.ferry-manifest-instructions summary { padding: .65rem .85rem; color: #0f3d68; font-size: .82rem; font-weight: 750; cursor: pointer; }
+.ferry-manifest-instructions ol { margin: 0; padding: .25rem 1.2rem .85rem 2rem; color: #475569; font-size: .81rem; line-height: 1.55; }
+.ferry-manifest-toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .7rem; margin: .85rem 0; }
+.ferry-manifest-location-switch { display: flex; align-items: center; flex-wrap: wrap; gap: .3rem; min-width: 0; padding: .3rem; border: 1px solid #d8e1e8; border-radius: 11px; background: #eef3f7; }
+.ferry-manifest-step-label { padding: .35rem .45rem; color: #52677b; font-size: .76rem; font-weight: 800; white-space: nowrap; }
+.ferry-manifest-location-button { min-height: 36px; padding: .45rem .72rem; border: 1px solid transparent; border-radius: 8px; background: transparent; color: #3b5368; font: inherit; font-size: .8rem; font-weight: 700; cursor: pointer; }
+.ferry-manifest-location-button:hover { background: #e1eaf1; }
+.ferry-manifest-location-button.is-active { border-color: #bfd1df; background: #fff; color: #0f3d68; box-shadow: 0 2px 5px rgba(15, 23, 42, .09); }
+.ferry-manifest-location-button:focus-visible { outline: 3px solid rgba(37, 99, 235, .28); outline-offset: 2px; }
+.ferry-manifest-tool-actions { display: flex; align-items: center; flex-wrap: wrap; gap: .5rem; }
+.ferry-manifest-create-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: .75rem; padding: .85rem .9rem; border: 1px solid #d8e1e8; border-radius: 11px; background: #fff; box-shadow: 0 3px 9px rgba(15, 23, 42, .04); }
+.ferry-manifest-container-field { display: grid; gap: .35rem; min-width: 0; color: #405567; font-size: .78rem; font-weight: 750; }
+.ferry-manifest-container-field select { display: block; width: 100%; min-width: 0; min-height: 42px; box-sizing: border-box; padding: .65rem .8rem; border: 1px solid #bfd0de; border-radius: 8px; background: #fff; color: #172b3a; font: inherit; font-size: .86rem; }
+.ferry-manifest-container-field select:focus-visible { outline: 3px solid rgba(37, 99, 235, .24); outline-offset: 1px; }
+.ferry-manifest-create-row + .ferry-manifest-create-hint { margin: .45rem 0 .8rem; }
+@media (max-width: 760px) {
+  .ferry-manifest-toolbar { align-items: stretch; }
+  .ferry-manifest-location-switch { width: 100%; }
+  .ferry-manifest-location-button { flex: 1 1 130px; }
+  .ferry-manifest-tool-actions { width: 100%; justify-content: flex-start; }
+  .ferry-manifest-create-row { grid-template-columns: minmax(0, 1fr); }
+  .ferry-manifest-create-row > button { justify-self: start; }
+}
+.ferry-manifest-admin .pa-primary-btn:focus-visible,
+.ferry-manifest-admin .pa-secondary-btn:focus-visible,
+.ferry-manifest-admin .ferry-manifest-action:focus-visible { outline: 3px solid rgba(37, 99, 235, .3); outline-offset: 2px; }
 .ferry-admin-input {
   width: 100%;
   min-width: 0;
@@ -2376,6 +2443,37 @@ main {
   background: #ffffff;
 }
 .ferry-admin-input:focus { outline: 2px solid #bfdbfe; border-color: #2563eb; }
+
+.ferry-manifest-show-packages { display: inline-flex; align-items: center; gap: .5rem; min-height: 40px; padding: .4rem .7rem; border: 1px solid #d8e1e8; border-radius: 9px; background: #fff; color: #405567; font-size: .8rem; font-weight: 700; cursor: pointer; }
+.ferry-manifest-show-packages input { width: 16px; height: 16px; margin: 0; accent-color: #0f3d68; }
+.ferry-manifest-report-loading { margin: 1rem 0; color: #52677b; }
+.ferry-manifest-empty-state { display: flex; align-items: center; gap: .65rem; margin-top: .85rem; padding: 1rem; border: 1px dashed #cbd5e1; border-radius: 10px; color: #52677b; background: #fff; }
+.ferry-manifest-empty-state svg { flex: 0 0 auto; color: #2563eb; }
+.ferry-manifest-empty-state p { margin: 0; }
+.ferry-manifest-report { margin-top: .9rem; overflow: hidden; border: 1px solid #d5e0e8; border-radius: 11px; background: #fff; }
+.ferry-manifest-report-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .75rem; padding: .8rem .9rem; border-bottom: 1px solid #d5e0e8; background: #f8fafc; }
+.ferry-manifest-report-heading h3 { margin: 0; color: #172b3a; font-size: 1rem; }
+.ferry-manifest-report-heading p { margin: .2rem 0 0; color: #64748b; font-size: .75rem; text-transform: capitalize; }
+.ferry-manifest-report-actions { display: flex; align-items: center; flex-wrap: wrap; gap: .45rem; }
+.ferry-manifest-report-actions .ferry-manifest-action { min-height: 36px; white-space: nowrap; }
+.ferry-manifest-report-group { margin: .65rem .8rem 1rem; border: 1px solid #dbe4ec; border-radius: 8px; overflow: hidden; }
+.ferry-manifest-report-group h4 { margin: 0; padding: .58rem .7rem; border-bottom: 1px solid #dbe4ec; background: #f1f5f9; color: #243b53; font-size: .78rem; font-weight: 800; letter-spacing: .025em; }
+.ferry-manifest-report-table-wrap { width: 100%; overflow-x: auto; }
+.ferry-manifest-report-table { width: 100%; min-width: 680px; border-collapse: collapse; text-align: left; }
+.ferry-manifest-report-table th, .ferry-manifest-report-table td { padding: .58rem .68rem; border-bottom: 1px solid #e2e8f0; color: #334155; font-size: .78rem; vertical-align: middle; overflow-wrap: anywhere; }
+.ferry-manifest-report-table th { background: #fafbfc; color: #475569; font-size: .68rem; font-weight: 800; text-transform: uppercase; letter-spacing: .025em; white-space: nowrap; }
+.ferry-manifest-report-table tr:last-child td { border-bottom: 0; }
+.ferry-manifest-report-table tbody tr:hover { background: #f8fafc; }
+.ferry-manifest-report-table td:first-child { width: 42px; color: #64748b; }
+.ferry-manifest-report-account { font-weight: 850; white-space: nowrap; }
+.ferry-manifest-report-empty { margin: .85rem; color: #64748b; font-size: .82rem; }
+@media (max-width: 760px) {
+  .ferry-manifest-show-packages { width: 100%; box-sizing: border-box; }
+  .ferry-manifest-create-row > button { width: 100%; justify-self: stretch; }
+  .ferry-manifest-report-heading { align-items: flex-start; }
+  .ferry-manifest-report-actions { width: 100%; }
+  .ferry-manifest-report-actions > * { flex: 1 1 auto; }
+}
 
 .ga-state-card-header {
   padding: 1.1rem 1.5rem;
@@ -3343,6 +3441,7 @@ main {
 .ga-client360-profile h3 { margin:0; color:#0f172a; }
 .ga-client360-profile h3 span { color:#64748b; font-weight:500; }
 .ga-client360-profile p { display:flex; align-items:center; gap:.3rem; margin:.25rem 0 0; color:#64748b; font-size:.8rem; }
+.ga-client360-profile .ga-client360-customer-since { color:#1e3a8a; font-weight:700; }
 .ga-client360-metrics { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:.65rem; margin:1rem 0; }
 .ga-client360-metrics > div { min-height:72px; padding:.75rem; background:#fff; border:1px solid #e5e7eb; border-radius:.85rem; }
 .ga-client360-metrics small, .ga-client360-metrics strong { display:block; }
