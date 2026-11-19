@@ -48,10 +48,11 @@ import InvoicesStage from "./InvoicesStage";
 import InvoicePreview from "../components/InvoicePreview";
 import CaribexLabelPrint, { type CaribexLabelSize } from "../components/CaribexLabelPrint";
 import CaribexBatchLabelPrint, { BatchBoxLabel } from "../components/CaribexBatchLabelPrint";
+import { createCaribexManualLabels, listAvailableCaribexManualLabels, type CaribexManualLabel } from "../lib/caribex-manual-labels-client";
 import FerryManifestAdmin from "./login/FerryManifestAdmin";
 import DispatchesAdmin from "./login/DispatchesAdmin";
 import { calculateWorkflowBilling, isBox } from "../lib/workflow-billing";
-import { DATABASE_STATUS } from "../lib/shipping-rules";
+import { DATABASE_STATUS, FERRY_PORT_LABELS, FERRY_PORT_ORDER } from "../lib/shipping-rules";
 
 import {
   Html5Qrcode,
@@ -390,31 +391,83 @@ export default function GestionAlmacen() {
   const [labelMode, setLabelMode] = useState<"qr-reprint" | "box">("box");
   const [labelSize, setLabelSize] = useState<CaribexLabelSize>("4x6");
   const [newBoxLabelCount, setNewBoxLabelCount] = useState(1);
+  const [manualLabelAccountNumber, setManualLabelAccountNumber] = useState("");
+  const [manualLabelDestinationPort, setManualLabelDestinationPort] = useState("");
   const [batchNewBoxLabels, setBatchNewBoxLabels] = useState<BatchBoxLabel[] | null>(null);
-  const [issuedLabelHistory, setIssuedLabelHistory] = useState<BatchBoxLabel[]>([]);
+  const [issuedLabelHistory, setIssuedLabelHistory] = useState<CaribexManualLabel[]>([]);
+  const [manualLabelsLoading, setManualLabelsLoading] = useState(false);
+  const [manualLabelsSaving, setManualLabelsSaving] = useState(false);
+  const [manualLabelsError, setManualLabelsError] = useState<string | null>(null);
+  const manualLabelRefreshSequenceRef = useRef(0);
+  const manualLabelsSavingRef = useRef(false);
 
   useEffect(() => {
-    try {
-      const stored = window.localStorage.getItem("caribex-issued-label-history");
-      if (stored) setIssuedLabelHistory(JSON.parse(stored));
-    } catch { /* local history is optional */ }
-  }, []);
+    if (activeWarehouseTab !== "labels") return;
+    let mounted = true;
+    setManualLabelsLoading(true);
+    const refreshLabels = async () => {
+      if (manualLabelsSavingRef.current) return;
+      const requestSequence = ++manualLabelRefreshSequenceRef.current;
+      try {
+        const labels = await listAvailableCaribexManualLabels();
+        if (mounted && requestSequence === manualLabelRefreshSequenceRef.current) {
+          setIssuedLabelHistory(labels);
+          const availableIds = new Set(labels.map((label) => label.id));
+          setBatchNewBoxLabels((current) => {
+            if (!current) return current;
+            const remaining = current.filter((label) => !label.id || availableIds.has(label.id));
+            return remaining.length ? remaining : null;
+          });
+          setManualLabelsError(null);
+        }
+      } catch (error) {
+        console.error("Unable to refresh available Caribex labels", error);
+        if (mounted && requestSequence === manualLabelRefreshSequenceRef.current) {
+          setIssuedLabelHistory([]);
+          setBatchNewBoxLabels(null);
+          setManualLabelsError(isEs ? "No se pudieron verificar las etiquetas disponibles. Se borró la lista; actualice o vuelva a iniciar sesión." : "Unable to verify available labels. The list was cleared; please refresh or sign in again.");
+        }
+      } finally {
+        if (mounted && requestSequence === manualLabelRefreshSequenceRef.current) setManualLabelsLoading(false);
+      }
+    };
+    void refreshLabels();
+    const interval = window.setInterval(() => void refreshLabels(), 10000);
+    window.addEventListener("focus", refreshLabels);
+    return () => {
+      mounted = false;
+      window.clearInterval(interval);
+      window.removeEventListener("focus", refreshLabels);
+    };
+  }, [activeWarehouseTab, isEs]);
 
-  const generateNewBoxLabels = () => {
+  const generateNewBoxLabels = async () => {
     const count = Math.min(100, Math.max(1, Math.floor(Number(newBoxLabelCount) || 1)));
-    const labels = Array.from({ length: count }, () => {
-      const values = new Uint32Array(1);
-      if (typeof window !== "undefined" && window.crypto?.getRandomValues) window.crypto.getRandomValues(values);
-      const code = String(values[0] % 100000).padStart(5, "0");
-      const boxCode = `${code}-2026-Caribex`;
-      return { tracking: boxCode, boxCode };
-    });
-    setBatchNewBoxLabels(labels);
-    setIssuedLabelHistory((previous) => {
-      const next = [...labels, ...previous].slice(0, 50);
-      try { window.localStorage.setItem("caribex-issued-label-history", JSON.stringify(next)); } catch { /* ignore storage limits */ }
-      return next;
-    });
+    manualLabelsSavingRef.current = true;
+    manualLabelRefreshSequenceRef.current += 1;
+    setManualLabelsSaving(true);
+    setManualLabelsError(null);
+    try {
+      const labels = await createCaribexManualLabels(count, manualLabelAccountNumber.trim() || null, manualLabelDestinationPort || null);
+      const verificationSequence = ++manualLabelRefreshSequenceRef.current;
+      const available = await listAvailableCaribexManualLabels();
+      if (verificationSequence !== manualLabelRefreshSequenceRef.current) throw new Error("Label verification was superseded by a newer refresh.");
+      const availableIds = new Set(available.map((label) => label.id));
+      const printableLabels = labels.filter((label) => availableIds.has(label.id));
+      setIssuedLabelHistory(available);
+      setBatchNewBoxLabels(printableLabels.length ? printableLabels : null);
+      setManualLabelsLoading(false);
+      if (printableLabels.length !== labels.length) setManualLabelsError(isEs ? "Algunas etiquetas ya se usaron antes de imprimir; solo quedan disponibles las que no se han usado." : "Some labels were already used before printing; only unused labels remain available.");
+    } catch (error) {
+      console.error("Unable to create Caribex manual labels", error);
+      setIssuedLabelHistory([]);
+      setBatchNewBoxLabels(null);
+      setManualLabelsLoading(false);
+      setManualLabelsError(isEs ? "No se pudieron crear y verificar las etiquetas. Se borró la lista; actualice o vuelva a iniciar sesión." : "Unable to create and verify labels. The list was cleared; please refresh or sign in again.");
+    } finally {
+      manualLabelsSavingRef.current = false;
+      setManualLabelsSaving(false);
+    }
   };
   const [viewCheckInDetails, setViewCheckInDetails] = useState<
     | {
@@ -3970,10 +4023,17 @@ const handlePackageCreated = (pkg: Package) => {
         ) : activeWarehouseTab === "labels" ? (
           <section className="ga-state-card" style={{ padding: "1.5rem" }}>
             <h2 style={{ marginTop: 0 }}>{isEs ? "Generar etiquetas para cajas nuevas" : "Generate labels for new boxes"}</h2>
-            <p style={{ color: "#64748b" }}>{isEs ? "Estas etiquetas no están vinculadas a envíos existentes y son compatibles con el escáner QR de Caribex." : "These labels are independent of existing shipments and are compatible with the Caribex QR scanner."}</p>
+            <p style={{ color: "#64748b" }}>{isEs ? "Las etiquetas manuales se comparten con Administración. Cuando una etiqueta se registra en un envío, queda usada y desaparece de ambas listas." : "Manual labels are shared with Admin. Once a label is registered to a shipment, it is permanently used and disappears from both available-label lists."}</p>
             <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" }}>
               <label htmlFor="staff-new-box-label-count">{isEs ? "Cantidad" : "Quantity"}</label>
               <input id="staff-new-box-label-count" type="number" min={1} max={100} value={newBoxLabelCount} onChange={(event) => setNewBoxLabelCount(Math.min(100, Math.max(1, Number(event.target.value) || 1)))} className="ga-input" style={{ width: 84 }} />
+              <label htmlFor="staff-label-destination">{isEs ? "Destino del ferry" : "Ferry destination"}</label>
+              <select id="staff-label-destination" value={manualLabelDestinationPort} onChange={(event) => setManualLabelDestinationPort(event.target.value)} className="ga-input">
+                <option value="">{isEs ? "Etiqueta genérica" : "Generic label"}</option>
+                {FERRY_PORT_ORDER.map((port) => <option key={port} value={port}>{FERRY_PORT_LABELS[port]}</option>)}
+              </select>
+              <label htmlFor="staff-label-account-number">{isEs ? "N.º de cuenta del cliente" : "Customer account #"}</label>
+              <input id="staff-label-account-number" type="text" inputMode="numeric" pattern="[0-9]*" maxLength={30} value={manualLabelAccountNumber} onChange={(event) => setManualLabelAccountNumber(event.target.value.replace(/\D/g, ""))} className="ga-input" style={{ width: 140 }} />
               <label htmlFor="staff-label-size">{isEs ? "Tamaño de etiqueta" : "Label size"}</label>
               <select id="staff-label-size" value={labelSize} onChange={(event) => setLabelSize(event.target.value as CaribexLabelSize)} className="ga-input" style={{ minWidth: 260 }}>
                 <option value="1.5x2.25">Label roll 1.5 × 2.25 in (38 × 57 mm)</option>
@@ -3983,12 +4043,13 @@ const handlePackageCreated = (pkg: Package) => {
                 <option value="4x6">Label roll 4 × 6 in (100 × 150 mm)</option>
                 <option value="a4-12">Plain A4 paper — 12 per sheet (no label printer)</option>
               </select>
-              <button type="button" className="ga-primary-button" onClick={generateNewBoxLabels}>{isEs ? "Generar etiquetas Caribex" : "Generate Caribex labels"}</button>
+              <button type="button" className="ga-primary-button" disabled={manualLabelsSaving || Boolean(manualLabelAccountNumber.trim()) !== Boolean(manualLabelDestinationPort)} onClick={() => void generateNewBoxLabels()}>{manualLabelsSaving ? (isEs ? "Generando…" : "Generating…") : (isEs ? "Generar etiquetas Caribex" : "Generate Caribex labels")}</button>
             </div>
+            <p style={{ color: "#64748b", margin: "0.6rem 0 0", fontSize: "0.82rem" }}>{isEs ? "Elija el destino y el número de cuenta para imprimir el color del puerto y la cuenta formateada (por ejemplo, L-1042). Deje ambos vacíos para etiquetas genéricas." : "Choose both the destination and account number to print the port color and formatted account (for example, L-1042). Leave both blank for generic labels."}</p>
+            {manualLabelsError && <p role="alert" style={{ color: "#b91c1c", margin: "0.75rem 0 0" }}>{manualLabelsError}</p>}
             <div style={{ marginTop: "1.5rem" }}>
-              <h3 style={{ marginBottom: "0.35rem" }}>{isEs ? "Últimas etiquetas emitidas" : "Recently issued labels"}</h3>
-              <p style={{ color: "#64748b", marginTop: 0 }}>{isEs ? "Se guardan en este equipo para reimprimirlas rápidamente." : "Saved on this computer for quick reprinting."}</p>
-              {issuedLabelHistory.length === 0 ? <p style={{ color: "#64748b" }}>{isEs ? "Todavía no hay etiquetas emitidas." : "No labels have been issued yet."}</p> : <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "0.45rem" }}>{issuedLabelHistory.map((label) => <button key={label.boxCode} type="button" className="ga-secondary-button" style={{ textAlign: "left" }} onClick={() => setBatchNewBoxLabels([label])}>{label.boxCode}</button>)}</div>}
+              <h3 style={{ marginBottom: "0.35rem" }}>{isEs ? "Etiquetas manuales disponibles — compartidas con Administración" : "Available manual labels — shared with Admin"}</h3>
+              {manualLabelsLoading ? <p style={{ color: "#64748b" }}>{isEs ? "Cargando etiquetas compartidas…" : "Loading shared labels…"}</p> : issuedLabelHistory.length === 0 ? <p style={{ color: "#64748b" }}>{isEs ? "No hay etiquetas Caribex sin usar disponibles." : "No unused Caribex labels are currently available."}</p> : <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "0.45rem" }}>{issuedLabelHistory.map((label) => <button key={label.id} type="button" className="ga-secondary-button" style={{ textAlign: "left" }} onClick={() => setBatchNewBoxLabels([label])}>{label.boxCode}</button>)}</div>}
             </div>
           </section>
         ) : activeWarehouseTab === "client360" ? (
@@ -5287,6 +5348,7 @@ const handlePackageCreated = (pkg: Package) => {
       {batchNewBoxLabels && (
         <CaribexBatchLabelPrint
           labels={batchNewBoxLabels}
+          isEs={isEs}
           labelSize={labelSize}
           onClose={() => setBatchNewBoxLabels(null)}
         />

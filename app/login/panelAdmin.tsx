@@ -5,7 +5,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { supabase } from "../../lib/supabaseClient";
 import { BrowserMultiFormatReader } from "@zxing/browser";
-import { Pencil, Trash2, Unlock, LogOut, Image as ImageIcon, Check, Send, DollarSign, ChevronDown, Package, ScanLine, AlertTriangle, QrCode, BarChart3, UserPlus, Bell, Receipt, Ship, Container, UserCog, Plus, Truck, CheckCircle2, Eye, EyeOff } from "lucide-react";
+import { Pencil, Trash2, Unlock, LogOut, Image as ImageIcon, Check, Send, DollarSign, ChevronDown, Package, ScanLine, AlertTriangle, QrCode, BarChart3, UserPlus, Bell, Receipt, Ship, Container, UserCog, Plus, Truck, CheckCircle2, Eye, EyeOff, Smartphone } from "lucide-react";
 import FerryManifestAdmin from "./FerryManifestAdmin";
 import DispatchesAdmin from "./DispatchesAdmin";
 import Client360Admin from "./Client360Admin";
@@ -14,6 +14,7 @@ import PaymentLedgerDialog from "../../components/PaymentLedgerDialog";
 import AdminInvoiceActions, { type AdminInvoiceAction } from "../../components/AdminInvoiceActions";
 import type { PaymentSummary } from "../../lib/payment-ledger";
 import CaribexBatchLabelPrint, { BatchBoxLabel } from "../../components/CaribexBatchLabelPrint";
+import { createCaribexManualLabels, listAvailableCaribexManualLabels, type CaribexManualLabel } from "../../lib/caribex-manual-labels-client";
 import CaribexLabelPrint, { type CaribexLabelData, type CaribexLabelSize } from "../../components/CaribexLabelPrint";
 import ContainersAdmin from "./ContainersAdmin";
 import ReportsAdmin from "./ReportsAdmin";
@@ -24,6 +25,7 @@ import InvoicePreview, { type InvoicePreviewProps } from "../../components/Invoi
 import InvoiceViewModal, { type InvoiceViewData } from "../../components/InvoiceViewModal";
 import { BILLABLE_INVOICE_ITEMS, SALES_TAX_RATE, formatCatalogCharge, roundMoney } from "../../lib/invoice-pricing";
 import { INVOICE_FILTER_COLORS, tabColorStyle } from "../../lib/shipment-colors";
+import { FERRY_PORT_LABELS, FERRY_PORT_ORDER } from "../../lib/shipping-rules";
 
 /**
  * DASHBOARD OPERATIVO - VERSIÓN VISUAL PURA
@@ -166,8 +168,8 @@ const WEB_TAB_VERSIONS: Record<string, string> = {
   incidencias: "1.0.3",
   clientes: "1.0.3",
   prepaid: "1.0.3",
-  reports: "1.0.3",
-  labels: "1.0.3",
+  reports: "1.2.4",
+  labels: "1.0.4",
   containers: "1.0.6",
   personal: "1.0.3",
   activityLogs: "1.0.3",
@@ -224,6 +226,7 @@ const App = () => {
   const [activeTab, setActiveTab] = useState<
     'personal' | 'clientes' | 'prepaid' | 'client360' | 'pedidos' | 'track' | 'incidencias' | 'facturas' | 'finanzas' | 'expenses' | 'leads' | 'portal' | 'ferry' | 'dispatches' | 'containers' | 'labels' | 'reports' | 'activityLogs'
   >('pedidos');
+  const [reportsSubTab, setReportsSubTab] = useState<"mobile" | "exceptions">("mobile");
   const [incidenciaFiltro, setIncidenciaFiltro] = useState('');
   const [expandedNavGroups, setExpandedNavGroups] = useState<Record<string, boolean>>({
     operations: true,
@@ -598,31 +601,83 @@ const App = () => {
   const [actualInvoicePreviewLoading, setActualInvoicePreviewLoading] = useState(false);
   const [batchNewBoxLabels, setBatchNewBoxLabels] = useState<BatchBoxLabel[] | null>(null);
   const [newBoxLabelCount, setNewBoxLabelCount] = useState(1);
+  const [manualLabelAccountNumber, setManualLabelAccountNumber] = useState("");
+  const [manualLabelDestinationPort, setManualLabelDestinationPort] = useState("");
   const [labelSize, setLabelSize] = useState<CaribexLabelSize>("4x6");
-  const [issuedLabelHistory, setIssuedLabelHistory] = useState<BatchBoxLabel[]>([]);
+  const [issuedLabelHistory, setIssuedLabelHistory] = useState<CaribexManualLabel[]>([]);
+  const [manualLabelsLoading, setManualLabelsLoading] = useState(false);
+  const [manualLabelsSaving, setManualLabelsSaving] = useState(false);
+  const [manualLabelsError, setManualLabelsError] = useState<string | null>(null);
+  const manualLabelRefreshSequenceRef = useRef(0);
+  const manualLabelsSavingRef = useRef(false);
 
   useEffect(() => {
-    try {
-      const stored = window.localStorage.getItem("caribex-issued-label-history");
-      if (stored) setIssuedLabelHistory(JSON.parse(stored));
-    } catch { /* local history is optional */ }
-  }, []);
+    if (activeTab !== "labels") return;
+    let mounted = true;
+    setManualLabelsLoading(true);
+    const refreshLabels = async () => {
+      if (manualLabelsSavingRef.current) return;
+      const requestSequence = ++manualLabelRefreshSequenceRef.current;
+      try {
+        const labels = await listAvailableCaribexManualLabels();
+        if (mounted && requestSequence === manualLabelRefreshSequenceRef.current) {
+          setIssuedLabelHistory(labels);
+          const availableIds = new Set(labels.map((label) => label.id));
+          setBatchNewBoxLabels((current) => {
+            if (!current) return current;
+            const remaining = current.filter((label) => !label.id || availableIds.has(label.id));
+            return remaining.length ? remaining : null;
+          });
+          setManualLabelsError(null);
+        }
+      } catch (error) {
+        console.error("Unable to refresh available Caribex labels", error);
+        if (mounted && requestSequence === manualLabelRefreshSequenceRef.current) {
+          setIssuedLabelHistory([]);
+          setBatchNewBoxLabels(null);
+          setManualLabelsError("Unable to verify available labels. The list was cleared; please refresh or sign in again.");
+        }
+      } finally {
+        if (mounted && requestSequence === manualLabelRefreshSequenceRef.current) setManualLabelsLoading(false);
+      }
+    };
+    void refreshLabels();
+    const interval = window.setInterval(() => void refreshLabels(), 10000);
+    window.addEventListener("focus", refreshLabels);
+    return () => {
+      mounted = false;
+      window.clearInterval(interval);
+      window.removeEventListener("focus", refreshLabels);
+    };
+  }, [activeTab]);
 
-  const generateNewBoxLabels = (requestedCount = newBoxLabelCount) => {
+  const generateNewBoxLabels = async (requestedCount = newBoxLabelCount) => {
     const count = Math.min(100, Math.max(1, Math.floor(Number(requestedCount) || 1)));
-    const labels = Array.from({ length: count }, () => {
-      const values = new Uint32Array(1);
-      if (typeof window !== "undefined" && window.crypto?.getRandomValues) window.crypto.getRandomValues(values);
-      const code = String(values[0] % 100000).padStart(5, "0");
-      const boxCode = `${code}-2026-Caribex`;
-      return { tracking: boxCode, boxCode };
-    });
-    setBatchNewBoxLabels(labels);
-    setIssuedLabelHistory((previous) => {
-      const next = [...labels, ...previous].slice(0, 50);
-      try { window.localStorage.setItem("caribex-issued-label-history", JSON.stringify(next)); } catch { /* ignore storage limits */ }
-      return next;
-    });
+    manualLabelsSavingRef.current = true;
+    manualLabelRefreshSequenceRef.current += 1;
+    setManualLabelsSaving(true);
+    setManualLabelsError(null);
+    try {
+      const labels = await createCaribexManualLabels(count, manualLabelAccountNumber.trim() || null, manualLabelDestinationPort || null);
+      const verificationSequence = ++manualLabelRefreshSequenceRef.current;
+      const available = await listAvailableCaribexManualLabels();
+      if (verificationSequence !== manualLabelRefreshSequenceRef.current) throw new Error("Label verification was superseded by a newer refresh.");
+      const availableIds = new Set(available.map((label) => label.id));
+      const printableLabels = labels.filter((label) => availableIds.has(label.id));
+      setIssuedLabelHistory(available);
+      setBatchNewBoxLabels(printableLabels.length ? printableLabels : null);
+      setManualLabelsLoading(false);
+      if (printableLabels.length !== labels.length) setManualLabelsError("Some labels were already used before printing; only unused labels remain available.");
+    } catch (error) {
+      console.error("Unable to create Caribex manual labels", error);
+      setIssuedLabelHistory([]);
+      setBatchNewBoxLabels(null);
+      setManualLabelsLoading(false);
+      setManualLabelsError("Unable to create and verify labels. The list was cleared; please refresh or sign in again.");
+    } finally {
+      manualLabelsSavingRef.current = false;
+      setManualLabelsSaving(false);
+    }
   };
   const [isPedidoEditOpen, setIsPedidoEditOpen] = useState(false);
   const [pedidoEditId, setPedidoEditId] = useState<string | null>(null);
@@ -2631,7 +2686,7 @@ const App = () => {
                       : 'Create, share, and archive weekly ferry manifests'}
             </span>
           </div>
-          <span style={{ flexShrink: 0, border: '1px solid #bfdbfe', borderRadius: '999px', background: '#eff6ff', color: '#1d4ed8', padding: '0.3rem 0.65rem', fontSize: '0.74rem', fontWeight: 800, whiteSpace: 'nowrap' }}>Web {webTabLabel(activeTab)} v{webTabVersion(activeTab)}</span>
+          <span style={{ flexShrink: 0, border: '1px solid #bfdbfe', borderRadius: '999px', background: '#eff6ff', color: '#1d4ed8', padding: '0.3rem 0.65rem', fontSize: '0.74rem', fontWeight: 800, whiteSpace: 'nowrap' }}>{activeTab === 'reports' ? `Web Reports Volume ${webTabVersion(activeTab)}` : `Web ${webTabLabel(activeTab)} v${webTabVersion(activeTab)}`}</span>
           {activeTab === 'facturas' && (
             <button type="button" className="pa-primary-btn" onClick={() => { setManualInvoiceError(null); setIsManualInvoiceOpen(true); }} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', whiteSpace: 'nowrap' }}>
               <Plus size={16} /> Create invoice
@@ -2641,10 +2696,17 @@ const App = () => {
           {activeTab === 'labels' && (
             <div style={{ width: '100%', maxWidth: 760, margin: '0 auto', padding: '1.5rem', border: '1px solid #e2e8f0', borderRadius: '1rem', background: '#f8fafc' }}>
               <h4 style={{ margin: 0, color: '#0f172a' }}>Generate labels for new boxes</h4>
-              <p style={{ color: '#64748b', margin: '0.5rem 0 1.25rem' }}>These labels are independent of shipments already in the database. Each QR is compatible with the existing Caribex QR scanner.</p>
+              <p style={{ color: '#64748b', margin: '0.5rem 0 1.25rem' }}>Manual labels are shared with Staff. Once a label is registered to a shipment, it is permanently used and disappears from both available-label lists.</p>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
                 <label htmlFor="standalone-new-box-label-count" style={{ fontWeight: 600, color: '#475569' }}>Quantity</label>
                 <input id="standalone-new-box-label-count" type="number" min={1} max={100} value={newBoxLabelCount} onChange={(e) => setNewBoxLabelCount(Math.min(100, Math.max(1, Number(e.target.value) || 1)))} style={{ width: 80, padding: '0.55rem 0.65rem', border: '1px solid #cbd5e1', borderRadius: '0.6rem' }} />
+                <label htmlFor="standalone-label-destination" style={{ fontWeight: 600, color: '#475569' }}>Ferry destination</label>
+                <select id="standalone-label-destination" value={manualLabelDestinationPort} onChange={(event) => setManualLabelDestinationPort(event.target.value)} style={{ padding: '0.55rem 0.65rem', border: '1px solid #cbd5e1', borderRadius: '0.6rem', background: '#fff' }}>
+                  <option value="">Generic label</option>
+                  {FERRY_PORT_ORDER.map((port) => <option key={port} value={port}>{FERRY_PORT_LABELS[port]}</option>)}
+                </select>
+                <label htmlFor="standalone-label-account-number" style={{ fontWeight: 600, color: '#475569' }}>Customer account #</label>
+                <input id="standalone-label-account-number" type="text" inputMode="numeric" pattern="[0-9]*" maxLength={30} value={manualLabelAccountNumber} onChange={(event) => setManualLabelAccountNumber(event.target.value.replace(/\D/g, ""))} style={{ width: 130, padding: '0.55rem 0.65rem', border: '1px solid #cbd5e1', borderRadius: '0.6rem' }} />
                 <label htmlFor="standalone-label-size" style={{ fontWeight: 600, color: '#475569' }}>Label size</label>
                 <select id="standalone-label-size" value={labelSize} onChange={(event) => setLabelSize(event.target.value as CaribexLabelSize)} style={{ padding: '0.55rem 0.65rem', border: '1px solid #cbd5e1', borderRadius: '0.6rem', background: '#fff' }}>
                   <option value="4x6">4 × 6 in — standard</option>
@@ -2654,13 +2716,52 @@ const App = () => {
                   <option value="40x60mm">40 × 60 mm</option>
                   <option value="a4-12">A4 paper — 12 per sheet</option>
                 </select>
-                <button type="button" className="pa-primary-btn" onClick={() => generateNewBoxLabels()}>Generate Caribex labels</button>
+                <button type="button" className="pa-primary-btn" disabled={manualLabelsSaving || Boolean(manualLabelAccountNumber.trim()) !== Boolean(manualLabelDestinationPort)} onClick={() => void generateNewBoxLabels()}>{manualLabelsSaving ? "Generating…" : "Generate Caribex labels"}</button>
               </div>
-              {issuedLabelHistory.length > 0 && <div style={{ marginTop: '1rem' }}><strong style={{ color: '#334155' }}>Recently issued labels</strong><div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: '0.45rem', marginTop: '0.45rem' }}>{issuedLabelHistory.map((label) => <button key={label.boxCode} type="button" className="pa-secondary-btn" style={{ textAlign: 'left' }} onClick={() => setBatchNewBoxLabels([label])}>{label.boxCode}</button>)}</div></div>}
+              <p style={{ color: '#64748b', margin: '0.6rem 0 0', fontSize: '0.82rem' }}>Choose both the destination and account number to print the port color and formatted account (for example, L-1042). Leave both blank for generic labels.</p>
+              {manualLabelsError && <p role="alert" style={{ color: '#b91c1c', margin: '0.75rem 0 0' }}>{manualLabelsError}</p>}
+              <div style={{ marginTop: '1rem' }}>
+                <strong style={{ color: '#334155' }}>Available manual labels — shared with Staff</strong>
+                {manualLabelsLoading ? <p style={{ color: '#64748b' }}>Loading shared labels…</p> : issuedLabelHistory.length > 0 ? <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: '0.45rem', marginTop: '0.45rem' }}>{issuedLabelHistory.map((label) => <button key={label.id} type="button" className="pa-secondary-btn" style={{ textAlign: 'left' }} onClick={() => setBatchNewBoxLabels([label])}>{label.boxCode}</button>)}</div> : <p style={{ color: '#64748b' }}>No unused Caribex labels are currently available.</p>}
+              </div>
             </div>
           )}
 
-          {activeTab === 'reports' && <><MobileSupportReportsAdmin /><ReportsAdmin /></>}
+          {activeTab === 'reports' && (
+            <div>
+              <div role="tablist" aria-label="Report types" style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", margin: "0 0 0.75rem" }}>
+                <button
+                  id="reports-mobile-tab"
+                  type="button"
+                  role="tab"
+                  aria-selected={reportsSubTab === "mobile"}
+                  aria-controls="reports-mobile-panel"
+                  onClick={() => setReportsSubTab("mobile")}
+                  style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem", padding: "0.55rem 0.85rem", borderRadius: "999px", border: reportsSubTab === "mobile" ? "1px solid #2563eb" : "1px solid #dbe4ed", background: reportsSubTab === "mobile" ? "#eff6ff" : "#ffffff", color: reportsSubTab === "mobile" ? "#1d4ed8" : "#475569", fontWeight: 700, cursor: "pointer" }}
+                >
+                  <Smartphone size={16} aria-hidden="true" /> Mobile app reports
+                </button>
+                <button
+                  id="reports-exceptions-tab"
+                  type="button"
+                  role="tab"
+                  aria-selected={reportsSubTab === "exceptions"}
+                  aria-controls="reports-exceptions-panel"
+                  onClick={() => setReportsSubTab("exceptions")}
+                  style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem", padding: "0.55rem 0.85rem", borderRadius: "999px", border: reportsSubTab === "exceptions" ? "1px solid #2563eb" : "1px solid #dbe4ed", background: reportsSubTab === "exceptions" ? "#eff6ff" : "#ffffff", color: reportsSubTab === "exceptions" ? "#1d4ed8" : "#475569", fontWeight: 700, cursor: "pointer" }}
+                >
+                  <AlertTriangle size={16} aria-hidden="true" /> Shipment exception reports
+                </button>
+              </div>
+              <div
+                role="tabpanel"
+                id={reportsSubTab === "mobile" ? "reports-mobile-panel" : "reports-exceptions-panel"}
+                aria-labelledby={reportsSubTab === "mobile" ? "reports-mobile-tab" : "reports-exceptions-tab"}
+              >
+                {reportsSubTab === "mobile" ? <MobileSupportReportsAdmin /> : <ReportsAdmin />}
+              </div>
+            </div>
+          )}
 
           {activeTab === 'prepaid' && (
             <div style={{ margin: '1rem 0', padding: '1rem 1.1rem', borderRadius: '0.9rem', border: '1px solid #f59e0b', background: '#fffbeb' }}>

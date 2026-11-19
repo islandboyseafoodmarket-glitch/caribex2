@@ -12,7 +12,6 @@ type SupportReport = {
   created_at: string;
   details: {
     report_message?: string;
-    app_version?: string;
     submitted_email?: string;
     source?: string;
   } | null;
@@ -82,7 +81,6 @@ export default function MobileSupportReportsAdmin() {
       .mobile-support-report-actor{font-weight:750;color:#173f64;overflow-wrap:anywhere}
       .mobile-support-report-meta{color:#64748b;font-size:.78rem;line-height:1.5;overflow-wrap:anywhere}
       .mobile-support-report-message{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.5;color:#243746}
-      .mobile-support-report-badge{display:inline-flex;align-items:center;border-radius:999px;background:#e5f1fb;color:#0f4c81;padding:3px 8px;font-size:.73rem;font-weight:750}
       .mobile-support-report-state{padding:14px;border-radius:9px;background:#fff;color:#64748b;text-align:center}
       .mobile-support-report-error{background:#fff1f2;color:#9f1239;text-align:left}
       @media(max-width:600px){.mobile-support-reports{padding:12px}.mobile-support-report-top{display:grid}}
@@ -106,7 +104,6 @@ export default function MobileSupportReportsAdmin() {
               <div className="mobile-support-report-actor">{report.actor_name || report.actor_email || "Unknown user"}</div>
               <div className="mobile-support-report-meta">{[report.actor_email, report.actor_role, submittedAt(report.created_at)].filter(Boolean).join(" · ")}</div>
             </div>
-            {details.app_version && <span className="mobile-support-report-badge">App {details.app_version}</span>}
           </div>
           <p className="mobile-support-report-message">{details.report_message || "No report text was saved."}</p>
           {details.submitted_email && <div className="mobile-support-report-meta">Contact email provided: {details.submitted_email}</div>}
