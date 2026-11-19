@@ -4,6 +4,7 @@ import releaseHistory from "./release-history.json";
 export const dynamic = "force-dynamic";
 
 const releaseNotes = [
+  "The Check In data reload control is now labeled Reload list so it is clearly separate from the global Refresh action that clears the active stage and manual entry.",
   "Customer Lookup and Send to Ferry are available only inside the Admin tools menu; they no longer appear on every workflow stage.",
   "Ferry destinations load when the Admin Send to Ferry tool opens, with continuous scan/manual-entry support for the selected dispatch batch.",
   "Send to Ferry reads the newly created unloaded container and clearly reports when no eligible shipments exist for the selected destination.",
@@ -22,13 +23,14 @@ export async function GET() {
   return NextResponse.json(
     {
       app: "Caribex Warehouse Management",
-      version: "1.2.49",
-      version_code: 1260,
-      apk_url: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663449196187/HPckclGtvUQSFVfb.apk",
-      filename: "Caribex-Warehouse-Management-1.2.49.apk",
-      apk_sha256: "9e63a01f3c8158338ca649cfc81ef4ee0df6bb75ae609cd91bccce5dff4e0165",
+      version: "1.2.50",
+      version_code: 1262,
+      apk_url: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663449196187/wFTVeaxhnHJlqhza.apk",
+      filename: "Caribex-Warehouse-Management-1.2.50.apk",
+      apk_sha256: "006a10da5d690fc107057ed4f19e149cfddd87a7fad5be383ff9bf6f570b2b91",
       release_notes: releaseNotes,
       release_history: [
+        { version: "1.2.50", version_code: 1262, release_notes: releaseNotes },
         { version: "1.2.49", version_code: 1260, release_notes: releaseNotes },
         { version: "1.2.48", version_code: 1258, release_notes: releaseNotes },
         { version: "1.2.47", version_code: 1256, release_notes: [
@@ -65,13 +67,13 @@ export async function GET() {
         {
           app: "Caribex Warehouse Management",
           version: "1.2.40",
-          version_code: 1261,
-          apk_url: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663449196187/TSyDFDzWfBIHxJdP.apk",
-          filename: "Caribex-Warehouse-Management-1.2.40-rollback-code-1261.apk",
-          apk_sha256: "94fab533a729ef96fc2b97ccb41fe547576507a2d4767967eea2245d75c90d5a",
+          version_code: 1263,
+          apk_url: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663449196187/AozjFnvJmeQabBxw.apk",
+          filename: "Caribex-Warehouse-Management-1.2.40-rollback-code-1263.apk",
+          apk_sha256: "d715b9a5589143c9004a184eaf1c1766d745effb45ef1edd16c5325b5c08cb42",
           release_notes: [
-            "v1.2.40 application payload with Android code 1261 and the existing signing certificate so it can replace v1.2.49/code 1260 without uninstalling.",
-            "This rolls back the phone app only, not the server database. A later forward installation must use Android code greater than 1261.",
+            "v1.2.40 application payload with Android code 1263 and the existing signing certificate so it can replace v1.2.50/code 1262 without uninstalling.",
+            "This rolls back the phone app only, not the server database. A later forward installation must use Android code greater than 1263.",
           ],
         },
       ],
