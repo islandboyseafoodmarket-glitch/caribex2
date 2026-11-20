@@ -4,6 +4,10 @@ import releaseHistory from "./release-history.json";
 export const dynamic = "force-dynamic";
 
 const releaseNotes = [
+  "The app now displays the installed marketing version and Android build code on the welcome screen and in Settings, including clear forward-update and rollback messaging.",
+  "Customer Lookup no-match results now show a clear red explanation instead of an ambiguous empty result.",
+  "The Check In bulk action is labeled Move all into In-Transit and explains when no eligible shipments are available.",
+  "Duplicate Camera ready feedback was removed from the main screen; compact scanner and consolidation dialogs keep the Report control at the top.",
   "The Check In data reload control is now labeled Reload list so it is clearly separate from the global Refresh action that clears the active stage and manual entry.",
   "Customer Lookup and Send to Ferry are available only inside the Admin tools menu; they no longer appear on every workflow stage.",
   "Ferry destinations load when the Admin Send to Ferry tool opens, with continuous scan/manual-entry support for the selected dispatch batch.",
@@ -23,13 +27,14 @@ export async function GET() {
   return NextResponse.json(
     {
       app: "Caribex Warehouse Management",
-      version: "1.2.50",
-      version_code: 1262,
-      apk_url: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663449196187/wFTVeaxhnHJlqhza.apk",
-      filename: "Caribex-Warehouse-Management-1.2.50.apk",
-      apk_sha256: "006a10da5d690fc107057ed4f19e149cfddd87a7fad5be383ff9bf6f570b2b91",
+      version: "1.2.51",
+      version_code: 1264,
+      apk_url: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663449196187/JXLqtuEPGRBbzBsA.apk",
+      filename: "Caribex-Warehouse-Management-1.2.51.apk",
+      apk_sha256: "0a19c226c7ce6143686067c019283a494019671f6da8d4f3f0930c19443aca35",
       release_notes: releaseNotes,
       release_history: [
+        { version: "1.2.51", version_code: 1264, release_notes: releaseNotes },
         { version: "1.2.50", version_code: 1262, release_notes: releaseNotes },
         { version: "1.2.49", version_code: 1260, release_notes: releaseNotes },
         { version: "1.2.48", version_code: 1258, release_notes: releaseNotes },
@@ -67,13 +72,13 @@ export async function GET() {
         {
           app: "Caribex Warehouse Management",
           version: "1.2.40",
-          version_code: 1263,
-          apk_url: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663449196187/AozjFnvJmeQabBxw.apk",
-          filename: "Caribex-Warehouse-Management-1.2.40-rollback-code-1263.apk",
-          apk_sha256: "d715b9a5589143c9004a184eaf1c1766d745effb45ef1edd16c5325b5c08cb42",
+          version_code: 1265,
+          apk_url: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663449196187/fLVRaeiQSTDERYwo.apk",
+          filename: "Caribex-Warehouse-Management-1.2.40-rollback-code-1265.apk",
+          apk_sha256: "1f12313555b271a527d6c281d8d147490c9a317879c0eb3f0f7bec7de162b535",
           release_notes: [
-            "v1.2.40 application payload with Android code 1263 and the existing signing certificate so it can replace v1.2.50/code 1262 without uninstalling.",
-            "This rolls back the phone app only, not the server database. A later forward installation must use Android code greater than 1263.",
+            "v1.2.40 application payload with Android code 1265 and the existing signing certificate so it can replace v1.2.51/code 1264 without uninstalling.",
+            "This rolls back the phone app only, not the server database. A later forward installation must use Android code greater than 1265.",
           ],
         },
       ],
