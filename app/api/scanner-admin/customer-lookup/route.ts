@@ -11,7 +11,8 @@ export async function GET(request: Request) {
     const url = new URL(request.url); const query = url.searchParams.get("query")?.trim() || ""; const clientId = url.searchParams.get("client_id")?.trim() || "";
     if (!query && !clientId) return NextResponse.json({ customers: [] });
     let lookup = supabase.from("numero_cliente").select("id, numero_cliente, nombre, email, telefono, puerto").limit(20);
-    if (clientId) lookup = lookup.eq("id", clientId); else if (/^\d+$/.test(query.replace(/^L[-\s]?/i, ""))) lookup = lookup.eq("numero_cliente", Number(query.replace(/^L[-\s]?/i, ""))); else lookup = lookup.ilike("nombre", `%${query}%`);
+    const accountQuery = query.replace(/^[A-Za-z][-\s]?/, "");
+    if (clientId) lookup = lookup.eq("id", clientId); else if (/^\d+$/.test(accountQuery)) lookup = lookup.eq("numero_cliente", Number(accountQuery)); else lookup = lookup.ilike("nombre", `%${query}%`);
     const { data: customers, error: customerError } = await lookup; if (customerError) throw customerError;
     if (!clientId) return NextResponse.json({ customers: customers || [] });
     const client = customers?.[0]; if (!client) return NextResponse.json({ client: null, shipments: [], bills: [], totals: { billed: 0, paid: 0, owed: 0 } });

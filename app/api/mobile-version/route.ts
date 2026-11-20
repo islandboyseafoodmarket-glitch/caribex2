@@ -71,6 +71,42 @@ export async function GET() {
       rollback_releases: [
         {
           app: "Caribex Warehouse Management",
+          version: "1.2.50",
+          version_code: 1266,
+          apk_url: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663449196187/aeORPWydtTKBCgLq.apk",
+          filename: "Caribex-Warehouse-Management-1.2.50-rollback-code-1266.apk",
+          apk_sha256: "7feab771df867dc6151bfd7d92198b9a24c63051bfebdbb3e09699dc36913760",
+          release_notes: [
+            "v1.2.50 application payload with Android code 1266 and the existing signing certificate so it can replace v1.2.51/code 1264 without uninstalling.",
+            "This rolls back the phone app only, not the server database. A later forward installation must use Android code greater than 1266.",
+          ],
+        },
+        {
+          app: "Caribex Warehouse Management",
+          version: "1.2.49",
+          version_code: 1267,
+          apk_url: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663449196187/RxhnzUWjErGWGZlS.apk",
+          filename: "Caribex-Warehouse-Management-1.2.49-rollback-code-1267.apk",
+          apk_sha256: "0c0746cb10a17880db1d3856980b86372361222ac24446817df31b94e3dc916a",
+          release_notes: [
+            "v1.2.49 application payload with Android code 1267 and the existing signing certificate for multi-version rollback selection.",
+            "This rolls back the phone app only, not the server database. A later forward installation must use Android code greater than 1267.",
+          ],
+        },
+        {
+          app: "Caribex Warehouse Management",
+          version: "1.2.48",
+          version_code: 1268,
+          apk_url: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663449196187/TcxADNSfWAGLEelY.apk",
+          filename: "Caribex-Warehouse-Management-1.2.48-rollback-code-1268.apk",
+          apk_sha256: "93144baa3c16111b96ef8ef841d77b8c870fa33b1b73ad4bae75980cb0c2a5c5",
+          release_notes: [
+            "v1.2.48 application payload with Android code 1268 and the existing signing certificate for multi-version rollback selection.",
+            "This rolls back the phone app only, not the server database. A later forward installation must use Android code greater than 1268.",
+          ],
+        },
+        {
+          app: "Caribex Warehouse Management",
           version: "1.2.40",
           version_code: 1265,
           apk_url: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663449196187/fLVRaeiQSTDERYwo.apk",
