@@ -13,62 +13,68 @@ export function AcercaSection() {
             <>
               <h1>About our company</h1>
               <p>
-                Caribex Logistics Group is a leading transport and cargo
-                consolidation company based in Roatán, Honduras. With years of
-                experience in international logistics, we have built a
-                reputation for reliability, efficiency and exceptional customer
-                service.
+                Caribex Logistics Group is a modern, agile international
+                transport and cargo consolidation company based in Roatán,
+                Honduras. Founded to simplify global shipping for businesses and
+                individuals across Honduras, we combine personalized customer
+                care with smart digital tools to move your cargo safely,
+                transparently, and on schedule.
               </p>
+              <h2>Flexible shipping built around your needs</h2>
               <p>
-                We specialize in full container load (FCL) and less than
-                container load (LCL) services, offering flexible solutions for
-                companies of all sizes. Whether you ship a single pallet or fill
-                an entire container, we have the experience and resources to
-                handle your cargo safely and efficiently.
+                Whether you are a growing business restocking inventory or an
+                individual importing personal goods, we tailor our freight
+                solutions to fit your budget and timeline.
               </p>
+              <ul>
+                <li><strong>Full Container Load (FCL):</strong> Dedicated 20ft and 40ft containers for high-volume shipments requiring direct transit and maximum security.</li>
+                <li><strong>Less Than Container Load (LCL):</strong> Smart cargo consolidation for smaller shipments—from a single box or pallet to partial loads—so you only pay for the exact space you use.</li>
+                <li><strong>End-to-End Support:</strong> From warehousing and cargo consolidation to customs documentation and local delivery across Roatán, San Pedro Sula, La Ceiba, Trujillo, Tegucigalpa, Utila, and Guanaja, we handle the complex logistics so you do not have to.</li>
+              </ul>
+              <h2>Why ship with Caribex?</h2>
+              <ul>
+                <li><strong>Direct, personal attention:</strong> As a dedicated team, you never get lost in a corporate call center. You work directly with logistics specialists who proactively monitor your cargo from origin to destination.</li>
+                <li><strong>Modern digital convenience:</strong> Get instant rate estimates with our online Shipping Calculator, manage your account through Client Signup, and track shipments, documents, and invoices anytime inside our Customer Portal.</li>
+                <li><strong>Transparent and reliable:</strong> No hidden surprises—just clear communication, competitive consolidation rates, and dependable sailing schedules.</li>
+              </ul>
               <p>
-                Our team of professionals with extensive logistics experience is
-                dedicated to providing personalized service and innovative
-                solutions. We leverage advanced technology and industry
-                partnerships to ensure your shipments are tracked, managed and
-                delivered with precision.
-              </p>
-              <p>
-                At Caribex Logistics Group, we believe in building long-term
-                relationships with our clients. We are not just a service
-                provider: we are your trusted partner in international trade.
+                At Caribex Logistics Group, we are committed to earning your
+                trust with every shipment and growing alongside your business as
+                your dedicated logistics partner.
               </p>
             </>
           ) : (
             <>
               <h1>Acerca de nuestra empresa</h1>
               <p>
-                Caribex Logistics Group es una empresa líder en transporte y
-                consolidación de carga con sede en Roatán, Honduras. Con años de
-                experiencia en logística internacional, nos hemos forjado una
-                reputación de confiabilidad, eficiencia y un servicio al cliente
-                excepcional.
+                Caribex Logistics Group es una empresa moderna y ágil de
+                transporte internacional y consolidación de carga con sede en
+                Roatán, Honduras. Nacimos para simplificar los envíos globales
+                para empresas y particulares en todo Honduras, combinando una
+                atención personalizada con herramientas digitales inteligentes
+                para mover su carga de forma segura, transparente y puntual.
               </p>
+              <h2>Envíos flexibles según sus necesidades</h2>
               <p>
-                Nos especializamos en servicios de carga de contenedor completo
-                (FCL) y carga fraccionada (LCL), ofreciendo soluciones flexibles
-                para empresas de todos los tamaños. Ya sea que envíe un solo
-                palé o llene un contenedor completo, contamos con la experiencia
-                y los recursos para gestionar su carga de forma segura y
-                eficiente.
+                Ya sea que una empresa en crecimiento esté reabasteciendo su
+                inventario o que una persona esté importando bienes personales,
+                adaptamos nuestras soluciones de carga a su presupuesto y plazo.
               </p>
+              <ul>
+                <li><strong>Contenedor completo (FCL):</strong> Contenedores dedicados de 20 y 40 pies para cargas de gran volumen que requieren tránsito directo y máxima seguridad.</li>
+                <li><strong>Carga consolidada (LCL):</strong> Consolidación inteligente para envíos pequeños, desde una caja o palé hasta cargas parciales, para que pague únicamente por el espacio que utiliza.</li>
+                <li><strong>Atención integral:</strong> Desde almacenamiento y consolidación hasta documentación aduanera y entrega local en Roatán, San Pedro Sula, La Ceiba, Trujillo, Tegucigalpa, Utila y Guanaja, nos encargamos de la logística compleja por usted.</li>
+              </ul>
+              <h2>¿Por qué enviar con Caribex?</h2>
+              <ul>
+                <li><strong>Atención directa y personal:</strong> Como equipo dedicado, usted no se pierde en un centro de llamadas corporativo. Trabaja directamente con especialistas que supervisan su carga desde el origen hasta el destino.</li>
+                <li><strong>Conveniencia digital moderna:</strong> Obtenga estimaciones instantáneas con nuestra Calculadora de Envíos, administre su cuenta desde el Registro de Clientes y consulte envíos, documentos y facturas en cualquier momento desde nuestro Portal del Cliente.</li>
+                <li><strong>Transparencia y confianza:</strong> Sin sorpresas ocultas: comunicación clara, tarifas competitivas de consolidación y calendarios de navegación confiables.</li>
+              </ul>
               <p>
-                Nuestro equipo de profesionales con amplia experiencia en
-                logística se dedica a brindar un servicio personalizado y
-                soluciones innovadoras. Aprovechamos tecnología avanzada y
-                colaboraciones con la industria para garantizar que sus envíos
-                se rastreen, gestionen y entreguen con precisión.
-              </p>
-              <p>
-                En Caribex Logistics Group, creemos en construir relaciones a
-                largo plazo con nuestros clientes. No somos solo un proveedor de
-                servicios: somos su socio de confianza en el comercio
-                internacional.
+                En Caribex Logistics Group nos comprometemos a ganar su confianza
+                con cada envío y a crecer junto a su negocio como su socio logístico
+                dedicado.
               </p>
             </>
           )}
