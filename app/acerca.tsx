@@ -11,7 +11,7 @@ export function AcercaSection() {
         <section className="acerca-intro">
           {isEn ? (
             <>
-              <h1>About our company</h1>
+              <h1>About Our Company</h1>
               <p>
                 Caribex Logistics Group is a modern, agile international
                 transport and cargo consolidation company based in Roatán,
@@ -20,7 +20,7 @@ export function AcercaSection() {
                 care with smart digital tools to move your cargo safely,
                 transparently, and on schedule.
               </p>
-              <h2>Flexible shipping built around your needs</h2>
+              <h2>Flexible Shipping Built Around Your Needs</h2>
               <p>
                 Whether you are a growing business restocking inventory or an
                 individual importing personal goods, we tailor our freight
@@ -31,12 +31,23 @@ export function AcercaSection() {
                 <li><strong>Less Than Container Load (LCL):</strong> Smart cargo consolidation for smaller shipments—from a single box or pallet to partial loads—so you only pay for the exact space you use.</li>
                 <li><strong>End-to-End Support:</strong> From warehousing and cargo consolidation to customs documentation and local delivery across Roatán, San Pedro Sula, La Ceiba, Trujillo, Tegucigalpa, Utila, and Guanaja, we handle the complex logistics so you do not have to.</li>
               </ul>
-              <h2>Why ship with Caribex?</h2>
+              <h2>Why Ship With Caribex?</h2>
               <ul>
                 <li><strong>Direct, personal attention:</strong> As a dedicated team, you never get lost in a corporate call center. You work directly with logistics specialists who proactively monitor your cargo from origin to destination.</li>
                 <li><strong>Modern digital convenience:</strong> Get instant rate estimates with our online Shipping Calculator, manage your account through Client Signup, and track shipments, documents, and invoices anytime inside our Customer Portal.</li>
-                <li><strong>Transparent and reliable:</strong> No hidden surprises—just clear communication, competitive consolidation rates, and dependable sailing schedules.</li>
+                <li><strong>Transparent and reliable:</strong> No hidden surprises—just clear communication, transparent pricing, and dependable sailing schedules.</li>
               </ul>
+              <h2>Shipping Made Easier For You</h2>
+              <p>
+                Choose Caribex for affordable international shipping, secure
+                cargo handling, reliable freight forwarding, and flexible
+                door-to-door logistics support. Our team helps you prepare the
+                right documents, understand your shipping options, and keep
+                your cargo moving with clear updates at every important step.
+                Whether you need a fast quote, customs guidance, warehouse
+                coordination, or dependable local delivery, we make the process
+                simple and personal.
+              </p>
               <p>
                 At Caribex Logistics Group, we are committed to earning your
                 trust with every shipment and growing alongside your business as
@@ -69,8 +80,19 @@ export function AcercaSection() {
               <ul>
                 <li><strong>Atención directa y personal:</strong> Como equipo dedicado, usted no se pierde en un centro de llamadas corporativo. Trabaja directamente con especialistas que supervisan su carga desde el origen hasta el destino.</li>
                 <li><strong>Conveniencia digital moderna:</strong> Obtenga estimaciones instantáneas con nuestra Calculadora de Envíos, administre su cuenta desde el Registro de Clientes y consulte envíos, documentos y facturas en cualquier momento desde nuestro Portal del Cliente.</li>
-                <li><strong>Transparencia y confianza:</strong> Sin sorpresas ocultas: comunicación clara, tarifas competitivas de consolidación y calendarios de navegación confiables.</li>
+                <li><strong>Transparencia y confianza:</strong> Sin sorpresas ocultas: comunicación clara, precios transparentes y calendarios de navegación confiables.</li>
               </ul>
+              <h2>Envíos más fáciles para usted</h2>
+              <p>
+                Elija Caribex para obtener envíos internacionales económicos,
+                manejo seguro de su carga, transporte de mercancías confiable y
+                apoyo logístico flexible puerta a puerta. Nuestro equipo le
+                ayuda a preparar los documentos correctos, entender sus opciones
+                de envío y mantener su carga en movimiento con actualizaciones
+                claras en cada etapa importante. Ya sea que necesite una cotización
+                rápida, orientación aduanera, coordinación de almacenamiento o
+                entrega local confiable, hacemos el proceso sencillo y personal.
+              </p>
               <p>
                 En Caribex Logistics Group nos comprometemos a ganar su confianza
                 con cada envío y a crecer junto a su negocio como su socio logístico
@@ -84,7 +106,7 @@ export function AcercaSection() {
           <div className="acerca-card acerca-card-mision">
             {isEn ? (
               <>
-                <h2>Our mission</h2>
+                  <h2>Our Mission</h2>
                 <p>
                   To provide reliable, efficient and cost-effective cargo
                   transport and container consolidation services that connect
@@ -110,7 +132,7 @@ export function AcercaSection() {
           <div className="acerca-card acerca-card-vision">
             {isEn ? (
               <>
-                <h2>Our vision</h2>
+                  <h2>Our Vision</h2>
                 <p>
                   To become the leading cargo transport company in the
                   Caribbean region, recognized for our exceptional service,
@@ -135,7 +157,7 @@ export function AcercaSection() {
         </section>
 
         <h2 className="acerca-section-title">
-          {isEn ? "Our core values" : "Nuestros valores fundamentales"}
+          {isEn ? "Our Core Values" : "Nuestros valores fundamentales"}
         </h2>
 
         <div className="acerca-values-grid">
