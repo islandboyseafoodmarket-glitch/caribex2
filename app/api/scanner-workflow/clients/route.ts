@@ -83,10 +83,17 @@ export async function GET(request: Request) {
       : { data: [], error: null };
     if (childLinkError) throw childLinkError;
     const { data: ferryEntries, error: ferryEntryError } = packageIds.length
-      ? await supabase.from("ferry_manifest_entries").select("paquete_id").in("paquete_id", packageIds).not("despachado_en", "is", null).limit(5000)
+      ? await supabase.from("ferry_manifest_entries").select("paquete_id, numero_reserva").in("paquete_id", packageIds).not("despachado_en", "is", null).limit(5000)
       : { data: [], error: null };
     if (ferryEntryError) throw ferryEntryError;
     const ferryDispatchedIds = new Set((ferryEntries || []).map((entry) => entry.paquete_id));
+    const ferryBookingByPackageId = new Map<string, string>();
+    for (const entry of ferryEntries || []) {
+      const booking = String(entry.numero_reserva || "").trim();
+      if (entry.paquete_id && booking && !ferryBookingByPackageId.has(entry.paquete_id)) {
+        ferryBookingByPackageId.set(entry.paquete_id, booking);
+      }
+    }
     const consolidatedChildIds = new Set(
       (childLinks || [])
         .filter((link) => Boolean(link.parent_box_id))
@@ -116,6 +123,8 @@ export async function GET(request: Request) {
     const withContainers = pickupPackages.map((item) => ({
       ...item,
       sent_to_ferry: ferryDispatchedIds.has(item.id),
+      ferry_booking_number: ferryBookingByPackageId.get(item.id) || null,
+      ferry_booking_confirmed: ferryBookingByPackageId.has(item.id),
       container_code: containerByPackageId.get(item.id)?.code || null,
       container_created_at: containerByPackageId.get(item.id)?.createdAt || null,
     }));
