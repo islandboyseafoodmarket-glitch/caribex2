@@ -30,6 +30,7 @@ async function requireStaff(request: Request, supabase: SupabaseClient) {
     supabase.from("personal").select("id").eq("id", data.user.id).maybeSingle(),
   ]);
   if (!admin && !staff) throw new Error("Staff access is required");
+  return { userId: data.user.id, role: admin ? "admin" : "staff" };
 }
 
 function errorResponse(error: unknown) {
@@ -38,14 +39,21 @@ function errorResponse(error: unknown) {
 }
 
 export async function GET(request: Request) {
+  const requestStartedAt = Date.now();
+  const requestUrl = new URL(request.url);
+  const requestId = requestUrl.searchParams.get("_request_id") || `server-${requestStartedAt}`;
+  const debug = (event: string, details: Record<string, unknown> = {}) => {
+    // Never log authorization headers, passwords, email addresses, phone numbers, or tokens.
+    console.info("[client-pickup-debug]", JSON.stringify({ event, request_id: requestId, ...details }));
+  };
   try {
     const supabase = adminClient();
-    await requireStaff(request, supabase);
-    const url = new URL(request.url);
+    const actor = await requireStaff(request, supabase);
+    const url = requestUrl;
     const query = url.searchParams.get("query")?.trim() || "";
     const clientId = url.searchParams.get("client_id")?.trim() || "";
     const view = url.searchParams.get("view") || "ready";
-    const requestId = url.searchParams.get("_request_id") || null;
+    debug("request", { method: request.method, path: url.pathname, query, client_id: clientId || null, view, actor_id: actor.userId, actor_role: actor.role });
     if (url.searchParams.get("list") === "1") {
       const { data: clients, error: clientListError } = await supabase
         .from("numero_cliente")
@@ -53,9 +61,13 @@ export async function GET(request: Request) {
         .order("nombre", { ascending: true })
         .limit(1000);
       if (clientListError) throw clientListError;
+      debug("response", { status: 200, list: true, client_count: clients?.length || 0, duration_ms: Date.now() - requestStartedAt });
       return liveJson({ clients: clients || [], checked_at: new Date().toISOString(), request_id: requestId });
     }
-    if (query.length < 1 && !clientId) return liveJson({ client: null, packages: [], checked_at: new Date().toISOString(), request_id: requestId });
+    if (query.length < 1 && !clientId) {
+      debug("response", { status: 200, client_id: null, package_count: 0, duration_ms: Date.now() - requestStartedAt });
+      return liveJson({ client: null, packages: [], checked_at: new Date().toISOString(), request_id: requestId });
+    }
 
     const numeric = query.replace(/[^0-9]/g, "");
     let clientQuery = supabase.from("numero_cliente").select("id, numero_cliente, nombre, email, telefono, puerto").limit(5);
@@ -65,7 +77,10 @@ export async function GET(request: Request) {
     const { data: clients, error: clientError } = await clientQuery;
     if (clientError) throw clientError;
     const client = clients?.[0] || null;
-    if (!client) return liveJson({ client: null, packages: [], checked_at: new Date().toISOString(), request_id: requestId });
+    if (!client) {
+      debug("response", { status: 200, client_id: null, matched_client_count: clients?.length || 0, package_count: 0, duration_ms: Date.now() - requestStartedAt });
+      return liveJson({ client: null, packages: [], checked_at: new Date().toISOString(), request_id: requestId });
+    }
 
     const { data: allPackages, error: packageError } = await supabase
       .from("paquetes_registro")
@@ -139,8 +154,24 @@ export async function GET(request: Request) {
     const pickupSet = withContainers.filter((item) => isReadyForPickup(item) || isPickedUp(item));
     const collected = pickupSet.filter((item) => isPickedUp(item)).length;
     const total = pickupSet.length;
+    debug("response", {
+      status: 200,
+      client_id: client.id,
+      account_number: client.numero_cliente,
+      all_package_count: allPackages?.length || 0,
+      ferry_row_count: ferryEntries?.length || 0,
+      ferry_dispatched_count: ferryDispatchedIds.size,
+      ferry_booking_count: ferryBookingByPackageId.size,
+      returned_package_count: packages.length,
+      returned_pickup_package_count: pickupSet.length,
+      sent_to_ferry_ids: withContainers.filter((item) => item.sent_to_ferry).map((item) => item.id),
+      booked_package_ids: withContainers.filter((item) => item.ferry_booking_confirmed).map((item) => item.id),
+      returned_packages: packages.map((item) => ({ id: item.id, tracking: item.tracking, estado: item.estado, sent_to_ferry: item.sent_to_ferry, ferry_booking_confirmed: item.ferry_booking_confirmed, ferry_booking_number: item.ferry_booking_number || null })),
+      duration_ms: Date.now() - requestStartedAt,
+    });
     return liveJson({ client, packages, pickup_packages: pickupSet, view, checked_at: new Date().toISOString(), request_id: requestId, summary: { collected, total, pending: Math.max(total - collected, 0) } });
   } catch (error) {
+    debug("error", { message: error instanceof Error ? error.message : "Unexpected error", duration_ms: Date.now() - requestStartedAt });
     return errorResponse(error);
   }
 }
