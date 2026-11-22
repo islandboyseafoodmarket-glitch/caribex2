@@ -346,15 +346,20 @@ export async function POST(request: Request) {
     }
 
     if (expectedNext.key === "PICKED_UP") {
-      const { data: ferryEntry, error: ferryEntryError } = await supabase
+      const { data: ferryEntries, error: ferryEntryError } = await supabase
         .from("ferry_manifest_entries")
         .select("numero_reserva")
         .eq("paquete_id", shipment.id)
         .not("despachado_en", "is", null)
-        .limit(1)
-        .maybeSingle();
+        .limit(50);
       if (ferryEntryError) throw ferryEntryError;
-      if (ferryEntry && !String(ferryEntry.numero_reserva || "").trim()) {
+      // A shipment can have more than one dispatch/manifest row after a
+      // resend or duplicate manifest. Treat it as booking-confirmed when any
+      // matching dispatched row has a real booking number; selecting an
+      // arbitrary blank row caused a stale false "awaiting booking" warning.
+      const hasDispatchedFerryEntry = (ferryEntries || []).length > 0;
+      const hasBookingNumber = (ferryEntries || []).some((entry) => String(entry.numero_reserva || "").trim());
+      if (hasDispatchedFerryEntry && !hasBookingNumber) {
         return NextResponse.json({ error: "This shipment was sent to the ferry and is awaiting its booking number. It cannot be picked up from Client Pickup yet.", code: "FERRY_BOOKING_REQUIRED", tracking: shipment.tracking }, { status: 409 });
       }
     }
