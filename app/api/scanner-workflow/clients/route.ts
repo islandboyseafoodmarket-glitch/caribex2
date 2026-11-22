@@ -82,6 +82,11 @@ export async function GET(request: Request) {
       ? await supabase.from("paquetes_checkin").select("paquete_id, parent_box_id").in("paquete_id", packageIds).limit(5000)
       : { data: [], error: null };
     if (childLinkError) throw childLinkError;
+    const { data: ferryEntries, error: ferryEntryError } = packageIds.length
+      ? await supabase.from("ferry_manifest_entries").select("paquete_id").in("paquete_id", packageIds).not("despachado_en", "is", null).limit(5000)
+      : { data: [], error: null };
+    if (ferryEntryError) throw ferryEntryError;
+    const ferryDispatchedIds = new Set((ferryEntries || []).map((entry) => entry.paquete_id));
     const consolidatedChildIds = new Set(
       (childLinks || [])
         .filter((link) => Boolean(link.parent_box_id))
@@ -110,6 +115,7 @@ export async function GET(request: Request) {
     const isReadyForPickup = isReadyForPickupShipment;
     const withContainers = pickupPackages.map((item) => ({
       ...item,
+      sent_to_ferry: ferryDispatchedIds.has(item.id),
       container_code: containerByPackageId.get(item.id)?.code || null,
       container_created_at: containerByPackageId.get(item.id)?.createdAt || null,
     }));

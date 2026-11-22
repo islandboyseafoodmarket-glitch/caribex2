@@ -345,6 +345,20 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Only the next workflow status can be applied", current: WORKFLOW[beforeIndex], next: expectedNext || null }, { status: 409 });
     }
 
+    if (expectedNext.key === "PICKED_UP") {
+      const { data: ferryEntry, error: ferryEntryError } = await supabase
+        .from("ferry_manifest_entries")
+        .select("numero_reserva")
+        .eq("paquete_id", shipment.id)
+        .not("despachado_en", "is", null)
+        .limit(1)
+        .maybeSingle();
+      if (ferryEntryError) throw ferryEntryError;
+      if (ferryEntry && !String(ferryEntry.numero_reserva || "").trim()) {
+        return NextResponse.json({ error: "This shipment was sent to the ferry and is awaiting its booking number. It cannot be picked up from Client Pickup yet.", code: "FERRY_BOOKING_REQUIRED", tracking: shipment.tracking }, { status: 409 });
+      }
+    }
+
     // Unknown Owner shipments may be received, but must remain in Received
     // until staff assigns a real customer account.
     if (!String(shipment.numero_cliente_id || "").trim()) {

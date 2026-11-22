@@ -80,17 +80,18 @@ export async function GET(request: Request) {
       if (rows.length) metrics.containersWithShipments += 1;
       const ready = rows.filter(isReadyToDispatch);
       metrics.readyShipments += ready.length;
-      const matching = ready.filter((row) => parsePort(row.customer?.puerto) === port);
+      const matching = rows.filter((row) => (isReadyToDispatch(row) || dispatched.has(row.id)) && parsePort(row.customer?.puerto) === port);
       metrics.matchingDestinationShipments += matching.length;
-      if (matching.length && dispatched.size) {
+      const remaining = matching.filter((row) => !dispatched.has(row.id));
+      if (matching.length && !remaining.length) {
         metrics.lockedContainers += 1;
         continue;
       }
-      if (matching.length) results.push({ id: container.id, code: container.codigo || container.id, created_at: container.creado_en, shipment_count: matching.length, shipments: matching.map((row) => ({ id: row.id, tracking: row.tracking || "—", carrier: row.nombre_paqueteria || null, package_type: row.tipo_paquete || null, customer_name: row.customer?.nombre || "Unassigned", account_number: row.customer?.numero_cliente ?? null, destination: port })) });
+      if (matching.length) results.push({ id: container.id, code: container.codigo || container.id, created_at: container.creado_en, shipment_count: remaining.length, shipments: matching.map((row) => ({ id: row.id, tracking: row.tracking || "—", carrier: row.nombre_paqueteria || null, package_type: row.tipo_paquete || null, customer_name: row.customer?.nombre || "Unassigned", account_number: row.customer?.numero_cliente ?? null, destination: port, sent: dispatched.has(row.id) })) });
     }
     let reasonCode = "containers_available";
-    let message = `${results.length} container${results.length === 1 ? " is" : "s are"} available for ${FERRY_PORT_LABELS[port]}. A container is locked after its first shipment is sent to the ferry.`;
-    let messageEs = `${results.length} contenedor${results.length === 1 ? " está" : "es están"} disponible${results.length === 1 ? "" : "s"} para ${FERRY_PORT_LABELS[port]}. Un contenedor se bloquea después de enviar su primer envío al ferry.`;
+    let message = `${results.length} container${results.length === 1 ? " is" : "s are"} available for ${FERRY_PORT_LABELS[port]}. Sent shipments remain visible until the container is complete.`;
+    let messageEs = `${results.length} contenedor${results.length === 1 ? " está" : "es están"} disponible${results.length === 1 ? "" : "s"} para ${FERRY_PORT_LABELS[port]}. Los envíos enviados permanecen visibles hasta completar el contenedor.`;
     if (!results.length) {
       if (!containers?.length) {
         reasonCode = "no_containers_registered";
@@ -110,8 +111,8 @@ export async function GET(request: Request) {
         messageEs = `No hay envíos descargados asignados a ${FERRY_PORT_LABELS[port]}. Revise los puertos asignados a los clientes.`;
       } else {
         reasonCode = "containers_already_dispatched";
-        message = `Unloaded shipments for ${FERRY_PORT_LABELS[port]} exist, but every matching container is locked because a shipment from it has already been sent to the ferry. Choose a different container.`;
-        messageEs = `Hay envíos descargados para ${FERRY_PORT_LABELS[port]}, pero todos sus contenedores están bloqueados porque ya se envió un envío de cada uno al ferry. Elija otro contenedor.`;
+        message = `Unloaded shipments for ${FERRY_PORT_LABELS[port]} exist, but all matching containers have already been sent to the ferry.`;
+        messageEs = `Hay envíos descargados para ${FERRY_PORT_LABELS[port]}, pero todos los contenedores correspondientes ya se enviaron al ferry.`;
       }
     }
     return NextResponse.json({
@@ -142,10 +143,8 @@ export async function POST(request: Request) {
     const rowPort = parsePort(row.customer?.puerto);
     if (rowPort !== port) return NextResponse.json({ error: `This shipment belongs to ${rowPort ? FERRY_PORT_LABELS[rowPort] : "another destination"}, not ${FERRY_PORT_LABELS[port]}` }, { status: 409 });
     const dispatched = await getDispatchedIds(supabase, rows.map((item) => item.id));
-    if (dispatched.size) {
-      const message = "This container is no longer available because a shipment from it has already been sent to the ferry. Choose another container.";
-      const messageEs = "Este contenedor ya no está disponible porque uno de sus envíos ya se envió al ferry. Elija otro contenedor.";
-      return NextResponse.json({ error: message, message, message_es: messageEs, reason_code: "container_already_dispatched" }, { status: 409 });
+    if (dispatched.has(row.id)) {
+      return NextResponse.json({ error: "This shipment was already sent to the ferry. Scan another shipment from this container.", reason_code: "shipment_already_dispatched" }, { status: 409 });
     }
     let { data: manifest, error: manifestError } = await supabase.from("ferry_manifests").select("id, token").eq("contenedor_id", containerId).eq("ubicacion", port === FERRY_PORT.LA_CEIBA || port === FERRY_PORT.UTILA ? "la_ceiba_utila" : port).eq("estado", "active").limit(1).maybeSingle();
     if (manifestError) throw manifestError;

@@ -171,9 +171,14 @@ export async function PATCH(request: Request, { params }: { params: { token: str
       .eq("numero_cliente_id", entry.numero_cliente_id)
       .eq("puerto", entry.puerto);
     if (error) throw error;
+    const isNotFound = bookingNumber.toUpperCase() === "NO";
+    if (!isNotFound) {
+      const deliveredAt = new Date();
+      const { error: pickupError } = await supabaseAdmin.from("paquetes_registro").update({ estado: "Entregado", fecha_entregado: deliveredAt.toISOString().slice(0, 10), hora_entregado: deliveredAt.toTimeString().slice(0, 8), entregado_por: "Ferry booking" }).in("id", (customerEntries || []).map((item) => item.paquete_id).filter(Boolean));
+      if (pickupError) throw pickupError;
+    }
 
     let emailSent = false;
-    const isNotFound = bookingNumber.toUpperCase() === "NO";
     if (sendNotification && !isNotFound && RESEND_API_KEY && entry.numero_cliente_id) {
       const [{ data: customer }, { data: packageRow }] = await Promise.all([
         supabaseAdmin.from("numero_cliente").select("nombre, email, puerto").eq("id", entry.numero_cliente_id).maybeSingle(),
