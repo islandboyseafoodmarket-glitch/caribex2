@@ -122,7 +122,10 @@ export async function GET(request: Request) {
     const isReadyForPickup = isReadyForPickupShipment;
     const withContainers = pickupPackages.map((item) => ({
       ...item,
-      sent_to_ferry: ferryDispatchedIds.has(item.id),
+      // Keep the legacy mobile app compatible: it renders every
+      // `sent_to_ferry` package as awaiting booking, so only expose that flag
+      // while the dispatched package still lacks a booking number.
+      sent_to_ferry: ferryDispatchedIds.has(item.id) && !ferryBookingByPackageId.has(item.id),
       ferry_booking_number: ferryBookingByPackageId.get(item.id) || null,
       ferry_booking_confirmed: ferryBookingByPackageId.has(item.id),
       container_code: containerByPackageId.get(item.id)?.code || null,
