@@ -1,3 +1,4 @@
+import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { isArchivedShipment, isInvoiceOnlyShipment, isInTransitShipment, isPickedUpShipment, isReadyForPickupShipment } from "@/lib/shipment-eligibility";
@@ -30,7 +31,6 @@ async function requireStaff(request: Request, supabase: SupabaseClient) {
     supabase.from("personal").select("id").eq("id", data.user.id).maybeSingle(),
   ]);
   if (!admin && !staff) throw new Error("Staff access is required");
-  return { userId: data.user.id, role: admin ? "admin" : "staff" };
 }
 
 function errorResponse(error: unknown) {
@@ -42,18 +42,20 @@ export async function GET(request: Request) {
   const requestStartedAt = Date.now();
   const requestUrl = new URL(request.url);
   const requestId = requestUrl.searchParams.get("_request_id") || `server-${requestStartedAt}`;
+  const diagnosticRequestId = randomUUID();
   const debug = (event: string, details: Record<string, unknown> = {}) => {
-    // Never log authorization headers, passwords, email addresses, phone numbers, or tokens.
-    console.info("[client-pickup-debug]", JSON.stringify({ event, request_id: requestId, ...details }));
+    // Diagnostics must contain only aggregate values: never log user input or identifiers.
+    console.info("[client-pickup-debug]", JSON.stringify({ event, request_id: diagnosticRequestId, ...details }));
   };
   try {
     const supabase = adminClient();
-    const actor = await requireStaff(request, supabase);
+    await requireStaff(request, supabase);
     const url = requestUrl;
     const query = url.searchParams.get("query")?.trim() || "";
     const clientId = url.searchParams.get("client_id")?.trim() || "";
     const view = url.searchParams.get("view") || "ready";
-    debug("request", { method: request.method, path: url.pathname, query, client_id: clientId || null, view, actor_id: actor.userId, actor_role: actor.role });
+    const diagnosticView = ["ready", "picked", "way"].includes(view) ? view : "other";
+    debug("request", { method: "GET", view: diagnosticView });
     if (url.searchParams.get("list") === "1") {
       const { data: clients, error: clientListError } = await supabase
         .from("numero_cliente")
@@ -65,7 +67,7 @@ export async function GET(request: Request) {
       return liveJson({ clients: clients || [], checked_at: new Date().toISOString(), request_id: requestId });
     }
     if (query.length < 1 && !clientId) {
-      debug("response", { status: 200, client_id: null, package_count: 0, duration_ms: Date.now() - requestStartedAt });
+      debug("response", { status: 200, package_count: 0, duration_ms: Date.now() - requestStartedAt });
       return liveJson({ client: null, packages: [], checked_at: new Date().toISOString(), request_id: requestId });
     }
 
@@ -78,7 +80,7 @@ export async function GET(request: Request) {
     if (clientError) throw clientError;
     const client = clients?.[0] || null;
     if (!client) {
-      debug("response", { status: 200, client_id: null, matched_client_count: clients?.length || 0, package_count: 0, duration_ms: Date.now() - requestStartedAt });
+      debug("response", { status: 200, matched_client_count: clients?.length || 0, package_count: 0, duration_ms: Date.now() - requestStartedAt });
       return liveJson({ client: null, packages: [], checked_at: new Date().toISOString(), request_id: requestId });
     }
 
@@ -156,22 +158,17 @@ export async function GET(request: Request) {
     const total = pickupSet.length;
     debug("response", {
       status: 200,
-      client_id: client.id,
-      account_number: client.numero_cliente,
       all_package_count: allPackages?.length || 0,
       ferry_row_count: ferryEntries?.length || 0,
       ferry_dispatched_count: ferryDispatchedIds.size,
       ferry_booking_count: ferryBookingByPackageId.size,
       returned_package_count: packages.length,
       returned_pickup_package_count: pickupSet.length,
-      sent_to_ferry_ids: withContainers.filter((item) => item.sent_to_ferry).map((item) => item.id),
-      booked_package_ids: withContainers.filter((item) => item.ferry_booking_confirmed).map((item) => item.id),
-      returned_packages: packages.map((item) => ({ id: item.id, tracking: item.tracking, estado: item.estado, sent_to_ferry: item.sent_to_ferry, ferry_booking_confirmed: item.ferry_booking_confirmed, ferry_booking_number: item.ferry_booking_number || null })),
       duration_ms: Date.now() - requestStartedAt,
     });
     return liveJson({ client, packages, pickup_packages: pickupSet, view, checked_at: new Date().toISOString(), request_id: requestId, summary: { collected, total, pending: Math.max(total - collected, 0) } });
   } catch (error) {
-    debug("error", { message: error instanceof Error ? error.message : "Unexpected error", duration_ms: Date.now() - requestStartedAt });
+    debug("error", { error_type: error instanceof Error ? error.name : "unknown", duration_ms: Date.now() - requestStartedAt });
     return errorResponse(error);
   }
 }
