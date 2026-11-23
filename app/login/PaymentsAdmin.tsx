@@ -151,7 +151,7 @@ export default function PaymentsAdmin<T extends PaymentInvoice>({
   return (
     <section className="payments-workspace" aria-labelledby="payments-workspace-title">
       <style>{`
-        .payments-workspace { color: #0f172a; width:100%; min-width:0; max-width:none; }
+        .payments-workspace { color: #0f172a; width:100%; min-width:0; max-width:none; container-type:inline-size; container-name:payments; }
         .payments-workspace-heading { display:flex; justify-content:space-between; gap:1rem; align-items:flex-start; margin-bottom:1rem; }
         .payments-workspace-heading h2 { margin:0; font-size:1.15rem; }
         .payments-workspace-heading p { margin:.3rem 0 0; color:#64748b; font-size:.88rem; }
@@ -186,7 +186,7 @@ export default function PaymentsAdmin<T extends PaymentInvoice>({
         .payments-workspace .record-payment-btn { border:1px solid #f97316; border-radius:999px; padding:.43rem .75rem; background:#fff7ed; color:#c2410c; font-size:.78rem; font-weight:700; cursor:pointer; white-space:nowrap; }
         .payments-workspace .record-payment-btn:hover { background:#ffedd5; }
         .payments-workspace-empty { padding:2.2rem 1rem; text-align:center; color:#64748b; }
-        @media (max-width: 1100px) {
+        @container payments (max-width: 1100px) {
           .payments-workspace-table-wrap { overflow:visible; border:0; background:transparent; }
           .payments-workspace table { min-width:0; border-collapse:separate; border-spacing:0; }
           .payments-workspace thead { display:none; }
@@ -199,7 +199,7 @@ export default function PaymentsAdmin<T extends PaymentInvoice>({
           .payments-workspace td:last-child { grid-column:1 / -1; background:#f8fafc; }
           .payments-workspace tbody tr:hover td:last-child { background:#f8fafc; }
         }
-        @media (max-width: 640px) {
+        @container payments (max-width: 640px) {
           .payments-workspace tbody tr { grid-template-columns:minmax(0,1fr); }
           .payments-workspace td { grid-template-columns:minmax(92px,.65fr) minmax(0,1.35fr); }
           .payments-workspace td:last-child { grid-column:auto; }

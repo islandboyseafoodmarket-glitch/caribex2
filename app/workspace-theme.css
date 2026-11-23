@@ -233,7 +233,13 @@
 }
 
 .ferry-manifest-banner {
-  background: #ffffff !important;
+  background: #0f3d68 !important;
+  color: #ffffff !important;
+}
+
+.ferry-manifest-heading h2,
+.ferry-manifest-heading p {
+  color: #ffffff !important;
 }
 
 .ferry-manifest-list {

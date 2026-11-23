@@ -346,7 +346,7 @@ const App = () => {
   const [staffLogSearch, setStaffLogSearch] = useState('');
   const [staffLogAction, setStaffLogAction] = useState('ALL');
   const [staffLogsLoading, setStaffLogsLoading] = useState(false);
-  const cargarStaffActionLogs = useCallback(async () => {
+  const cargarStaffActionLogs = useCallback(async (filters?: { action?: string }) => {
     setStaffLogsLoading(true);
     try {
       const { data: sessionData } = await supabase.auth.getSession();
@@ -354,7 +354,8 @@ const App = () => {
       if (!token) return;
       const params = new URLSearchParams({ limit: '300' });
       if (staffLogSearch.trim()) params.set('search', staffLogSearch.trim());
-      if (staffLogAction !== 'ALL') params.set('action', staffLogAction);
+      const actionFilter = filters?.action ?? staffLogAction;
+      if (actionFilter !== 'ALL') params.set('action', actionFilter);
       const response = await fetch(`/api/admin/staff-action-logs?${params.toString()}`, { headers: { Authorization: `Bearer ${token}` } });
       if (!response.ok) throw new Error('Unable to load staff activity logs');
       const payload = await response.json();
@@ -2336,6 +2337,64 @@ const App = () => {
           padding: 24px;
         }
 
+        .data-card--activity {
+          min-width: 0;
+          max-width: 100%;
+          container-type: inline-size;
+        }
+
+        .activity-logs-table-wrap {
+          width: 100%;
+          max-width: 100%;
+          overflow-x: auto;
+          overflow-y: visible;
+          -webkit-overflow-scrolling: touch;
+        }
+
+        .activity-logs-table {
+          width: 100%;
+          min-width: 1180px;
+        }
+
+        @container (max-width: 1180px) {
+          .activity-logs-table-wrap { overflow: visible; }
+          .activity-logs-table { min-width: 0; border-collapse: separate; border-spacing: 0; }
+          .activity-logs-table thead { display: none; }
+          .activity-logs-table tbody { display: grid; gap: .75rem; }
+          .activity-logs-table tbody tr {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            overflow: hidden;
+            border: 1px solid #dbe4ed;
+            border-radius: .8rem;
+            background: #fff;
+          }
+          .activity-logs-table tbody td {
+            display: grid;
+            grid-template-columns: minmax(88px, .55fr) minmax(0, 1.45fr);
+            gap: .5rem;
+            min-width: 0;
+            padding: .62rem .7rem;
+            border: 0;
+            border-top: 1px solid #eef2f7;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+          }
+          .activity-logs-table tbody td::before {
+            content: attr(data-label);
+            color: #64748b;
+            font-size: .75rem;
+            font-weight: 750;
+          }
+          .activity-logs-table tbody td:nth-child(-n+2) { border-top: 0; }
+          .activity-logs-table tbody td:last-child { grid-column: 1 / -1; }
+        }
+
+        @container (max-width: 640px) {
+          .activity-logs-table tbody tr { grid-template-columns: minmax(0, 1fr); }
+          .activity-logs-table tbody td:last-child { grid-column: auto; }
+        }
+
         .card-header-inner {
           display: flex;
           flex-direction: column;
@@ -2874,7 +2933,7 @@ const App = () => {
         {activeTab === 'activityLogs' && <div style={{ width: '100%' }}>
           <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap', marginBottom: '1rem' }}>
             <input value={staffLogSearch} onChange={(event) => setStaffLogSearch(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') void cargarStaffActionLogs(); }} placeholder="Search staff, tracking, customer, table" style={{ minWidth: 280, flex: 1, padding: '0.65rem 0.8rem', border: '1px solid #cbd5e1', borderRadius: '0.6rem' }} />
-            <select value={staffLogAction} onChange={(event) => { setStaffLogAction(event.target.value); }} style={{ padding: '0.65rem 0.8rem', border: '1px solid #cbd5e1', borderRadius: '0.6rem' }}>
+            <select value={staffLogAction} onChange={(event) => { const action = event.target.value; setStaffLogAction(action); void cargarStaffActionLogs({ action }); }} style={{ padding: '0.65rem 0.8rem', border: '1px solid #cbd5e1', borderRadius: '0.6rem' }}>
               <option value="ALL">All actions</option>
               <option value="insert">Created</option>
               <option value="update">Updated</option>
@@ -2884,10 +2943,30 @@ const App = () => {
             </select>
             <button type="button" className="pa-primary-btn" onClick={() => void cargarStaffActionLogs()} disabled={staffLogsLoading}>{staffLogsLoading ? 'Loading…' : 'Refresh logs'}</button>
           </div>
-          {staffActionLogs.length === 0 ? <p style={{ padding: '1.5rem', color: '#64748b' }}>{staffLogsLoading ? 'Loading staff activity…' : 'No staff activity has been recorded yet.'}</p> : <div style={{ overflowX: 'auto' }}><table className="admin-table" style={{ minWidth: 1180, width: '100%' }}><thead><tr><th>Date</th><th>Staff Member</th><th>Action</th><th>Area</th><th>Shipment / Customer</th><th>Result</th><th>What Changed</th></tr></thead><tbody>{staffActionLogs.map((log) => { const changes = auditChangeLines(log); const actor = log.actor_name || log.actor_email || 'Unknown Staff'; const role = log.actor_role ? String(log.actor_role).replace(/^./, (letter) => letter.toUpperCase()) : 'Unknown Role'; return <tr key={log.id}><td>{formatStaffDateTime(log.created_at)}</td><td><strong>{actor}</strong><br /><small>{role}</small>{log.actor_email && <><br /><small>{log.actor_email}</small></>}</td><td>{auditActionLabel(log.action)}</td><td>{log.entity_type}</td><td>{log.tracking || log.customer_name || log.entity_id || '-'}</td><td><span style={{ color: log.success ? '#166534' : '#b91c1c', fontWeight: 700 }}>{log.success ? 'Success' : 'Failed'}</span>{log.error_message && <><br /><small>{log.error_message}</small></>}</td><td>{changes.length ? changes.map((change) => <div key={change} style={{ whiteSpace: 'pre-wrap' }}>{change}</div>) : <span style={{ color: '#64748b' }}>No tracked field changes</span>}</td></tr>; })}</tbody></table></div>}
+          {staffActionLogs.length === 0 ? <p style={{ padding: '1.5rem', color: '#64748b' }}>{staffLogsLoading ? 'Loading staff activity…' : 'No staff activity has been recorded yet.'}</p> : (
+            <div className="activity-logs-table-wrap" tabIndex={0} role="region" aria-label="Staff activity log table; scroll horizontally to view all columns on wider screens">
+              <table className="admin-table activity-logs-table">
+                <thead><tr><th>Date</th><th>Staff Member</th><th>Action</th><th>Area</th><th>Shipment / Customer</th><th>Result</th><th>What Changed</th></tr></thead>
+                <tbody>{staffActionLogs.map((log) => {
+                  const changes = auditChangeLines(log);
+                  const actor = log.actor_name || log.actor_email || 'Unknown Staff';
+                  const role = log.actor_role ? String(log.actor_role).replace(/^./, (letter) => letter.toUpperCase()) : 'Unknown Role';
+                  return <tr key={log.id}>
+                    <td data-label="Date">{formatStaffDateTime(log.created_at)}</td>
+                    <td data-label="Staff Member"><strong>{actor}</strong><br /><small>{role}</small>{log.actor_email && <><br /><small>{log.actor_email}</small></>}</td>
+                    <td data-label="Action">{auditActionLabel(log.action)}</td>
+                    <td data-label="Area">{log.entity_type}</td>
+                    <td data-label="Shipment / Customer">{log.tracking || log.customer_name || log.entity_id || '-'}</td>
+                    <td data-label="Result"><span style={{ color: log.success ? '#166534' : '#b91c1c', fontWeight: 700 }}>{log.success ? 'Success' : 'Failed'}</span>{log.error_message && <><br /><small>{log.error_message}</small></>}</td>
+                    <td data-label="What Changed">{changes.length ? changes.map((change) => <div key={change} style={{ whiteSpace: 'pre-wrap' }}>{change}</div>) : <span style={{ color: '#64748b' }}>No tracked field changes</span>}</td>
+                  </tr>;
+                })}</tbody>
+              </table>
+            </div>
+          )}
         </div>}
 
-        {activeTab === 'ferry' && <FerryManifestAdmin />}
+        {activeTab === 'ferry' && <FerryManifestAdmin showBanner={false} />}
 
         {activeTab === 'dispatches' && <DispatchesAdmin />}
 

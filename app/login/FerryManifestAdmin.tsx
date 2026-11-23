@@ -37,7 +37,7 @@ function arrivalDateLabel(value: string) {
   return new Intl.DateTimeFormat("en-US", { month: "numeric", day: "numeric", year: "numeric" }).format(new Date(value));
 }
 
-export default function FerryManifestAdmin() {
+export default function FerryManifestAdmin({ showBanner = true }: { showBanner?: boolean }) {
   const [containers, setContainers] = useState<Container[]>([]);
   const [manifests, setManifests] = useState<Manifest[]>([]);
   const [selectedContainer, setSelectedContainer] = useState("");
@@ -303,13 +303,13 @@ export default function FerryManifestAdmin() {
 
   return (
     <div className="ferry-manifest-admin">
-      <header className="ferry-manifest-banner">
+      {showBanner && <header className="ferry-manifest-banner">
         <span className="ferry-manifest-brand-mark" aria-hidden="true"><Ship size={22} /></span>
         <div className="ferry-manifest-heading">
           <h2>Ferry manifests</h2>
           <p>Create, manage, and share shipment manifests.</p>
         </div>
-      </header>
+      </header>}
 
       <div className="ferry-manifest-email-note">Customer confirmation emails are sent after a booking number is submitted. Dispatches shows the same manifest entries after the scanner marks a shipment as dispatched; creating a manifest alone does not add a Dispatches row. No email is sent for a row marked <strong>NO</strong>.</div>
       <details className="ferry-manifest-instructions">
