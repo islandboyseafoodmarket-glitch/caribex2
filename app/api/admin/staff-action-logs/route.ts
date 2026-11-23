@@ -48,8 +48,22 @@ export async function GET(request: Request) {
       .select("id, actor_id, actor_name, actor_email, actor_role, action, entity_type, entity_id, tracking, customer_name, customer_account_number, success, error_message, details, ip_address, user_agent, created_at")
       .order("created_at", { ascending: false })
       .limit(limit);
-    if (action && action !== "ALL") query = query.eq("action", action);
-    if (search) {
+    if (action && action !== "ALL") {
+      const categoryFilters: Record<string, string[]> = {
+        insert: ["action.eq.insert", "action.eq.create", "action.ilike.*_created", "action.ilike.*_added"],
+        update: ["action.eq.update", "action.eq.updated", "action.ilike.*_updated", "action.ilike.*_changed", "action.ilike.*_change*", "action.ilike.*_toggled"],
+        delete: ["action.eq.delete", "action.ilike.*_deleted"],
+        login: ["action.eq.login", "action.eq.access", "action.ilike.login_*", "action.ilike.*_login", "action.ilike.*_access*"],
+        send_invoice: ["action.eq.send_invoice", "action.eq.invoice_sent", "action.ilike.*_invoice_sent"],
+      };
+      const filters = categoryFilters[action];
+      if (filters && search) {
+        const escaped = search.replace(/,/g, " ");
+        const searchFilters = `actor_name.ilike.%${escaped}%,actor_email.ilike.%${escaped}%,tracking.ilike.%${escaped}%,customer_name.ilike.%${escaped}%,entity_type.ilike.%${escaped}%`;
+        query = query.or(`and(or(${filters.join(",")}),or(${searchFilters}))`);
+      } else if (filters) query = query.or(filters.join(","));
+      else query = query.eq("action", action);
+    } else if (search) {
       const escaped = search.replace(/,/g, " ");
       query = query.or(`actor_name.ilike.%${escaped}%,actor_email.ilike.%${escaped}%,tracking.ilike.%${escaped}%,customer_name.ilike.%${escaped}%,entity_type.ilike.%${escaped}%`);
     }
