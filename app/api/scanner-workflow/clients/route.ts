@@ -44,7 +44,8 @@ export async function GET(request: Request) {
   const requestId = requestUrl.searchParams.get("_request_id") || `server-${requestStartedAt}`;
   const diagnosticRequestId = randomUUID();
   const debug = (event: string, details: Record<string, unknown> = {}) => {
-    // Diagnostics must contain only aggregate values: never log user input or identifiers.
+    // Shipment IDs and tracking are logged for incident correlation; never log customer/staff
+    // names, contact details, account numbers, raw search input, or authentication data.
     console.info("[client-pickup-debug]", JSON.stringify({ event, request_id: diagnosticRequestId, ...details }));
   };
   try {
@@ -156,6 +157,26 @@ export async function GET(request: Request) {
     const pickupSet = withContainers.filter((item) => isReadyForPickup(item) || isPickedUp(item));
     const collected = pickupSet.filter((item) => isPickedUp(item)).length;
     const total = pickupSet.length;
+    const returnedPackageIds = new Set(packages.map((item) => item.id));
+    const pickupItemById = new Map(withContainers.map((item) => [item.id, item]));
+    const diagnosticShipments = (allPackages || []).slice(0, 200).map((item) => {
+      const pickupItem = pickupItemById.get(item.id);
+      return {
+        shipment_id: item.id,
+        tracking: item.tracking,
+        status: item.estado,
+        excluded_as_consolidated_child: consolidatedChildIds.has(item.id),
+        excluded_as_invoice_only: isInvoiceOnlyShipment(item),
+        excluded_as_archived: isArchivedShipment(item),
+        in_pickup_candidates: Boolean(pickupItem),
+        ready_for_pickup: pickupItem ? isReadyForPickup(pickupItem) : false,
+        picked_up: pickupItem ? isPickedUp(pickupItem) : false,
+        in_transit: pickupItem ? isInTransitShipment(pickupItem) : false,
+        sent_to_ferry: pickupItem?.sent_to_ferry || false,
+        ferry_booking_confirmed: pickupItem?.ferry_booking_confirmed || false,
+        returned_in_requested_view: returnedPackageIds.has(item.id),
+      };
+    });
     debug("response", {
       status: 200,
       all_package_count: allPackages?.length || 0,
@@ -164,6 +185,9 @@ export async function GET(request: Request) {
       ferry_booking_count: ferryBookingByPackageId.size,
       returned_package_count: packages.length,
       returned_pickup_package_count: pickupSet.length,
+      diagnostic_shipment_count: diagnosticShipments.length,
+      diagnostic_shipments_truncated: (allPackages?.length || 0) > diagnosticShipments.length,
+      shipment_diagnostics: diagnosticShipments,
       duration_ms: Date.now() - requestStartedAt,
     });
     return liveJson({ client, packages, pickup_packages: pickupSet, view, checked_at: new Date().toISOString(), request_id: requestId, summary: { collected, total, pending: Math.max(total - collected, 0) } });
