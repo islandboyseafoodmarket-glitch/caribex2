@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import Link from "next/link";
 import { useTranslation } from "react-i18next";
+import { supabase } from "../lib/supabaseClient";
 
 import {
   DollarSign,
@@ -41,7 +42,7 @@ const App = ({ onOpenBuilderRate }: FCLProps) => {
   const [attachment, setAttachment] = useState<File | null>(null);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submitStatus, setSubmitStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [submitStatus, setSubmitStatus] = useState<'idle' | 'success' | 'saved' | 'error'>('idle');
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     setFormData({
@@ -58,10 +59,34 @@ const App = ({ onOpenBuilderRate }: FCLProps) => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     setIsSubmitting(true);
     setSubmitStatus('idle');
 
     try {
+      const leadMessage = `FCL quotation request\n\n${[
+        `Phone: ${formData.phone}`,
+        `Company: ${formData.company || 'Not provided'}`,
+        `Origin: ${formData.origin}`,
+        `Destination: ${formData.destination}`,
+        `Program: ${formData.program || 'Standard FCL quotation'}`,
+        `Container type: ${formData.containerType}`,
+        `Cargo description: ${formData.cargoDescription}`,
+        `Weight (kg): ${formData.weight || 'Not provided'}`,
+        `Volume (m³): ${formData.volume || 'Not provided'}`,
+        `Incoterms: ${formData.incoterms || 'Not provided'}`,
+        `Additional information: ${formData.additionalInfo || 'None'}`,
+        `Attachment: ${attachment?.name || 'None'}`,
+      ].join('\n')}`;
+      const { error: leadError } = await supabase.from('customer_leads').insert({
+        nombre: formData.name.trim(),
+        email: formData.email.trim(),
+        mensaje: leadMessage,
+        asunto: 'FCL Quote Request',
+        fuente: 'landing_page_fcl_quote',
+      });
+      if (leadError) throw leadError;
+
       const formDataToSend = new FormData();
       formDataToSend.append('access_key', 'a9902180-bd09-42e8-a283-4b4033c7ef5d');
       formDataToSend.append('subject', `FCL Quotation Request - ${formData.name}`);
@@ -95,33 +120,35 @@ ${formData.additionalInfo}
         formDataToSend.append('attachment', attachment);
       }
 
-      const response = await fetch('https://api.web3forms.com/submit', {
-        method: 'POST',
-        body: formDataToSend,
-      });
-
-      if (response.ok) {
-        setSubmitStatus('success');
-        setFormData({
-          name: '',
-          email: '',
-          phone: '',
-          company: '',
-          origin: '',
-          destination: '',
-          program: '',
-          containerType: '',
-          cargoDescription: '',
-          weight: '',
-          volume: '',
-          incoterms: '',
-          additionalInfo: ''
+      let notificationSent = false;
+      try {
+        const response = await fetch('https://api.web3forms.com/submit', {
+          method: 'POST',
+          body: formDataToSend,
         });
-        setAttachment(null);
-      } else {
-        setSubmitStatus('error');
+        notificationSent = response.ok;
+      } catch {
+        notificationSent = false;
       }
-    } catch (error) {
+
+      setSubmitStatus(notificationSent ? 'success' : 'saved');
+      setFormData({
+        name: '',
+        email: '',
+        phone: '',
+        company: '',
+        origin: '',
+        destination: '',
+        program: '',
+        containerType: '',
+        cargoDescription: '',
+        weight: '',
+        volume: '',
+        incoterms: '',
+        additionalInfo: ''
+      });
+      setAttachment(null);
+    } catch {
       setSubmitStatus('error');
     } finally {
       setIsSubmitting(false);
@@ -342,7 +369,13 @@ ${formData.additionalInfo}
           
           {submitStatus === 'success' && (
             <div style={styles.successMessage}>
-              {isEn ? 'Quote request sent successfully!' : '¡Solicitud de cotización enviada exitosamente!'}
+              {isEn ? 'Quote request received successfully!' : '¡Solicitud de cotización recibida exitosamente!'}
+            </div>
+          )}
+
+          {submitStatus === 'saved' && (
+            <div role="status" style={{ ...styles.successMessage, backgroundColor: '#b45309' }}>
+              {isEn ? 'Your quote is saved in Admin Leads. The email notification did not send; you do not need to resubmit.' : 'Su cotización se guardó en Leads de Admin. No se envió la notificación por correo; no necesita volver a enviarla.'}
             </div>
           )}
           

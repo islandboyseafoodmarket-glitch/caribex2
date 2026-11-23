@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import Link from "next/link";
 import { useTranslation } from "react-i18next";
+import { supabase } from "../lib/supabaseClient";
 
 import {
   DollarSign,
@@ -18,31 +19,11 @@ const App = () => {
   const { i18n } = useTranslation();
   const isEn = i18n.language.startsWith("en");
 
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    phone: '',
-    company: '',
-    origin: '',
-    destination: '',
-    cargoDescription: '',
-    volume: '',
-    weight: '',
-    incoterms: '',
-    additionalInfo: ''
-  });
-
   const [attachment, setAttachment] = useState<File | null>(null);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submitStatus, setSubmitStatus] = useState<'idle' | 'success' | 'error'>('idle');
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    });
-  };
+  const [submitStatus, setSubmitStatus] = useState<'idle' | 'success' | 'saved' | 'error'>('idle');
+  const [formResetKey, setFormResetKey] = useState(0);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -50,68 +31,58 @@ const App = () => {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (isSubmitting) return;
     setIsSubmitting(true);
     setSubmitStatus('idle');
 
     try {
-      const formDataToSend = new FormData();
-      formDataToSend.append('access_key', 'a9902180-bd09-42e8-a283-4b4033c7ef5d');
-      formDataToSend.append('subject', `LCL Quotation Request - ${formData.name}`);
-      formDataToSend.append('from_name', formData.name);
-      formDataToSend.append('reply_to', formData.email);
-      
-      const message = `
-LCL Quotation Request Details:
+      const form = e.currentTarget;
+      const values = new FormData(form);
+      const name = String(values.get('full_name') || '').trim();
+      const email = String(values.get('email') || '').trim();
+      const message = `LCL quotation request\n\n${[
+        `Phone: ${String(values.get('phone') || 'Not provided')}`,
+        `Company: ${String(values.get('company') || 'Not provided')}`,
+        `Origin: ${String(values.get('origin_port') || '')}`,
+        `Destination: ${String(values.get('destination_port') || '')}`,
+        `Cargo description: ${String(values.get('cargo_type') || 'Not provided')}`,
+        `Approximate total weight (kg): ${String(values.get('weight_kg') || '')}`,
+        `Additional notes: ${String(values.get('additional_notes') || 'None')}`,
+        `Attachment: ${attachment?.name || 'None'}`,
+      ].join('\n')}`;
 
-Name: ${formData.name}
-Email: ${formData.email}
-Phone: ${formData.phone}
-Company: ${formData.company}
-
-Origin: ${formData.origin}
-Destination: ${formData.destination}
-Cargo Description: ${formData.cargoDescription}
-Volume: ${formData.volume}
-Weight: ${formData.weight}
-Incoterms: ${formData.incoterms}
-
-Additional Information:
-${formData.additionalInfo}
-      `.trim();
-      
-      formDataToSend.append('message', message);
-      
-      if (attachment) {
-        formDataToSend.append('attachment', attachment);
-      }
-
-      const response = await fetch('https://api.web3forms.com/submit', {
-        method: 'POST',
-        body: formDataToSend,
+      const { error: leadError } = await supabase.from('customer_leads').insert({
+        nombre: name,
+        email,
+        mensaje: message,
+        asunto: 'LCL Quote Request',
+        fuente: 'landing_page_lcl_quote',
       });
+      if (leadError) throw leadError;
 
-      if (response.ok) {
-        setSubmitStatus('success');
-        setFormData({
-          name: '',
-          email: '',
-          phone: '',
-          company: '',
-          origin: '',
-          destination: '',
-          cargoDescription: '',
-          volume: '',
-          weight: '',
-          incoterms: '',
-          additionalInfo: ''
+      const notificationData = new FormData(form);
+      notificationData.set('from_name', name);
+      notificationData.set('reply_to', email);
+      if (attachment) notificationData.append('attachment', attachment);
+
+      let notificationSent = false;
+      try {
+        const response = await fetch('https://api.web3forms.com/submit', {
+          method: 'POST',
+          body: notificationData,
         });
-        setAttachment(null);
-      } else {
-        setSubmitStatus('error');
+        notificationSent = response.ok;
+      } catch {
+        notificationSent = false;
       }
-    } catch (error) {
+
+      setSubmitStatus(notificationSent ? 'success' : 'saved');
+      form.reset();
+      setFormResetKey((current) => current + 1);
+      setAttachment(null);
+    } catch {
       setSubmitStatus('error');
     } finally {
       setIsSubmitting(false);
@@ -626,9 +597,12 @@ ${formData.additionalInfo}
               : "Completa el siguiente formulario y nuestro equipo te enviará una cotización basada en los detalles específicos de tu carga fraccionada."}
           </p>
 
+          {submitStatus === 'success' && <div role="status" style={{ padding: '12px', marginBottom: '16px', borderRadius: '8px', background: '#10b981', color: '#fff' }}>{isEn ? 'Quote request received successfully!' : '¡Solicitud de cotización recibida exitosamente!'}</div>}
+          {submitStatus === 'saved' && <div role="status" style={{ padding: '12px', marginBottom: '16px', borderRadius: '8px', background: '#b45309', color: '#fff' }}>{isEn ? 'Your quote is saved in Admin Leads. The email notification did not send; you do not need to resubmit.' : 'Su cotización se guardó en Leads de Admin. No se envió la notificación por correo; no necesita volver a enviarla.'}</div>}
+          {submitStatus === 'error' && <div role="alert" style={{ padding: '12px', marginBottom: '16px', borderRadius: '8px', background: '#ef4444', color: '#fff' }}>{isEn ? 'We could not save your quote request. Please try again.' : 'No pudimos guardar su solicitud de cotización. Inténtelo de nuevo.'}</div>}
+
           <form
-            method="POST"
-            action="https://api.web3forms.com/submit"
+            onSubmit={handleSubmit}
             style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}
           >
             <input
@@ -681,6 +655,7 @@ ${formData.additionalInfo}
 
             <div style={styles.grid}>
               <PhoneCountryField
+                key={formResetKey}
                 name="phone"
                 label={isEn ? "Phone" : "Teléfono"}
                 required
@@ -877,6 +852,7 @@ ${formData.additionalInfo}
 
             <button
               type="submit"
+              disabled={isSubmitting}
               style={{
                 marginTop: '8px',
                 padding: '14px 20px',
@@ -886,10 +862,11 @@ ${formData.additionalInfo}
                 color: '#fff',
                 fontWeight: '700',
                 fontSize: '1rem',
-                cursor: 'pointer',
+                cursor: isSubmitting ? 'not-allowed' : 'pointer',
+                opacity: isSubmitting ? 0.7 : 1,
               }}
             >
-              {isEn ? "Request LCL quote" : "Solicitar cotización LCL"}
+              {isSubmitting ? (isEn ? "Sending…" : "Enviando…") : isEn ? "Request LCL quote" : "Solicitar cotización LCL"}
             </button>
           </form>
         </section>
