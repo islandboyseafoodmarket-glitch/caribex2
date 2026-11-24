@@ -258,6 +258,8 @@ const App = () => {
     tracking: string;
     clienteNumero: number | null;
     clienteNombre: string | null;
+    clienteEmail?: string | null;
+    clienteTelefono?: string | null;
     estado: string | null;
     invoice_status?: string | null;
     carrier?: string | null;
@@ -446,14 +448,9 @@ const App = () => {
       const approval = (f.approval_status || '').toUpperCase();
       const invoice = (f.invoice_status || '').toUpperCase();
       const searchTerm = normalizeSearch(invoiceSearch);
-      const customerName = normalizeSearch(f.clienteNombre);
-      const customerNameMatches = searchTerm.length > 0 && customerName.includes(searchTerm);
-      const anyCustomerNameMatches = searchTerm.length > 0 && facturas.some((invoice) => normalizeSearch(invoice.clienteNombre).includes(searchTerm));
       const matchesSearch =
         !searchTerm ||
-        (anyCustomerNameMatches
-          ? customerNameMatches
-          : [f.clienteNumero, f.clienteEmail, f.tracking].some((value) => normalizeSearch(value).includes(searchTerm)));
+        [f.clienteNombre, f.clienteNumero, f.clienteEmail, f.tracking].some((value) => normalizeSearch(value).includes(searchTerm));
       const matchesContainer = invoiceContainerFilter === "ALL" || f.containerIds.includes(invoiceContainerFilter);
 
       if (activeInvoiceTab === 'sinAprobar') {
@@ -486,10 +483,11 @@ const App = () => {
   const [financeContainer, setFinanceContainer] = useState("ALL");
   const [financeStatusFilter, setFinanceStatusFilter] = useState<"ALL" | "PAID" | "OUTSTANDING">("ALL");
   const financeRows = useMemo(() => facturas.filter((invoice) => {
-    const date = invoice.creado_en ? invoice.creado_en.slice(0, 10) : "";
+    const paymentDate = invoice.payment_date ? invoice.payment_date.slice(0, 10) : "";
     const search = financeCustomer.trim().toLowerCase();
     const customerMatches = !search || [invoice.clienteNombre, invoice.clienteEmail, invoice.clienteNumero, invoice.tracking].some((value) => String(value ?? "").toLowerCase().includes(search));
-    return customerMatches && (financePort === "ALL" || (invoice.puerto || "Unknown") === financePort) && (financeContainer === "ALL" || invoice.containerIds.includes(financeContainer)) && (!financeDateFrom || date >= financeDateFrom) && (!financeDateTo || date <= financeDateTo);
+    const hasPaymentDateInRange = (!financeDateFrom && !financeDateTo) || Boolean(paymentDate && (!financeDateFrom || paymentDate >= financeDateFrom) && (!financeDateTo || paymentDate <= financeDateTo));
+    return customerMatches && (financePort === "ALL" || (invoice.puerto || "Unknown") === financePort) && (financeContainer === "ALL" || invoice.containerIds.includes(financeContainer)) && hasPaymentDateInRange;
   }), [facturas, financeCustomer, financePort, financeContainer, financeDateFrom, financeDateTo]);
   const financeTotals = useMemo(() => ({
     invoiced: financeRows.reduce((sum, invoice) => sum + Number(invoice.total || 0), 0),
@@ -1374,7 +1372,7 @@ const App = () => {
     const { data, error } = await supabase
       .from("paquetes_registro")
       .select(
-        "id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, notas_imagenes, estado, invoice_status, issue_status, cubic_feet, prepaid_review_required, prepaid_review_status, numero_cliente:numero_cliente_id (id, numero_cliente, nombre), numero_cliente_id, registro, descargado, entregado_por, hora_fecha, fecha_descargado, hora_descargado, fecha_entregado, hora_entregado",
+        "id, tracking, nombre_paqueteria, tipo_paquete, contenido, notas, notas_imagenes, estado, invoice_status, issue_status, cubic_feet, prepaid_review_required, prepaid_review_status, numero_cliente:numero_cliente_id (id, numero_cliente, nombre, email, telefono), numero_cliente_id, registro, descargado, entregado_por, hora_fecha, fecha_descargado, hora_descargado, fecha_entregado, hora_entregado",
       )
       .order("creado_en", { ascending: false });
 
@@ -1413,6 +1411,8 @@ const App = () => {
         tracking: (row.tracking as string) || "-",
         clienteNumero: row.numero_cliente?.numero_cliente ?? null,
         clienteNombre: row.numero_cliente?.nombre ?? null,
+        clienteEmail: row.numero_cliente?.email ?? null,
+        clienteTelefono: row.numero_cliente?.telefono ?? null,
         estado: (row.estado as string) || null,
         invoice_status: (row.invoice_status as string | null) ?? null,
         carrier: row.nombre_paqueteria || null,
@@ -3655,7 +3655,7 @@ const App = () => {
                 </select>
               </div>
               <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', width: '100%' }}>
-                {SHIPMENT_STAGE_OPTIONS.map(([value, label]) => <button key={value} type="button" onClick={() => setPedidoEtapa(value)} style={{ border: pedidoEtapa === value ? '1px solid #2563eb' : '1px solid #e2e8f0', background: pedidoEtapa === value ? '#eff6ff' : '#fff', color: pedidoEtapa === value ? '#1d4ed8' : '#475569', borderRadius: '999px', padding: '0.25rem 0.55rem', fontSize: '0.74rem', cursor: 'pointer' }}>{label}{value !== 'ALL' ? ` (${pedidos.filter((p) => shipmentStage(p.estado) === value).length})` : ` (${pedidos.length})`}</button>)}
+                {SHIPMENT_STAGE_OPTIONS.map(([value, label]) => <button key={value} type="button" onClick={() => setPedidoEtapa(value)} style={{ border: pedidoEtapa === value ? '1px solid #2563eb' : '1px solid #e2e8f0', background: pedidoEtapa === value ? '#eff6ff' : '#fff', color: pedidoEtapa === value ? '#1d4ed8' : '#475569', borderRadius: '999px', padding: '0.25rem 0.55rem', fontSize: '0.74rem', cursor: 'pointer' }}>{label}{value !== 'ALL' ? ` (${pedidos.filter((p) => trackPackageStage(p) === value).length})` : ` (${pedidos.length})`}</button>)}
               </div>
             </div>
 
@@ -3685,9 +3685,12 @@ const App = () => {
                   const term = pedidoFiltro.trim().toLowerCase();
                   const num = p.clienteNumero != null ? String(p.clienteNumero) : "";
                   const name = p.clienteNombre ? p.clienteNombre.toLowerCase() : "";
+                  const email = p.clienteEmail ? p.clienteEmail.toLowerCase() : "";
+                  const phoneDigits = String(p.clienteTelefono || "").replace(/\D/g, "");
+                  const searchPhoneDigits = term.replace(/\D/g, "");
                   const tracking = p.tracking ? String(p.tracking).toLowerCase() : "";
-                  const matchesCustomer = !term || tracking.includes(term) || num.includes(term) || name.includes(term);
-                  const matchesStage = pedidoEtapa === "ALL" || shipmentStage(p.estado) === pedidoEtapa;
+                  const matchesCustomer = !term || tracking.includes(term) || num.includes(term) || name.includes(term) || email.includes(term) || (searchPhoneDigits.length >= 3 && phoneDigits.includes(searchPhoneDigits));
+                  const matchesStage = pedidoEtapa === "ALL" || trackPackageStage(p) === pedidoEtapa;
                   return matchesCustomer && matchesStage;
                 })
                 .map((p) => {
