@@ -28,13 +28,14 @@ export async function GET() {
   return NextResponse.json(
     {
       app: "Caribex Warehouse Management",
-      version: "1.2.52",
-      version_code: 1269,
-      apk_url: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663449196187/IKiOMSDWhKWfXhcu.apk",
-      filename: "Caribex-Warehouse-Management-1.2.52.apk",
-      apk_sha256: "3eb607256a9cce1f6f7f7f22fa25313f367682f29df4480bfcf20da5511678e7",
+      version: "1.2.53",
+      version_code: 1273,
+      apk_url: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663449196187/RckCXCqcBRqbKDqh.apk",
+      filename: "Caribex-Warehouse-Management-1.2.53.apk",
+      apk_sha256: "5da12c589a19a5385db163ecd867169a0d5075449b2031bf68a2365d4ec8e5e1",
       release_notes: releaseNotes,
       release_history: [
+        { version: "1.2.53", version_code: 1273, release_notes: releaseNotes },
         { version: "1.2.52", version_code: 1269, release_notes: releaseNotes },
         { version: "1.2.51", version_code: 1264, release_notes: releaseNotes },
         { version: "1.2.50", version_code: 1262, release_notes: releaseNotes },
