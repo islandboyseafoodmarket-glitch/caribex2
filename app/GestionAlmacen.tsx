@@ -4844,7 +4844,7 @@ const handlePackageCreated = (pkg: Package) => {
 
       {isInvoiceModalOpen && invoicePackage && (
         <div className="ga-modal-backdrop" role="dialog" aria-modal="true">
-          <div className="ga-modal ga-modal-large">
+          <div className="ga-modal ga-modal-large" style={{ width: "min(1100px, calc(100vw - 2rem))", maxWidth: "calc(100vw - 2rem)" }}>
             <div className="ga-modal-header">
               <div>
                 <h4>Invoice</h4>
@@ -4858,7 +4858,7 @@ const handlePackageCreated = (pkg: Package) => {
               </button>
             </div>
 
-            <div className="ga-modal-body">
+            <div className="ga-modal-body" style={{ minWidth: 0, overflowX: "auto" }}>
               {isAdmin && (
                 <div className="ga-invoice-editor" style={{ marginBottom: "1rem" }}>
                   <div>

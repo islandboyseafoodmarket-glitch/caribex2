@@ -200,6 +200,8 @@ const InvoicePreview: React.FC<InvoicePreviewProps> = ({
           display: "flex",
           justifyContent: "space-between",
           alignItems: "flex-start",
+          flexWrap: "wrap",
+          gap: 16,
           marginBottom: 24,
         }}
       >
@@ -220,7 +222,7 @@ const InvoicePreview: React.FC<InvoicePreviewProps> = ({
           </div>
         </div>
 
-        <div style={{ textAlign: "right", fontSize: 12, color: "#4b5563" }}>
+        <div style={{ textAlign: "right", fontSize: 12, color: "#4b5563", marginLeft: "auto" }}>
           <div>Date of service</div>
           <div style={{ fontWeight: 600 }}>{formatServiceDate(serviceDate)}</div>
         </div>
@@ -247,7 +249,7 @@ const InvoicePreview: React.FC<InvoicePreviewProps> = ({
       <section
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))",
+          gridTemplateColumns: "repeat(auto-fit, minmax(min(230px, 100%), 1fr))",
           gap: 20,
           marginBottom: 24,
           fontSize: 13,
