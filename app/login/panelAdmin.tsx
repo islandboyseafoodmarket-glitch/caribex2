@@ -23,7 +23,7 @@ import ExpensesAdmin from "./ExpensesAdmin";
 import { formatStaffDateTime } from "../../lib/staff-date-format";
 import InvoicePreview, { type InvoicePreviewProps } from "../../components/InvoicePreview";
 import InvoiceViewModal, { type InvoiceViewData } from "../../components/InvoiceViewModal";
-import { BILLABLE_INVOICE_ITEMS, SALES_TAX_RATE, formatCatalogCharge, roundMoney } from "../../lib/invoice-pricing";
+import { BILLABLE_INVOICE_ITEMS, INVOICE_DISCOUNTS, SALES_TAX_RATE, formatCatalogCharge, roundMoney } from "../../lib/invoice-pricing";
 import { INVOICE_FILTER_COLORS, tabColorStyle } from "../../lib/shipment-colors";
 import { FERRY_PORT_LABELS, FERRY_PORT_ORDER } from "../../lib/shipping-rules";
 import { CARIBEX_LABEL_TAB_VERSION } from "../../lib/caribex-label-version";
@@ -3937,6 +3937,18 @@ const App = () => {
             <div className="pa-field">
               <label htmlFor="admin-invoice-charge-amount">Amount</label>
               <input id="admin-invoice-charge-amount" className="pa-input" type="number" min="0.01" step="0.01" value={invoiceAddOnAmount} onChange={(event) => setInvoiceAddOnAmount(event.target.value)} placeholder="0.00" />
+            </div>
+            <div style={{ marginTop: "0.9rem", padding: "0.8rem 0.9rem", border: "1px solid #dbeafe", borderRadius: "0.7rem", background: "#eff6ff" }}>
+              <div style={{ fontWeight: 700, color: "#1e3a8a", fontSize: "0.85rem", marginBottom: "0.45rem" }}>Available discounts</div>
+              <div style={{ display: "grid", gap: "0.25rem", color: "#334155", fontSize: "0.8rem" }}>
+                {Object.values(INVOICE_DISCOUNTS).map((discount) => (
+                  <div key={discount.label} style={{ display: "flex", justifyContent: "space-between", gap: "0.75rem" }}>
+                    <span>{discount.label}</span>
+                    <strong>{Math.round(discount.rate * 100)}%</strong>
+                  </div>
+                ))}
+              </div>
+              <p style={{ margin: "0.55rem 0 0", color: "#64748b", fontSize: "0.75rem" }}>Discounts are applied by an administrator and may be limited to eligible invoice or shipping amounts.</p>
             </div>
             <div className="pa-modal-actions">
               <button type="button" className="pa-secondary-btn" onClick={() => setEditingInvoiceAddOns(null)}>Cancel</button>
