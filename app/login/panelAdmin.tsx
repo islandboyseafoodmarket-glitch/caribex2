@@ -416,6 +416,7 @@ const App = () => {
   const [editingInvoiceAddOns, setEditingInvoiceAddOns] = useState<Factura | null>(null);
   const [invoiceAddOnType, setInvoiceAddOnType] = useState("");
   const [invoiceAddOnAmount, setInvoiceAddOnAmount] = useState("");
+  const [invoiceDiscountCode, setInvoiceDiscountCode] = useState<keyof typeof INVOICE_DISCOUNTS | "">("");
   const [invoiceSearch, setInvoiceSearch] = useState("");
   const [invoiceContainerFilter, setInvoiceContainerFilter] = useState("ALL");
   const [isManualInvoiceOpen, setIsManualInvoiceOpen] = useState(false);
@@ -1712,11 +1713,26 @@ const App = () => {
     if (!checkin) { alert("No check-in record exists for this invoice yet."); return; }
     setInvoiceAddOnType("");
     setInvoiceAddOnAmount("");
+    setInvoiceDiscountCode("");
     setEditingInvoiceAddOns(factura);
   };
 
   const saveAdminInvoiceAddOn = async () => {
     if (!editingInvoiceAddOns || !invoiceAddOnType) return;
+    if (invoiceAddOnType === "Discount") {
+      if (!invoiceDiscountCode) { alert("Select a discount and percentage."); return; }
+      const { data: sessionData } = await supabase.auth.getSession();
+      const response = await fetch("/api/invoice-catalog", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${sessionData.session?.access_token || ""}` },
+        body: JSON.stringify({ shipment_id: editingInvoiceAddOns.id, discount_action: "apply", discount_code: invoiceDiscountCode }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) { alert(payload.error || "Could not apply the discount."); return; }
+      updateFacturaEnEstado(editingInvoiceAddOns.id, { subtotal: Number(payload.subtotal), tax: Number(payload.tax), total: Number(payload.total) });
+      setEditingInvoiceAddOns(null);
+      return;
+    }
     const amount = Number(invoiceAddOnAmount);
     if (!Number.isFinite(amount) || amount <= 0) { alert("Enter an amount greater than zero."); return; }
     const { data: checkin } = await supabase.from("paquetes_checkin").select("id, cargos_adicionales").eq("paquete_id", editingInvoiceAddOns.id).order("creado_en", { ascending: false }).limit(1).maybeSingle();
@@ -3934,25 +3950,19 @@ const App = () => {
                 {ADMIN_EXTRA_CHARGE_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
               </select>
             </div>
-            <div className="pa-field">
+            {invoiceAddOnType === "Discount" ? <div className="pa-field">
+              <label htmlFor="admin-invoice-discount-code">Available discount</label>
+              <select id="admin-invoice-discount-code" className="pa-input" value={invoiceDiscountCode} onChange={(event) => setInvoiceDiscountCode(event.target.value as keyof typeof INVOICE_DISCOUNTS)}>
+                <option value="">Select a discount</option>
+                {Object.entries(INVOICE_DISCOUNTS).map(([code, discount]) => <option key={code} value={code}>{discount.label} — {Math.round(discount.rate * 100)}%</option>)}
+              </select>
+            </div> : <div className="pa-field">
               <label htmlFor="admin-invoice-charge-amount">Amount</label>
               <input id="admin-invoice-charge-amount" className="pa-input" type="number" min="0.01" step="0.01" value={invoiceAddOnAmount} onChange={(event) => setInvoiceAddOnAmount(event.target.value)} placeholder="0.00" />
-            </div>
-            <div style={{ marginTop: "0.9rem", padding: "0.8rem 0.9rem", border: "1px solid #dbeafe", borderRadius: "0.7rem", background: "#eff6ff" }}>
-              <div style={{ fontWeight: 700, color: "#1e3a8a", fontSize: "0.85rem", marginBottom: "0.45rem" }}>Available discounts</div>
-              <div style={{ display: "grid", gap: "0.25rem", color: "#334155", fontSize: "0.8rem" }}>
-                {Object.values(INVOICE_DISCOUNTS).map((discount) => (
-                  <div key={discount.label} style={{ display: "flex", justifyContent: "space-between", gap: "0.75rem" }}>
-                    <span>{discount.label}</span>
-                    <strong>{Math.round(discount.rate * 100)}%</strong>
-                  </div>
-                ))}
-              </div>
-              <p style={{ margin: "0.55rem 0 0", color: "#64748b", fontSize: "0.75rem" }}>Discounts are applied by an administrator and may be limited to eligible invoice or shipping amounts.</p>
-            </div>
+            </div>}
             <div className="pa-modal-actions">
               <button type="button" className="pa-secondary-btn" onClick={() => setEditingInvoiceAddOns(null)}>Cancel</button>
-              <button type="button" className="pa-primary-btn" disabled={!invoiceAddOnType || !invoiceAddOnAmount} onClick={() => void saveAdminInvoiceAddOn()}>Save adjustment</button>
+              <button type="button" className="pa-primary-btn" disabled={!invoiceAddOnType || (invoiceAddOnType === "Discount" ? !invoiceDiscountCode : !invoiceAddOnAmount)} onClick={() => void saveAdminInvoiceAddOn()}>{invoiceAddOnType === "Discount" ? "Apply discount" : "Save adjustment"}</button>
             </div>
           </div>
         </div>
