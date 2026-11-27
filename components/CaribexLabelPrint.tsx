@@ -94,7 +94,6 @@ export default function CaribexLabelPrint({ label, onClose, isEs = false, mode =
         <div className="caribex-label-card" data-size={labelSize}>
           <div className="caribex-label-brand">CARIBEX LOGISTICS GROUP</div>
           <div className="caribex-label-tagline">YOUR CARGO · OUR COMMITMENT</div>
-          <div className="caribex-label-type">STOCK</div>
           <div className="caribex-label-tracking">{label.boxCode || label.tracking}</div>
           {qrCode ? <img className="caribex-label-qr" src={qrCode} alt={`QR code for ${label.tracking}`} /> : <div style={{ height: 260, display: "grid", placeItems: "center", color: "#64748b" }}>Generating QR…</div>}
           <div className="caribex-label-under-qr">{label.boxCode || label.tracking}</div>

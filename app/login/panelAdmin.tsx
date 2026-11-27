@@ -27,6 +27,7 @@ import { BILLABLE_INVOICE_ITEMS, INVOICE_DISCOUNTS, SALES_TAX_RATE, formatCatalo
 import { INVOICE_FILTER_COLORS, tabColorStyle } from "../../lib/shipment-colors";
 import { FERRY_PORT_LABELS, FERRY_PORT_ORDER } from "../../lib/shipping-rules";
 import { CARIBEX_LABEL_TAB_VERSION } from "../../lib/caribex-label-version";
+import { CLIENT360_TAB_VERSION } from "../../lib/client360-version";
 
 /**
  * DASHBOARD OPERATIVO - VERSIÓN VISUAL PURA
@@ -165,7 +166,7 @@ const WEB_TAB_VERSIONS: Record<string, string> = {
   dispatches: "1.0.2",
   facturas: "1.0.4",
   track: "1.0.3",
-  client360: "1.0.3",
+  client360: CLIENT360_TAB_VERSION,
   incidencias: "1.0.3",
   clientes: "1.0.3",
   prepaid: "1.0.3",

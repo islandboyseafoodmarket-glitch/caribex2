@@ -53,6 +53,7 @@ import FerryManifestAdmin from "./login/FerryManifestAdmin";
 import DispatchesAdmin from "./login/DispatchesAdmin";
 import { calculateWorkflowBilling, isBox } from "../lib/workflow-billing";
 import { DATABASE_STATUS, FERRY_PORT_LABELS, FERRY_PORT_ORDER } from "../lib/shipping-rules";
+import { CLIENT360_TAB_VERSION } from "../lib/client360-version";
 import { CARIBEX_LABEL_TAB_VERSION } from "../lib/caribex-label-version";
 
 import {
@@ -4063,6 +4064,7 @@ const handlePackageCreated = (pkg: Package) => {
                 <h2>{isEs ? "Client 360" : "Client 360"}</h2>
                 <p>{isEs ? "Vista completa del cliente, sus envíos y su actividad." : "A complete view of the client, shipments, and account activity."}</p>
               </div>
+              <span style={{ flexShrink: 0, border: "1px solid #bfdbfe", borderRadius: "999px", background: "#eff6ff", color: "#1d4ed8", padding: "0.3rem 0.65rem", fontSize: "0.74rem", fontWeight: 800 }}>Client 360 v{CLIENT360_TAB_VERSION}</span>
               <div className="ga-client360-search">
                 <Search size={17} />
                 <input

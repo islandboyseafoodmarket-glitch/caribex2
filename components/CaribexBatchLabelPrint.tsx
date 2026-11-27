@@ -173,7 +173,6 @@ export default function CaribexBatchLabelPrint({ labels, onClose, isEs = false, 
               <div className="caribex-batch-label-brand">CARIBEX LOGISTICS GROUP</div>
               <div className="caribex-batch-label-tagline">YOUR CARGO · OUR COMMITMENT</div>
               {(label.destinationPort || label.accountNumber) && <div className="caribex-batch-label-head">{label.destinationPort && label.destinationPort in FERRY_PORT_LABELS && <span className="caribex-batch-label-route"><b>{FERRY_PORT_LABELS[label.destinationPort as FerryPort].charAt(0)}</b>{FERRY_PORT_LABELS[label.destinationPort as FerryPort]}</span>}{label.accountNumber && <span className="caribex-batch-label-account">{formatAccountNumber(label.accountNumber, label.destinationPort)}</span>}</div>}
-              <div className="caribex-batch-label-type">STOCK</div>
               <div className="caribex-batch-label-code">{label.boxCode}</div>
               {qrCodes[label.boxCode] ? <img src={qrCodes[label.boxCode]} alt={isEs ? `Código QR para ${label.tracking}` : `QR for ${label.tracking}`} /> : <div style={{ height: 240, display: "grid", placeItems: "center" }}>{isEs ? "Generando código QR…" : "Generating QR…"}</div>}
               <div className="caribex-batch-label-under-qr">{label.boxCode}</div>
