@@ -8,8 +8,6 @@ export const CUBIC_FOOT_RATE = 18.5;
 export const CONSOLIDATION_UNIT_PRICE = 2.5;
 
 export const INVOICE_DISCOUNTS = {
-  discount_10: { label: "Discount (10%)", scope: "invoice", rate: 0.10 },
-  discount_15: { label: "Discount (15%)", scope: "invoice", rate: 0.15 },
   business_discount: { label: "Business Discount (10%)", scope: "invoice", rate: 0.10 },
   vip_discount: { label: "VIP Discount (25%)", scope: "invoice", rate: 0.25 },
   customer_appreciation: { label: "Customer Appreciation (10%)", scope: "invoice", rate: 0.10 },
@@ -114,8 +112,6 @@ export function parseInvoiceDiscountLine(label: string): { code: InvoiceDiscount
   if (parsed.amount >= 0) return null;
   const normalizedDescription = parsed.description.replace(/\s+/g, " ").trim().toLowerCase();
   const legacyCodeByDescription: Partial<Record<string, InvoiceDiscountCode>> = {
-    discount: "discount_10",
-    "discount (10%)": "discount_10",
     "business discount": "business_discount",
     "customer appreciation": "customer_appreciation",
     "ferry charge offset": "ferry_charge_offset",
