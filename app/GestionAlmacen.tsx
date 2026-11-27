@@ -3985,7 +3985,7 @@ const handlePackageCreated = (pkg: Package) => {
             onClick={() => setActiveWarehouseTab("labels")}
           >
             <Barcode size={16} />
-            <span>{isEs ? `Imprimir etiquetas v${CARIBEX_LABEL_TAB_VERSION}` : `Print Labels v${CARIBEX_LABEL_TAB_VERSION}`}</span>
+            <span>{isEs ? "Imprimir etiquetas" : "Print Labels"}</span>
           </button>
           {(isAdmin || staffPermissions.ferry_manifests === true) && <button
             type="button"
@@ -4023,6 +4023,9 @@ const handlePackageCreated = (pkg: Package) => {
           </section>
         ) : activeWarehouseTab === "labels" ? (
           <section className="ga-state-card" style={{ padding: "1.5rem" }}>
+            <div style={{ display: "inline-flex", alignItems: "center", border: "1px solid #bfdbfe", borderRadius: "999px", background: "#eff6ff", color: "#1d4ed8", padding: "0.3rem 0.65rem", fontSize: "0.74rem", fontWeight: 800, marginBottom: "0.75rem" }}>
+              {isEs ? `Versión de etiquetas Caribex ${CARIBEX_LABEL_TAB_VERSION}` : `Caribex Labels v${CARIBEX_LABEL_TAB_VERSION}`}
+            </div>
             <h2 style={{ marginTop: 0 }}>{isEs ? "Generar etiquetas para cajas nuevas" : "Generate labels for new boxes"}</h2>
             <p style={{ color: "#64748b" }}>{isEs ? "Las etiquetas manuales se comparten con Administración. Cuando una etiqueta se registra en un envío, queda usada y desaparece de ambas listas." : "Manual labels are shared with Admin. Once a label is registered to a shipment, it is permanently used and disappears from both available-label lists."}</p>
             <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" }}>

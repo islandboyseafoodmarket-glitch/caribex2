@@ -86,19 +86,19 @@ export default function InvoiceViewModal({ invoice, onClose, actions, onOpenShip
 
   return (
     <div className="pa-modal-overlay" style={{ zIndex: 10050 }} onClick={onClose}>
-      <div className="pa-modal" role="dialog" aria-modal="true" aria-labelledby="invoice-view-modal-title" onClick={(event) => event.stopPropagation()} style={{ maxWidth: 760, maxHeight: "90vh", overflowY: "auto", padding: "1.35rem 1.5rem" }}>
+      <div className="pa-modal" role="dialog" aria-modal="true" aria-labelledby="invoice-view-modal-title" onClick={(event) => event.stopPropagation()} style={{ width: "min(760px, calc(100vw - 2rem))", maxWidth: "calc(100vw - 2rem)", boxSizing: "border-box", maxHeight: "90vh", overflowX: "hidden", overflowY: "auto", padding: "1.35rem 1.5rem" }}>
         <div className="pa-modal-header" style={{ marginBottom: "1rem" }}><h2 id="invoice-view-modal-title" className="pa-modal-title">▣&nbsp; Invoice</h2><button type="button" className="pa-close-btn" onClick={onClose} aria-label="Close invoice">×</button></div>
-        <div style={{ display: "grid", gridTemplateColumns: "145px minmax(0,1fr)", gap: "0.55rem 1.2rem", fontSize: "1rem", padding: "0.25rem 0 1.1rem" }}>
-          <span style={{ color: "#64748b" }}>Client</span><strong>{invoice.clientName || "-"} {invoice.clientNumber != null ? ` (#${invoice.clientNumber})` : ""}</strong>
+        <div style={{ display: "grid", gridTemplateColumns: "minmax(110px, 145px) minmax(0,1fr)", gap: "0.55rem 1.2rem", fontSize: "1rem", padding: "0.25rem 0 1.1rem" }}>
+          <span style={{ color: "#64748b" }}>Client</span><strong style={{ minWidth: 0, overflowWrap: "anywhere" }}>{invoice.clientName || "-"} {invoice.clientNumber != null ? ` (#${invoice.clientNumber})` : ""}</strong>
           <span style={{ color: "#64748b" }}>Status</span><strong>{approvalStatus}</strong>
           <span style={{ color: "#64748b" }}>Payment</span><strong style={{ color: paymentStatus.toUpperCase() === "PAID" ? "#166534" : "#64748b" }}>{paymentStatus}</strong>
           <span style={{ color: "#64748b" }}>Total</span><strong>{money(total)} <span style={{ fontWeight: 500, color: "#475569" }}>(subtotal {money(invoice.billingSubtotal)}, tax {money(invoice.billingTax)})</span></strong>
           <span style={{ color: "#64748b" }}>Balance</span><strong style={{ color: balance > 0 ? "#b45309" : "#166534" }}>{money(balance)}</strong>
-          <span style={{ color: "#64748b" }}>Container</span><strong>{invoice.container || invoice.containerLabels?.filter(Boolean).join(", ") || "-"}</strong>
+          <span style={{ color: "#64748b" }}>Container</span><strong style={{ minWidth: 0, overflowWrap: "anywhere" }}>{invoice.container || invoice.containerLabels?.filter(Boolean).join(", ") || "-"}</strong>
           <span style={{ color: "#64748b" }}>Created</span><strong>{dateTime(invoice.serviceDate)}</strong>
         </div>
         <section style={{ borderTop: "1px solid #e2e8f0", paddingTop: "1rem" }}><h3 style={{ margin: "0 0 0.55rem", fontSize: "1.05rem" }}>Packages on this invoice ({packages.length})</h3>
-          {loading ? <p style={{ color: "#64748b", margin: 0 }}>Loading packages…</p> : <div style={{ display: "grid", gap: "0.35rem" }}>{packages.map((item) => <div key={item.id} style={{ display: "grid", gridTemplateColumns: "minmax(0,1.8fr) minmax(100px,1fr) minmax(120px,1fr)", gap: "0.75rem", color: "#475569", padding: "0.2rem 0" }}><button type="button" style={{ border: 0, padding: 0, background: "transparent", textAlign: "left", color: "#2563eb", font: "inherit", cursor: "pointer", textDecoration: "underline" }} onClick={() => onOpenShipment ? onOpenShipment(item.id) : onClose()}>{item.tracking}</button><span>{item.typeLabel}</span><span>{item.id === invoice.id && item.status === "-" ? "" : item.status}</span></div>)}</div>}
+          {loading ? <p style={{ color: "#64748b", margin: 0 }}>Loading packages…</p> : <div style={{ display: "grid", gap: "0.35rem" }}>{packages.map((item) => <div key={item.id} style={{ display: "grid", gridTemplateColumns: "minmax(0,1.8fr) minmax(0,1fr) minmax(0,1fr)", gap: "0.75rem", color: "#475569", padding: "0.2rem 0" }}><button type="button" style={{ minWidth: 0, border: 0, padding: 0, background: "transparent", textAlign: "left", color: "#2563eb", font: "inherit", cursor: "pointer", textDecoration: "underline", overflowWrap: "anywhere" }} onClick={() => onOpenShipment ? onOpenShipment(item.id) : onClose()}>{item.tracking}</button><span style={{ minWidth: 0, overflowWrap: "anywhere" }}>{item.typeLabel}</span><span style={{ minWidth: 0, overflowWrap: "anywhere" }}>{item.id === invoice.id && item.status === "-" ? "" : item.status}</span></div>)}</div>}
         </section>
         {actions && <div style={{ display: "flex", justifyContent: "flex-end", flexWrap: "wrap", gap: ".6rem", marginTop: "1rem", paddingTop: "1rem", borderTop: "1px solid #e2e8f0" }}>{actions}</div>}
       </div>

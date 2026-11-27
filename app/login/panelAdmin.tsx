@@ -2637,7 +2637,7 @@ const App = () => {
             <button className={`admin-sidebar-item ${activeTab === 'track' ? 'active' : ''}`} onClick={() => setActiveTab('track')}><ScanLine /> Track Package <span className="count-badge">{pedidos.length}</span></button>
             <button className={`admin-sidebar-item ${activeTab === 'client360' ? 'active' : ''}`} onClick={() => setActiveTab('client360')}><IconUsers /> Client 360</button>
             <button className={`admin-sidebar-item ${activeTab === 'incidencias' ? 'active' : ''}`} onClick={() => setActiveTab('incidencias')}><AlertTriangle /> Issues <span className="count-badge">{pedidosConIncidencia.length}</span></button>
-            <button className={`admin-sidebar-item ${activeTab === 'labels' ? 'active' : ''}`} onClick={() => setActiveTab('labels')}><QrCode /> Caribex labels v{CARIBEX_LABEL_TAB_VERSION}</button>
+            <button className={`admin-sidebar-item ${activeTab === 'labels' ? 'active' : ''}`} onClick={() => setActiveTab('labels')}><QrCode /> Caribex labels</button>
             <button className={`admin-sidebar-item ${activeTab === 'reports' ? 'active' : ''}`} onClick={() => setActiveTab('reports')}><BarChart3 /> Reports</button>
           </div>}
         </div>
@@ -2746,7 +2746,7 @@ const App = () => {
                       : 'Create, share, and archive weekly ferry manifests'}
             </span>
           </div>
-          <span style={{ flexShrink: 0, border: '1px solid #bfdbfe', borderRadius: '999px', background: '#eff6ff', color: '#1d4ed8', padding: '0.3rem 0.65rem', fontSize: '0.74rem', fontWeight: 800, whiteSpace: 'nowrap' }}>{activeTab === 'reports' ? `Web Reports Volume ${webTabVersion(activeTab)}` : `Web ${webTabLabel(activeTab)} v${webTabVersion(activeTab)}`}</span>
+          {activeTab !== 'labels' && <span style={{ flexShrink: 0, border: '1px solid #bfdbfe', borderRadius: '999px', background: '#eff6ff', color: '#1d4ed8', padding: '0.3rem 0.65rem', fontSize: '0.74rem', fontWeight: 800, whiteSpace: 'nowrap' }}>{activeTab === 'reports' ? `Web Reports Volume ${webTabVersion(activeTab)}` : `Web ${webTabLabel(activeTab)} v${webTabVersion(activeTab)}`}</span>}
           {activeTab === 'facturas' && (
             <button type="button" className="pa-primary-btn" onClick={() => { setManualInvoiceError(null); setIsManualInvoiceOpen(true); }} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', whiteSpace: 'nowrap' }}>
               <Plus size={16} /> Create invoice
@@ -2755,6 +2755,7 @@ const App = () => {
 
           {activeTab === 'labels' && (
             <div style={{ width: '100%', maxWidth: 760, margin: '0 auto', padding: '1.5rem', border: '1px solid #e2e8f0', borderRadius: '1rem', background: '#f8fafc' }}>
+              <div style={{ display: 'inline-flex', alignItems: 'center', border: '1px solid #bfdbfe', borderRadius: '999px', background: '#eff6ff', color: '#1d4ed8', padding: '0.3rem 0.65rem', fontSize: '0.74rem', fontWeight: 800, marginBottom: '0.75rem' }}>Caribex Labels v{CARIBEX_LABEL_TAB_VERSION}</div>
               <h4 style={{ margin: 0, color: '#0f172a' }}>Generate labels for new boxes</h4>
               <p style={{ color: '#64748b', margin: '0.5rem 0 1.25rem' }}>Manual labels are shared with Staff. Once a label is registered to a shipment, it is permanently used and disappears from both available-label lists.</p>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
