@@ -52,6 +52,7 @@ export default function ScannerWorkflowPage() {
   const [message, setMessage] = useState<{ tone: "success" | "error" | "info"; text: string } | null>(null);
   const [loading, setLoading] = useState(false);
   const [updating, setUpdating] = useState(false);
+  const [scannerSessionToken, setScannerSessionToken] = useState<string | null>(null);
   const manualInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -66,6 +67,21 @@ export default function ScannerWorkflowPage() {
       ]);
       if (!admin && !staff) { await supabase.auth.signOut(); router.replace("/login"); return; }
       setOperator(staff?.nombre || staff?.nombre_personal || data.user.email || "Staff");
+      const { data: currentSession } = await supabase.auth.getSession();
+      const refreshToken = currentSession.session?.refresh_token;
+      if (refreshToken) {
+        const sessionResponse = await fetch("/api/scanner-auth", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ refresh_token: refreshToken }),
+        });
+        const sessionPayload = await sessionResponse.json();
+        if (sessionResponse.ok && sessionPayload.session?.scanner_session_token) {
+          await supabase.auth.setSession({ access_token: sessionPayload.session.access_token, refresh_token: sessionPayload.session.refresh_token });
+          setScannerSessionToken(sessionPayload.session.scanner_session_token);
+          sessionStorage.setItem("caribex_scanner_session", sessionPayload.session.scanner_session_token);
+        }
+      }
       setSessionReady(true);
     };
     void loadUser();
@@ -88,7 +104,8 @@ export default function ScannerWorkflowPage() {
       const { data: sessionData } = await supabase.auth.getSession();
       const token = sessionData.session?.access_token;
       if (!token) throw new Error("Your session has expired. Please sign in again.");
-      const response = await fetch(`/api/scanner-workflow?code=${encodeURIComponent(parsedCode)}`, { headers: { Authorization: `Bearer ${token}` } });
+      const activeScannerSession = scannerSessionToken || sessionStorage.getItem("caribex_scanner_session") || "";
+      const response = await fetch(`/api/scanner-workflow?code=${encodeURIComponent(parsedCode)}`, { headers: { Authorization: `Bearer ${token}`, "x-scanner-session": activeScannerSession } });
       const payload = await response.json();
       if (!response.ok) throw new Error(scannerErrorMessage(response.status, payload, parsedCode));
       setShipment(payload as WorkflowResponse);
@@ -96,10 +113,10 @@ export default function ScannerWorkflowPage() {
     } catch (error) {
       setMessage({ tone: "error", text: error instanceof Error ? error.message : "The scanner could not look up this shipment." });
     } finally { setLoading(false); }
-  }, []);
+  }, [scannerSessionToken]);
 
   const activateHandheldScanner = () => {
-    setMessage({ tone: "info", text: "Scanner ready — scan the barcode now." });
+    setMessage({ tone: "info", text: "Handheld scanner ready — scan the barcode now. A scanner that types into the field and sends Enter will submit automatically." });
     manualInputRef.current?.focus();
   };
 
@@ -109,7 +126,8 @@ export default function ScannerWorkflowPage() {
     try {
       const { data: sessionData } = await supabase.auth.getSession();
       const token = sessionData.session?.access_token;
-      const response = await fetch("/api/scanner-workflow", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token || ""}` }, body: JSON.stringify({ shipment_id: shipment.shipment.id, next_key: shipment.next.key }) });
+      const activeScannerSession = scannerSessionToken || sessionStorage.getItem("caribex_scanner_session") || "";
+      const response = await fetch("/api/scanner-workflow", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token || ""}`, "x-scanner-session": activeScannerSession }, body: JSON.stringify({ shipment_id: shipment.shipment.id, next_key: shipment.next.key }) });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Status update failed");
       setShipment((current) => current ? { ...current, current: payload.current, next: null, shipment: { ...current.shipment, estado: payload.current.status } } : current);
@@ -159,7 +177,7 @@ export default function ScannerWorkflowPage() {
       </div>
       <div className={styles.scanCard}>
         <div className={styles.cardTitle}><div><h2>Scan shipment</h2><p>Use the dedicated handheld scanner or type the tracking number.</p></div><ScanLine size={25} /></div>
-        <div className={styles.scanActions}><button type="button" className={styles.primaryButton} onClick={activateHandheldScanner}><ScanLine size={18} /> Activate scanner</button><div className={styles.or}><span>or</span></div><form className={styles.manualForm} onSubmit={(event) => { event.preventDefault(); void lookup(manualCode); }}><Keyboard size={18} /><input ref={manualInputRef} autoFocus autoComplete="off" value={manualCode} onChange={(event) => setManualCode(event.target.value)} placeholder="Scan or enter tracking number" aria-label="Tracking number" /><button type="submit" disabled={loading || !manualCode.trim()}><Search size={17} /> Find</button></form></div>
+        <div className={styles.scanActions}><button type="button" className={styles.primaryButton} onClick={activateHandheldScanner}><Keyboard size={18} /> Activate handheld scanner</button><div className={styles.or}><span>or type manually</span></div><form className={styles.manualForm} onSubmit={(event) => { event.preventDefault(); void lookup(manualCode); }}><Keyboard size={18} /><input ref={manualInputRef} autoFocus autoComplete="off" value={manualCode} onChange={(event) => setManualCode(event.target.value)} placeholder="Scan or enter tracking number" aria-label="Tracking number" /><button type="submit" disabled={loading || !manualCode.trim()}><Search size={17} /> Find</button></form></div>
         {loading && <div className={styles.busy}>Looking up shipment…</div>}
         {message && <div className={`${styles.message} ${styles[message.tone]}`} role={message.tone === "error" ? "alert" : "status"} aria-live="assertive">{message.tone === "success" ? <CheckCircle2 size={20} /> : message.tone === "error" ? <XCircle size={20} /> : <ScanLine size={20} />}<div><strong>{message.tone === "error" ? "SCAN ERROR" : message.tone === "success" ? "SCAN COMPLETE" : "SCANNER READY"}</strong><span>{message.text}</span></div></div>}
       </div>
