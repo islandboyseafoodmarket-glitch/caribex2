@@ -158,6 +158,31 @@ const StageReceived: React.FC<StageReceivedProps> = ({
     resetForm();
   };
 
+  const applyDetectedTracking = (rawValue: string) => {
+    const text = rawValue.trim();
+    if (!text) return;
+
+    const info = detectCarrier(text);
+    const carrierMap: Record<string, string> = {
+      ups: "UPS",
+      fedex: "FedEx",
+      dhl: "DHL",
+      usps: "USPS",
+      amazon: "Amazon logistics",
+      shein: "SheIn",
+      speedx: "SpeedX",
+      swiftx: "SwiftX",
+      yanwen: "Yanwen Express",
+      gofo: "GOFO Express",
+    };
+
+    setBarcode(info.trackingNumber);
+    setTracking(info.trackingNumber);
+    if (info.carrier !== "unknown") {
+      setCarrier(carrierMap[info.carrier] || "");
+    }
+  };
+
   const activateHandheldScanner = () => {
     setIsScannerOpen(false);
     setIsCaribexScannerOpen(false);
@@ -216,48 +241,15 @@ const StageReceived: React.FC<StageReceivedProps> = ({
           const text = decodedText.trim();
           if (!text) return;
 
-          const info = detectCarrier(text);
-
-          // Keep the normalized carrier tracking value in the form. FedEx
-          // labels often encode an additional 12-digit carrier payload before
-          // the customer-facing tracking number.
-          setBarcode(info.trackingNumber);
-          setTracking(info.trackingNumber);
-
-          if (info.carrier === "unknown" && !info.trackingNumber) {
-            setCarrier("");
-            alert(
-              isEs
-                ? "Este código no es un tracking válido. Escanee el código de barras principal del envío."
-                : "This barcode was not recognized as a valid tracking number. Scan the shipment's main barcode.",
-            );
-          }
-
-          const carrierMap: Record<string, string> = {
-            ups: "UPS",
-            fedex: "FedEx",
-            dhl: "DHL",
-            usps: "USPS",
-            amazon: "Amazon logistics",
-            shein: "SheIn",
-            speedx: "SpeedX",
-            swiftx: "SwiftX",
-            yanwen: "Yanwen Express",
-            gofo: "GOFO Express",
-          };
-
-          if (info.carrier !== "unknown") {
-            // UPS Ground is a UPS service level, not a separate carrier.
-            setCarrier(carrierMap[info.carrier] || "");
-          }
+          applyDetectedTracking(text);
 
           console.log(
             "Detected Carrier:",
-            info.carrier,
+            detectCarrier(text).carrier,
             "Tracking:",
-            info.trackingNumber,
+            detectCarrier(text).trackingNumber,
             "Confidence:",
-            info.confidence,
+            detectCarrier(text).confidence,
           );
 
           setIsScannerOpen(false);
@@ -769,11 +761,15 @@ const StageReceived: React.FC<StageReceivedProps> = ({
                       value={tracking}
                       onChange={(e) => setTracking(e.target.value)}
                       onKeyDown={(e) => {
-                        // Keyboard-wedge scanners commonly append Enter. Keep
-                        // the value in the registration form instead of
-                        // submitting before carrier/type details are complete.
-                        if (e.key === "Enter") e.preventDefault();
+                        // Keyboard-wedge scanners commonly append Enter.
+                        // Normalize the complete scan without submitting the
+                        // registration form prematurely.
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          applyDetectedTracking(e.currentTarget.value);
+                        }
                       }}
+                      onBlur={(e) => applyDetectedTracking(e.currentTarget.value)}
                       placeholder={
                         isEs ? "Ej. 1234567890" : "e.g. 1234567890"
                       }
