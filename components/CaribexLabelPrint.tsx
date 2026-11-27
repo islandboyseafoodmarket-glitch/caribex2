@@ -92,7 +92,7 @@ export default function CaribexLabelPrint({ label, onClose, isEs = false, mode =
       `}</style>
       <div className="caribex-label-sheet">
         <div className="caribex-label-card" data-size={labelSize}>
-          <div className="caribex-label-brand">Caribex</div>
+          <div className="caribex-label-brand">CARIBEX LOGISTICS GROUP</div>
           <div className="caribex-label-tagline">YOUR CARGO · OUR COMMITMENT</div>
           <div className="caribex-label-type">STOCK</div>
           <div className="caribex-label-tracking">{label.boxCode || label.tracking}</div>
