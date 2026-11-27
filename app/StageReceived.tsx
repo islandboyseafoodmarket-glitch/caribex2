@@ -119,6 +119,7 @@ const StageReceived: React.FC<StageReceivedProps> = ({
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [isCaribexScannerOpen, setIsCaribexScannerOpen] = useState(false);
   const scannerRef = useRef<Html5Qrcode | null>(null);
+  const trackingInputRef = useRef<HTMLInputElement | null>(null);
   const [viewPackage, setViewPackage] = useState<StageReceivedPackage | null>(null);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<StageReceivedPackage | null>(null);
@@ -149,11 +150,23 @@ const StageReceived: React.FC<StageReceivedProps> = ({
   const handleOpenModal = () => {
     resetForm();
     setIsModalOpen(true);
+    window.setTimeout(() => trackingInputRef.current?.focus(), 150);
   };
 
   const handleCloseModal = () => {
     setIsModalOpen(false);
     resetForm();
+  };
+
+  const activateHandheldScanner = () => {
+    setIsScannerOpen(false);
+    setIsCaribexScannerOpen(false);
+    trackingInputRef.current?.focus();
+    alert(
+      isEs
+        ? "Escáner portátil listo. Escanee la etiqueta; el número aparecerá en Tracking Number."
+        : "Handheld scanner ready. Scan the label; the number will appear in Tracking Number.",
+    );
   };
 
   useEffect(() => {
@@ -750,10 +763,17 @@ const StageReceived: React.FC<StageReceivedProps> = ({
                   <div className="ga-barcode-input">
                     <Barcode size={16} />
                     <input
+                      ref={trackingInputRef}
                       type="text"
                       required
                       value={tracking}
                       onChange={(e) => setTracking(e.target.value)}
+                      onKeyDown={(e) => {
+                        // Keyboard-wedge scanners commonly append Enter. Keep
+                        // the value in the registration form instead of
+                        // submitting before carrier/type details are complete.
+                        if (e.key === "Enter") e.preventDefault();
+                      }}
                       placeholder={
                         isEs ? "Ej. 1234567890" : "e.g. 1234567890"
                       }
@@ -762,6 +782,15 @@ const StageReceived: React.FC<StageReceivedProps> = ({
                       autoCapitalize="off"
                     />
                   </div>
+                  <button
+                    type="button"
+                    className="ga-primary-button"
+                    style={{ marginTop: "0.5rem", width: "100%" }}
+                    onClick={activateHandheldScanner}
+                  >
+                    <Barcode size={16} style={{ marginRight: 8 }} />
+                    {isEs ? "Activar escáner portátil" : "Activate handheld scanner"}
+                  </button>
                   <button
                     type="button"
                     className="ga-secondary-button"
