@@ -26,6 +26,7 @@ import InvoiceViewModal, { type InvoiceViewData } from "../../components/Invoice
 import { BILLABLE_INVOICE_ITEMS, SALES_TAX_RATE, formatCatalogCharge, roundMoney } from "../../lib/invoice-pricing";
 import { INVOICE_FILTER_COLORS, tabColorStyle } from "../../lib/shipment-colors";
 import { FERRY_PORT_LABELS, FERRY_PORT_ORDER } from "../../lib/shipping-rules";
+import { CARIBEX_LABEL_TAB_VERSION } from "../../lib/caribex-label-version";
 
 /**
  * DASHBOARD OPERATIVO - VERSIÓN VISUAL PURA
@@ -169,7 +170,7 @@ const WEB_TAB_VERSIONS: Record<string, string> = {
   clientes: "1.0.3",
   prepaid: "1.0.3",
   reports: "1.2.4",
-  labels: "1.0.4",
+  labels: CARIBEX_LABEL_TAB_VERSION,
   containers: "1.0.6",
   personal: "1.0.3",
   activityLogs: "1.0.3",
@@ -2636,7 +2637,7 @@ const App = () => {
             <button className={`admin-sidebar-item ${activeTab === 'track' ? 'active' : ''}`} onClick={() => setActiveTab('track')}><ScanLine /> Track Package <span className="count-badge">{pedidos.length}</span></button>
             <button className={`admin-sidebar-item ${activeTab === 'client360' ? 'active' : ''}`} onClick={() => setActiveTab('client360')}><IconUsers /> Client 360</button>
             <button className={`admin-sidebar-item ${activeTab === 'incidencias' ? 'active' : ''}`} onClick={() => setActiveTab('incidencias')}><AlertTriangle /> Issues <span className="count-badge">{pedidosConIncidencia.length}</span></button>
-            <button className={`admin-sidebar-item ${activeTab === 'labels' ? 'active' : ''}`} onClick={() => setActiveTab('labels')}><QrCode /> Caribex labels</button>
+            <button className={`admin-sidebar-item ${activeTab === 'labels' ? 'active' : ''}`} onClick={() => setActiveTab('labels')}><QrCode /> Caribex labels v{CARIBEX_LABEL_TAB_VERSION}</button>
             <button className={`admin-sidebar-item ${activeTab === 'reports' ? 'active' : ''}`} onClick={() => setActiveTab('reports')}><BarChart3 /> Reports</button>
           </div>}
         </div>

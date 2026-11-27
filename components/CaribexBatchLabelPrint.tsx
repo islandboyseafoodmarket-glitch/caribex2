@@ -76,9 +76,16 @@ export default function CaribexBatchLabelPrint({ labels, onClose, isEs = false, 
       const route = portName ? `<div class="label-route"><span class="route-badge">${escapeHtml(portName.charAt(0))}</span><span>${escapeHtml(portName)}</span></div>` : "";
       return `
         <article class="label" data-size="${labelSize}" style="--route-color:${portStyle.color};--route-tint:${portStyle.tint}">
-          <div class="label-top"><strong class="label-brand">Caribex</strong>${route}${account ? `<strong class="label-account">${escapeHtml(account)}</strong>` : ""}</div>
-          <img src="${qrCodes[label.boxCode]}" alt="QR for ${escapeHtml(label.tracking)}">
+          <div class="label-brand">CARIBEX LOGISTICS GROUP</div>
+          <div class="label-tagline">YOUR CARGO · OUR COMMITMENT</div>
+          ${(route || account) ? `<div class="label-personal">${route}${account ? `<strong class="label-account">${escapeHtml(account)}</strong>` : ""}</div>` : ""}
+          <div class="label-type">STOCK</div>
           <div class="label-code">${escapeHtml(label.boxCode)}</div>
+          <img src="${qrCodes[label.boxCode]}" alt="QR for ${escapeHtml(label.tracking)}">
+          <div class="label-under-qr">${escapeHtml(label.boxCode)}</div>
+          <div class="label-meta"><span>CARIBEX LABEL</span><span>LOGISTICS GROUP</span></div>
+          <div class="label-code">${escapeHtml(label.boxCode)}</div>
+          <div class="label-vertical">${escapeHtml(label.boxCode)}</div>
         </article>
       `;
     }).join("");
@@ -92,14 +99,19 @@ export default function CaribexBatchLabelPrint({ labels, onClose, isEs = false, 
       html,body{margin:0;padding:0;background:#fff;color:#111827;font-family:Arial,Helvetica,sans-serif}
       .label-grid{margin:0;padding:0}
       ${sheetLayout}
-      .label{width:${size.width};height:${size.height};margin:0;padding:.12in;border:2px solid var(--route-color);text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:space-between;overflow:hidden}
-      .label-top{width:100%;min-height:.38in;display:flex;align-items:center;justify-content:space-between;gap:.08in}
-      .label-brand{display:block;color:#0f4c81;font-size:19px;letter-spacing:.03em}
-      .label-route{display:flex;align-items:center;gap:.07in;color:var(--route-color);font-size:12px;font-weight:800;white-space:nowrap}
-      .route-badge{display:grid;place-items:center;width:.34in;height:.34in;border-radius:.07in;background:var(--route-color);color:#fff;font-size:13px}
-      .label-account{display:block;color:var(--route-color);font-size:17px;font-weight:900;white-space:nowrap}
-      .label img{display:block;width:${size.qr};height:${size.qr};margin:auto;object-fit:contain;image-rendering:pixelated}
-      .label-code{width:100%;font-size:18px;font-weight:800;line-height:1.2;word-break:break-all}
+      .label{position:relative;width:${size.width};height:${size.height};margin:0;padding:.16in .38in .18in .18in;border:3px solid #000;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:space-between;overflow:hidden;color:#000}
+      .label-brand{width:100%;border-bottom:3px solid #000;padding-bottom:.07in;color:#000;font-size:21px;font-weight:900;letter-spacing:.06em;line-height:1.05}
+      .label-tagline{font-size:9px;font-weight:700;letter-spacing:.08em}
+      .label-personal{display:flex;align-items:center;justify-content:center;gap:.12in;min-height:.24in;color:var(--route-color);font-size:11px;font-weight:800}
+      .label-route{display:flex;align-items:center;gap:.05in;white-space:nowrap}
+      .route-badge{display:grid;place-items:center;width:.25in;height:.25in;border-radius:.05in;background:var(--route-color);color:#fff;font-size:11px}
+      .label-account{font-size:14px;font-weight:900;white-space:nowrap}
+      .label-type{font-size:21px;font-weight:900;letter-spacing:.3em}
+      .label img{display:block;width:2.65in;height:2.65in;margin:auto;object-fit:contain;image-rendering:pixelated}
+      .label-code{width:100%;font-size:31px;font-weight:900;line-height:1;word-break:break-all}
+      .label-under-qr{font-size:27px;font-weight:900;line-height:1;word-break:break-all}
+      .label-meta{width:100%;display:flex;justify-content:space-between;border-top:2px solid #000;padding-top:6px;font-size:10px;font-weight:700}
+      .label-vertical{position:absolute;right:2px;top:1.48in;height:2.8in;display:flex;align-items:center;justify-content:center;font-size:27px;font-weight:900;letter-spacing:.03em;writing-mode:vertical-rl;transform:rotate(180deg)}
       ${labelSize === "a4-12" ? ".label-top{min-height:.3in}.label-brand{font-size:15px}.label-route{font-size:10px}.route-badge{width:.25in;height:.25in;font-size:10px}.label-account{font-size:12px}.label-code{font-size:13px}" : ""}
       @media print{html,body{width:auto!important;height:auto!important;overflow:visible!important}.label{break-inside:avoid;page-break-inside:avoid}}
     </style></head><body><main class="label-grid">${labelMarkup}</main><script>
@@ -118,14 +130,20 @@ export default function CaribexBatchLabelPrint({ labels, onClose, isEs = false, 
         .caribex-batch-label-actions button { border: 1px solid #cbd5e1; border-radius: 8px; padding: 9px 14px; cursor: pointer; font-weight: 700; }
         .caribex-batch-label-actions button:last-child { border-color: #0f4c81; background: #0f4c81; color: #fff; }
         .caribex-batch-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
-        .caribex-batch-label { --label-width: 4in; --label-height: 6in; break-inside: avoid; border: 2px solid var(--route-color, #0f4c81); border-radius: 10px; padding: 16px; text-align: center; color: #111827; width: var(--label-width); height: var(--label-height); box-sizing: border-box; display: flex; flex-direction: column; align-items: center; justify-content: space-between; overflow: hidden; }
+        .caribex-batch-label { --label-width: 4in; --label-height: 6in; position: relative; break-inside: avoid; border: 3px solid #000; border-radius: 0; padding: 14px 30px 16px 14px; text-align: center; color: #000; width: var(--label-width); height: var(--label-height); box-sizing: border-box; display: flex; flex-direction: column; align-items: center; justify-content: space-between; overflow: hidden; }
         .caribex-batch-label-head { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-        .caribex-batch-label-head strong { color: #0f4c81; font-size: 19px; letter-spacing: .03em; }
+        .caribex-batch-label-head strong { color: #000; font-size: 19px; letter-spacing: .03em; }
         .caribex-batch-label-route { display: inline-flex; align-items: center; gap: 5px; color: var(--route-color); font-size: 12px; font-weight: 800; }
         .caribex-batch-label-route b { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 6px; background: var(--route-color); color: #fff; }
         .caribex-batch-label-account { color: var(--route-color); font-size: 18px; font-weight: 900; white-space: nowrap; }
-        .caribex-batch-label img { display: block; width: 240px; height: 240px; margin: auto; image-rendering: pixelated; }
-        .caribex-batch-label-code { font-size: 18px; font-weight: 800; word-break: break-all; }
+        .caribex-batch-label img { display: block; width: 2.65in; height: 2.65in; margin: auto; image-rendering: pixelated; }
+        .caribex-batch-label-code { font-size: 31px; font-weight: 900; line-height: 1; word-break: break-all; }
+        .caribex-batch-label-brand { width: 100%; border-bottom: 3px solid #000; padding-bottom: 7px; font-size: 21px; font-weight: 900; letter-spacing: .06em; line-height: 1.05; }
+        .caribex-batch-label-tagline { font-size: 9px; font-weight: 700; letter-spacing: .08em; }
+        .caribex-batch-label-type { font-size: 21px; font-weight: 900; letter-spacing: .3em; }
+        .caribex-batch-label-under-qr { font-size: 27px; font-weight: 900; line-height: 1; }
+        .caribex-batch-label-meta { width: 100%; display: flex; justify-content: space-between; border-top: 2px solid #000; padding-top: 6px; font-size: 10px; font-weight: 700; }
+        .caribex-batch-label-vertical { position: absolute; right: 2px; top: 1.48in; height: 2.8in; display: flex; align-items: center; justify-content: center; font-size: 27px; font-weight: 900; letter-spacing: .03em; writing-mode: vertical-rl; transform: rotate(180deg); }
         @media print {
           body * { visibility: hidden !important; }
           .caribex-batch-label-overlay, .caribex-batch-label-overlay * { visibility: visible !important; }
@@ -152,9 +170,16 @@ export default function CaribexBatchLabelPrint({ labels, onClose, isEs = false, 
         <div className="caribex-batch-grid">
           {labels.map((label) => (
             <div className="caribex-batch-label" data-size={labelSize} key={label.boxCode} style={{ "--route-color": label.destinationPort && label.destinationPort in PORT_COLORS ? PORT_COLORS[label.destinationPort as FerryPort].color : "#0f4c81", "--route-tint": label.destinationPort && label.destinationPort in PORT_COLORS ? PORT_COLORS[label.destinationPort as FerryPort].tint : "#eff6ff" } as CSSProperties}>
-              <div className="caribex-batch-label-head"><strong>Caribex</strong>{label.destinationPort && label.destinationPort in FERRY_PORT_LABELS && <span className="caribex-batch-label-route"><b>{FERRY_PORT_LABELS[label.destinationPort as FerryPort].charAt(0)}</b>{FERRY_PORT_LABELS[label.destinationPort as FerryPort]}</span>}{label.accountNumber && <span className="caribex-batch-label-account">{formatAccountNumber(label.accountNumber, label.destinationPort)}</span>}</div>
-              {qrCodes[label.boxCode] ? <img src={qrCodes[label.boxCode]} alt={isEs ? `Código QR para ${label.tracking}` : `QR for ${label.tracking}`} /> : <div style={{ height: 240, display: "grid", placeItems: "center" }}>{isEs ? "Generando código QR…" : "Generating QR…"}</div>}
+              <div className="caribex-batch-label-brand">CARIBEX LOGISTICS GROUP</div>
+              <div className="caribex-batch-label-tagline">YOUR CARGO · OUR COMMITMENT</div>
+              {(label.destinationPort || label.accountNumber) && <div className="caribex-batch-label-head">{label.destinationPort && label.destinationPort in FERRY_PORT_LABELS && <span className="caribex-batch-label-route"><b>{FERRY_PORT_LABELS[label.destinationPort as FerryPort].charAt(0)}</b>{FERRY_PORT_LABELS[label.destinationPort as FerryPort]}</span>}{label.accountNumber && <span className="caribex-batch-label-account">{formatAccountNumber(label.accountNumber, label.destinationPort)}</span>}</div>}
+              <div className="caribex-batch-label-type">STOCK</div>
               <div className="caribex-batch-label-code">{label.boxCode}</div>
+              {qrCodes[label.boxCode] ? <img src={qrCodes[label.boxCode]} alt={isEs ? `Código QR para ${label.tracking}` : `QR for ${label.tracking}`} /> : <div style={{ height: 240, display: "grid", placeItems: "center" }}>{isEs ? "Generando código QR…" : "Generating QR…"}</div>}
+              <div className="caribex-batch-label-under-qr">{label.boxCode}</div>
+              <div className="caribex-batch-label-meta"><span>CARIBEX LABEL</span><span>LOGISTICS GROUP</span></div>
+              <div className="caribex-batch-label-code">{label.boxCode}</div>
+              <div className="caribex-batch-label-vertical">{label.boxCode}</div>
             </div>
           ))}
         </div>

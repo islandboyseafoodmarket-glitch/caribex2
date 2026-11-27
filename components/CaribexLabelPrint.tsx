@@ -59,11 +59,15 @@ export default function CaribexLabelPrint({ label, onClose, isEs = false, mode =
       <style>{`
         .caribex-label-overlay { position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center; padding: 1rem; background: rgba(15, 23, 42, .55); }
         .caribex-label-sheet { width: min(420px, 100%); background: #fff; border-radius: 16px; padding: 20px; box-shadow: 0 24px 70px rgba(15,23,42,.3); }
-        .caribex-label-card { --label-width: 4in; --label-height: 6in; border: 2px solid #0f4c81; border-radius: 10px; padding: 18px; text-align: center; color: #111827; width: var(--label-width); min-height: var(--label-height); box-sizing: border-box; margin: 0 auto; }
-        .caribex-label-brand { color: #0f4c81; font-size: 19px; font-weight: 800; letter-spacing: .03em; }
-        .caribex-label-subtitle { margin-top: 3px; color: #64748b; font-size: 11px; text-transform: uppercase; letter-spacing: .12em; }
-        .caribex-label-qr { display: block; width: 260px; height: 260px; margin: 16px auto 10px; image-rendering: pixelated; }
-        .caribex-label-tracking { font-size: 22px; font-weight: 800; letter-spacing: .08em; word-break: break-all; }
+        .caribex-label-card { --label-width: 4in; --label-height: 6in; position: relative; border: 3px solid #000; border-radius: 0; padding: 14px 30px 16px 14px; text-align: center; color: #000; width: var(--label-width); min-height: var(--label-height); box-sizing: border-box; margin: 0 auto; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: space-between; }
+        .caribex-label-brand { width: 100%; color: #000; border-bottom: 3px solid #000; padding-bottom: 7px; font-size: 21px; font-weight: 900; letter-spacing: .06em; line-height: 1.05; }
+        .caribex-label-tagline { font-size: 9px; font-weight: 700; letter-spacing: .08em; }
+        .caribex-label-type { font-size: 21px; font-weight: 900; letter-spacing: .3em; }
+        .caribex-label-qr { display: block; width: 2.65in; height: 2.65in; margin: auto; image-rendering: pixelated; }
+        .caribex-label-tracking { font-size: 31px; font-weight: 900; letter-spacing: .03em; line-height: 1; word-break: break-all; }
+        .caribex-label-under-qr { font-size: 27px; font-weight: 900; letter-spacing: .03em; line-height: 1; }
+        .caribex-label-vertical { position: absolute; right: 2px; top: 1.48in; height: 2.8in; display: flex; align-items: center; justify-content: center; font-size: 27px; font-weight: 900; letter-spacing: .03em; writing-mode: vertical-rl; transform: rotate(180deg); }
+        .caribex-label-meta { width: 100%; display: flex; justify-content: space-between; border-top: 2px solid #000; padding-top: 6px; font-size: 10px; font-weight: 700; }
         .caribex-label-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 15px; text-align: left; font-size: 12px; }
         .caribex-label-meta div { padding: 7px; border-radius: 6px; background: #f1f5f9; }
         .caribex-label-meta strong { display: block; margin-bottom: 2px; color: #64748b; font-size: 10px; text-transform: uppercase; }
@@ -76,7 +80,7 @@ export default function CaribexLabelPrint({ label, onClose, isEs = false, mode =
           .caribex-label-overlay { position: static; padding: 0; background: #fff; }
           .caribex-label-sheet { width: 100%; padding: 0; box-shadow: none; }
           .caribex-label-card { margin: 0 auto; width: var(--label-width); min-height: var(--label-height); }
-          .caribex-label-qr { width: 2.75in; height: 2.75in; }
+          .caribex-label-qr { width: 2.65in; height: 2.65in; }
           .caribex-label-actions { display: none; }
         }
         .caribex-label-card[data-size="1.5x2.25"] { --label-width: 1.5in; --label-height: 2.25in; }
@@ -89,15 +93,14 @@ export default function CaribexLabelPrint({ label, onClose, isEs = false, mode =
       <div className="caribex-label-sheet">
         <div className="caribex-label-card" data-size={labelSize}>
           <div className="caribex-label-brand">Caribex</div>
-          <div className="caribex-label-subtitle">
-            {isQrReprint
-              ? (isEs ? "Reimpresión QR" : "QR reprint")
-              : ""}
-          </div>
+          <div className="caribex-label-tagline">YOUR CARGO · OUR COMMITMENT</div>
+          <div className="caribex-label-type">STOCK</div>
+          <div className="caribex-label-tracking">{label.boxCode || label.tracking}</div>
           {qrCode ? <img className="caribex-label-qr" src={qrCode} alt={`QR code for ${label.tracking}`} /> : <div style={{ height: 260, display: "grid", placeItems: "center", color: "#64748b" }}>Generating QR…</div>}
-          <div className="caribex-label-tracking">
-            {isQrReprint ? label.tracking : (label.boxCode || `${labelCode}-2026-Caribex`)}
-          </div>
+          <div className="caribex-label-under-qr">{label.boxCode || label.tracking}</div>
+          <div className="caribex-label-meta"><span>CARIBEX LABEL</span><span>LOGISTICS GROUP</span></div>
+          <div className="caribex-label-tracking">{label.boxCode || label.tracking}</div>
+          <div className="caribex-label-vertical">{label.boxCode || label.tracking}</div>
         </div>
         <div className="caribex-label-actions">
           <button type="button" onClick={onClose}>{isEs ? "Cerrar" : "Close"}</button>

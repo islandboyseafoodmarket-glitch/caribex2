@@ -53,6 +53,7 @@ import FerryManifestAdmin from "./login/FerryManifestAdmin";
 import DispatchesAdmin from "./login/DispatchesAdmin";
 import { calculateWorkflowBilling, isBox } from "../lib/workflow-billing";
 import { DATABASE_STATUS, FERRY_PORT_LABELS, FERRY_PORT_ORDER } from "../lib/shipping-rules";
+import { CARIBEX_LABEL_TAB_VERSION } from "../lib/caribex-label-version";
 
 import {
   Html5Qrcode,
@@ -3984,7 +3985,7 @@ const handlePackageCreated = (pkg: Package) => {
             onClick={() => setActiveWarehouseTab("labels")}
           >
             <Barcode size={16} />
-            <span>{isEs ? "Imprimir etiquetas" : "Print Labels"}</span>
+            <span>{isEs ? `Imprimir etiquetas v${CARIBEX_LABEL_TAB_VERSION}` : `Print Labels v${CARIBEX_LABEL_TAB_VERSION}`}</span>
           </button>
           {(isAdmin || staffPermissions.ferry_manifests === true) && <button
             type="button"
