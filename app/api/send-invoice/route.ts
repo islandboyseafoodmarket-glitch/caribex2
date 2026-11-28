@@ -558,7 +558,7 @@ export async function POST(request: Request) {
       .maybeSingle();
     await authClient.from("staff_action_logs").insert({
       actor_id: authData.user.id,
-      actor_name: actorProfile?.nombre || actorProfile?.nombre_personal || authData.user.email || null,
+      actor_name: admin ? "Admin" : actorProfile?.nombre || actorProfile?.nombre_personal || authData.user.email || null,
       actor_email: authData.user.email || null,
       actor_role: admin ? "admin" : "staff",
       action: "send_invoice",

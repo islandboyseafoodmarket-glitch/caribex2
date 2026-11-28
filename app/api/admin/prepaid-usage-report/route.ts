@@ -89,7 +89,7 @@ async function requireAdmin(request: Request, supabase: SupabaseClient): Promise
   return {
     user: authData.user,
     role: String(admin.rol || "admin"),
-    name: metadataName.trim() || authData.user.email || "Admin",
+    name: "Admin",
   };
 }
 

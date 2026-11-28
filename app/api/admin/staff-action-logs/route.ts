@@ -25,7 +25,10 @@ async function requireStaff(request: Request, supabase: SupabaseClient) {
   const profile = staff
     ? { nombre: staff.nombre, nombre_personal: staff.nombre_personal, rol: staff.rol }
     : { nombre: null, nombre_personal: null, rol: admin?.rol || "administrador" };
-  return { user: authData.user, role: admin ? "admin" : "staff", profile };
+  const displayName = staff
+    ? staff.nombre || staff.nombre_personal || authData.user.email || null
+    : "Admin";
+  return { user: authData.user, role: admin ? "admin" : "staff", profile, displayName };
 }
 
 function errorResponse(error: unknown) {
@@ -86,7 +89,7 @@ export async function POST(request: Request) {
 
     const { data, error } = await supabase.from("staff_action_logs").insert({
       actor_id: actor.user.id,
-      actor_name: actor.profile?.nombre || actor.profile?.nombre_personal || actor.user.email || null,
+      actor_name: actor.displayName,
       actor_email: actor.user.email || null,
       actor_role: actor.role,
       action,

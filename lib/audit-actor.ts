@@ -9,6 +9,7 @@ const ROLE_NAMES = new Set(["admin", "administrator", "administrador", "staff", 
 export function auditActorName(actor: AuditActor): string {
   const name = String(actor.actor_name || "").trim();
   const email = String(actor.actor_email || "").trim();
+  if (["admin", "administrator", "administrador"].includes(String(actor.actor_role || "").trim().toLowerCase())) return "Admin";
   const genericName = ROLE_NAMES.has(name.toLowerCase()) || name.toLowerCase() === String(actor.actor_role || "").trim().toLowerCase();
   if (name && !genericName) return name;
   return email || "Unknown staff";

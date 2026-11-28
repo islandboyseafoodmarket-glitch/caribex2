@@ -83,7 +83,6 @@ export default function CaribexBatchLabelPrint({ labels, onClose, isEs = false, 
           <div class="label-code">${escapeHtml(label.boxCode)}</div>
           <img src="${qrCodes[label.boxCode]}" alt="QR for ${escapeHtml(label.tracking)}">
           <div class="label-under-qr">${escapeHtml(label.boxCode)}</div>
-          <div class="label-meta"><span>CARIBEX LABEL</span><span>LOGISTICS GROUP</span></div>
           <div class="label-code">${escapeHtml(label.boxCode)}</div>
           <div class="label-vertical">${escapeHtml(label.boxCode)}</div>
         </article>
@@ -176,7 +175,6 @@ export default function CaribexBatchLabelPrint({ labels, onClose, isEs = false, 
               <div className="caribex-batch-label-code">{label.boxCode}</div>
               {qrCodes[label.boxCode] ? <img src={qrCodes[label.boxCode]} alt={isEs ? `Código QR para ${label.tracking}` : `QR for ${label.tracking}`} /> : <div style={{ height: 240, display: "grid", placeItems: "center" }}>{isEs ? "Generando código QR…" : "Generating QR…"}</div>}
               <div className="caribex-batch-label-under-qr">{label.boxCode}</div>
-              <div className="caribex-batch-label-meta"><span>CARIBEX LABEL</span><span>LOGISTICS GROUP</span></div>
               <div className="caribex-batch-label-code">{label.boxCode}</div>
               <div className="caribex-batch-label-vertical">{label.boxCode}</div>
             </div>
